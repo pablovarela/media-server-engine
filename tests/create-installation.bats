@@ -121,3 +121,10 @@ create() {
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "$STUB_DIR/newinst/engine already exists"
 }
+
+@test "an installation name that is not letters, digits and dashes is refused before anything is made" {
+  run create "trialpub=age1x" < <(echo)
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "lowercase letters, digits and dashes"
+  ! grep -qE "^(git clone|age-keygen|fake-)" "$STUB_LOG" || false
+}

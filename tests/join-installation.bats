@@ -129,3 +129,9 @@ line_of() {
   [ -f "$STUB_DIR/elsewhere/engine/scripts/join-installation.sh" ]
   grep -q "git clone github-media-server-config-testinst:someone/media-server-config-testinst.git $STUB_DIR/elsewhere/config" "$STUB_LOG"
 }
+
+@test "joining refuses an installation name that is not letters, digits and dashes" {
+  run join "Bad Name" < /dev/null
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "lowercase letters, digits and dashes"
+}

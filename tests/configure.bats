@@ -26,7 +26,6 @@ teardown() {
 
 answers_for_new_installation() {
   cat <<'EOF'
-testinst
 Europe/London
 y
 someone
@@ -48,11 +47,11 @@ EOF
 }
 
 enter_on_every_prompt() {
-  for _ in $(seq 18); do echo; done
+  for _ in $(seq 17); do echo; done
 }
 
 configure() {
-  "$ENGINE_DIR/scripts/configure.sh" "$@"
+  NAME=testinst "$ENGINE_DIR/scripts/configure.sh" "$@"
 }
 
 commits() {
@@ -100,14 +99,14 @@ commits() {
 @test "configure shows current values as defaults and masks secrets" {
   configure < <(answers_for_new_installation) >/dev/null 2>&1
   run configure < <(enter_on_every_prompt)
-  echo "$output" | grep -q "Installation name \[testinst\]"
+  echo "$output" | grep -q "Installation: testinst"
   echo "$output" | grep -q "set, ends …key"
   ! echo "$output" | grep -q "K005applicationkey" || false
 }
 
 @test "changing one secret rewrites only its file" {
   configure < <(answers_for_new_installation) >/dev/null 2>&1
-  run configure < <(for i in $(seq 18); do if [ "$i" -eq 12 ]; then echo new-vpn-password; else echo; fi; done)
+  run configure < <(for i in $(seq 17); do if [ "$i" -eq 11 ]; then echo new-vpn-password; else echo; fi; done)
   [ "$(commits)" -eq 2 ]
   [ "$(git -C "$CONFIG_DIR" show --name-only --format= HEAD)" = "secrets/vpn.sops.env" ]
   grep -qx "ENC:OPENVPN_PASSWORD=new-vpn-password" "$CONFIG_DIR/secrets/vpn.sops.env"
@@ -161,7 +160,7 @@ answers_with() {
 }
 
 @test "a local-only installation never touches a github repo and is not asked for an owner" {
-  run configure < <(answers_with '3s/y/n/; 4d')
+  run configure < <(answers_with '2s/y/n/; 3d')
   [ "$status" -eq 0 ]
   ! grep -q "^gh repo" "$STUB_LOG" || false
   ! git -C "$CONFIG_DIR" remote get-url origin 2>/dev/null || false
@@ -172,8 +171,8 @@ answers_with() {
 }
 
 @test "a local config is published when it is switched to github" {
-  configure < <(answers_with '3s/y/n/; 4d') >/dev/null 2>&1
-  run configure < <(printf '\n\ny\nsomeone\n'; for _ in $(seq 16); do echo; done)
+  configure < <(answers_with '2s/y/n/; 3d') >/dev/null 2>&1
+  run configure < <(printf '\ny\nsomeone\n'; for _ in $(seq 16); do echo; done)
   [ "$status" -eq 0 ]
   grep -q "^gh repo create someone/media-server-config-testinst --private --source . --push$" "$STUB_LOG"
   [ "$(git -C "$CONFIG_DIR" remote get-url origin)" = "git@github.com:someone/media-server-config-testinst.git" ]
@@ -182,7 +181,7 @@ answers_with() {
 @test "a config switched to local stops pulling from github and keeps the github repo" {
   configure < <(answers_for_new_installation) >/dev/null 2>&1
   : > "$STUB_LOG"
-  run configure < <(printf '\n\nn\n'; for _ in $(seq 16); do echo; done)
+  run configure < <(printf '\nn\n'; for _ in $(seq 16); do echo; done)
   [ "$status" -eq 0 ]
   ! git -C "$CONFIG_DIR" remote get-url origin 2>/dev/null || false
   ! grep -q "^gh repo delete" "$STUB_LOG" || false
@@ -216,4 +215,20 @@ answers_with() {
   run configure < <(answers_for_new_installation)
   [ "$status" -eq 0 ]
   grep -qx "ENGINE_VERSION=local" "$CONFIG_DIR/engine.env"
+}
+
+@test "the installation name is never asked, since changing it would orphan the installation" {
+  run configure < <(answers_for_new_installation)
+  [ "$status" -eq 0 ]
+  ! echo "$output" | grep -q "Installation name \[" || false
+  grep -qx "INSTALLATION_NAME=testinst" "$CONFIG_DIR/installation.env"
+  NAME= run "$ENGINE_DIR/scripts/configure.sh" < <(enter_on_every_prompt)
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q "Installation: testinst"
+}
+
+@test "configure without an installation name refuses" {
+  NAME= run "$ENGINE_DIR/scripts/configure.sh" < <(enter_on_every_prompt)
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "create-installation"
 }

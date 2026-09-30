@@ -94,8 +94,7 @@ print(", ".join(languages or ["en"]))'
 }
 
 prompt_for_values() {
-  echo "Installation" >&2
-  ask INSTALLATION_NAME "Installation name" "${NAME:-${INSTALLATION_NAME:-}}"
+  echo "Installation: $INSTALLATION_NAME" >&2
   ask TZ "Time zone" "${TZ:-Etc/UTC}"
   ask CONFIG_ON_GITHUB "Keep this config in a private GitHub repo, so other machines can join? (y/n)" "$(default_config_on_github)"
   if [ "$CONFIG_ON_GITHUB" = y ]; then
@@ -198,6 +197,8 @@ cd "$CONFIG_DIR"
 [ -f images.yml ] || cp -R "$ENGINE_DIR/config-template/." .
 
 load_current_values
+INSTALLATION_NAME=${INSTALLATION_NAME:-${NAME:-}}
+[ -n "$INSTALLATION_NAME" ] || die "this config has no installation name; create one with make create-installation NAME=<name>"
 prompt_for_values
 generate_internal_credentials
 write_config

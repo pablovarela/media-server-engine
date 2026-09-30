@@ -11,6 +11,7 @@ export SOPS_AGE_KEY_FILE=${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}
 
 NAME=${1:-${NAME:-}}
 [ -n "$NAME" ] || die "usage: make create-installation NAME=<installation name>"
+require_valid_installation_name "$NAME"
 
 run_from_installation_directory "$NAME" "$0"
 

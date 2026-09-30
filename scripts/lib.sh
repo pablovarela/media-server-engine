@@ -138,3 +138,12 @@ run_from_installation_directory() {
   ENGINE_DIR=$engine CONFIG_DIR=$install_dir/config DATA_DIR=$install_dir/data INSTALL_DIR=$install_dir \
     exec "$engine/scripts/$(basename "$script")" "$name"
 }
+
+valid_installation_name() {
+  [[ $1 =~ ^[a-z0-9][a-z0-9-]{0,39}$ ]]
+}
+
+require_valid_installation_name() {
+  valid_installation_name "$1" ||
+    die "installation names are lowercase letters, digits and dashes, up to 40 characters, starting with a letter or digit; got '$1'"
+}
