@@ -117,8 +117,12 @@ reattach_gluetun_dependents() {
 
 require_clean_tree "$ENGINE_DIR"
 require_clean_tree "$CONFIG_DIR"
+config_has_remote() {
+  git -C "$CONFIG_DIR" remote get-url origin >/dev/null 2>&1
+}
+
 if [ -z "${MEDIA_SERVER_PULLED:-}" ]; then
-  git -C "$CONFIG_DIR" pull --ff-only
+  if config_has_remote; then git -C "$CONFIG_DIR" pull --ff-only; fi
   switch_engine_and_restart_if_needed "$@"
 fi
 load_installation

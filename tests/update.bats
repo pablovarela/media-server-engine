@@ -11,6 +11,7 @@ case $1 in
   status) if [ "$dir" = "$CONFIG_DIR" ]; then printf "%s" "${FAKE_CONFIG_STATUS:-}"; else printf "%s" "${FAKE_ENGINE_STATUS:-}"; fi ;;
   describe) echo "${FAKE_ENGINE_TAG:-v1.0.0}" ;;
   rev-parse) if [ -n "${FAKE_MISSING_TAG:-}" ]; then exit 1; fi; echo abc123 ;;
+  remote) if [ "$dir" = "$CONFIG_DIR" ] && [ -n "${FAKE_LOCAL_CONFIG:-}" ]; then exit 2; fi; echo git@github.com:someone/config.git ;;
 esac'
   make_stub sops '
 case "$*" in
@@ -48,6 +49,13 @@ line_of() {
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "uncommitted changes"
   ! grep -q "pull --ff-only" "$STUB_LOG" || false
+}
+
+@test "a local-only config is used as it is, without pulling" {
+  FAKE_LOCAL_CONFIG=1 run update
+  [ "$status" -eq 0 ]
+  ! grep -q "pull --ff-only" "$STUB_LOG" || false
+  grep -q "docker compose up -d --remove-orphans" "$STUB_LOG"
 }
 
 @test "update refuses local changes in the engine before pulling" {
