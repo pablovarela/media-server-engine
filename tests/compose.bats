@@ -134,3 +134,19 @@ for app in ("sonarr", "radarr", "prowlarr"):
     assert env.get(app.upper() + "__AUTH__METHOD") == "Forms", app
     assert env.get(app.upper() + "__AUTH__REQUIRED") == "DisabledForLocalAddresses", app'
 }
+
+@test "every app runs in the installation's time zone, or UTC without one" {
+  echo "TZ=Europe/London" >> "$ENGINE_DIR/.env"
+  run merged stack_compose
+  echo "$output" | python3 -c '
+import json, sys
+services = json.load(sys.stdin)["services"]
+wrong = {n: s["environment"].get("TZ") for n, s in services.items() if "TZ" in (s.get("environment") or {}) and s["environment"]["TZ"] != "Europe/London"}
+assert not wrong, wrong
+assert "TZ" in services["jellyfin"]["environment"]'
+  echo "DOCKER_GID=0" > "$ENGINE_DIR/.env"
+  run merged stack_compose
+  echo "$output" | python3 -c '
+import json, sys
+assert json.load(sys.stdin)["services"]["jellyfin"]["environment"]["TZ"] == "Etc/UTC"'
+}

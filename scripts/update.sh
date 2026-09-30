@@ -104,7 +104,7 @@ docker_socket_gid() {
 }
 
 write_compose_env() {
-  echo "DOCKER_GID=$(docker_socket_gid)" > "$ENGINE_DIR/.env"
+  printf 'DOCKER_GID=%s\nTZ=%s\n' "$(docker_socket_gid)" "${TZ:-Etc/UTC}" > "$ENGINE_DIR/.env"
 }
 
 create_bind_mount_directories() {

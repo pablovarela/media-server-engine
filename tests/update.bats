@@ -115,6 +115,12 @@ line_of() {
   grep -q "^up profiles=$" "$STUB_LOG"
 }
 
+@test "update passes the installation's time zone to compose" {
+  printf 'INSTALLATION_NAME=testinst\nTZ=Europe/London\n' > "$CONFIG_DIR/installation.env"
+  run update
+  grep -qx 'TZ=Europe/London' "$ENGINE_DIR/.env"
+}
+
 @test "update writes the docker socket group id for compose" {
   run update
   grep -qE '^DOCKER_GID=[0-9]+$' "$ENGINE_DIR/.env"
