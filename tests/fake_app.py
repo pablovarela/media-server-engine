@@ -69,6 +69,9 @@ class Handler(BaseHTTPRequestHandler):
             log.write(json.dumps({"method": method, "path": self.path, "body": body}) + "\n")
         state = load()
         path = urlsplit(self.path).path
+        effect = state.get("effects", {}).get(f"{method} {path}")
+        if effect is not None:
+            return self.apply(effect, state)
         collection, item_id = self.collection_and_id(path, state)
         if collection is None or not isinstance(state[collection], list):
             state[path] = body
@@ -84,6 +87,17 @@ class Handler(BaseHTTPRequestHandler):
             state[collection] = [i for i in items if str(i.get("id")) != item_id]
         save(state)
         return self.answer(200 if method != "POST" else 201, body)
+
+    def apply(self, effect, state):
+        if "append" in effect:
+            target, key, item = effect["append"]
+            (state[target][key] if key else state[target]).append(item)
+        if "set" in effect:
+            target, key, value = effect["set"]
+            state[target][key] = value
+        save(state)
+        respond = effect.get("respond")
+        return self.answer(200 if respond is not None else 204, respond)
 
     def do_POST(self):
         self.write("POST")

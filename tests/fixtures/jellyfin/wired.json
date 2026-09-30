@@ -1,0 +1,82 @@
+{
+ "/System/Info/Public": {
+  "ServerName": "Media",
+  "Version": "12.1.0",
+  "StartupWizardCompleted": true
+ },
+ "/System/Info": {
+  "ServerName": "Media"
+ },
+ "/System/Configuration": {
+  "ServerName": "Media",
+  "EnableMetrics": false,
+  "UICulture": "en-US"
+ },
+ "/Library/VirtualFolders": [
+  {
+   "Name": "Collections",
+   "Locations": [],
+   "CollectionType": "boxsets",
+   "ItemId": "c1"
+  },
+  {
+   "Name": "Movies",
+   "Locations": [
+    "/data/movies"
+   ],
+   "CollectionType": "movies",
+   "ItemId": "m1"
+  },
+  {
+   "Name": "Shows",
+   "Locations": [
+    "/data/tvshows"
+   ],
+   "CollectionType": "tvshows",
+   "ItemId": "s1"
+  }
+ ],
+ "/Auth/Keys": {
+  "Items": [
+   {
+    "AppName": "media-server",
+    "AccessToken": "stored-key",
+    "Id": 0
+   }
+  ],
+  "TotalRecordCount": 1,
+  "StartIndex": 0
+ },
+ "effects": {
+  "POST /Users/AuthenticateByName": {
+   "respond": {
+    "AccessToken": "session-token",
+    "User": {
+     "Name": "admin"
+    }
+   }
+  },
+  "POST /Auth/Keys": {
+   "append": [
+    "/Auth/Keys",
+    "Items",
+    {
+     "AppName": "media-server",
+     "AccessToken": "new-key"
+    }
+   ]
+  },
+  "POST /Startup/Complete": {
+   "set": [
+    "/System/Info/Public",
+    "StartupWizardCompleted",
+    true
+   ]
+  },
+  "POST /Startup/Configuration": {},
+  "POST /Startup/User": {},
+  "POST /Startup/RemoteAccess": {},
+  "POST /Library/VirtualFolders": {},
+  "POST /Library/VirtualFolders/Paths": {}
+ }
+}

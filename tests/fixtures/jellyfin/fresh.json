@@ -1,0 +1,62 @@
+{
+ "/System/Info/Public": {
+  "ServerName": "3f2a",
+  "Version": "12.1.0",
+  "StartupWizardCompleted": false
+ },
+ "/Startup/Configuration": {
+  "ServerName": "",
+  "UICulture": "en-US",
+  "MetadataCountryCode": "US",
+  "PreferredMetadataLanguage": "en"
+ },
+ "/Startup/User": {
+  "Name": "abc"
+ },
+ "/System/Info": {
+  "ServerName": "3f2a"
+ },
+ "/System/Configuration": {
+  "ServerName": "",
+  "EnableMetrics": false,
+  "UICulture": "en-US"
+ },
+ "/Library/VirtualFolders": [],
+ "/Auth/Keys": {
+  "Items": [],
+  "TotalRecordCount": 0,
+  "StartIndex": 0
+ },
+ "effects": {
+  "POST /Users/AuthenticateByName": {
+   "respond": {
+    "AccessToken": "session-token",
+    "User": {
+     "Name": "admin"
+    }
+   }
+  },
+  "POST /Auth/Keys": {
+   "append": [
+    "/Auth/Keys",
+    "Items",
+    {
+     "AppName": "media-server",
+     "AccessToken": "new-key"
+    }
+   ]
+  },
+  "POST /Startup/Complete": {
+   "set": [
+    "/System/Info/Public",
+    "StartupWizardCompleted",
+    true
+   ]
+  },
+  "POST /Startup/Configuration": {},
+  "POST /Startup/User": {},
+  "POST /Startup/RemoteAccess": {},
+  "POST /Library/VirtualFolders": {},
+  "POST /Library/VirtualFolders/Paths": {}
+ }
+}
