@@ -17,8 +17,14 @@ machine_id() {
   fi
 }
 
+readonly RESTIC_REPOSITORY_DOES_NOT_EXIST=10
+
 main_machine() {
-  restic snapshots --host "$INSTALLATION_NAME" --latest 1 --json | python3 -c '
+  local snapshots status=0
+  snapshots=$(restic snapshots --host "$INSTALLATION_NAME" --latest 1 --json) || status=$?
+  [ "$status" -ne "$RESTIC_REPOSITORY_DOES_NOT_EXIST" ] || return 0
+  [ "$status" -eq 0 ] || return "$status"
+  echo "$snapshots" | python3 -c '
 import json, sys
 snapshots = sorted(json.load(sys.stdin) or [], key=lambda s: s["time"])
 tags = snapshots[-1].get("tags", []) if snapshots else []

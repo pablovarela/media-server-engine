@@ -66,3 +66,15 @@ snapshots_tagged() {
   run "$ROLE" machine-id
   [ "$output" = "$first" ]
 }
+
+@test "a backup repository that does not exist yet has no main, so this machine can be it" {
+  make_stub restic 'echo "Fatal: repository does not exist" >&2; exit 10'
+  run "$ROLE" is-main
+  [ "$status" -eq 0 ]
+}
+
+@test "a backup repository that cannot be read is not taken to mean this machine is the main" {
+  make_stub restic 'exit 1'
+  run "$ROLE" is-main
+  [ "$status" -eq 2 ]
+}
