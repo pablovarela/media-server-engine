@@ -70,7 +70,7 @@ class Api:
 
     def request(self, method, path, body=None, form=None):
         if form is not None:
-            data, content_type = urllib.parse.urlencode(form).encode(), "application/x-www-form-urlencoded"
+            data, content_type = urllib.parse.urlencode(form, doseq=True).encode(), "application/x-www-form-urlencoded"
         else:
             data, content_type = (None if body is None else json.dumps(body).encode()), "application/json"
         request = urllib.request.Request(self.base_url + path, data=data, method=method)

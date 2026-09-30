@@ -3,7 +3,11 @@
   "general": {
    "use_sonarr": true,
    "use_radarr": true,
-   "use_embedded_subs": true
+   "use_embedded_subs": true,
+   "serie_default_enabled": true,
+   "serie_default_profile": 1,
+   "movie_default_enabled": true,
+   "movie_default_profile": 1
   },
   "sonarr": {
    "ip": "sonarr",
@@ -21,5 +25,43 @@
    "apikey": "radarr-key",
    "only_monitored": false
   }
- }
+ },
+ "/api/system/languages": [
+  {
+   "code2": "en",
+   "name": "English",
+   "enabled": true
+  },
+  {
+   "code2": "es",
+   "name": "Spanish",
+   "enabled": false
+  },
+  {
+   "code2": "fr",
+   "name": "French",
+   "enabled": false
+  }
+ ],
+ "/api/system/languages/profiles": [
+  {
+   "profileId": 1,
+   "name": "English",
+   "cutoff": null,
+   "items": [
+    {
+     "id": 1,
+     "language": "en",
+     "audio_exclude": "False",
+     "hi": "False",
+     "forced": "False",
+     "audio_only_include": "False"
+    }
+   ],
+   "mustContain": [],
+   "mustNotContain": [],
+   "originalFormat": 0,
+   "tag": "english"
+  }
+ ]
 }

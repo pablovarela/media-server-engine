@@ -4,7 +4,7 @@ The configuration of one media server installation, used by [media-server-engine
 
 | File | Content |
 |---|---|
-| `installation.env` | installation name, time zone, GitHub owner, Jellyfin admin user, restic repository; written by `make configure` |
+| `installation.env` | installation name, time zone, whether the config is kept on GitHub and its owner, Jellyfin admin user, restic repository; written by `make configure` |
 | `engine.env` | the engine version this installation runs |
 | `images.yml`, `images.monitoring.yml` | the image of every service, pinned to a digest |
 | `compose.override.yml` | optional additions or changes to the engine's compose file |
@@ -14,7 +14,7 @@ The configuration of one media server installation, used by [media-server-engine
 | `secrets/*.sops.env` | VPN, backup, healthchecks and app credentials, encrypted with SOPS for the key in `.sops.yaml` |
 | `renovate.json` | Renovate opens a pull request for every image and engine update |
 
-Change settings and secrets with `make configure` from the engine; edit the other files directly and push. Merged changes reach every machine of this installation at its next `make update`.
+Change settings and secrets with `make configure` from the engine; edit the other files directly. A config kept on GitHub is pushed and merged changes reach every machine of the installation at its next `make update`; a local-only config is used as it is by the one machine that has it. `make configure` switches between the two.
 
 ## prowlarr.yml
 
@@ -67,8 +67,12 @@ seerr:
     quality_profile: HD Bluray + WEB
     root_folder: /movies
     minimum_availability: released
+bazarr:
+  languages: [en]                    # subtitle languages, asked by make configure
 ```
 
 Deluge reads its settings at start, so when any of them differ `make update` stops Deluge, writes them and starts it again. The web password comes from the app secrets.
+
+Bazarr's default subtitle profile for series and movies gets the declared languages; a Bazarr without one gets a profile named Default. Other profiles are kept.
 
 A new Seerr is signed in with the Jellyfin admin account from `installation.env` and the app secrets, which makes that account Seerr's owner.

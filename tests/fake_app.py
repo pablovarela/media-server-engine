@@ -37,7 +37,10 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length") or 0)
         raw = self.rfile.read(length) if length else b""
         if self.headers.get("Content-Type", "").startswith("application/x-www-form-urlencoded"):
-            return dict(parse_qsl(raw.decode(), keep_blank_values=True))
+            fields = {}
+            for key, value in parse_qsl(raw.decode(), keep_blank_values=True):
+                fields.setdefault(key, []).append(value)
+            return {key: values[0] if len(values) == 1 else values for key, values in fields.items()}
         return json.loads(raw) if raw else None
 
     def collection_and_id(self, path, state):
