@@ -31,6 +31,10 @@ sonarr:
             use_ssl: false
             password: !secret DELUGE_WEB_PASSWORD
             tv_category: tv-sonarr
+            tv_imported_category: ""
+            url_base: ""
+            download_directory: ""
+            completed_directory: ""
       update_password: true
 
     media_naming:
@@ -77,6 +81,10 @@ radarr:
             use_ssl: false
             password: !secret DELUGE_WEB_PASSWORD
             movie_category: radarr
+            movie_imported_category: ""
+            url_base: ""
+            download_directory: ""
+            completed_directory: ""
       update_password: true
 
     media_naming:

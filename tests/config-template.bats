@@ -16,3 +16,14 @@ keys_configure_writes_to_apps_secrets() {
     echo "$known" | grep -qx "$secret" || { echo "configure does not write $secret"; false; }
   done
 }
+
+@test "the deluge client declares every field configarr checks, so it does not warn" {
+  python3 -c '
+import sys, yaml
+yaml.SafeLoader.add_constructor("!secret", lambda loader, node: None)
+config = yaml.safe_load(open(sys.argv[1]))
+for app, imported in (("sonarr", "tv_imported_category"), ("radarr", "movie_imported_category")):
+    fields = config[app]["main"]["download_clients"]["data"][0]["fields"]
+    for name in ("url_base", imported, "download_directory", "completed_directory"):
+        assert name in fields, (app, name)' "$REPO/config-template/configarr/config.yml"
+}
