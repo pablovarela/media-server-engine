@@ -70,44 +70,44 @@ mask() {
 }
 
 read_answer() {
-  local typed=""
+  local _prompt_typed=""
   if [ -t 0 ] && [ "${2:-}" = secret ]; then
-    IFS= read -rs typed
+    IFS= read -rs _prompt_typed
   else
-    IFS= read -r typed || true
+    IFS= read -r _prompt_typed || true
   fi
   [ -t 0 ] && [ "${2:-}" != secret ] || echo >&2
-  printf -v "$1" '%s' "$typed"
+  printf -v "$1" '%s' "$_prompt_typed"
 }
 
 ask() {
-  local var=$1 label=$2 default=${3:-} answer
-  printf '%s [%s]: ' "$label" "$default" >&2
-  read_answer answer
-  printf -v "$var" '%s' "${answer:-$default}"
+  local _prompt_answer
+  printf '%s [%s]: ' "$2" "${3:-}" >&2
+  read_answer _prompt_answer
+  printf -v "$1" '%s' "${_prompt_answer:-${3:-}}"
 }
 
 ask_secret() {
-  local var=$1 label=$2 current=${3:-} answer
-  printf '%s [%s]: ' "$label" "$(mask "$current")" >&2
-  read_answer answer secret
-  printf -v "$var" '%s' "${answer:-$current}"
+  local _prompt_answer
+  printf '%s [%s]: ' "$2" "$(mask "${3:-}")" >&2
+  read_answer _prompt_answer secret
+  printf -v "$1" '%s' "${_prompt_answer:-${3:-}}"
 }
 
 ask_password() {
-  local var=$1 label=$2 current=${3:-} answer
-  if [ -n "$current" ]; then
-    printf '%s [%s]: ' "$label" "$(mask "$current")" >&2
+  local _prompt_answer
+  if [ -n "${3:-}" ]; then
+    printf '%s [%s]: ' "$2" "$(mask "$3")" >&2
   else
-    printf '%s [Enter generates one]: ' "$label" >&2
+    printf '%s [Enter generates one]: ' "$2" >&2
   fi
-  read_answer answer secret
-  if [ -n "$answer" ]; then
-    printf -v "$var" '%s' "$answer"
-  elif [ -n "$current" ]; then
-    printf -v "$var" '%s' "$current"
+  read_answer _prompt_answer secret
+  if [ -n "$_prompt_answer" ]; then
+    printf -v "$1" '%s' "$_prompt_answer"
+  elif [ -n "${3:-}" ]; then
+    printf -v "$1" '%s' "$3"
   else
-    printf -v "$var" '%s' "$(generate_secret 24)"
+    printf -v "$1" '%s' "$(generate_secret 24)"
   fi
 }
 

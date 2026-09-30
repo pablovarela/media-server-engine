@@ -1,4 +1,4 @@
-.PHONY: help bootstrap configure update install-update-timer claim-backup-main check-tools test restore backup-now verify-backup-now install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
+.PHONY: help join-installation bootstrap configure update install-update-timer claim-backup-main check-tools test restore backup-now verify-backup-now install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
 
 SHELL := /bin/bash
 CONFIG_DIR ?= $(CURDIR)/../config
@@ -8,6 +8,9 @@ export SOPS_AGE_KEY_FILE ?= $(HOME)/.config/sops/age/keys.txt
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+
+join-installation: ## add this machine to an existing installation: NAME=<installation name>
+	@scripts/join-installation.sh $(NAME)
 
 bootstrap: ## install sops, age and restic (Homebrew on macOS, pinned binaries plus Docker on Debian)
 	@scripts/bootstrap.sh

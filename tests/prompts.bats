@@ -59,3 +59,8 @@ teardown() {
   run bash -c "source '$LIB'; mask 'abcdefgh'"
   [ "$output" = "set, ends …fgh" ]
 }
+
+@test "the prompt helpers can set variables whose names they use internally" {
+  run bash -c "source '$LIB'; for v in answer var label default current typed; do ask \$v 'Q' d <<< 'x'; ask_secret \$v 'Q' '' <<< 'y'; ask_password \$v 'Q' '' <<< 'z'; done; echo \"=\$answer\$var\$label\$default\$current\$typed\""
+  [ "${lines[-1]}" = "=zzzzzz" ]
+}
