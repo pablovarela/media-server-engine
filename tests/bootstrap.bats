@@ -47,3 +47,22 @@ teardown() {
   [ "$status" -eq 0 ]
   grep -q "python3 -m pip install --user --break-system-packages pyyaml" "$STUB_LOG"
 }
+
+@test "bootstrap on macOS tries to add whiptail for the configure menus" {
+  run "$BATS_TEST_DIRNAME/../scripts/bootstrap.sh"
+  [ "$status" -eq 0 ]
+  grep -q "^brew install newt" "$STUB_LOG"
+}
+
+@test "bootstrap carries on when whiptail cannot be installed" {
+  make_stub brew '[ "$2" != newt ]'
+  run "$BATS_TEST_DIRNAME/../scripts/bootstrap.sh"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q "plain questions"
+}
+
+@test "bootstrap on Linux adds whiptail with apt, separately from the required packages" {
+  for tool in sha256sum tar docker; do make_stub "$tool" ''; done
+  FAKE_OS=Linux FAKE_ARCH=aarch64 run "$BATS_TEST_DIRNAME/../scripts/bootstrap.sh"
+  grep -q "sudo apt-get install -y whiptail" "$STUB_LOG"
+}

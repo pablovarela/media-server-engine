@@ -82,3 +82,13 @@ teardown() {
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "MISSING.*python3 yaml module"
 }
+
+@test "whiptail is optional: its absence is reported but is not a problem" {
+  run "$BATS_TEST_DIRNAME/../scripts/check-tools.sh"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -qE "^OPTIONAL +whiptail"
+  echo "$output" | grep -q "plain questions"
+  make_stub whiptail ''
+  run "$BATS_TEST_DIRNAME/../scripts/check-tools.sh"
+  echo "$output" | grep -qE "^OK +whiptail"
+}

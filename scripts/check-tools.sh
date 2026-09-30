@@ -59,6 +59,14 @@ check_python_yaml() {
   if python3 -c 'import yaml' 2>/dev/null; then report OK "python3 yaml module"; else problem MISSING "python3 yaml module"; fi
 }
 
+check_optional_menus() {
+  if installed whiptail; then
+    report OK whiptail
+  else
+    report OPTIONAL "whiptail (not installed: make configure asks plain questions instead of menus)"
+  fi
+}
+
 check_secrets_key() {
   if sops decrypt secrets/vpn.sops.env >/dev/null 2>&1; then
     report OK "age key decrypts secrets"
@@ -72,6 +80,7 @@ for tool in docker git make curl sqlite3 python3 sops age restic; do
 done
 installed docker && check_compose_plugin
 installed python3 && check_python_yaml
+check_optional_menus
 check_pinned_version sops "$SOPS_VERSION" --version
 check_pinned_version age "$AGE_VERSION" --version
 check_pinned_version restic "$RESTIC_VERSION" version

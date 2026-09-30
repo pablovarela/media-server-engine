@@ -16,6 +16,12 @@ install_apt_packages() {
   sudo apt-get install -y curl git sqlite3 python3 python3-yaml make bzip2
 }
 
+readonly NO_MENUS="whiptail could not be installed; make configure asks plain questions instead of menus."
+
+install_whiptail_debian() {
+  sudo apt-get install -y whiptail || echo "$NO_MENUS" >&2
+}
+
 install_docker() {
   if ! command -v docker >/dev/null; then
     curl -fsSL https://get.docker.com | sudo sh
@@ -51,6 +57,7 @@ install_restic() {
 
 bootstrap_debian() {
   install_apt_packages
+  install_whiptail_debian
   install_docker
   install_sops
   install_age
@@ -59,6 +66,7 @@ bootstrap_debian() {
 
 bootstrap_macos() {
   brew install sops age restic
+  brew install newt || echo "$NO_MENUS" >&2
   python3 -c 'import yaml' 2>/dev/null || python3 -m pip install --user --break-system-packages pyyaml
   command -v docker >/dev/null || echo "Docker is not installed; install OrbStack or Docker Desktop." >&2
 }
