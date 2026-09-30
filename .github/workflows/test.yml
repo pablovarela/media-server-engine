@@ -1,0 +1,35 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install the test tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bats shellcheck python3-yaml
+      - name: Run the tests
+        id: tests
+        run: |
+          mkdir -p reports
+          set +e
+          make test-scripts BATS_FLAGS="--report-formatter junit --output reports" > reports/bats.log 2>&1
+          echo "bats=$?" >> "$GITHUB_OUTPUT"
+          make lint > reports/shellcheck.log 2>&1
+          echo "shellcheck=$?" >> "$GITHUB_OUTPUT"
+          cat reports/bats.log reports/shellcheck.log
+      - name: Write the report
+        if: always()
+        run: python3 .github/scripts/test-summary.py reports/report.xml "${{ steps.tests.outputs.shellcheck }}" >> "$GITHUB_STEP_SUMMARY"
+      - name: Fail when a test or shellcheck failed
+        if: steps.tests.outputs.bats != '0' || steps.tests.outputs.shellcheck != '0'
+        run: exit 1

@@ -1,4 +1,4 @@
-.PHONY: help urls logins create-installation join-installation setup-machine bootstrap configure update install-update-timer claim-backup-main check-tools test restore backup-now verify-backup-now install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
+.PHONY: help test-scripts lint urls logins create-installation join-installation setup-machine bootstrap configure update install-update-timer claim-backup-main check-tools test restore backup-now verify-backup-now install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
 
 SHELL := /bin/bash
 CONFIG_DIR ?= $(CURDIR)/../config
@@ -36,10 +36,14 @@ configure: ## set or change this installation's settings and secrets interactive
 check-tools: ## check that every tool the scripts need is installed and the age key works
 	@scripts/check-tools.sh
 
-test: ## run the script tests and shellcheck (needs bats-core and shellcheck)
+test: test-scripts lint ## run the script tests and shellcheck (needs bats-core and shellcheck)
+
+test-scripts: ## run the script tests (BATS_FLAGS passes options to bats)
 	@command -v bats >/dev/null || { echo "bats missing: brew install bats-core" >&2; exit 1; }
+	@bats $(BATS_FLAGS) tests/
+
+lint: ## shellcheck every script
 	@command -v shellcheck >/dev/null || { echo "shellcheck missing: brew install shellcheck" >&2; exit 1; }
-	@bats tests/
 	@shellcheck -x scripts/*.sh scripts/wire/*.sh diagnose.sh
 
 backup-now: ## back up now (stops the apps for a few minutes; only on the installation's main)
