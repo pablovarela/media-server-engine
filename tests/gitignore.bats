@@ -11,3 +11,7 @@ setup() {
   ! git check-ignore -q scripts/update.sh || false
   ! git check-ignore -q docker-compose.yml || false
 }
+
+@test "python bytecode from the wiring is ignored by git" {
+  git check-ignore -q scripts/wire/__pycache__/wirelib.cpython-314.pyc
+}
