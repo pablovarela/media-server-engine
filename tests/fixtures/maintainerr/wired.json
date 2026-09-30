@@ -1,0 +1,43 @@
+{
+ "/api/settings/jellyfin": {
+  "jellyfin_url": "http://jellyfin:8096",
+  "jellyfin_api_key": "jellyfin-key",
+  "jellyfin_user_id": "u1"
+ },
+ "/api/settings/seerr": {
+  "url": "http://seerr:5055",
+  "api_key": "seerr-key"
+ },
+ "/api/settings/sonarr": [
+  {
+   "id": 1,
+   "serverName": "Sonarr",
+   "url": "http://sonarr:8989",
+   "apiKey": "sonarr-key"
+  }
+ ],
+ "/api/settings/radarr": [
+  {
+   "id": 1,
+   "serverName": "Radarr",
+   "url": "http://radarr:7878",
+   "apiKey": "radarr-key"
+  }
+ ],
+ "effects": {
+  "POST /api/settings/jellyfin": {
+   "respond": {
+    "status": "OK",
+    "code": 1,
+    "message": "Success"
+   }
+  },
+  "POST /api/settings/seerr": {
+   "respond": {
+    "status": "OK",
+    "code": 1,
+    "message": "Success"
+   }
+  }
+ }
+}
