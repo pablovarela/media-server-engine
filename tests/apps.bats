@@ -4,7 +4,7 @@ setup() {
   setup_stubs
   printf 'INSTALLATION_NAME=testinst\nJELLYFIN_ADMIN_USER=admin\n' > "$CONFIG_DIR/installation.env"
   mkdir -p "$CONFIG_DIR/secrets"
-  make_stub hostname 'echo media'
+  make_stub hostname 'echo homeserver'
   make_stub sops 'printf "JELLYFIN_ADMIN_PASSWORD=jelly pass\nDELUGE_WEB_PASSWORD=deluge-pass\nPORTAINER_ADMIN_PASSWORD=portainer-pass\nSONARR_API_KEY=k\n"'
 }
 

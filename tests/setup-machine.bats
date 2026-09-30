@@ -8,7 +8,7 @@ setup() {
   make_stub systemctl ''
   for step in check-tools restore update install-timers claim; do make_stub "fake-$step" ''; done
   make_stub fake-role '[ "$1" = is-main ]'
-  make_stub fake-apps 'echo "Jellyfin     http://media.local:8096"'
+  make_stub fake-apps 'echo "Jellyfin     http://homeserver.local:8096"'
   export APPS_COMMAND=fake-apps
   export CHECK_TOOLS_COMMAND=fake-check-tools RESTORE_COMMAND=fake-restore UPDATE_COMMAND=fake-update \
     INSTALL_TIMERS_COMMAND=fake-install-timers CLAIM_COMMAND=fake-claim BACKUP_ROLE_COMMAND=fake-role
@@ -47,7 +47,7 @@ setup_machine() {
   summary=$(echo "$output" | sed -n '/testinst is ready/,$p')
   [ -n "$summary" ]
   echo "$summary" | grep -q "cd $(cd "$ENGINE_DIR" && pwd)"
-  echo "$summary" | grep -q "http://media.local:8096"
+  echo "$summary" | grep -q "http://homeserver.local:8096"
   echo "$summary" | grep -q "make logins"
   echo "$summary" | grep -q "make configure"
   echo "$summary" | grep -q "05:00"
