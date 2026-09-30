@@ -3,7 +3,8 @@ load helpers
 setup() {
   setup_stubs
   source "$BATS_TEST_DIRNAME/../scripts/tool-versions.env"
-  for tool in git make curl sqlite3 python3; do make_stub "$tool" ''; done
+  for tool in git make curl sqlite3; do make_stub "$tool" ''; done
+  make_stub python3 'if [ "$*" = "-c import yaml" ] && [ -n "${FAKE_NO_YAML:-}" ]; then exit 1; fi'
   make_stub docker 'if [ "$1 $2" = "compose version" ]; then echo "Docker Compose version v5.4.0"; fi'
   make_stub sops "if [ \"\$1\" = --version ]; then echo \"sops ${SOPS_VERSION#v}\"; elif [ -n \"\${FAKE_BAD_KEY:-}\" ]; then exit 1; fi"
   make_stub age "echo ${AGE_VERSION}"
@@ -72,4 +73,12 @@ teardown() {
   make_stub sops "if [ \"\$1\" = --version ]; then echo \"sops ${SOPS_VERSION#v}\"; else echo \"cwd=\$PWD \$*\" >> \"\$STUB_LOG\"; fi"
   run "$BATS_TEST_DIRNAME/../scripts/check-tools.sh"
   grep -q "cwd=.*$(basename "$CONFIG_DIR") decrypt secrets/vpn.sops.env" "$STUB_LOG"
+}
+
+@test "check-tools checks the python yaml module, which the app wiring needs" {
+  run "$BATS_TEST_DIRNAME/../scripts/check-tools.sh"
+  echo "$output" | grep -qE "^OK +python3 yaml module$"
+  FAKE_NO_YAML=1 run "$BATS_TEST_DIRNAME/../scripts/check-tools.sh"
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "MISSING.*python3 yaml module"
 }

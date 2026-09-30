@@ -1,0 +1,575 @@
+{
+ "/api/v1/applications": [
+  {
+   "configContract": "RadarrSettings",
+   "enable": true,
+   "fields": [
+    {
+     "name": "prowlarrUrl",
+     "placeholder": "http://localhost:9696",
+     "value": "http://gluetun:9696"
+    },
+    {
+     "name": "baseUrl",
+     "placeholder": "http://localhost:7878",
+     "value": "http://radarr:7878"
+    },
+    {
+     "name": "apiKey",
+     "value": "********"
+    },
+    {
+     "name": "authUsername"
+    },
+    {
+     "name": "authPassword"
+    },
+    {
+     "name": "syncCategories",
+     "value": [
+      2000,
+      2010,
+      2020,
+      2030,
+      2040,
+      2045,
+      2050,
+      2060,
+      2070,
+      2080,
+      2090
+     ]
+    },
+    {
+     "name": "syncRejectBlocklistedTorrentHashesWhileGrabbing",
+     "value": false
+    }
+   ],
+   "id": 2,
+   "implementation": "Radarr",
+   "implementationName": "Radarr",
+   "name": "Radarr",
+   "syncLevel": "fullSync",
+   "tags": []
+  },
+  {
+   "configContract": "SonarrSettings",
+   "enable": true,
+   "fields": [
+    {
+     "name": "prowlarrUrl",
+     "placeholder": "http://localhost:9696",
+     "value": "http://gluetun:9696"
+    },
+    {
+     "name": "baseUrl",
+     "placeholder": "http://localhost:8989",
+     "value": "http://sonarr:8989"
+    },
+    {
+     "name": "apiKey",
+     "value": "********"
+    },
+    {
+     "name": "authUsername"
+    },
+    {
+     "name": "authPassword"
+    },
+    {
+     "name": "syncCategories",
+     "value": [
+      5000,
+      5010,
+      5020,
+      5030,
+      5040,
+      5045,
+      5050
+     ]
+    },
+    {
+     "name": "animeSyncCategories",
+     "value": [
+      5070
+     ]
+    },
+    {
+     "name": "syncAnimeStandardFormatSearch",
+     "value": true
+    },
+    {
+     "name": "syncRejectBlocklistedTorrentHashesWhileGrabbing",
+     "value": false
+    }
+   ],
+   "id": 1,
+   "implementation": "Sonarr",
+   "implementationName": "Sonarr",
+   "name": "Sonarr",
+   "syncLevel": "fullSync",
+   "tags": []
+  }
+ ],
+ "/api/v1/applications/schema": [
+  {
+   "configContract": "RadarrSettings",
+   "enable": true,
+   "fields": [
+    {
+     "name": "prowlarrUrl",
+     "placeholder": "http://localhost:9696",
+     "value": "http://localhost:9696"
+    },
+    {
+     "name": "baseUrl",
+     "placeholder": "http://localhost:7878",
+     "value": "http://localhost:7878"
+    },
+    {
+     "name": "apiKey"
+    },
+    {
+     "name": "authUsername"
+    },
+    {
+     "name": "authPassword"
+    },
+    {
+     "name": "syncCategories",
+     "value": [
+      2000,
+      2010,
+      2020,
+      2030,
+      2040,
+      2045,
+      2050,
+      2060,
+      2070,
+      2080,
+      2090
+     ]
+    },
+    {
+     "name": "syncRejectBlocklistedTorrentHashesWhileGrabbing",
+     "value": false
+    }
+   ],
+   "implementation": "Radarr",
+   "implementationName": "Radarr",
+   "syncLevel": "fullSync",
+   "tags": []
+  },
+  {
+   "configContract": "SonarrSettings",
+   "enable": true,
+   "fields": [
+    {
+     "name": "prowlarrUrl",
+     "placeholder": "http://localhost:9696",
+     "value": "http://localhost:9696"
+    },
+    {
+     "name": "baseUrl",
+     "placeholder": "http://localhost:8989",
+     "value": "http://localhost:8989"
+    },
+    {
+     "name": "apiKey"
+    },
+    {
+     "name": "authUsername"
+    },
+    {
+     "name": "authPassword"
+    },
+    {
+     "name": "syncCategories",
+     "value": [
+      5000,
+      5010,
+      5020,
+      5030,
+      5040,
+      5045,
+      5050,
+      5090
+     ]
+    },
+    {
+     "name": "animeSyncCategories",
+     "value": [
+      5070
+     ]
+    },
+    {
+     "name": "syncAnimeStandardFormatSearch",
+     "value": true
+    },
+    {
+     "name": "syncRejectBlocklistedTorrentHashesWhileGrabbing",
+     "value": false
+    }
+   ],
+   "implementation": "Sonarr",
+   "implementationName": "Sonarr",
+   "syncLevel": "fullSync",
+   "tags": []
+  }
+ ],
+ "/api/v1/appprofile": [
+  {
+   "enableAutomaticSearch": true,
+   "enableInteractiveSearch": true,
+   "enableRss": true,
+   "id": 1,
+   "minimumSeeders": 1,
+   "name": "Standard"
+  }
+ ],
+ "/api/v1/indexer": [
+  {
+   "added": "2026-09-30T14:00:45Z",
+   "appProfileId": 1,
+   "configContract": "CardigannSettings",
+   "definitionName": "thepiratebay",
+   "downloadClientId": 0,
+   "enable": true,
+   "encoding": "Unicode (UTF-8)",
+   "fields": [
+    {
+     "name": "definitionFile",
+     "value": "thepiratebay"
+    },
+    {
+     "name": "baseUrl",
+     "selectOptionsProviderAction": "getUrls"
+    },
+    {
+     "name": "baseSettings.queryLimit"
+    },
+    {
+     "name": "baseSettings.grabLimit"
+    },
+    {
+     "name": "baseSettings.limitsUnit",
+     "value": 0
+    },
+    {
+     "name": "torrentBaseSettings.appMinimumSeeders"
+    },
+    {
+     "name": "torrentBaseSettings.seedRatio"
+    },
+    {
+     "name": "torrentBaseSettings.seedTime"
+    },
+    {
+     "name": "torrentBaseSettings.packSeedTime"
+    },
+    {
+     "name": "torrentBaseSettings.preferMagnetUrl",
+     "value": false
+    },
+    {
+     "name": "apiurl",
+     "value": "apibay.org"
+    },
+    {
+     "name": "top100",
+     "value": 6
+    },
+    {
+     "name": "uploader",
+     "value": ""
+    }
+   ],
+   "id": 1,
+   "implementation": "Cardigann",
+   "implementationName": "Cardigann",
+   "indexerUrls": [
+    "https://thepiratebay.org/",
+    "https://thepiratebay.unblockninja.com/",
+    "https://thepiratebay.ninjaproxy1.com/",
+    "https://tpb.proxyninja.org/",
+    "https://thepiratebay.proxyninja.net/",
+    "https://thepiratebay.torrentbay.st/",
+    "https://tpb.skynetcloud.site/",
+    "https://piratehaven.xyz/",
+    "https://mirrorbay.top/",
+    "https://thepiratebay0.org/",
+    "https://thepiratebay10.xyz/",
+    "https://pirateproxylive.org/",
+    "https://thehiddenbay.com/",
+    "https://thepiratebay.zone/",
+    "https://tpb.party/",
+    "https://piratebayproxy.live/",
+    "https://piratebay.live/",
+    "https://piratebay.party/",
+    "https://thepiratebay.party/",
+    "https://thepiratebaye.org/",
+    "https://thepiratebay.cloud/",
+    "https://tpb-proxy.xyz/",
+    "https://tpb.re/",
+    "https://tpirbay.site/",
+    "https://tpirbay.top/",
+    "https://tpirbay.xyz/"
+   ],
+   "language": "en-US",
+   "name": "The Pirate Bay",
+   "priority": 25,
+   "privacy": "public",
+   "protocol": "torrent",
+   "redirect": false,
+   "sortName": "pirate bay",
+   "supportsPagination": false,
+   "supportsRedirect": false,
+   "supportsRss": true,
+   "supportsSearch": true,
+   "tags": [
+    1
+   ]
+  }
+ ],
+ "/api/v1/indexer/schema": [
+  {
+   "added": "0001-01-01T00:00:00Z",
+   "appProfileId": 0,
+   "configContract": "CardigannSettings",
+   "definitionName": "1337x",
+   "downloadClientId": 0,
+   "enable": true,
+   "fields": [
+    {
+     "name": "definitionFile",
+     "value": "1337x"
+    },
+    {
+     "name": "baseUrl",
+     "selectOptionsProviderAction": "getUrls"
+    },
+    {
+     "name": "baseSettings.queryLimit"
+    },
+    {
+     "name": "baseSettings.grabLimit"
+    },
+    {
+     "name": "baseSettings.limitsUnit",
+     "value": 0
+    },
+    {
+     "name": "torrentBaseSettings.appMinimumSeeders"
+    },
+    {
+     "name": "torrentBaseSettings.seedRatio"
+    },
+    {
+     "name": "torrentBaseSettings.seedTime"
+    },
+    {
+     "name": "torrentBaseSettings.packSeedTime"
+    },
+    {
+     "name": "torrentBaseSettings.preferMagnetUrl",
+     "value": false
+    },
+    {
+     "name": "uploader"
+    },
+    {
+     "name": "primarydownloadlink",
+     "value": 1
+    },
+    {
+     "name": "fallbackdownloadlink",
+     "value": 0
+    },
+    {
+     "name": "disablesort",
+     "value": false
+    },
+    {
+     "name": "sort",
+     "value": 2
+    },
+    {
+     "name": "type",
+     "value": 1
+    }
+   ],
+   "implementation": "Cardigann",
+   "implementationName": "Cardigann",
+   "indexerUrls": [
+    "https://1337x.to/",
+    "https://1337x.st/",
+    "https://x1337x.ws/",
+    "https://x1337x.eu/",
+    "https://x1337x.cc/"
+   ],
+   "language": "en-US",
+   "name": "1337x",
+   "priority": 25,
+   "privacy": "public",
+   "protocol": "torrent",
+   "redirect": false,
+   "sortName": "1337x",
+   "supportsPagination": false,
+   "supportsRedirect": false,
+   "supportsRss": true,
+   "supportsSearch": true,
+   "tags": []
+  },
+  {
+   "added": "0001-01-01T00:00:00Z",
+   "appProfileId": 0,
+   "configContract": "CardigannSettings",
+   "definitionName": "thepiratebay",
+   "downloadClientId": 0,
+   "enable": true,
+   "fields": [
+    {
+     "name": "definitionFile",
+     "value": "thepiratebay"
+    },
+    {
+     "name": "baseUrl",
+     "selectOptionsProviderAction": "getUrls"
+    },
+    {
+     "name": "baseSettings.queryLimit"
+    },
+    {
+     "name": "baseSettings.grabLimit"
+    },
+    {
+     "name": "baseSettings.limitsUnit",
+     "value": 0
+    },
+    {
+     "name": "torrentBaseSettings.appMinimumSeeders"
+    },
+    {
+     "name": "torrentBaseSettings.seedRatio"
+    },
+    {
+     "name": "torrentBaseSettings.seedTime"
+    },
+    {
+     "name": "torrentBaseSettings.packSeedTime"
+    },
+    {
+     "name": "torrentBaseSettings.preferMagnetUrl",
+     "value": false
+    },
+    {
+     "name": "apiurl",
+     "value": "apibay.org"
+    },
+    {
+     "name": "top100",
+     "value": 6
+    },
+    {
+     "name": "uploader"
+    }
+   ],
+   "implementation": "Cardigann",
+   "implementationName": "Cardigann",
+   "indexerUrls": [
+    "https://thepiratebay.org/",
+    "https://thepiratebay.unblockninja.com/",
+    "https://thepiratebay.ninjaproxy1.com/",
+    "https://tpb.proxyninja.org/",
+    "https://thepiratebay.proxyninja.net/",
+    "https://thepiratebay.torrentbay.st/",
+    "https://tpb.skynetcloud.site/",
+    "https://piratehaven.xyz/",
+    "https://mirrorbay.top/",
+    "https://thepiratebay0.org/",
+    "https://thepiratebay10.xyz/",
+    "https://pirateproxylive.org/",
+    "https://thehiddenbay.com/",
+    "https://thepiratebay.zone/",
+    "https://tpb.party/",
+    "https://piratebayproxy.live/",
+    "https://piratebay.live/",
+    "https://piratebay.party/",
+    "https://thepiratebay.party/",
+    "https://thepiratebaye.org/",
+    "https://thepiratebay.cloud/",
+    "https://tpb-proxy.xyz/",
+    "https://tpb.re/",
+    "https://tpirbay.site/",
+    "https://tpirbay.top/",
+    "https://tpirbay.xyz/"
+   ],
+   "language": "en-US",
+   "name": "The Pirate Bay",
+   "priority": 25,
+   "privacy": "public",
+   "protocol": "torrent",
+   "redirect": false,
+   "sortName": "pirate bay",
+   "supportsPagination": false,
+   "supportsRedirect": false,
+   "supportsRss": true,
+   "supportsSearch": true,
+   "tags": []
+  }
+ ],
+ "/api/v1/indexerproxy": [
+  {
+   "configContract": "FlareSolverrSettings",
+   "fields": [
+    {
+     "name": "host",
+     "value": "http://localhost:8191/"
+    },
+    {
+     "name": "requestTimeout",
+     "value": 60
+    }
+   ],
+   "id": 1,
+   "implementation": "FlareSolverr",
+   "implementationName": "FlareSolverr",
+   "includeHealthWarnings": false,
+   "name": "FlareSolverr",
+   "onHealthIssue": false,
+   "supportsOnHealthIssue": false,
+   "tags": [
+    1
+   ]
+  }
+ ],
+ "/api/v1/indexerproxy/schema": [
+  {
+   "configContract": "FlareSolverrSettings",
+   "fields": [
+    {
+     "name": "host",
+     "value": "http://localhost:8191/"
+    },
+    {
+     "name": "requestTimeout",
+     "value": 60
+    }
+   ],
+   "implementation": "FlareSolverr",
+   "implementationName": "FlareSolverr",
+   "includeHealthWarnings": false,
+   "name": "",
+   "onHealthIssue": false,
+   "supportsOnHealthIssue": false,
+   "tags": []
+  }
+ ],
+ "/api/v1/tag": [
+  {
+   "id": 1,
+   "label": "flaresolverr"
+  }
+ ]
+}

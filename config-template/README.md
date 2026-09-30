@@ -15,3 +15,25 @@ The configuration of one media server installation, used by [media-server-engine
 | `renovate.json` | Renovate opens a pull request for every image and engine update |
 
 Change settings and secrets with `make configure` from the engine; edit the other files directly and push. Merged changes reach every machine of this installation at its next `make update`.
+
+## prowlarr.yml
+
+```yaml
+indexer_proxies:
+  - name: FlareSolverr
+    host: http://localhost:8191/     # FlareSolverr shares Prowlarr's network
+indexers:
+  - name: The Pirate Bay             # the name shown in Prowlarr
+    definition: thepiratebay         # the indexer definition to create it from
+    priority: 25                     # optional
+    proxy: FlareSolverr              # optional, one of indexer_proxies
+    fields:                          # optional, the definition's own settings
+      apiurl: apibay.org
+applications:
+  - name: Sonarr
+    url: http://sonarr:8989
+    api_key: SONARR_API_KEY          # the name of the key in the app secrets
+    sync_categories: [5000, 5040]    # optional
+```
+
+`make update` creates what is missing and corrects declared values that differ. It never deletes an indexer, proxy or application, and leaves settings that are not declared as they are.

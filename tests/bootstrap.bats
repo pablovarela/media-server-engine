@@ -32,3 +32,18 @@ teardown() {
   echo "$output" | grep -q "x86_64"
   ! grep -qE "apt-get|curl" "$STUB_LOG"
 }
+
+@test "bootstrap on Linux installs the python yaml module with apt" {
+  for tool in sha256sum tar docker; do make_stub "$tool" ''; done
+  FAKE_OS=Linux FAKE_ARCH=aarch64 run "$BATS_TEST_DIRNAME/../scripts/bootstrap.sh"
+  grep -q "sudo apt-get install -y .*python3-yaml" "$STUB_LOG"
+}
+
+@test "bootstrap on macOS adds the python yaml module only when it is missing" {
+  make_stub python3 'if [ "$*" = "-c import yaml" ]; then [ -z "${FAKE_NO_YAML:-}" ]; fi'
+  run "$BATS_TEST_DIRNAME/../scripts/bootstrap.sh"
+  ! grep -q "pip install" "$STUB_LOG"
+  FAKE_NO_YAML=1 run "$BATS_TEST_DIRNAME/../scripts/bootstrap.sh"
+  [ "$status" -eq 0 ]
+  grep -q "python3 -m pip install --user --break-system-packages pyyaml" "$STUB_LOG"
+}

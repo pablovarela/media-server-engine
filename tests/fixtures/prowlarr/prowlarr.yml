@@ -1,0 +1,25 @@
+indexer_proxies:
+- name: FlareSolverr
+  host: http://localhost:8191/
+indexers:
+- name: The Pirate Bay
+  definition: thepiratebay
+  fields:
+    apiurl: apibay.org
+  proxy: FlareSolverr
+  priority: 25
+applications:
+- name: Sonarr
+  url: http://sonarr:8989
+  api_key: SONARR_API_KEY
+  sync_categories:
+  - 5000
+  - 5010
+  - 5020
+  - 5030
+  - 5040
+  - 5045
+  - 5050
+- name: Radarr
+  url: http://radarr:7878
+  api_key: RADARR_API_KEY

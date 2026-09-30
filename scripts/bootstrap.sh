@@ -13,7 +13,7 @@ download_verified() {
 
 install_apt_packages() {
   sudo apt-get update
-  sudo apt-get install -y curl git sqlite3 python3 make bzip2
+  sudo apt-get install -y curl git sqlite3 python3 python3-yaml make bzip2
 }
 
 install_docker() {
@@ -59,6 +59,7 @@ bootstrap_debian() {
 
 bootstrap_macos() {
   brew install sops age restic
+  python3 -c 'import yaml' 2>/dev/null || python3 -m pip install --user --break-system-packages pyyaml
   command -v docker >/dev/null || echo "Docker is not installed; install OrbStack or Docker Desktop." >&2
 }
 

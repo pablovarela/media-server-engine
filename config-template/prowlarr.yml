@@ -1,6 +1,6 @@
 indexer_proxies:
   - name: FlareSolverr
-    host: http://flaresolverr:8191/
+    host: http://localhost:8191/
 indexers: []
 applications:
   - name: Sonarr

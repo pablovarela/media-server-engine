@@ -45,3 +45,29 @@ if [ \"\$1\" = compose ]; then
 fi
 $1"
 }
+
+start_fake_app() {
+  FAKE_APP_STATE="$STUB_DIR/fake-app-state.json"
+  FAKE_APP_WRITES="$STUB_DIR/fake-app-writes.jsonl"
+  cp "$1" "$FAKE_APP_STATE"
+  : > "$FAKE_APP_WRITES"
+  python3 "$BATS_TEST_DIRNAME/fake_app.py" "$FAKE_APP_STATE" "$FAKE_APP_WRITES" "$STUB_DIR/fake-app-port" &
+  FAKE_APP_PID=$!
+  local waited=0
+  while [ ! -s "$STUB_DIR/fake-app-port" ] && [ "$waited" -lt 100 ]; do sleep 0.1; waited=$((waited + 1)); done
+  [ -s "$STUB_DIR/fake-app-port" ] || { echo "the fake app did not start" >&2; return 1; }
+  FAKE_APP_URL="http://127.0.0.1:$(cat "$STUB_DIR/fake-app-port")"
+  export FAKE_APP_STATE FAKE_APP_WRITES FAKE_APP_URL
+}
+
+stop_fake_app() {
+  [ -z "${FAKE_APP_PID:-}" ] || kill "$FAKE_APP_PID" 2>/dev/null || true
+}
+
+fake_app_writes() {
+  python3 -c '
+import json, sys
+for line in open(sys.argv[1]):
+    write = json.loads(line)
+    print(write["method"], write["path"])' "$FAKE_APP_WRITES"
+}
