@@ -261,3 +261,12 @@ answers_with() {
   grep -qx "RESTIC_REPOSITORY=/srv/backup/restic" "$CONFIG_DIR/installation.env"
   grep -qx "ENC:RESTIC_PASSWORD=restic-password-typed" "$CONFIG_DIR/secrets/backup.sops.env"
 }
+
+@test "keys added to a secrets file by hand survive configure" {
+  configure < <(answers_for_new_installation) >/dev/null 2>&1
+  echo "ENC:WIREGUARD_MTU=1320" >> "$CONFIG_DIR/secrets/vpn.sops.env"
+  run configure < <(for i in $(seq 17); do if [ "$i" -eq 11 ]; then echo new-vpn-password; else echo; fi; done)
+  [ "$status" -eq 0 ]
+  grep -qx "ENC:WIREGUARD_MTU=1320" "$CONFIG_DIR/secrets/vpn.sops.env"
+  grep -qx "ENC:OPENVPN_PASSWORD=new-vpn-password" "$CONFIG_DIR/secrets/vpn.sops.env"
+}

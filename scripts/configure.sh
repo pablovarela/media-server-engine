@@ -68,11 +68,21 @@ write_plain() {
   fi
 }
 
+lines_not_managed() {
+  local managed=" $1 " line
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    [[ $managed == *" ${line%%=*} "* ]] || printf '%s\n' "$line"
+  done <<< "$2"
+}
+
 write_secret() {
-  local file=$1 content current=""
+  local file=$1 content current="" extra
   shift
-  content=$(dotenv_of "$@")
   [ ! -f "$file" ] || current=$(sops decrypt --output-type dotenv "$file")
+  content=$(dotenv_of "$@")
+  extra=$(lines_not_managed "$*" "$current")
+  [ -z "$extra" ] || content="$content"$'\n'"$extra"
   if [ "$current" != "$content" ]; then
     mkdir -p "$(dirname "$file")"
     printf '%s\n' "$content" |
