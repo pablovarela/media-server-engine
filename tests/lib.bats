@@ -57,3 +57,8 @@ in_lib() {
   run in_lib 'monitoring_compose ps'
   grep -q "docker compose --project-name monitoring .* -f $HOME_DIR/engine/docker-compose.monitoring.yml -f $HOME_DIR/engine/../config/images.monitoring.yml ps" "$STUB_LOG"
 }
+
+@test "tests run with a throwaway home and no real key file" {
+  [ "$HOME" = "$STUB_DIR/home" ]
+  [ -z "${SOPS_AGE_KEY_FILE:-}" ]
+}

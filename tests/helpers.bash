@@ -6,6 +6,9 @@ setup_stubs() {
   DATA_DIR=$(mktemp -d)
   export STUB_LOG ENGINE_DIR CONFIG_DIR DATA_DIR
   export PATH="$STUB_DIR:$PATH"
+  export HOME="$STUB_DIR/home"
+  mkdir -p "$HOME"
+  unset SOPS_AGE_KEY_FILE
   : > "$STUB_LOG"
 }
 
