@@ -175,3 +175,14 @@ guided_new_installation() {
   [ "$status" -eq 0 ]
   echo "$output" | grep -q "Time zone \[Etc/UTC\]"
 }
+
+@test "rotating in the menus says what it rotates" {
+  guided_new_installation
+  configure >/dev/null 2>&1
+  : > "$STUB_LOG"
+  answers "0|Save"
+  run configure --rotate radarr
+  [ "$status" -eq 0 ]
+  grep -q -- "--msgbox Rotating Radarr's API key" "$STUB_LOG"
+  echo "$output" | grep -q "Run make update"
+}

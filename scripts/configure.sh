@@ -7,6 +7,22 @@ source "$(dirname "$0")/configure-fields.sh"
 # shellcheck source=scripts/configure-menus.sh
 source "$(dirname "$0")/configure-menus.sh"
 
+rotated_app_name() {
+  local app=${ROTATE_APP:-}
+  printf '%s%s' "$(printf '%s' "${app:0:1}" | tr '[:lower:]' '[:upper:]')" "${app:1}"
+}
+
+announce_rotation() {
+  [ -n "${ROTATE_VARIABLE:-}" ] || return 0
+  local message
+  message="Rotating $(rotated_app_name)'s API key: a new one is generated when you save. Run make update afterwards to give it to every app that uses it."
+  if use_menus; then
+    dialog_value --msgbox "$message" 10 "$DIALOG_WIDTH" || true
+  else
+    echo "$message" >&2
+  fi
+}
+
 use_menus() {
   case ${CONFIGURE_UI:-auto} in
     menus) true ;;
@@ -147,8 +163,12 @@ apply_config_location() {
       publish_config
     elif [ -n "${COMMITTED:-}" ]; then
       echo "Committed. Push with: git -C \"$CONFIG_DIR\" push"
+      echo "Then run make update to apply it here; the other machines apply it at their next update."
     fi
-  elif [ -n "$remote" ]; then
+  elif [ -n "${COMMITTED:-}" ] && [ -z "${CONFIGURE_FROM_CREATE:-}" ]; then
+    echo "Committed. Run make update to apply it."
+  fi
+  if [ "$CONFIG_LOCATION" != github ] && [ -n "$remote" ]; then
     git remote remove origin
     echo "This config is now local only. The repository at $remote is kept; delete it there if you no longer need it."
   fi
@@ -157,6 +177,7 @@ apply_config_location() {
 ROTATE_VARIABLE=""
 if [ "${1:-}" = --rotate ]; then
   ROTATE_VARIABLE=$(rotate_variable "${2:-}") || die "can only rotate: sonarr, radarr, prowlarr"
+  ROTATE_APP=$2
 fi
 
 [ -f "$CONFIG_DIR/.sops.yaml" ] || die_not_an_installation
@@ -168,6 +189,7 @@ load_current_values
 split_restic_repository
 INSTALLATION_NAME=${INSTALLATION_NAME:-${NAME:-}}
 [ -n "$INSTALLATION_NAME" ] || die "this config has no installation name; create one with make create-installation NAME=<name>"
+announce_rotation
 if use_menus; then menu_for_values; else prompt_for_values; fi
 join_restic_repository
 generate_internal_credentials

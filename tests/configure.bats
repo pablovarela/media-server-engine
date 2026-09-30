@@ -313,3 +313,16 @@ Europe/London#")
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "answers ran out"
 }
+
+@test "rotating says what it rotates and that make update applies it" {
+  configure < <(answers_with '2s/github/local/; 3d') >/dev/null 2>&1
+  run configure --rotate sonarr < <(enter_on_every_prompt)
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q "Rotating Sonarr's API key"
+  echo "$output" | grep -q "Run make update"
+}
+
+@test "a saved change to a local config says make update applies it" {
+  run configure < <(answers_with '2s/github/local/; 3d')
+  echo "$output" | grep -q "Run make update to apply it"
+}

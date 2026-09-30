@@ -102,6 +102,6 @@ fill_template
 pin_engine_version
 write_sops_config "$public_key"
 git -C "$CONFIG_DIR" init -q -b main
-NAME=$NAME "$CONFIGURE_COMMAND"
+NAME=$NAME CONFIGURE_FROM_CREATE=1 "$CONFIGURE_COMMAND"
 settings_saved=1
 "$SETUP_MACHINE_COMMAND"
