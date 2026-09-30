@@ -72,3 +72,22 @@ for line in open(sys.argv[1]):
     write = json.loads(line)
     print(write["method"], write["path"])' "$FAKE_APP_WRITES"
 }
+
+start_second_fake_app() {
+  SECOND_APP_STATE="$STUB_DIR/second-app-state.json"
+  SECOND_APP_WRITES="$STUB_DIR/second-app-writes.jsonl"
+  cp "$1" "$SECOND_APP_STATE"
+  : > "$SECOND_APP_WRITES"
+  rm -f "$STUB_DIR/second-app-port"
+  python3 "$BATS_TEST_DIRNAME/fake_app.py" "$SECOND_APP_STATE" "$SECOND_APP_WRITES" "$STUB_DIR/second-app-port" &
+  SECOND_APP_PID=$!
+  local waited=0
+  while [ ! -s "$STUB_DIR/second-app-port" ] && [ "$waited" -lt 100 ]; do sleep 0.1; waited=$((waited + 1)); done
+  [ -s "$STUB_DIR/second-app-port" ] || { echo "the second fake app did not start" >&2; return 1; }
+  SECOND_APP_URL="http://127.0.0.1:$(cat "$STUB_DIR/second-app-port")"
+  export SECOND_APP_STATE SECOND_APP_WRITES SECOND_APP_URL
+}
+
+stop_second_fake_app() {
+  [ -z "${SECOND_APP_PID:-}" ] || kill "$SECOND_APP_PID" 2>/dev/null || true
+}

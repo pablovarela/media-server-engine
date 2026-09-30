@@ -75,4 +75,6 @@ Deluge reads its settings at start, so when any of them differ `make update` sto
 
 Bazarr's default subtitle profile for series and movies gets the declared languages; a Bazarr without one gets a profile named Default. Other profiles are kept.
 
+Sonarr and Radarr tell Jellyfin about every import, upgrade, rename and deletion, so new episodes and films appear in Jellyfin straight away.
+
 A new Seerr is signed in with the Jellyfin admin account from `installation.env` and the app secrets, which makes that account Seerr's owner.
