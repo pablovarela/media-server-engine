@@ -20,7 +20,7 @@ apps() {
   run apps urls
   [ "$status" -eq 0 ]
   for pair in Jellyfin:8096 Seerr:5055 Sonarr:8989 Radarr:7878 Prowlarr:9696 Bazarr:6767 Deluge:8112 Maintainerr:6246 Portainer:9000; do
-    echo "$output" | grep -qE "^${pair%%:*} +http://media\.local:${pair#*:}$" || { echo "missing $pair"; false; }
+    echo "$output" | grep -qE "^${pair%%:*} +http://homeserver\.local:${pair#*:}$" || { echo "missing $pair"; false; }
   done
 }
 
