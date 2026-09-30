@@ -44,3 +44,53 @@ ping_healthcheck() {
   local url=$1 suffix=${2:-}
   curl -fsS -m 10 --retry 3 -o /dev/null "$url$suffix" || true
 }
+
+generate_secret() {
+  openssl rand -base64 "$1" | tr '+/' '-_' | tr -d '=\n'
+}
+
+mask() {
+  if [ -n "$1" ]; then printf 'set, ends …%s' "${1: -3}"; else printf 'not set'; fi
+}
+
+read_answer() {
+  local typed=""
+  if [ -t 0 ] && [ "${2:-}" = secret ]; then
+    IFS= read -rs typed
+  else
+    IFS= read -r typed || true
+  fi
+  [ -t 0 ] && [ "${2:-}" != secret ] || echo >&2
+  printf -v "$1" '%s' "$typed"
+}
+
+ask() {
+  local var=$1 label=$2 default=${3:-} answer
+  printf '%s [%s]: ' "$label" "$default" >&2
+  read_answer answer
+  printf -v "$var" '%s' "${answer:-$default}"
+}
+
+ask_secret() {
+  local var=$1 label=$2 current=${3:-} answer
+  printf '%s [%s]: ' "$label" "$(mask "$current")" >&2
+  read_answer answer secret
+  printf -v "$var" '%s' "${answer:-$current}"
+}
+
+ask_password() {
+  local var=$1 label=$2 current=${3:-} answer
+  if [ -n "$current" ]; then
+    printf '%s [%s]: ' "$label" "$(mask "$current")" >&2
+  else
+    printf '%s [Enter generates one]: ' "$label" >&2
+  fi
+  read_answer answer secret
+  if [ -n "$answer" ]; then
+    printf -v "$var" '%s' "$answer"
+  elif [ -n "$current" ]; then
+    printf -v "$var" '%s' "$current"
+  else
+    printf -v "$var" '%s' "$(generate_secret 24)"
+  fi
+}
