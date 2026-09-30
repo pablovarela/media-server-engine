@@ -3,8 +3,8 @@ set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "$0")/lib.sh"
 
-readonly ROTATABLE="sonarr:SONARR_API_KEY radarr:RADARR_API_KEY prowlarr:PROWLARR_API_KEY deluge:DELUGE_DAEMON_PASSWORD"
-readonly INTERNAL_CREDENTIALS="SONARR_API_KEY RADARR_API_KEY PROWLARR_API_KEY DELUGE_DAEMON_PASSWORD"
+readonly ROTATABLE="sonarr:SONARR_API_KEY radarr:RADARR_API_KEY prowlarr:PROWLARR_API_KEY"
+readonly INTERNAL_CREDENTIALS="SONARR_API_KEY RADARR_API_KEY PROWLARR_API_KEY"
 
 rotate_variable() {
   local entry
@@ -116,7 +116,7 @@ commit_changes() {
 
 ROTATE_VARIABLE=""
 if [ "${1:-}" = --rotate ]; then
-  ROTATE_VARIABLE=$(rotate_variable "${2:-}") || die "can only rotate: sonarr, radarr, prowlarr, deluge"
+  ROTATE_VARIABLE=$(rotate_variable "${2:-}") || die "can only rotate: sonarr, radarr, prowlarr"
 fi
 
 mkdir -p "$CONFIG_DIR"

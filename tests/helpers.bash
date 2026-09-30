@@ -51,6 +51,7 @@ start_fake_app() {
   FAKE_APP_WRITES="$STUB_DIR/fake-app-writes.jsonl"
   cp "$1" "$FAKE_APP_STATE"
   : > "$FAKE_APP_WRITES"
+  rm -f "$STUB_DIR/fake-app-port"
   python3 "$BATS_TEST_DIRNAME/fake_app.py" "$FAKE_APP_STATE" "$FAKE_APP_WRITES" "$STUB_DIR/fake-app-port" &
   FAKE_APP_PID=$!
   local waited=0

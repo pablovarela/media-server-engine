@@ -65,7 +65,7 @@ commits() {
 
 @test "configure keeps secrets out of plain files" {
   run configure < <(answers_for_new_installation)
-  ! grep -rq "vpn-password\|K005applicationkey\|jellyfin-pass" "$CONFIG_DIR" --exclude="*.sops.env" --exclude-dir=.git
+  ! grep -rq "vpn-password\|K005applicationkey\|jellyfin-pass" "$CONFIG_DIR" --exclude="*.sops.env" --exclude-dir=.git || false
 }
 
 @test "configure generates internal credentials and never shows them" {
@@ -74,8 +74,8 @@ commits() {
   [[ "$sonarr_key" =~ ^[0-9a-f]{32}$ ]]
   grep -q "^ENC:RADARR_API_KEY=[0-9a-f]\{32\}$" "$CONFIG_DIR/secrets/apps.sops.env"
   grep -q "^ENC:PROWLARR_API_KEY=[0-9a-f]\{32\}$" "$CONFIG_DIR/secrets/apps.sops.env"
-  grep -q "^ENC:DELUGE_DAEMON_PASSWORD=." "$CONFIG_DIR/secrets/apps.sops.env"
-  ! echo "$output" | grep -q "$sonarr_key"
+  ! grep -q "DELUGE_DAEMON" "$CONFIG_DIR/secrets/apps.sops.env" || false
+  ! echo "$output" | grep -q "$sonarr_key" || false
 }
 
 @test "configure run again with only Enter changes nothing and commits nothing" {
@@ -94,7 +94,7 @@ commits() {
   run configure < <(enter_on_every_prompt)
   echo "$output" | grep -q "Installation name \[testinst\]"
   echo "$output" | grep -q "set, ends …key"
-  ! echo "$output" | grep -q "K005applicationkey"
+  ! echo "$output" | grep -q "K005applicationkey" || false
 }
 
 @test "changing one secret rewrites only its file" {
@@ -115,6 +115,12 @@ commits() {
   [ "$(sed -n 's/^ENC:RADARR_API_KEY=//p' "$CONFIG_DIR/secrets/apps.sops.env")" = "$old_radarr" ]
 }
 
+@test "configure --rotate refuses deluge, whose only credential is the typed web password" {
+  run configure --rotate deluge < <(enter_on_every_prompt)
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "can only rotate: sonarr, radarr, prowlarr$"
+}
+
 @test "configure --rotate refuses an unknown app" {
   run configure --rotate jellyfin < <(enter_on_every_prompt)
   [ "$status" -ne 0 ]
@@ -124,7 +130,7 @@ commits() {
 @test "configure never pushes" {
   make_stub git 'if [ "$1" = push ]; then echo PUSHED >> "$STUB_LOG"; exit 1; fi; exec /usr/bin/git "$@"'
   run configure < <(answers_for_new_installation)
-  ! grep -q PUSHED "$STUB_LOG"
+  ! grep -q PUSHED "$STUB_LOG" || false
 }
 
 @test "configure refuses a config directory without .sops.yaml" {

@@ -1,4 +1,5 @@
 import hashlib
+import http.client
 import json
 import os
 import sys
@@ -81,6 +82,8 @@ class Api:
             raise WiringError(f"{method} {path} answered {error.code}: {detail}") from None
         except urllib.error.URLError as error:
             raise WiringError(f"{method} {path} failed: {error.reason}") from None
+        except (http.client.HTTPException, OSError) as error:
+            raise WiringError(f"{method} {path} failed: {error}") from None
         return json.loads(payload) if payload.strip() else None
 
     def get(self, path):

@@ -37,3 +37,25 @@ applications:
 ```
 
 `make update` creates what is missing and corrects declared values that differ. It never deletes an indexer, proxy or application, and leaves settings that are not declared as they are.
+
+## apps.yml
+
+```yaml
+jellyfin:
+  server_name: Media
+  libraries:                         # created, or given a missing path; never removed
+    - name: Shows
+      type: tvshows
+      path: /data/tvshows
+deluge:
+  core:                              # any core.conf setting
+    max_upload_speed: 2000.0
+  plugins:                           # enabled; plugins enabled by hand stay enabled
+    - name: Label                    # Sonarr and Radarr need it for categories
+    - name: AutoRemovePlus
+      source: https://...tar.gz      # built in the container when its egg is missing
+      sha256: ...
+      settings: {}                   # written to the plugin's own conf file
+```
+
+Deluge reads its settings at start, so when any of them differ `make update` stops Deluge, writes them and starts it again. The web password comes from the app secrets.

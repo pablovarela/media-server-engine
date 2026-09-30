@@ -7,3 +7,23 @@ jellyfin:
     - name: Movies
       type: movies
       path: /data/movies
+deluge:
+  core: {}
+  plugins:
+    - name: Label
+    - name: AutoRemovePlus
+      source: https://github.com/tote94/deluge-autoremoveplus/archive/b4af725398ecf4586cdb5d15c8637465de2d7614.tar.gz
+      sha256: c400969cff22d7be00cbd7c55487380ad876f0c2a814b206866ef9c1ae62dedb
+      settings:
+        enabled: true
+        remove: true
+        remove_data: true
+        interval: 1.0
+        hdd_space: -1.0
+        sel_func: or
+        filter: func_seed_time
+        min: 168.0
+        rule_1_enabled: true
+        filter2: func_ratio
+        min2: 1.0
+        rule_2_enabled: true
