@@ -60,7 +60,7 @@ check_python_yaml() {
 }
 
 check_optional_menus() {
-  if installed whiptail; then
+  if installed "${WHIPTAIL_COMMAND:-whiptail}"; then
     report OK whiptail
   else
     report OPTIONAL "whiptail (not installed: make configure asks plain questions instead of menus)"
