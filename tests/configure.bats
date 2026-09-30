@@ -327,3 +327,16 @@ Europe/London#")
   run configure < <(answers_with '2s/github/local/; 3d')
   echo "$output" | grep -q "Run make update to apply it"
 }
+
+@test "secrets ending in =, such as base64 passwords, are kept exactly, also by macOS's bash 3.2" {
+  shell=bash
+  if [ -x /bin/bash ] && /bin/bash -c '[ "${BASH_VERSINFO[0]}" -lt 4 ]'; then shell=/bin/bash; fi
+  for password in 'passYWo=' 'pass=word=='; do
+    rm -rf "$CONFIG_DIR/secrets" "$CONFIG_DIR/installation.env" "$CONFIG_DIR/.git"
+    NAME=testinst "$shell" "$ENGINE_DIR/scripts/configure.sh" < <(answers_for_new_installation | sed "s/^restic-password-typed$/$password/") >/dev/null 2>&1
+    grep -qx "ENC:RESTIC_PASSWORD=$password" "$CONFIG_DIR/secrets/backup.sops.env"
+    run env NAME=testinst "$shell" "$ENGINE_DIR/scripts/configure.sh" < <(enter_on_every_prompt)
+    [ "$status" -eq 0 ]
+    grep -qx "ENC:RESTIC_PASSWORD=$password" "$CONFIG_DIR/secrets/backup.sops.env" || { echo "$shell lost the end of $password"; false; }
+  done
+}

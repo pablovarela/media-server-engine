@@ -43,10 +43,10 @@ rotate_variable() {
 }
 
 load_dotenv() {
-  local key value
-  while IFS='=' read -r key value; do
-    [ -n "$key" ] || continue
-    printf -v "$key" '%s' "$value"
+  local line
+  while IFS= read -r line; do
+    [ -n "${line%%=*}" ] && [ "$line" != "${line#*=}" ] || continue
+    printf -v "${line%%=*}" '%s' "${line#*=}"
   done
 }
 
