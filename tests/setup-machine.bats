@@ -8,6 +8,8 @@ setup() {
   make_stub systemctl ''
   for step in check-tools restore update install-timers claim; do make_stub "fake-$step" ''; done
   make_stub fake-role '[ "$1" = is-main ]'
+  make_stub fake-apps 'echo "Jellyfin     http://media.local:8096"'
+  export APPS_COMMAND=fake-apps
   export CHECK_TOOLS_COMMAND=fake-check-tools RESTORE_COMMAND=fake-restore UPDATE_COMMAND=fake-update \
     INSTALL_TIMERS_COMMAND=fake-install-timers CLAIM_COMMAND=fake-claim BACKUP_ROLE_COMMAND=fake-role
 }
@@ -37,4 +39,32 @@ setup_machine() {
   [ "$status" -eq 0 ]
   grep -q "^fake-claim" "$STUB_LOG"
   ! grep -q "^fake-install-timers" "$STUB_LOG" || false
+}
+
+@test "setup ends with a summary of where the installation lives and how to use it" {
+  run setup_machine < <(echo y)
+  [ "$status" -eq 0 ]
+  summary=$(echo "$output" | sed -n '/testinst is ready/,$p')
+  [ -n "$summary" ]
+  echo "$summary" | grep -q "cd $(cd "$ENGINE_DIR" && pwd)"
+  echo "$summary" | grep -q "http://media.local:8096"
+  echo "$summary" | grep -q "make logins"
+  echo "$summary" | grep -q "make configure"
+  echo "$summary" | grep -q "05:00"
+  echo "$summary" | grep -q "04:30"
+}
+
+@test "without systemd the summary says nothing runs on its own" {
+  rm "$STUB_DIR/systemctl"
+  PATH="$STUB_DIR:/usr/bin:/bin" run setup_machine < <(echo n)
+  summary=$(echo "$output" | sed -n '/testinst is ready/,$p')
+  echo "$summary" | grep -q "nothing runs on its own"
+  echo "$summary" | grep -q "make update"
+  ! echo "$summary" | grep -q "04:30" || false
+}
+
+@test "a machine that is not the main is told the main backs up" {
+  run setup_machine < <(echo n)
+  summary=$(echo "$output" | sed -n '/testinst is ready/,$p')
+  echo "$summary" | grep -q "Another machine backs up"
 }

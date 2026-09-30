@@ -10,6 +10,7 @@ UPDATE_COMMAND=${UPDATE_COMMAND:-$SCRIPTS_DIR/update.sh}
 INSTALL_TIMERS_COMMAND=${INSTALL_TIMERS_COMMAND:-$SCRIPTS_DIR/install-timers.sh}
 CLAIM_COMMAND=${CLAIM_COMMAND:-$SCRIPTS_DIR/claim-backup-main.sh}
 BACKUP_ROLE_COMMAND=${BACKUP_ROLE_COMMAND:-$SCRIPTS_DIR/backup-role.sh}
+APPS_COMMAND=${APPS_COMMAND:-$SCRIPTS_DIR/apps.sh}
 export SOPS_AGE_KEY_FILE=${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}
 
 load_installation
@@ -49,9 +50,46 @@ if command -v systemctl >/dev/null; then
     with_backup_secrets "$INSTALL_TIMERS_COMMAND" media-backup media-verify
   fi
 else
-  echo "This machine has no systemd, so no timers were installed; run make update by hand to apply config changes."
   if [ -n "$become_main" ]; then
     sops exec-env "$CONFIG_DIR/secrets/healthchecks.sops.env" "sops exec-env '$CONFIG_DIR/secrets/backup.sops.env' '$CLAIM_COMMAND'"
   fi
 fi
-echo "$(hostname -s) is set up for $INSTALLATION_NAME."
+print_summary() {
+  local engine installation
+  engine=$(cd "$ENGINE_DIR" && pwd)
+  installation=$(dirname "$engine")
+  echo
+  echo "================================================================"
+  echo "$INSTALLATION_NAME is ready on $(hostname -s)."
+  echo
+  echo "It lives in $installation. From now on, run make from its engine:"
+  echo "  cd $engine"
+  echo
+  echo "Apps (make urls lists them again):"
+  "$APPS_COMMAND" urls | sed 's/^/  /'
+  echo "Their logins: make logins (shows the passwords on this terminal)."
+  echo
+  echo "Everyday commands:"
+  echo "  make configure    change settings and secrets, then make update applies them"
+  echo "  make update       apply config changes and update the apps"
+  echo "  make media-stop   stop the apps; make media-start starts them again"
+  if [ -n "$become_main" ]; then
+    echo "  make backup-now   back up now"
+  fi
+  echo
+  if command -v systemctl >/dev/null; then
+    echo "This machine updates itself daily at 05:00 and removes fake downloads every 15 minutes."
+    if [ -n "$become_main" ]; then
+      echo "It is the main: it backs up daily at 04:30 and checks the backups on Sundays at 05:30."
+    else
+      echo "Another machine backs up; this one never does."
+    fi
+  else
+    echo "This machine has no systemd, so nothing runs on its own:"
+    echo "  run make update after config changes, and make backup-now to back up."
+    [ -n "$become_main" ] || echo "Another machine backs up; this one never does."
+  fi
+  echo "================================================================"
+}
+
+print_summary
