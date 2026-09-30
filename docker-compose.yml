@@ -1,0 +1,197 @@
+services:
+  jellyfin:
+    container_name: jellyfin
+    image: lscr.io/linuxserver/jellyfin:12.1ubu2604-ls51@sha256:b0b6d034aa52ed6e1a76daaa3d7ed29039d2b802a50fa8ffd1d9fc8d3fd836c7
+    ports:
+      - "8096:8096"        # HTTP
+      - "8920:8920"        # HTTPS
+      - "7359:7359/udp"    # client auto-discovery (optional)
+      - "1900:1900/udp"    # DLNA (optional)
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - UMASK=022
+    volumes:
+      - ./volumes/jellyfin/config:/config
+      - ./media/tvshows:/data/tvshows
+      - ./media/movies:/data/movies
+    restart: unless-stopped
+
+  gluetun:
+    image: qmcgaw/gluetun:latest@sha256:2733bb22b27e3efa7a9f2cef9057ec12791b8b225793fcd3dbfd0508404dfc25
+    container_name: gluetun
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    ports:
+      # deluge
+      - "8112:8112"
+      - "58846:58846"
+      - "58946:58946"
+      - "6881:6881"
+      - "6881:6881/udp"
+      # Prowlarr
+      - "9696:9696"
+      # flaresolverr
+      - "8198:8191"
+    env_file:
+      - .secrets/vpn.env
+
+  sonarr:
+    container_name: sonarr
+    image: lscr.io/linuxserver/sonarr:4.0.20.3014-ls326@sha256:f247545d23ba8b233d6604575347e48a623fe6ad75dda02348bf81917f3b5c06
+    ports:
+      - "8989:8989"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - UMASK=022
+    volumes:
+      - ./volumes/sonarr/data:/config
+      - ./media/tvshows:/tv
+      - ./downloads:/downloads
+    depends_on:
+      - prowlarr
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8989/ping"]
+      interval: 30s
+      timeout: 5s
+      start_period: 2m
+      retries: 5
+    restart: unless-stopped
+
+  radarr:
+    container_name: radarr
+    image: lscr.io/linuxserver/radarr:6.4.4.10685-ls318@sha256:adb6c09d6b729ea5e642c99cea35af72702ef476bf4763f153299ac5db9f0b4f
+    ports:
+      - "7878:7878"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - UMASK=022
+    volumes:
+      - ./volumes/radarr/config:/config
+      - ./media/movies:/movies
+      - ./downloads:/downloads
+    depends_on:
+      - prowlarr
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:7878/ping"]
+      interval: 30s
+      timeout: 5s
+      start_period: 2m
+      retries: 5
+    restart: unless-stopped
+
+  bazarr:
+    container_name: bazarr
+    image: lscr.io/linuxserver/bazarr:v1.6.2-ls366@sha256:8b30e81c4aec2991f469e78fae8afaa89ecc9b21a80e3897f50427216b55470c
+    ports:
+      - "6767:6767"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - UMASK=022
+    volumes:
+      - ./volumes/bazarr/config:/config
+      - ./media/movies:/movies
+      - ./media/tvshows:/tv
+    restart: unless-stopped
+
+  prowlarr:
+    container_name: prowlarr
+    image: lscr.io/linuxserver/prowlarr:2.6.5.5623-ls162@sha256:f2b26429893d4c4cb71941b7ee50b1bdecd9d5f9f9e02d5410615e9f4f7c8d95
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - UMASK=002
+    volumes:
+      - ./volumes/prowlarr/data:/config
+    network_mode: service:gluetun
+    depends_on:
+      - gluetun
+      - flaresolverr
+    restart: unless-stopped
+
+  flaresolverr:
+    container_name: flaresolverr
+    image: ghcr.io/flaresolverr/flaresolverr:v3.5.2@sha256:c80ae007ce2ccdcd217a12426e4f039ef763ff90738c808d38810c3e59323767
+    network_mode: service:gluetun
+    depends_on:
+      - gluetun
+    restart: unless-stopped
+
+  deluge:
+    container_name: deluge
+    image: lscr.io/linuxserver/deluge:2.2.0-ls383@sha256:1254a0821a2d8768aba9d1258de381f2633890bf9f44f412eead2744b17a391d
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - UMASK=022
+      - DELUGE_LOGLEVEL=error
+    volumes:
+      - ./volumes/deluge/config:/config
+      - ./downloads:/downloads
+    network_mode: service:gluetun
+    depends_on:
+        - gluetun
+    restart: unless-stopped
+
+  portainer:
+    container_name: portainer
+    image: portainer/portainer-ce:2.45.1@sha256:4d616db18cfeb5dd41a69c0958bc825c84483ea9cde1106eb82a5d26f3bd8b0e
+    user: "1000:1000"
+    group_add:
+      - "${DOCKER_GID:?DOCKER_GID is written to .env by make deploy}"
+    ports:
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./volumes/portainer/data:/data
+    restart: unless-stopped
+
+  configarr:
+    container_name: configarr
+    image: ghcr.io/raydak-labs/configarr:1.33.0-alpine3.22@sha256:c109b4b3eb69dc7173a7a4121fb189b7bd646440e241b321bbf07faf0adbccc3
+    user: "1000:1000"
+    restart: "no"
+    depends_on:
+      sonarr:
+        condition: service_healthy
+      radarr:
+        condition: service_healthy
+    volumes:
+      - ./volumes/configarr/config:/app/config
+      - ./volumes/configarr/repos:/app/repos
+
+  seerr:
+    container_name: seerr
+    image: ghcr.io/seerr-team/seerr:v3.5.0@sha256:27602401178d54f1964442287b9f23f67a3fa2252645ee8065839ea1c3f69e45
+    user: "1000:1000"
+    ports:
+      - "5055:5055"
+    environment:
+      - TZ=Etc/UTC
+    volumes:
+      - ./volumes/seerr/config:/app/config
+    restart: unless-stopped
+
+  maintainerr:
+    container_name: maintainerr
+    image: ghcr.io/maintainerr/maintainerr:3.29.0@sha256:7487d374290e59add65407ec295629e489f9057dbf18e2a9dff70d6201ffb6f9
+    user: "1000:1000"
+    ports:
+      - "6246:6246"
+    environment:
+      - TZ=Etc/UTC
+    volumes:
+      - ./volumes/maintainerr/data:/opt/data
+    restart: unless-stopped

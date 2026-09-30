@@ -1,0 +1,65 @@
+name: monitoring
+
+services:
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor-arm64:v0.55.1@sha256:52d1a5b3408835f84dc2dc579d91fc28d3cf235fc6ba94cd2a913d5475b275d8
+    container_name: cadvisor
+    restart: unless-stopped
+    privileged: true
+    ports:
+      - 8081:8080
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+      - /etc/machine-id:/etc/machine-id:ro
+
+  node-exporter:
+    image: prom/node-exporter:v1.12.1@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0
+    container_name: node-exporter
+    restart: unless-stopped
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/host
+      - --collector.filesystem.ignored-mount-points
+      - ^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+      - /:/host:ro,rslave
+
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e
+    volumes:
+      - ./prometheus/:/etc/prometheus/
+      - prometheus:/prometheus/
+    ports:
+      - 9090:9090
+    restart: unless-stopped
+
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:13.2.3@sha256:b28bae15e219c998fb0e0424ed724930cc61b1f61fb404d47c862f9a23f9e572
+    ports:
+      - 3000:3000
+    environment:
+      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - grafana:/var/lib/grafana
+      - ./grafana:/etc/grafana/provisioning
+    restart: unless-stopped
+
+volumes:
+  prometheus:
+    external: true
+    name: media-server_prometheus
+  grafana:
+    external: true
+    name: media-server_grafana

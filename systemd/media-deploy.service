@@ -1,0 +1,15 @@
+[Unit]
+Description=Deploy the latest main of the media server
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+User=@USER@
+Group=@GROUP@
+SupplementaryGroups=docker
+WorkingDirectory=@MEDIA_SERVER_DIR@
+Environment=SOPS_AGE_KEY_FILE=@HOME@/.config/sops/age/keys.txt
+ExecStart=@SOPS@ exec-env secrets/deploy.sops.env scripts/scheduled-deploy.sh
+Nice=10
+IOSchedulingClass=idle

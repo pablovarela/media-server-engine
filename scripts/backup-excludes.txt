@@ -1,0 +1,7 @@
+jellyfin/config/cache
+jellyfin/config/log
+jellyfin/config/data/metadata
+jellyfin/config/data/transcodes
+configarr
+logs
+*.pid

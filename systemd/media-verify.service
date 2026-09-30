@@ -1,0 +1,14 @@
+[Unit]
+Description=Verify the latest media-server backup restores cleanly
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=@USER@
+Group=@GROUP@
+WorkingDirectory=@MEDIA_SERVER_DIR@
+Environment=SOPS_AGE_KEY_FILE=@HOME@/.config/sops/age/keys.txt
+ExecStart=@SOPS@ exec-env secrets/backup.sops.env scripts/verify-backup.sh
+Nice=10
+IOSchedulingClass=idle

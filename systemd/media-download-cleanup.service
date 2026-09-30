@@ -1,0 +1,11 @@
+[Unit]
+Description=Remove downloads that Sonarr or Radarr flagged as executables
+After=docker.service
+
+[Service]
+Type=oneshot
+User=@USER@
+Group=@GROUP@
+WorkingDirectory=@MEDIA_SERVER_DIR@
+ExecStart=@MEDIA_SERVER_DIR@/scripts/remove-executable-downloads.sh
+Nice=10
