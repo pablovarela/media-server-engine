@@ -2,6 +2,7 @@
 Description=Weekly media-server backup verification
 
 [Timer]
+Persistent=true
 OnCalendar=Sun *-*-* 05:30:00
 
 [Install]

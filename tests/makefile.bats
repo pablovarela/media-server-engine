@@ -16,3 +16,22 @@ setup() {
   grep -q "scripts/backup.sh" "$REPO/systemd/media-backup.service"
   grep -q "scripts/verify-backup.sh" "$REPO/systemd/media-verify.service"
 }
+
+@test "targets that need an installation say where installations are, run outside one" {
+  home=$(mktemp -d)
+  mkdir -p "$home/trial/engine" "$home/trial/config"
+  echo INSTALLATION_NAME=trial > "$home/trial/config/installation.env"
+  for target in backup-now verify-backup-now claim-backup-main install-backup-timers media-start urls; do
+    run env HOME="$home" make -s -C "$REPO" "$target" CONFIG_DIR="$home/nowhere/config"
+    [ "$status" -ne 0 ] || { echo "$target did not refuse"; false; }
+    echo "$output" | grep -q "not an installation" || { echo "$target: $output"; false; }
+    echo "$output" | grep -q "cd $home/trial/engine" || { echo "$target: $output"; false; }
+  done
+  rm -rf "$home"
+}
+
+@test "missed backups, checks and updates run once the machine is back" {
+  for timer in media-backup media-verify media-update; do
+    grep -qx "Persistent=true" "$REPO/systemd/$timer.timer" || { echo "$timer"; false; }
+  done
+}

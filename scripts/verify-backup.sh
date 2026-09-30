@@ -19,7 +19,7 @@ restored_databases() {
 }
 
 is_sqlite_database() {
-  [ "$(head -c 15 "$1")" = "SQLite format 3" ]
+  [ "$(head -c 15 "$1" | tr -d '\000')" = "SQLite format 3" ]
 }
 
 check_database() {

@@ -15,6 +15,7 @@ case $1 in
   describe) if [ -n "${FAKE_ENGINE_TAG:-}" ]; then echo "$FAKE_ENGINE_TAG"; else exit 128; fi ;;
   clone) cp -R "$3" "$4" ;;
   rev-parse) echo abc123 ;;
+  symbolic-ref) [ -z "${FAKE_DETACHED_ENGINE:-}" ] ;;
 esac'
   make_stub gh '
 case "$1 $2" in
@@ -168,4 +169,22 @@ create() {
   [ "$status" -eq 130 ]
   [ ! -e "$CONFIG_DIR" ]
   ! grep -q "AGE-SECRET-KEY-NEW" "$HOME/.config/sops/age/keys.txt" || false
+}
+
+@test "an engine copied from a branch stays on that branch, so it can be pulled" {
+  source_engine="$STUB_DIR/checkout/media-server-engine"
+  mkdir -p "$source_engine"
+  cp -R "$BATS_TEST_DIRNAME/../scripts" "$BATS_TEST_DIRNAME/../config-template" "$source_engine/"
+  ENGINE_DIR=$source_engine INSTALL_DIR="$STUB_DIR/newinst" run "$source_engine/scripts/create-installation.sh" newinst < <(echo)
+  [ "$status" -eq 0 ]
+  ! grep -q "checkout -q abc123" "$STUB_LOG" || false
+}
+
+@test "an engine copied from a detached release checks out that exact commit" {
+  source_engine="$STUB_DIR/checkout/media-server-engine"
+  mkdir -p "$source_engine"
+  cp -R "$BATS_TEST_DIRNAME/../scripts" "$BATS_TEST_DIRNAME/../config-template" "$source_engine/"
+  FAKE_DETACHED_ENGINE=1 ENGINE_DIR=$source_engine INSTALL_DIR="$STUB_DIR/newinst" run "$source_engine/scripts/create-installation.sh" newinst < <(echo)
+  [ "$status" -eq 0 ]
+  grep -q "checkout -q abc123" "$STUB_LOG"
 }

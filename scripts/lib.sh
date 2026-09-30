@@ -24,7 +24,7 @@ die_not_an_installation() {
   local found
   found=$(installations_on_this_machine)
   {
-    echo "$(basename "$0"): $ENGINE_DIR is not an installation: there is no config next to it."
+    echo "$ENGINE_DIR is not an installation: there is no config next to it."
     if [ -n "$found" ]; then
       echo "Installations on this machine; run make from the engine of the one you mean:"
       echo "$found" | while IFS= read -r installation; do echo "  cd $installation/engine"; done
@@ -32,6 +32,10 @@ die_not_an_installation() {
     echo "To create one: make create-installation NAME=<name>"
   } >&2
   exit 1
+}
+
+require_installation() {
+  [ -f "$CONFIG_DIR/installation.env" ] || die_not_an_installation
 }
 
 load_installation() {
@@ -156,7 +160,9 @@ run_from_installation_directory() {
   [ -e "$install_dir" ] || created_install_dir=$install_dir
   mkdir -p "$install_dir"
   git clone -q "$ENGINE_DIR" "$engine"
-  git -C "$engine" checkout -q "$(git -C "$ENGINE_DIR" rev-parse HEAD)"
+  if ! git -C "$ENGINE_DIR" symbolic-ref -q HEAD >/dev/null; then
+    git -C "$engine" checkout -q "$(git -C "$ENGINE_DIR" rev-parse HEAD)"
+  fi
   git -C "$engine" remote set-url origin "$(git -C "$ENGINE_DIR" remote get-url origin)"
   echo "Installing $name in $install_dir: engine, config and data side by side." >&2
   ENGINE_DIR=$engine CONFIG_DIR=$install_dir/config DATA_DIR=$install_dir/data INSTALL_DIR=$install_dir \

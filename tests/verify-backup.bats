@@ -13,7 +13,7 @@ if [ "$1" = restore ]; then
   mkdir -p "$target/app"
   printf "SQLite format 3\\000" > "$target/app/a.db"
   printf "SQLite format 3\\000" > "$target/app/b.sqlite"
-  printf "bolt" > "$target/app/portainer.db"
+  printf "\\000\\000\\020bolt" > "$target/app/portainer.db"
 fi'
   make_stub sqlite3 'if [ -n "${FAKE_CORRUPT:-}" ] && [ "${1##*/}" = b.sqlite ]; then echo "*** in database main ***"; else echo ok; fi'
 }
@@ -89,4 +89,10 @@ teardown() {
   [ "$status" -ne 0 ]
   ! grep -q "restic check" "$STUB_LOG" || false
   echo "$output" | grep -q "another machine is testinst's main"
+}
+
+@test "a database file that is not sqlite is skipped without a warning" {
+  run "$BATS_TEST_DIRNAME/../scripts/verify-backup.sh"
+  [ "$status" -eq 0 ]
+  ! echo "$output" | grep -qi "null byte" || false
 }
