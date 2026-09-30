@@ -42,6 +42,8 @@ services:
     container_name: sonarr
     ports:
       - "8989:8989"
+    env_file:
+      - .secrets/sonarr.env
     environment:
       - PUID=1000
       - PGID=1000
@@ -65,6 +67,8 @@ services:
     container_name: radarr
     ports:
       - "7878:7878"
+    env_file:
+      - .secrets/radarr.env
     environment:
       - PUID=1000
       - PGID=1000
@@ -101,6 +105,8 @@ services:
 
   prowlarr:
     container_name: prowlarr
+    env_file:
+      - .secrets/prowlarr.env
     environment:
       - PUID=1000
       - PGID=1000
@@ -140,6 +146,7 @@ services:
   portainer:
     container_name: portainer
     user: "1000:1000"
+    command: --admin-password-file /run/secrets/portainer_admin
     group_add:
       - "${DOCKER_GID:?DOCKER_GID is written to .env by make update}"
     ports:
@@ -147,6 +154,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${DATA_DIR}/volumes/portainer/data:/data
+      - ./.secrets/portainer_admin:/run/secrets/portainer_admin:ro
     restart: unless-stopped
 
   configarr:

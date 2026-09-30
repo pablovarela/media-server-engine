@@ -15,7 +15,7 @@ esac'
   make_stub sops '
 case "$*" in
   *vpn.sops.env*) echo "OPENVPN_USER=u" ;;
-  *apps.sops.env*) printf "SONARR_API_KEY=s1\nRADARR_API_KEY=r1\nPROWLARR_API_KEY=p1\n" ;;
+  *apps.sops.env*) printf "SONARR_API_KEY=s1\nRADARR_API_KEY=r1\nPROWLARR_API_KEY=p1\nPORTAINER_ADMIN_PASSWORD=pw 1\n" ;;
 esac'
   make_compose_stub '
 echo "pulled=${MEDIA_SERVER_PULLED:-}" >> "$STUB_LOG"
@@ -66,9 +66,21 @@ line_of() {
 
 @test "decrypted secrets are readable only by the owner" {
   run update
-  for f in .secrets/vpn.env .secrets/apps.env .secrets/configarr/secrets.yml; do
+  for f in .secrets/vpn.env .secrets/apps.env .secrets/configarr/secrets.yml .secrets/sonarr.env .secrets/radarr.env .secrets/prowlarr.env .secrets/portainer_admin; do
     [ "$(stat -f %Lp "$ENGINE_DIR/$f" 2>/dev/null || stat -c %a "$ENGINE_DIR/$f")" = "600" ]
   done
+}
+
+@test "each arr gets only its own api key, named as the app reads it" {
+  run update
+  [ "$(cat "$ENGINE_DIR/.secrets/sonarr.env")" = "SONARR__AUTH__APIKEY=s1" ]
+  [ "$(cat "$ENGINE_DIR/.secrets/radarr.env")" = "RADARR__AUTH__APIKEY=r1" ]
+  [ "$(cat "$ENGINE_DIR/.secrets/prowlarr.env")" = "PROWLARR__AUTH__APIKEY=p1" ]
+}
+
+@test "the portainer admin password file holds exactly the password" {
+  run update
+  [ "$(od -c "$ENGINE_DIR/.secrets/portainer_admin" | head -1)" = "$(printf 'pw 1' | od -c | head -1)" ]
 }
 
 @test "update writes the docker socket group id for compose" {

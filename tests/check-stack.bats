@@ -7,6 +7,7 @@ setup() {
   cp -R "$REPO/scripts" "$ENGINE_DIR/"
   cp "$REPO"/config-template/images*.yml "$CONFIG_DIR/"
   : > "$ENGINE_DIR/.secrets/vpn.env"
+  for file in sonarr.env radarr.env prowlarr.env portainer_admin; do : > "$ENGINE_DIR/.secrets/$file"; done
   echo "DOCKER_GID=0" > "$ENGINE_DIR/.env"
 }
 

@@ -7,6 +7,7 @@ setup() {
   cp -R "$REPO/scripts" "$ENGINE_DIR/"
   cp "$REPO"/config-template/images*.yml "$CONFIG_DIR/"
   : > "$ENGINE_DIR/.secrets/vpn.env"
+  for file in sonarr.env radarr.env prowlarr.env portainer_admin; do : > "$ENGINE_DIR/.secrets/$file"; done
   echo "DOCKER_GID=0" > "$ENGINE_DIR/.env"
 }
 
@@ -85,4 +86,29 @@ waits = services["configarr"].get("depends_on", {})
 for app in ("sonarr", "radarr"):
     assert waits.get(app, {}).get("condition") == "service_healthy", app
     assert "healthcheck" in services[app], app'
+}
+
+@test "sonarr, radarr and prowlarr take their api key from their own secrets file" {
+  printf 'SONARR__AUTH__APIKEY=sk\n' > "$ENGINE_DIR/.secrets/sonarr.env"
+  printf 'RADARR__AUTH__APIKEY=rk\n' > "$ENGINE_DIR/.secrets/radarr.env"
+  printf 'PROWLARR__AUTH__APIKEY=pk\n' > "$ENGINE_DIR/.secrets/prowlarr.env"
+  run merged stack_compose
+  [ "$status" -eq 0 ]
+  echo "$output" | python3 -c '
+import json, sys
+services = json.load(sys.stdin)["services"]
+for app, key in (("sonarr", "sk"), ("radarr", "rk"), ("prowlarr", "pk")):
+    assert services[app]["environment"].get(app.upper() + "__AUTH__APIKEY") == key, app
+assert "SONARR__AUTH__APIKEY" not in services["radarr"]["environment"]'
+}
+
+@test "portainer creates its admin from a read-only password file" {
+  run merged stack_compose
+  echo "$output" | python3 -c '
+import json, os, sys
+portainer = json.load(sys.stdin)["services"]["portainer"]
+assert portainer["command"] == ["--admin-password-file", "/run/secrets/portainer_admin"], portainer["command"]
+mount = [m for m in portainer["volumes"] if m["target"] == "/run/secrets/portainer_admin"][0]
+assert mount["source"] == os.environ["ENGINE_DIR"] + "/.secrets/portainer_admin", mount
+assert mount.get("read_only"), mount'
 }

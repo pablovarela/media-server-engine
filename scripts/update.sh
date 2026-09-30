@@ -46,6 +46,19 @@ for line in sys.stdin:
 '
 }
 
+app_secret() {
+  sed -n "s/^$1=//p" "$ENGINE_DIR/.secrets/apps.env"
+}
+
+write_app_secret_files() {
+  local app upper
+  for app in sonarr radarr prowlarr; do
+    upper=$(echo "$app" | tr '[:lower:]' '[:upper:]')
+    echo "${upper}__AUTH__APIKEY=$(app_secret "${upper}_API_KEY")" > "$ENGINE_DIR/.secrets/$app.env"
+  done
+  printf '%s' "$(app_secret PORTAINER_ADMIN_PASSWORD)" > "$ENGINE_DIR/.secrets/portainer_admin"
+}
+
 decrypt_secrets() {
   (
     umask 077
@@ -53,6 +66,7 @@ decrypt_secrets() {
     sops decrypt --output-type dotenv "$CONFIG_DIR/secrets/vpn.sops.env" > "$ENGINE_DIR/.secrets/vpn.env"
     sops decrypt --output-type dotenv "$CONFIG_DIR/secrets/apps.sops.env" > "$ENGINE_DIR/.secrets/apps.env"
     configarr_secrets_from < "$ENGINE_DIR/.secrets/apps.env" > "$ENGINE_DIR/.secrets/configarr/secrets.yml"
+    write_app_secret_files
   )
 }
 
