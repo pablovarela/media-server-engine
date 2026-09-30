@@ -2,7 +2,7 @@
 
 There are two ways to change the config, and they can be mixed:
 
-- `make configure`, run from the installation's engine (`cd ~/<name>/engine`). It shows menus when whiptail is installed and asks plain questions otherwise. It covers the settings and secrets below.
+- `make configure`, run from the installation's engine (`cd ~/<name>/engine`). It shows menus when whiptail is installed and asks plain questions otherwise. It covers the settings and secrets below, and checks them: the time zone must exist, a backup folder must be writable and Backblaze B2 must accept the key, bucket and password.
 - Editing the files in this repository by hand. Every setting is a file here, so nothing needs the configuration tool.
 
 Either way, a change reaches the apps at the next `make update`.
@@ -13,7 +13,7 @@ Edit these with any editor.
 
 | File | What it holds |
 |---|---|
-| `installation.env` | `TZ` (time zone), `CONFIG_ON_GITHUB` (`y` or `n`), `GITHUB_OWNER`, `JELLYFIN_ADMIN_USER`, `RESTIC_REPOSITORY` (a local path, or `b2:<bucket>:<folder>`). `INSTALLATION_NAME` is fixed once the installation exists: its directory, repository, backups and healthchecks are named after it. |
+| `installation.env` | `TZ` (a time zone such as `Europe/London`), `CONFIG_LOCATION` (`local` or `github`), `GITHUB_OWNER`, `JELLYFIN_ADMIN_USER`, `RESTIC_REPOSITORY` (an absolute folder path, or `b2:<bucket>:<folder>` for Backblaze B2). `INSTALLATION_NAME` is fixed once the installation exists: its directory, repository, backups and healthchecks are named after it. |
 | `engine.env` | `ENGINE_VERSION`: the engine release to run, or `local` to run the engine checkout as it is. |
 | `images.yml`, `images.monitoring.yml` | The image of every service, pinned to a digest. Renovate updates them. |
 | `apps.yml` | Jellyfin's server name and libraries, Deluge's settings and plugins, Seerr's libraries and quality profiles, Bazarr's subtitle languages. |

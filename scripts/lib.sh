@@ -98,8 +98,8 @@ read_answer() {
   local _prompt_typed=""
   if [ -t 0 ] && [ "${2:-}" = secret ]; then
     IFS= read -rs _prompt_typed
-  else
-    IFS= read -r _prompt_typed || true
+  elif ! IFS= read -r _prompt_typed && [ -z "$_prompt_typed" ]; then
+    export PROMPT_INPUT_ENDED=1
   fi
   [ -t 0 ] && [ "${2:-}" != secret ] || echo >&2
   printf -v "$1" '%s' "$_prompt_typed"

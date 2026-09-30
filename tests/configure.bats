@@ -16,6 +16,7 @@ case "$1 $2" in
   "repo view") [ -n "${FAKE_REPO_EXISTS:-}" ] ;;
   "repo create") git remote add origin "git@github.com:$3.git" ;;
 esac'
+  make_stub restic 'exit "${FAKE_RESTIC_STATUS:-10}"'
   export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.com GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.com
   printf 'creation_rules:\n  - path_regex: secrets/\n    age: age1test\n' > "$CONFIG_DIR/.sops.yaml"
 }
@@ -27,10 +28,12 @@ teardown() {
 answers_for_new_installation() {
   cat <<'EOF'
 Europe/London
-y
+github
 someone
 admin
-b2:testinst-media-server-backup:restic
+b2
+testinst-media-server-backup
+restic
 0031keyid
 K005applicationkey
 restic-password-typed
@@ -47,7 +50,7 @@ EOF
 }
 
 enter_on_every_prompt() {
-  for _ in $(seq 17); do echo; done
+  for _ in $(seq 22); do echo; done
 }
 
 configure() {
@@ -106,7 +109,7 @@ commits() {
 
 @test "changing one secret rewrites only its file" {
   configure < <(answers_for_new_installation) >/dev/null 2>&1
-  run configure < <(for i in $(seq 17); do if [ "$i" -eq 11 ]; then echo new-vpn-password; else echo; fi; done)
+  run configure < <(for i in $(seq 22); do if [ "$i" -eq 13 ]; then echo new-vpn-password; else echo; fi; done)
   [ "$(commits)" -eq 2 ]
   [ "$(git -C "$CONFIG_DIR" show --name-only --format= HEAD)" = "secrets/vpn.sops.env" ]
   grep -qx "ENC:OPENVPN_PASSWORD=new-vpn-password" "$CONFIG_DIR/secrets/vpn.sops.env"
@@ -155,24 +158,24 @@ answers_with() {
   run configure < <(answers_for_new_installation)
   [ "$status" -eq 0 ]
   grep -q "^gh repo create someone/media-server-config-testinst --private --source . --push$" "$STUB_LOG"
-  grep -qx "CONFIG_ON_GITHUB=y" "$CONFIG_DIR/installation.env"
+  grep -qx "CONFIG_LOCATION=github" "$CONFIG_DIR/installation.env"
   echo "$output" | grep -q "github.com/apps/renovate"
 }
 
 @test "a local-only installation never touches a github repo and is not asked for an owner" {
-  run configure < <(answers_with '2s/y/n/; 3d')
+  run configure < <(answers_with '2s/github/local/; 3d')
   [ "$status" -eq 0 ]
   ! grep -q "^gh repo" "$STUB_LOG" || false
   ! git -C "$CONFIG_DIR" remote get-url origin 2>/dev/null || false
-  grep -qx "CONFIG_ON_GITHUB=n" "$CONFIG_DIR/installation.env"
+  grep -qx "CONFIG_LOCATION=local" "$CONFIG_DIR/installation.env"
   grep -qx "JELLYFIN_ADMIN_USER=admin" "$CONFIG_DIR/installation.env"
   [ "$(commits)" -eq 1 ]
   ! echo "$output" | grep -q "GitHub owner" || false
 }
 
 @test "a local config is published when it is switched to github" {
-  configure < <(answers_with '2s/y/n/; 3d') >/dev/null 2>&1
-  run configure < <(printf '\ny\nsomeone\n'; for _ in $(seq 16); do echo; done)
+  configure < <(answers_with '2s/github/local/; 3d') >/dev/null 2>&1
+  run configure < <(printf '\ngithub\nsomeone\n'; for _ in $(seq 20); do echo; done)
   [ "$status" -eq 0 ]
   grep -q "^gh repo create someone/media-server-config-testinst --private --source . --push$" "$STUB_LOG"
   [ "$(git -C "$CONFIG_DIR" remote get-url origin)" = "git@github.com:someone/media-server-config-testinst.git" ]
@@ -181,7 +184,7 @@ answers_with() {
 @test "a config switched to local stops pulling from github and keeps the github repo" {
   configure < <(answers_for_new_installation) >/dev/null 2>&1
   : > "$STUB_LOG"
-  run configure < <(printf '\nn\n'; for _ in $(seq 16); do echo; done)
+  run configure < <(printf '\nlocal\n'; for _ in $(seq 20); do echo; done)
   [ "$status" -eq 0 ]
   ! git -C "$CONFIG_DIR" remote get-url origin 2>/dev/null || false
   ! grep -q "^gh repo delete" "$STUB_LOG" || false
@@ -248,25 +251,65 @@ answers_with() {
   grep -qx "ENC:PORTAINER_ADMIN_PASSWORD=portainer-pass-long" "$CONFIG_DIR/secrets/apps.sops.env"
 }
 
-@test "the backup repository question explains a local path and backblaze b2" {
+@test "the backups are a choice between a local folder and backblaze b2" {
   run configure < <(answers_for_new_installation)
-  echo "$output" | grep -q "local path"
-  echo "$output" | grep -q "Backblaze B2"
+  echo "$output" | grep -q "local: A folder on this machine"
+  echo "$output" | grep -q "b2: Backblaze B2"
+  grep -qx "RESTIC_REPOSITORY=b2:testinst-media-server-backup:restic" "$CONFIG_DIR/installation.env"
 }
 
-@test "a local backup repository is not asked for b2 keys" {
-  run configure < <(answers_for_new_installation | sed 's#^b2:testinst-media-server-backup:restic$#/srv/backup/restic#; /^0031keyid$/d; /^K005applicationkey$/d')
+@test "a local backup folder is asked for, created, and needs no b2 keys" {
+  run configure < <(answers_for_new_installation | sed "5s#b2#local#; 6s#.*#~/testinst-backups#; 7d; 8d; 9d")
   [ "$status" -eq 0 ]
   ! echo "$output" | grep -q "B2 key ID" || false
-  grep -qx "RESTIC_REPOSITORY=/srv/backup/restic" "$CONFIG_DIR/installation.env"
+  grep -qx "RESTIC_REPOSITORY=$HOME/testinst-backups" "$CONFIG_DIR/installation.env"
+  [ -d "$HOME/testinst-backups" ]
   grep -qx "ENC:RESTIC_PASSWORD=restic-password-typed" "$CONFIG_DIR/secrets/backup.sops.env"
+}
+
+@test "a backup folder that cannot be made is explained, and can be kept anyway" {
+  mkdir -p "$STUB_DIR/readonly" && chmod 555 "$STUB_DIR/readonly"
+  run configure < <(answers_for_new_installation | sed "5s#b2#local#; 6s#.*#$STUB_DIR/readonly/backups#; 7d; 8d; 9d" | sed "7a\\
+y")
+  chmod 755 "$STUB_DIR/readonly"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q "cannot be created or written to"
+  grep -qx "RESTIC_REPOSITORY=$STUB_DIR/readonly/backups" "$CONFIG_DIR/installation.env"
+}
+
+@test "b2 details that do not open the existing backups are explained and asked again" {
+  FAKE_RESTIC_STATUS=12 run configure < <(answers_for_new_installation | sed "10a\\
+n\\
+b2\\
+testinst-media-server-backup\\
+restic\\
+0031keyid\\
+K005applicationkey\\
+restic-password-typed\\
+y")
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | grep -c "does not open the backups")" -ge 1 ]
+}
+
+@test "a time zone that does not exist is asked again" {
+  run configure < <(answers_for_new_installation | sed "1s#.*#Mars/Olympus\\
+Europe/London#")
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q "Mars/Olympus is not a time zone"
+  grep -qx "TZ=Europe/London" "$CONFIG_DIR/installation.env"
 }
 
 @test "keys added to a secrets file by hand survive configure" {
   configure < <(answers_for_new_installation) >/dev/null 2>&1
   echo "ENC:WIREGUARD_MTU=1320" >> "$CONFIG_DIR/secrets/vpn.sops.env"
-  run configure < <(for i in $(seq 17); do if [ "$i" -eq 11 ]; then echo new-vpn-password; else echo; fi; done)
+  run configure < <(for i in $(seq 22); do if [ "$i" -eq 13 ]; then echo new-vpn-password; else echo; fi; done)
   [ "$status" -eq 0 ]
   grep -qx "ENC:WIREGUARD_MTU=1320" "$CONFIG_DIR/secrets/vpn.sops.env"
   grep -qx "ENC:OPENVPN_PASSWORD=new-vpn-password" "$CONFIG_DIR/secrets/vpn.sops.env"
+}
+
+@test "answers that run out while the backup details keep failing stop configure instead of looping" {
+  FAKE_RESTIC_STATUS=12 run configure < <(answers_for_new_installation | head -10)
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "answers ran out"
 }

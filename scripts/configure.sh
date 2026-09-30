@@ -104,7 +104,7 @@ if bazarr.get("languages") != wanted:
 }
 
 write_config() {
-  write_plain installation.env INSTALLATION_NAME TZ CONFIG_ON_GITHUB GITHUB_OWNER JELLYFIN_ADMIN_USER RESTIC_REPOSITORY
+  write_plain installation.env INSTALLATION_NAME TZ CONFIG_LOCATION GITHUB_OWNER JELLYFIN_ADMIN_USER RESTIC_REPOSITORY
   write_subtitle_languages
   write_secret secrets/backup.sops.env RESTIC_PASSWORD B2_ACCOUNT_ID B2_ACCOUNT_KEY
   write_secret secrets/vpn.sops.env VPN_SERVICE_PROVIDER OPENVPN_USER OPENVPN_PASSWORD SERVER_COUNTRIES
@@ -142,7 +142,7 @@ publish_config() {
 apply_config_location() {
   local remote
   remote=$(config_remote || true)
-  if [ "$CONFIG_ON_GITHUB" = y ]; then
+  if [ "$CONFIG_LOCATION" = github ]; then
     if [ -z "$remote" ]; then
       publish_config
     elif [ -n "${COMMITTED:-}" ]; then
@@ -165,9 +165,11 @@ cd "$CONFIG_DIR"
 
 [ -f installation.env ] || NEW_INSTALLATION=1
 load_current_values
+split_restic_repository
 INSTALLATION_NAME=${INSTALLATION_NAME:-${NAME:-}}
 [ -n "$INSTALLATION_NAME" ] || die "this config has no installation name; create one with make create-installation NAME=<name>"
 if use_menus; then menu_for_values; else prompt_for_values; fi
+join_restic_repository
 generate_internal_credentials
 write_config
 commit_changes
