@@ -27,9 +27,22 @@ jobs:
           make lint > reports/shellcheck.log 2>&1
           echo "shellcheck=$?" >> "$GITHUB_OUTPUT"
           cat reports/bats.log reports/shellcheck.log
-      - name: Write the report
+      - name: Report the test results
         if: always()
-        run: python3 .github/scripts/test-summary.py reports/report.xml "${{ steps.tests.outputs.shellcheck }}" >> "$GITHUB_STEP_SUMMARY"
+        uses: EnricoMi/publish-unit-test-result-action@d0a4676d0e0b938bc201470d88276b7c74c712b3 # v2.24.0
+        with:
+          check_name: Test Results
+          files: reports/report.xml
+          check_run: false
+          comment_mode: off
+      - name: Report shellcheck
+        if: always()
+        run: |
+          if [ "${{ steps.tests.outputs.shellcheck }}" = 0 ]; then
+            echo "shellcheck: clean" >> "$GITHUB_STEP_SUMMARY"
+          else
+            { echo "shellcheck: findings"; echo '```'; cat reports/shellcheck.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Fail when a test or shellcheck failed
         if: steps.tests.outputs.bats != '0' || steps.tests.outputs.shellcheck != '0'
         run: exit 1
