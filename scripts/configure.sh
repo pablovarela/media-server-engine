@@ -116,9 +116,15 @@ prompt_for_values() {
   fi
   ask JELLYFIN_ADMIN_USER "Jellyfin admin user" "${JELLYFIN_ADMIN_USER:-admin}"
   echo "Backup" >&2
-  ask RESTIC_REPOSITORY "Restic repository" "${RESTIC_REPOSITORY:-b2:$INSTALLATION_NAME-media-server-backup:restic}"
-  ask B2_ACCOUNT_ID "B2 key ID" "${B2_ACCOUNT_ID:-}"
-  ask_secret B2_ACCOUNT_KEY "B2 application key" "${B2_ACCOUNT_KEY:-}"
+  echo "  Where restic keeps the backups: a local path such as /mnt/backup/restic, or Backblaze B2 as b2:<bucket>:<folder>." >&2
+  ask RESTIC_REPOSITORY "Backup repository" "${RESTIC_REPOSITORY:-b2:$INSTALLATION_NAME-media-server-backup:restic}"
+  if [[ $RESTIC_REPOSITORY == b2:* ]]; then
+    ask B2_ACCOUNT_ID "B2 key ID" "${B2_ACCOUNT_ID:-}"
+    ask_secret B2_ACCOUNT_KEY "B2 application key" "${B2_ACCOUNT_KEY:-}"
+  else
+    B2_ACCOUNT_ID=${B2_ACCOUNT_ID:-}
+    B2_ACCOUNT_KEY=${B2_ACCOUNT_KEY:-}
+  fi
   ask_password RESTIC_PASSWORD "Restic password" "${RESTIC_PASSWORD:-}"
   echo "VPN" >&2
   ask VPN_SERVICE_PROVIDER "VPN provider (gluetun name)" "${VPN_SERVICE_PROVIDER:-}"

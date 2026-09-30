@@ -247,3 +247,17 @@ answers_with() {
   echo "$output" | grep -q "at least 12 characters"
   grep -qx "ENC:PORTAINER_ADMIN_PASSWORD=portainer-pass-long" "$CONFIG_DIR/secrets/apps.sops.env"
 }
+
+@test "the backup repository question explains a local path and backblaze b2" {
+  run configure < <(answers_for_new_installation)
+  echo "$output" | grep -q "local path"
+  echo "$output" | grep -q "Backblaze B2"
+}
+
+@test "a local backup repository is not asked for b2 keys" {
+  run configure < <(answers_for_new_installation | sed 's#^b2:testinst-media-server-backup:restic$#/srv/backup/restic#; /^0031keyid$/d; /^K005applicationkey$/d')
+  [ "$status" -eq 0 ]
+  ! echo "$output" | grep -q "B2 key ID" || false
+  grep -qx "RESTIC_REPOSITORY=/srv/backup/restic" "$CONFIG_DIR/installation.env"
+  grep -qx "ENC:RESTIC_PASSWORD=restic-password-typed" "$CONFIG_DIR/secrets/backup.sops.env"
+}
