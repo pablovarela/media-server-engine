@@ -2,6 +2,8 @@
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "$0")/lib.sh"
+# shellcheck source=scripts/configure-fields.sh
+source "$(dirname "$0")/configure-fields.sh"
 
 readonly ROTATABLE="sonarr:SONARR_API_KEY radarr:RADARR_API_KEY prowlarr:PROWLARR_API_KEY"
 readonly INTERNAL_CREDENTIALS="SONARR_API_KEY RADARR_API_KEY PROWLARR_API_KEY"
@@ -67,78 +69,6 @@ write_secret() {
       sops encrypt --filename-override "$file" --input-type dotenv --output-type dotenv /dev/stdin > "$file.new"
     mv "$file.new" "$file"
   fi
-}
-
-engine_owner() {
-  git -C "$ENGINE_DIR" remote get-url origin 2>/dev/null | sed -E 's#^.*github\.com[:/]##; s#/.*$##'
-}
-
-default_config_on_github() {
-  if [ -n "${CONFIG_ON_GITHUB:-}" ]; then
-    echo "$CONFIG_ON_GITHUB"
-  elif gh auth status >/dev/null 2>&1; then
-    echo y
-  else
-    echo n
-  fi
-}
-
-current_subtitle_languages() {
-  python3 -c '
-import sys, yaml
-try:
-    languages = (yaml.safe_load(open("apps.yml")) or {}).get("bazarr", {}).get("languages")
-except FileNotFoundError:
-    languages = None
-print(", ".join(languages or ["en"]))'
-}
-
-readonly PORTAINER_PASSWORD_MINIMUM=12
-
-ask_portainer_password() {
-  local current=${PORTAINER_ADMIN_PASSWORD:-}
-  while true; do
-    ask_password PORTAINER_ADMIN_PASSWORD "Portainer admin password (at least $PORTAINER_PASSWORD_MINIMUM characters)" "$current"
-    [ "${#PORTAINER_ADMIN_PASSWORD}" -lt "$PORTAINER_PASSWORD_MINIMUM" ] || return 0
-    echo "Portainer needs at least $PORTAINER_PASSWORD_MINIMUM characters." >&2
-    current=""
-  done
-}
-
-prompt_for_values() {
-  echo "Installation: $INSTALLATION_NAME" >&2
-  ask TZ "Time zone" "${TZ:-Etc/UTC}"
-  ask CONFIG_ON_GITHUB "Keep this config in a private GitHub repo, so other machines can join? (y/n)" "$(default_config_on_github)"
-  if [ "$CONFIG_ON_GITHUB" = y ]; then
-    ask GITHUB_OWNER "GitHub owner of the config repo" "${GITHUB_OWNER:-$(engine_owner)}"
-  else
-    GITHUB_OWNER=${GITHUB_OWNER:-}
-  fi
-  ask JELLYFIN_ADMIN_USER "Jellyfin admin user" "${JELLYFIN_ADMIN_USER:-admin}"
-  echo "Backup" >&2
-  echo "  Where restic keeps the backups: a local path such as /mnt/backup/restic, or Backblaze B2 as b2:<bucket>:<folder>." >&2
-  ask RESTIC_REPOSITORY "Backup repository" "${RESTIC_REPOSITORY:-b2:$INSTALLATION_NAME-media-server-backup:restic}"
-  if [[ $RESTIC_REPOSITORY == b2:* ]]; then
-    ask B2_ACCOUNT_ID "B2 key ID" "${B2_ACCOUNT_ID:-}"
-    ask_secret B2_ACCOUNT_KEY "B2 application key" "${B2_ACCOUNT_KEY:-}"
-  else
-    B2_ACCOUNT_ID=${B2_ACCOUNT_ID:-}
-    B2_ACCOUNT_KEY=${B2_ACCOUNT_KEY:-}
-  fi
-  ask_password RESTIC_PASSWORD "Restic password" "${RESTIC_PASSWORD:-}"
-  echo "VPN" >&2
-  ask VPN_SERVICE_PROVIDER "VPN provider (gluetun name)" "${VPN_SERVICE_PROVIDER:-}"
-  ask OPENVPN_USER "OpenVPN user" "${OPENVPN_USER:-}"
-  ask_secret OPENVPN_PASSWORD "OpenVPN password" "${OPENVPN_PASSWORD:-}"
-  ask SERVER_COUNTRIES "VPN server countries" "${SERVER_COUNTRIES:-}"
-  echo "Healthchecks (optional)" >&2
-  ask_secret HEALTHCHECKS_PING_KEY "healthchecks.io project ping key" "${HEALTHCHECKS_PING_KEY:-}"
-  echo "App logins" >&2
-  ask_password JELLYFIN_ADMIN_PASSWORD "Jellyfin admin password" "${JELLYFIN_ADMIN_PASSWORD:-}"
-  ask_password DELUGE_WEB_PASSWORD "Deluge web password" "${DELUGE_WEB_PASSWORD:-}"
-  ask_portainer_password
-  echo "Subtitles" >&2
-  ask SUBTITLE_LANGUAGES "Subtitle languages (codes, comma separated)" "$(current_subtitle_languages)"
 }
 
 write_subtitle_languages() {
