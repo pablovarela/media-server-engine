@@ -37,3 +37,14 @@ wire_configarr() {
   FAKE_CONFIGARR_STATUS=3 run wire_configarr
   [ "$status" -ne 0 ]
 }
+
+@test "passwords in configarr's report are hidden" {
+  FAKE_CONFIGARR_OUTPUT="      fields.password: ******** -> hunter2-secret
+      fields.Password: old -> other-secret
+      fields.host: gluetun -> gluetun" run wire_configarr
+  [ "$status" -eq 0 ]
+  ! echo "$output" | grep -q "hunter2-secret" || false
+  ! echo "$output" | grep -q "other-secret" || false
+  echo "$output" | grep -q "fields.password: (hidden)"
+  echo "$output" | grep -q "fields.host: gluetun -> gluetun"
+}
