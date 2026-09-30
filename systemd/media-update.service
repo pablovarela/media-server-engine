@@ -1,0 +1,17 @@
+[Unit]
+Description=Bring the media server up to date with its config repository
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+User=@USER@
+Group=@GROUP@
+SupplementaryGroups=docker
+WorkingDirectory=@ENGINE_DIR@
+Environment=CONFIG_DIR=@CONFIG_DIR@
+Environment=DATA_DIR=@DATA_DIR@
+Environment=SOPS_AGE_KEY_FILE=@HOME@/.config/sops/age/keys.txt
+ExecStart=@SOPS@ exec-env @CONFIG_DIR@/secrets/healthchecks.sops.env scripts/scheduled-update.sh
+Nice=10
+IOSchedulingClass=idle

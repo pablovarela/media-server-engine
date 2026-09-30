@@ -1,4 +1,4 @@
-.PHONY: help bootstrap configure check-tools test restore backup-now verify-backup-now install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
+.PHONY: help bootstrap configure update install-update-timer check-tools test restore backup-now verify-backup-now install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
 
 SHELL := /bin/bash
 CONFIG_DIR ?= $(CURDIR)/../config
@@ -14,6 +14,12 @@ bootstrap: ## install sops, age and restic (Homebrew on macOS, pinned binaries p
 
 restore: check-tools ## restore volumes/ from the latest backup (ARGS=--overwrite replaces existing data)
 	@sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" "scripts/restore.sh $(ARGS)"
+
+update: check-tools ## pull the config repo, switch to its engine version, bring the stack up and wire the apps
+	@scripts/update.sh
+
+install-update-timer: check-tools ## run make update every day at 05:00, after the backup (systemd)
+	@scripts/install-timers.sh media-update
 
 configure: ## set or change this installation's settings and secrets interactively (ROTATE=sonarr regenerates one internal key)
 	@scripts/configure.sh $(if $(ROTATE),--rotate $(ROTATE))
