@@ -30,8 +30,12 @@ check_database() {
 
 trap on_exit EXIT
 ping_healthcheck verify /start
+"${BACKUP_ROLE_COMMAND:-$(dirname "$0")/backup-role.sh}" is-main ||
+  die "another machine is $INSTALLATION_NAME's main; its verification runs there"
 restic check --retry-lock 2h
-restic restore --retry-lock 2h latest --target "$restore_dir" --include '*.db' --include '*.sqlite' --include '*.sqlite3'
+host_filter=$(installation_snapshot_filter)
+# shellcheck disable=SC2086
+restic restore --retry-lock 2h latest $host_filter --target "$restore_dir" --include '*.db' --include '*.sqlite' --include '*.sqlite3'
 databases=$(restored_databases)
 [ -n "$databases" ] || die "the latest snapshot holds no databases"
 while IFS= read -r database; do

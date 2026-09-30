@@ -7,6 +7,12 @@ setup() {
   make_stub curl ''
   make_compose_stub 'if [ "$2" = ps ]; then printf "jellyfin\nsonarr\n"; fi'
   make_stub restic 'if [ "$1" = backup ] && [ -n "${FAKE_RESTIC_BACKUP_FAILS:-}" ]; then exit 1; fi'
+  make_stub fake-role '
+case $1 in
+  is-main) [ -z "${FAKE_SECONDARY:-}" ] ;;
+  machine-id) echo this-machine ;;
+esac'
+  export BACKUP_ROLE_COMMAND=fake-role
 }
 
 teardown() {
@@ -22,13 +28,13 @@ line_of() {
   [ "$status" -eq 0 ]
   [ "$(line_of 'docker compose stop')" -lt "$(line_of 'restic backup')" ]
   [ "$(line_of 'restic backup')" -lt "$(line_of 'docker compose start jellyfin sonarr')" ]
-  [ "$(line_of 'docker compose start')" -lt "$(line_of 'restic forget --retry-lock 2h --prune --keep-daily 7 --keep-weekly 4 --keep-monthly 6')" ]
+  [ "$(line_of 'docker compose start')" -lt "$(line_of 'restic forget --retry-lock 2h --host testinst --prune --keep-daily 7 --keep-weekly 4 --keep-monthly 6')" ]
   tail -1 "$STUB_LOG" | grep -q "curl .*https://hc-ping.com/pk/testinst-backup?create=1$"
 }
 
 @test "backup uses the excludes file and tags the snapshot" {
   run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
-  grep -q "restic backup --retry-lock 2h --exclude-file .*scripts/backup-excludes.txt --tag nightly volumes" "$STUB_LOG"
+  grep -q "restic backup --retry-lock 2h --host testinst --tag machine:this-machine --tag nightly --exclude-file .*scripts/backup-excludes.txt volumes" "$STUB_LOG"
 }
 
 @test "backup restarts services when restic fails" {
@@ -79,4 +85,21 @@ line_of() {
   make_stub restic 'if [ "$1" = backup ]; then echo "cwd=$PWD" >> "$STUB_LOG"; fi'
   run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
   grep -q "cwd=$(cd "$DATA_DIR" && pwd -P)\|cwd=$DATA_DIR" "$STUB_LOG"
+}
+
+@test "a secondary never stops the stack or uploads, and reports why" {
+  touch "$DATA_DIR/.backup-main"
+  FAKE_SECONDARY=1 run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
+  [ "$status" -ne 0 ]
+  ! grep -q "docker compose stop" "$STUB_LOG"
+  ! grep -q "restic backup" "$STUB_LOG"
+  echo "$output" | grep -q "another machine is testinst's main"
+  grep -q "testinst-backup/fail?create=1" "$STUB_LOG"
+  [ ! -e "$DATA_DIR/.backup-main" ]
+}
+
+@test "a claim backs up even where another machine is the main" {
+  CLAIM=1 FAKE_SECONDARY=1 run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
+  [ "$status" -eq 0 ]
+  grep -q "restic backup" "$STUB_LOG"
 }

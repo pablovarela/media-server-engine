@@ -2,6 +2,7 @@
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "$0")/lib.sh"
+load_installation
 mkdir -p "$DATA_DIR"
 cd "$DATA_DIR"
 
@@ -27,4 +28,6 @@ if has_app_data; then
   [ "${1:-}" = --overwrite ] || die "volumes/ already holds app data; run with --overwrite to replace it with the latest backup"
   move_existing_volumes_aside
 fi
-restic restore "latest:$SNAPSHOT_VOLUMES_PATH" --target "$DATA_DIR/volumes" --exclude configarr
+host_filter=$(installation_snapshot_filter)
+# shellcheck disable=SC2086
+restic restore "latest:$SNAPSHOT_VOLUMES_PATH" $host_filter --target "$DATA_DIR/volumes" --exclude configarr

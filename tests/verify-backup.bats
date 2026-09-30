@@ -5,6 +5,8 @@ setup() {
   export HEALTHCHECKS_PING_KEY=pk
   echo INSTALLATION_NAME=testinst > "$CONFIG_DIR/installation.env"
   make_stub curl ''
+  make_stub fake-role '[ "$1" = is-main ] && [ -z "${FAKE_SECONDARY:-}" ]'
+  export BACKUP_ROLE_COMMAND=fake-role
   make_stub restic '
 if [ "$1" = restore ]; then
   target=$(echo "$*" | sed -E "s/.*--target ([^ ]+).*/\1/")
@@ -80,4 +82,11 @@ teardown() {
   run "$BATS_TEST_DIRNAME/../scripts/verify-backup.sh"
   grep -q "restic check --retry-lock 2h" "$STUB_LOG"
   grep -q "restic restore .*--retry-lock 2h" "$STUB_LOG"
+}
+
+@test "a secondary does not verify the main's backups" {
+  FAKE_SECONDARY=1 run "$BATS_TEST_DIRNAME/../scripts/verify-backup.sh"
+  [ "$status" -ne 0 ]
+  ! grep -q "restic check" "$STUB_LOG"
+  echo "$output" | grep -q "another machine is testinst's main"
 }

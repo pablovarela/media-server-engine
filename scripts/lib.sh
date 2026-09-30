@@ -110,3 +110,10 @@ ask_password() {
     printf -v "$var" '%s' "$(generate_secret 24)"
   fi
 }
+
+installation_snapshot_filter() {
+  local count
+  count=$(restic snapshots --host "$INSTALLATION_NAME" --json 2>/dev/null |
+    python3 -c 'import json, sys; print(len(json.load(sys.stdin) or []))' 2>/dev/null || echo 0)
+  if [ "${count:-0}" -gt 0 ]; then echo "--host $INSTALLATION_NAME"; fi
+}

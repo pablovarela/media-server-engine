@@ -3,7 +3,8 @@ load helpers
 setup() {
   setup_stubs
   make_stub docker 'if [ "$1" = ps ] && [ "$4" = "label=com.docker.compose.project=media-server" ]; then printf "%s" "${FAKE_RUNNING:-}"; fi'
-  make_stub restic ''
+  make_stub restic 'if [ "$1" = snapshots ]; then if [ -n "${FAKE_OWN_SNAPSHOTS:-}" ]; then echo "[{\"id\":\"x\"}]"; else echo "[]"; fi; fi'
+  echo INSTALLATION_NAME=testinst > "$CONFIG_DIR/installation.env"
 }
 
 teardown() {
@@ -58,4 +59,17 @@ teardown() {
   run "$BATS_TEST_DIRNAME/../scripts/restore.sh"
   [ "$status" -eq 0 ]
   ! ls -d "$DATA_DIR"/volumes.before-restore-* 2>/dev/null
+}
+
+@test "restore uses the installation's own snapshots when it has any" {
+  FAKE_OWN_SNAPSHOTS=1 run "$BATS_TEST_DIRNAME/../scripts/restore.sh"
+  [ "$status" -eq 0 ]
+  grep -q "restic restore latest:/volumes --host testinst --target" "$STUB_LOG"
+}
+
+@test "restore falls back to the latest snapshot of any host when the installation has none yet" {
+  run "$BATS_TEST_DIRNAME/../scripts/restore.sh"
+  [ "$status" -eq 0 ]
+  grep -q "restic restore latest:/volumes --target" "$STUB_LOG"
+  ! grep -q "restic restore .*--host" "$STUB_LOG"
 }
