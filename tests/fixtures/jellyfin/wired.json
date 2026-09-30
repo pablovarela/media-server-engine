@@ -68,9 +68,11 @@
   },
   "POST /Startup/Complete": {
    "set": [
-    "/System/Info/Public",
-    "StartupWizardCompleted",
-    true
+    [
+     "/System/Info/Public",
+     "StartupWizardCompleted",
+     true
+    ]
    ]
   },
   "POST /Startup/Configuration": {},

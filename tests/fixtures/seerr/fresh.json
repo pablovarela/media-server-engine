@@ -1,0 +1,121 @@
+{
+ "/api/v1/settings/public": {
+  "initialized": false,
+  "mediaServerType": 4,
+  "applicationTitle": "Seerr"
+ },
+ "/api/v1/settings/jellyfin": {
+  "name": "",
+  "ip": "",
+  "port": 8096,
+  "useSsl": false,
+  "urlBase": "",
+  "externalHostname": "",
+  "libraries": []
+ },
+ "/api/v1/settings/jellyfin/library": [],
+ "/api/v1/settings/sonarr": [],
+ "/api/v1/settings/radarr": [],
+ "effects": {
+  "POST /api/v1/settings/sonarr/test": {
+   "respond": {
+    "profiles": [
+     {
+      "id": 4,
+      "name": "Any"
+     },
+     {
+      "id": 7,
+      "name": "WEB-1080p"
+     }
+    ],
+    "rootFolders": [
+     {
+      "id": 1,
+      "path": "/tv"
+     }
+    ],
+    "tags": [],
+    "languageProfiles": null,
+    "urlBase": ""
+   }
+  },
+  "POST /api/v1/settings/radarr/test": {
+   "respond": {
+    "profiles": [
+     {
+      "id": 7,
+      "name": "HD Bluray + WEB"
+     }
+    ],
+    "rootFolders": [
+     {
+      "id": 1,
+      "path": "/movies"
+     }
+    ],
+    "tags": [],
+    "urlBase": ""
+   }
+  },
+  "POST /api/v1/auth/jellyfin": {
+   "respond": {
+    "id": 1,
+    "jellyfinUsername": "admin"
+   },
+   "set": [
+    [
+     "/api/v1/settings/public",
+     "mediaServerType",
+     2
+    ],
+    [
+     "forbidden",
+     "paths",
+     []
+    ]
+   ]
+  },
+  "POST /api/v1/settings/jellyfin/library/sync": {
+   "respond": [
+    {
+     "id": "m1",
+     "name": "Movies",
+     "enabled": false,
+     "type": "movie"
+    },
+    {
+     "id": "s1",
+     "name": "Shows",
+     "enabled": false,
+     "type": "show"
+    },
+    {
+     "id": "c1",
+     "name": "Collections",
+     "enabled": false,
+     "type": "movie"
+    }
+   ]
+  },
+  "POST /api/v1/settings/initialize": {
+   "respond": {
+    "initialized": true
+   },
+   "set": [
+    [
+     "/api/v1/settings/public",
+     "initialized",
+     true
+    ]
+   ]
+  }
+ },
+ "forbidden": {
+  "paths": [
+   "/api/v1/settings/jellyfin/library",
+   "/api/v1/settings/sonarr",
+   "/api/v1/settings/radarr"
+  ]
+ }
+}

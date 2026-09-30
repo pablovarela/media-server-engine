@@ -56,6 +56,19 @@ deluge:
       source: https://...tar.gz      # built in the container when its egg is missing
       sha256: ...
       settings: {}                   # written to the plugin's own conf file
+seerr:
+  libraries: [Shows, Movies]         # Jellyfin libraries Seerr shows
+  jellyfin_external_url: http://...  # optional, the Jellyfin link Seerr gives users
+  sonarr:
+    quality_profile: WEB-1080p       # by name, as Configarr creates it
+    root_folder: /tv
+    season_folders: false            # optional, used when Sonarr is added
+  radarr:
+    quality_profile: HD Bluray + WEB
+    root_folder: /movies
+    minimum_availability: released
 ```
 
 Deluge reads its settings at start, so when any of them differ `make update` stops Deluge, writes them and starts it again. The web password comes from the app secrets.
+
+A new Seerr is signed in with the Jellyfin admin account from `installation.env` and the app secrets, which makes that account Seerr's owner.

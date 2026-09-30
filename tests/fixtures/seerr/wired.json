@@ -1,0 +1,189 @@
+{
+ "/api/v1/settings/public": {
+  "initialized": true,
+  "mediaServerType": 2,
+  "applicationTitle": "Seerr"
+ },
+ "/api/v1/settings/jellyfin": {
+  "name": "Media",
+  "ip": "jellyfin",
+  "port": 8096,
+  "useSsl": false,
+  "urlBase": "",
+  "externalHostname": "",
+  "libraries": [
+   {
+    "id": "m1",
+    "name": "Movies",
+    "enabled": true,
+    "type": "movie"
+   },
+   {
+    "id": "s1",
+    "name": "Shows",
+    "enabled": true,
+    "type": "show"
+   },
+   {
+    "id": "c1",
+    "name": "Collections",
+    "enabled": false,
+    "type": "movie"
+   }
+  ]
+ },
+ "/api/v1/settings/jellyfin/library": [
+  {
+   "id": "m1",
+   "name": "Movies",
+   "enabled": true,
+   "type": "movie"
+  },
+  {
+   "id": "s1",
+   "name": "Shows",
+   "enabled": true,
+   "type": "show"
+  },
+  {
+   "id": "c1",
+   "name": "Collections",
+   "enabled": false,
+   "type": "movie"
+  }
+ ],
+ "/api/v1/settings/sonarr": [
+  {
+   "id": 0,
+   "name": "Sonarr",
+   "hostname": "sonarr",
+   "port": 8989,
+   "apiKey": "sonarr-key",
+   "useSsl": false,
+   "baseUrl": "",
+   "activeProfileId": 7,
+   "activeProfileName": "WEB-1080p",
+   "activeDirectory": "/tv",
+   "activeAnimeProfileId": 7,
+   "activeAnimeProfileName": "WEB-1080p",
+   "activeAnimeDirectory": "/tv",
+   "is4k": false,
+   "isDefault": true,
+   "enableSeasonFolders": false,
+   "syncEnabled": true,
+   "preventSearch": false,
+   "tags": [],
+   "animeTags": []
+  }
+ ],
+ "/api/v1/settings/radarr": [
+  {
+   "id": 0,
+   "name": "Radarr",
+   "hostname": "radarr",
+   "port": 7878,
+   "apiKey": "radarr-key",
+   "useSsl": false,
+   "baseUrl": "",
+   "activeProfileId": 7,
+   "activeProfileName": "HD Bluray + WEB",
+   "activeDirectory": "/movies",
+   "is4k": false,
+   "minimumAvailability": "released",
+   "isDefault": true,
+   "syncEnabled": true,
+   "preventSearch": false,
+   "tags": []
+  }
+ ],
+ "effects": {
+  "POST /api/v1/settings/sonarr/test": {
+   "respond": {
+    "profiles": [
+     {
+      "id": 4,
+      "name": "Any"
+     },
+     {
+      "id": 7,
+      "name": "WEB-1080p"
+     }
+    ],
+    "rootFolders": [
+     {
+      "id": 1,
+      "path": "/tv"
+     }
+    ],
+    "tags": [],
+    "languageProfiles": null,
+    "urlBase": ""
+   }
+  },
+  "POST /api/v1/settings/radarr/test": {
+   "respond": {
+    "profiles": [
+     {
+      "id": 7,
+      "name": "HD Bluray + WEB"
+     }
+    ],
+    "rootFolders": [
+     {
+      "id": 1,
+      "path": "/movies"
+     }
+    ],
+    "tags": [],
+    "urlBase": ""
+   }
+  },
+  "POST /api/v1/auth/jellyfin": {
+   "respond": {
+    "id": 1,
+    "jellyfinUsername": "admin"
+   },
+   "set": [
+    [
+     "/api/v1/settings/public",
+     "mediaServerType",
+     2
+    ]
+   ]
+  },
+  "POST /api/v1/settings/jellyfin/library/sync": {
+   "respond": [
+    {
+     "id": "m1",
+     "name": "Movies",
+     "enabled": false,
+     "type": "movie"
+    },
+    {
+     "id": "s1",
+     "name": "Shows",
+     "enabled": false,
+     "type": "show"
+    },
+    {
+     "id": "c1",
+     "name": "Collections",
+     "enabled": false,
+     "type": "movie"
+    }
+   ]
+  },
+  "POST /api/v1/settings/initialize": {
+   "respond": {
+    "initialized": true
+   },
+   "set": [
+    [
+     "/api/v1/settings/public",
+     "initialized",
+     true
+    ]
+   ]
+  }
+ }
+}

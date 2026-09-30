@@ -50,6 +50,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.answer(401)
         state = load()
         path = urlsplit(self.path).path
+        if path in state.get("forbidden", {}).get("paths", []):
+            return self.answer(403, {"error": "forbidden by the fake app"})
         collection, item_id = self.collection_and_id(path, state)
         if collection is None:
             return self.answer(404)
@@ -92,8 +94,7 @@ class Handler(BaseHTTPRequestHandler):
         if "append" in effect:
             target, key, item = effect["append"]
             (state[target][key] if key else state[target]).append(item)
-        if "set" in effect:
-            target, key, value = effect["set"]
+        for target, key, value in effect.get("set", []):
             state[target][key] = value
         save(state)
         respond = effect.get("respond")
