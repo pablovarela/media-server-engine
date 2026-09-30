@@ -9,8 +9,11 @@ app_of() {
   echo "${name#[0-9][0-9]-}"
 }
 
-health_url() {
+health_urls() {
   case $1 in
+    library-updates) health_urls sonarr; health_urls radarr ;;
+    sonarr) echo "${SONARR_URL:-http://localhost:8989}/ping" ;;
+    radarr) echo "${RADARR_URL:-http://localhost:7878}/ping" ;;
     prowlarr) echo "${PROWLARR_URL:-http://localhost:9696}/ping" ;;
     jellyfin) echo "${JELLYFIN_URL:-http://localhost:8096}/health" ;;
     deluge) echo "${DELUGE_URL:-http://localhost:8112}/" ;;
@@ -22,11 +25,11 @@ health_url() {
 
 wait_until_answering() {
   local url deadline=$((SECONDS + WIRE_WAIT_SECONDS))
-  url=$(health_url "$1")
-  [ -n "$url" ] || return 0
-  until curl -fsS -o /dev/null --max-time 5 "$url" 2>/dev/null; do
-    [ "$SECONDS" -lt "$deadline" ] || return 1
-    sleep "$WIRE_RETRY_SECONDS"
+  for url in $(health_urls "$1"); do
+    until curl -fsS -o /dev/null --max-time 5 "$url" 2>/dev/null; do
+      [ "$SECONDS" -lt "$deadline" ] || return 1
+      sleep "$WIRE_RETRY_SECONDS"
+    done
   done
 }
 

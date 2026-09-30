@@ -74,3 +74,14 @@ make_app_step() {
   [ "$status" -eq 0 ]
   ! grep -q '^curl' "$STUB_LOG" || false
 }
+
+@test "the jellyfin connection step waits for sonarr and radarr, which it changes" {
+  rm "$WIRE"/[0-9]*.sh
+  make_app_step 25-library-updates
+  make_stub curl ''
+  run "$WIRE/wire-apps.sh"
+  [ "$status" -eq 0 ]
+  grep -q '^curl .*http://localhost:8989/ping' "$STUB_LOG"
+  grep -q '^curl .*http://localhost:7878/ping' "$STUB_LOG"
+  [ "$(tail -1 "$STUB_LOG")" = 25-library-updates ]
+}
