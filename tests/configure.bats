@@ -209,3 +209,11 @@ answers_with() {
   run configure < <(enter_on_every_prompt)
   echo "$output" | grep -q "Subtitle languages .*\[en, es\]"
 }
+
+@test "configure keeps files of a config that already has the template, before its first run" {
+  cp -R "$ENGINE_DIR/config-template/." "$CONFIG_DIR/"
+  echo "ENGINE_VERSION=local" > "$CONFIG_DIR/engine.env"
+  run configure < <(answers_for_new_installation)
+  [ "$status" -eq 0 ]
+  grep -qx "ENGINE_VERSION=local" "$CONFIG_DIR/engine.env"
+}

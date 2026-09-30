@@ -195,7 +195,7 @@ fi
 mkdir -p "$CONFIG_DIR"
 cd "$CONFIG_DIR"
 [ -f .sops.yaml ] || die "$CONFIG_DIR has no .sops.yaml; create the installation with make create-installation"
-[ -f installation.env ] || cp -R "$ENGINE_DIR/config-template/." .
+[ -f images.yml ] || cp -R "$ENGINE_DIR/config-template/." .
 
 load_current_values
 prompt_for_values
