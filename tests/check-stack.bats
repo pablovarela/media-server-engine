@@ -28,6 +28,13 @@ teardown() {
   echo "$output" | grep -qi "digest"
 }
 
+@test "check-stack also checks services that only run as wiring steps" {
+  sed -i.bak 's|^\(    image: ghcr.io/raydak-labs/configarr:[^@]*\)@sha256:[0-9a-f]*|\1|' "$CONFIG_DIR/images.yml"
+  run "$ENGINE_DIR/scripts/check-stack.sh"
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "configarr"
+}
+
 @test "check-stack names an unpinned monitoring image" {
   sed -i.bak 's|^\(    image: grafana/grafana:[^@]*\)@sha256:[0-9a-f]*|\1|' "$CONFIG_DIR/images.monitoring.yml"
   run "$ENGINE_DIR/scripts/check-stack.sh"

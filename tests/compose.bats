@@ -19,12 +19,23 @@ merged() {
   bash -c "source '$ENGINE_DIR/scripts/lib.sh' && $1 config --format json"
 }
 
+@test "configarr only runs as a wiring step, not with the stack" {
+  run merged stack_compose
+  echo "$output" | python3 -c '
+import json, sys
+assert "configarr" not in json.load(sys.stdin)["services"]'
+  run merged stack_compose_with_wiring
+  echo "$output" | python3 -c '
+import json, sys
+assert json.load(sys.stdin)["services"]["configarr"]["profiles"] == ["wiring"]'
+}
+
 @test "the engine compose files carry no image versions" {
   ! grep -qE '^\s+image:' "$REPO/docker-compose.yml" "$REPO/docker-compose.monitoring.yml"
 }
 
 @test "the config template pins every service of both stacks to a digest" {
-  run merged stack_compose
+  run merged stack_compose_with_wiring
   [ "$status" -eq 0 ]
   echo "$output" | python3 -c '
 import json, sys
@@ -68,7 +79,7 @@ assert not bad, bad'
 }
 
 @test "configarr reads its config from the config repo, read-only" {
-  run merged stack_compose
+  run merged stack_compose_with_wiring
   echo "$output" | python3 -c '
 import json, os, sys
 mounts = json.load(sys.stdin)["services"]["configarr"]["volumes"]
@@ -78,7 +89,7 @@ assert config.get("read_only"), config'
 }
 
 @test "configarr waits until sonarr and radarr are healthy" {
-  run merged stack_compose
+  run merged stack_compose_with_wiring
   echo "$output" | python3 -c '
 import json, sys
 services = json.load(sys.stdin)["services"]

@@ -19,6 +19,8 @@ case "$*" in
 esac'
   make_compose_stub '
 echo "pulled=${MEDIA_SERVER_PULLED:-}" >> "$STUB_LOG"
+if [ "$2" = pull ] || [ "$2" = config ]; then echo "$2 profiles=${COMPOSE_PROFILES:-}" >> "$STUB_LOG"; fi
+if [ "$2" = up ]; then echo "up profiles=${COMPOSE_PROFILES:-}" >> "$STUB_LOG"; fi
 if [ "$2" = config ]; then echo "{\"services\": {\"sonarr\": {\"volumes\": [{\"type\": \"bind\", \"source\": \"$DATA_DIR/volumes/sonarr/data\"}, {\"type\": \"bind\", \"source\": \"$DATA_DIR/media/tvshows\"}]}}}"; fi
 if [ "$2" = ps ] && [ "$4" = gluetun ]; then echo "gluetun-current"; fi
 if [ "$1" = inspect ]; then echo "container:${FAKE_ATTACHED_TO:-gluetun-current}"; fi
@@ -81,6 +83,14 @@ line_of() {
 @test "the portainer admin password file holds exactly the password" {
   run update
   [ "$(od -c "$ENGINE_DIR/.secrets/portainer_admin" | head -1)" = "$(printf 'pw 1' | od -c | head -1)" ]
+}
+
+@test "wiring-step images are pulled and their mounts created, but up leaves them to wiring" {
+  run update
+  [ "$status" -eq 0 ]
+  grep -q "^pull profiles=wiring$" "$STUB_LOG"
+  grep -q "^config profiles=wiring$" "$STUB_LOG"
+  grep -q "^up profiles=$" "$STUB_LOG"
 }
 
 @test "update writes the docker socket group id for compose" {

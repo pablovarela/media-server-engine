@@ -36,6 +36,10 @@ stack_compose() {
     --env-file "$ENGINE_DIR/.env" $(compose_files docker-compose.yml images.yml) "$@"
 }
 
+stack_compose_with_wiring() {
+  COMPOSE_PROFILES=wiring stack_compose "$@"
+}
+
 monitoring_compose() {
   # shellcheck disable=SC2046
   docker compose --project-name monitoring --project-directory "$ENGINE_DIR" \

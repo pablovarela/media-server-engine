@@ -14,6 +14,29 @@ sonarr:
     quality_definition:
       type: series
 
+    root_folders:
+      - /tv
+
+    download_clients:
+      data:
+        - name: Deluge
+          type: deluge
+          enable: true
+          priority: 1
+          remove_completed_downloads: true
+          remove_failed_downloads: true
+          fields:
+            host: gluetun
+            port: 8112
+            use_ssl: false
+            password: !secret DELUGE_WEB_PASSWORD
+            tv_category: tv-sonarr
+      update_password: true
+
+    media_naming:
+      episodes:
+        rename: true
+
     include:
       - template: sonarr-quality-definition-series
       - template: sonarr-v4-quality-profile-web-1080p
@@ -36,6 +59,29 @@ radarr:
 
     quality_definition:
       type: movie
+
+    root_folders:
+      - /movies
+
+    download_clients:
+      data:
+        - name: Deluge
+          type: deluge
+          enable: true
+          priority: 1
+          remove_completed_downloads: false
+          remove_failed_downloads: true
+          fields:
+            host: gluetun
+            port: 8112
+            use_ssl: false
+            password: !secret DELUGE_WEB_PASSWORD
+            movie_category: radarr
+      update_password: true
+
+    media_naming:
+      movie:
+        rename: true
 
     include:
       - template: radarr-quality-definition-movie

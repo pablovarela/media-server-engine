@@ -23,7 +23,7 @@ for name, service in json.load(sys.stdin)["services"].items():
 
 mkdir -p "$DATA_DIR/volumes"
 problems=$(
-  stack_compose config --format json | problems_in
+  stack_compose_with_wiring config --format json | problems_in
   monitoring_compose config --format json | problems_in
 )
 if [ -n "$problems" ]; then

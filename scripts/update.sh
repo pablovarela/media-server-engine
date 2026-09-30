@@ -84,7 +84,7 @@ write_compose_env() {
 }
 
 create_bind_mount_directories() {
-  stack_compose config --format json | python3 -c '
+  stack_compose_with_wiring config --format json | python3 -c '
 import json, os, sys
 data = os.environ["DATA_DIR"]
 for service in json.load(sys.stdin)["services"].values():
@@ -126,7 +126,7 @@ decrypt_secrets
 write_compose_env
 "$CHECK_STACK_COMMAND"
 create_bind_mount_directories
-stack_compose pull --quiet
+stack_compose_with_wiring pull --quiet
 up_status=0
 stack_compose up -d --remove-orphans || up_status=$?
 reattach_gluetun_dependents

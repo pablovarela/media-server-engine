@@ -159,6 +159,7 @@ services:
 
   configarr:
     container_name: configarr
+    profiles: [wiring]
     user: "1000:1000"
     restart: "no"
     depends_on:
