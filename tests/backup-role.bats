@@ -78,3 +78,17 @@ snapshots_tagged() {
   run "$ROLE" is-main
   [ "$status" -eq 2 ]
 }
+
+@test "a repository that does not exist yet is not reported as an error" {
+  make_stub restic 'echo "{\"message_type\":\"exit_error\",\"code\":10}" >&2; exit 10'
+  run "$ROLE" is-main
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "other restic errors are still shown" {
+  make_stub restic 'echo "Fatal: wrong password" >&2; exit 12'
+  run "$ROLE" is-main
+  [ "$status" -eq 2 ]
+  echo "$output" | grep -q "wrong password"
+}

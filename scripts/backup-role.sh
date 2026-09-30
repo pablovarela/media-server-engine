@@ -20,8 +20,11 @@ machine_id() {
 readonly RESTIC_REPOSITORY_DOES_NOT_EXIST=10
 
 main_machine() {
-  local snapshots status=0
-  snapshots=$(restic snapshots --host "$INSTALLATION_NAME" --latest 1 --json) || status=$?
+  local snapshots errors status=0
+  errors=$(mktemp)
+  snapshots=$(restic snapshots --host "$INSTALLATION_NAME" --latest 1 --json 2>"$errors") || status=$?
+  [ "$status" -eq "$RESTIC_REPOSITORY_DOES_NOT_EXIST" ] || cat "$errors" >&2
+  rm -f "$errors"
   [ "$status" -ne "$RESTIC_REPOSITORY_DOES_NOT_EXIST" ] || return 0
   [ "$status" -eq 0 ] || return "$status"
   echo "$snapshots" | python3 -c '
