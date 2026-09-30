@@ -1,4 +1,4 @@
-.PHONY: help create-installation join-installation bootstrap configure update install-update-timer claim-backup-main check-tools test restore backup-now verify-backup-now install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
+.PHONY: help urls logins create-installation join-installation bootstrap configure update install-update-timer claim-backup-main check-tools test restore backup-now verify-backup-now install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
 
 SHELL := /bin/bash
 CONFIG_DIR ?= $(CURDIR)/../config
@@ -63,6 +63,12 @@ media-start: ## start the media server stack
 media-stop: ## stop the media server stack
 	@echo "==> stopping media server stack..."
 	@$(WITH_LIB) stack_compose down
+
+urls: ## list the address of every app of this installation
+	@scripts/apps.sh urls
+
+logins: ## show the app logins, passwords included, on this terminal
+	@scripts/apps.sh logins
 
 media-status: ## show status of the media server stack
 	@$(WITH_LIB) stack_compose ps
