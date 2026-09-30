@@ -240,3 +240,10 @@ answers_with() {
   [ ! -e "$CONFIG_DIR" ]
   echo "$output" | grep -q "not an installation"
 }
+
+@test "a portainer password shorter than 12 characters is asked again" {
+  run configure < <(answers_for_new_installation | sed 's/^portainer-pass-long$/short\nportainer-pass-long/')
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q "at least 12 characters"
+  grep -qx "ENC:PORTAINER_ADMIN_PASSWORD=portainer-pass-long" "$CONFIG_DIR/secrets/apps.sops.env"
+}

@@ -93,6 +93,18 @@ except FileNotFoundError:
 print(", ".join(languages or ["en"]))'
 }
 
+readonly PORTAINER_PASSWORD_MINIMUM=12
+
+ask_portainer_password() {
+  local current=${PORTAINER_ADMIN_PASSWORD:-}
+  while true; do
+    ask_password PORTAINER_ADMIN_PASSWORD "Portainer admin password (at least $PORTAINER_PASSWORD_MINIMUM characters)" "$current"
+    [ "${#PORTAINER_ADMIN_PASSWORD}" -lt "$PORTAINER_PASSWORD_MINIMUM" ] || return 0
+    echo "Portainer needs at least $PORTAINER_PASSWORD_MINIMUM characters." >&2
+    current=""
+  done
+}
+
 prompt_for_values() {
   echo "Installation: $INSTALLATION_NAME" >&2
   ask TZ "Time zone" "${TZ:-Etc/UTC}"
@@ -118,7 +130,7 @@ prompt_for_values() {
   echo "App logins" >&2
   ask_password JELLYFIN_ADMIN_PASSWORD "Jellyfin admin password" "${JELLYFIN_ADMIN_PASSWORD:-}"
   ask_password DELUGE_WEB_PASSWORD "Deluge web password" "${DELUGE_WEB_PASSWORD:-}"
-  ask_password PORTAINER_ADMIN_PASSWORD "Portainer admin password" "${PORTAINER_ADMIN_PASSWORD:-}"
+  ask_portainer_password
   echo "Subtitles" >&2
   ask SUBTITLE_LANGUAGES "Subtitle languages (codes, comma separated)" "$(current_subtitle_languages)"
 }
