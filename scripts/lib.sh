@@ -11,13 +11,34 @@ die() {
   exit 1
 }
 
+installations_on_this_machine() {
+  local config
+  for config in "$HOME"/*/config/installation.env; do
+    [ -f "$config" ] && [ -d "$(dirname "$(dirname "$config")")/engine" ] || continue
+    dirname "$(dirname "$config")"
+  done
+}
+
+die_not_an_installation() {
+  local found
+  found=$(installations_on_this_machine)
+  {
+    echo "$(basename "$0"): $ENGINE_DIR is not an installation: there is no config next to it."
+    if [ -n "$found" ]; then
+      echo "Installations on this machine; run make from the engine of the one you mean:"
+      echo "$found" | while IFS= read -r installation; do echo "  cd $installation/engine"; done
+    fi
+    echo "To create one: make create-installation NAME=<name>"
+  } >&2
+  exit 1
+}
+
 load_installation() {
-  if [ -f "$CONFIG_DIR/installation.env" ]; then
-    set -a
-    # shellcheck source=/dev/null
-    source "$CONFIG_DIR/installation.env"
-    set +a
-  fi
+  [ -f "$CONFIG_DIR/installation.env" ] || die_not_an_installation
+  set -a
+  # shellcheck source=/dev/null
+  source "$CONFIG_DIR/installation.env"
+  set +a
   [ -n "${INSTALLATION_NAME:-}" ] || die "INSTALLATION_NAME is not set in $CONFIG_DIR/installation.env"
   export INSTALLATION_NAME
 }

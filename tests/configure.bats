@@ -232,3 +232,11 @@ answers_with() {
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "create-installation"
 }
+
+@test "configure outside an installation creates nothing and says where installations are" {
+  rm -rf "$CONFIG_DIR"
+  NAME= run "$ENGINE_DIR/scripts/configure.sh" < /dev/null
+  [ "$status" -ne 0 ]
+  [ ! -e "$CONFIG_DIR" ]
+  echo "$output" | grep -q "not an installation"
+}

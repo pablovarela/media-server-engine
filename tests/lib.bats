@@ -70,3 +70,15 @@ in_lib() {
     ! valid_installation_name "$bad" || { echo "accepted: $bad"; false; }
   done
 }
+
+@test "outside an installation, load_installation names the installations on this machine" {
+  rm "$HOME_DIR/config/installation.env"
+  mkdir -p "$HOME/trial/engine" "$HOME/trial/config" "$HOME/other/engine"
+  echo INSTALLATION_NAME=trial > "$HOME/trial/config/installation.env"
+  run in_lib 'load_installation'
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "not an installation"
+  echo "$output" | grep -q "cd $HOME/trial/engine"
+  ! echo "$output" | grep -q "other" || false
+  echo "$output" | grep -q "make create-installation NAME="
+}

@@ -191,9 +191,8 @@ if [ "${1:-}" = --rotate ]; then
   ROTATE_VARIABLE=$(rotate_variable "${2:-}") || die "can only rotate: sonarr, radarr, prowlarr"
 fi
 
-mkdir -p "$CONFIG_DIR"
+[ -f "$CONFIG_DIR/.sops.yaml" ] || die_not_an_installation
 cd "$CONFIG_DIR"
-[ -f .sops.yaml ] || die "$CONFIG_DIR has no .sops.yaml; create the installation with make create-installation"
 [ -f images.yml ] || cp -R "$ENGINE_DIR/config-template/." .
 
 load_current_values
