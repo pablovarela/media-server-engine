@@ -1,4 +1,4 @@
-.PHONY: help bootstrap check-tools test restore backup-now verify-backup-now install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
+.PHONY: help bootstrap configure check-tools test restore backup-now verify-backup-now install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
 
 SHELL := /bin/bash
 CONFIG_DIR ?= $(CURDIR)/../config
@@ -14,6 +14,9 @@ bootstrap: ## install sops, age and restic (Homebrew on macOS, pinned binaries p
 
 restore: check-tools ## restore volumes/ from the latest backup (ARGS=--overwrite replaces existing data)
 	@sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" "scripts/restore.sh $(ARGS)"
+
+configure: ## set or change this installation's settings and secrets interactively (ROTATE=sonarr regenerates one internal key)
+	@scripts/configure.sh $(if $(ROTATE),--rotate $(ROTATE))
 
 check-tools: ## check that every tool the scripts need is installed and the age key works
 	@scripts/check-tools.sh
