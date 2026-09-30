@@ -2,15 +2,19 @@ load helpers
 
 setup() {
   setup_stubs
+  export INSTALL_DIR="$STUB_DIR/testinst"
+  export ENGINE_DIR="$INSTALL_DIR/engine" CONFIG_DIR="$INSTALL_DIR/config" DATA_DIR="$INSTALL_DIR/data"
   mkdir -p "$ENGINE_DIR/config-template"
   cp -R "$BATS_TEST_DIRNAME/../config-template/." "$ENGINE_DIR/config-template/"
-  rmdir "$CONFIG_DIR"
   make_stub git '
 dir=""
 if [ "$1" = -C ]; then dir=$2; shift 2; fi
 case $1 in
-  remote) echo "git@github.com:someone/media-server-engine.git" ;;
+  remote) if [ "$2" = get-url ]; then echo "git@github.com:someone/media-server-engine.git"; fi ;;
   init) mkdir -p "$dir/.git" ;;
+  describe) if [ -n "${FAKE_ENGINE_TAG:-}" ]; then echo "$FAKE_ENGINE_TAG"; else exit 128; fi ;;
+  clone) cp -R "$3" "$4" ;;
+  rev-parse) echo abc123 ;;
 esac'
   make_stub gh '
 case "$1 $2" in
@@ -18,9 +22,8 @@ case "$1 $2" in
   "repo view") [ -n "${FAKE_REPO_EXISTS:-}" ] ;;
 esac'
   make_stub age-keygen 'if [ "$1" = -o ]; then printf "# public key: age1newpublic\nAGE-SECRET-KEY-NEW\n" > "$2"; echo "Public key: age1newpublic" >&2; fi'
-  make_stub fake-configure ''
-  make_stub fake-join ''
-  export CONFIGURE_COMMAND=fake-configure JOIN_COMMAND=fake-join
+  for step in bootstrap configure setup-machine; do make_stub "fake-$step" ''; done
+  export BOOTSTRAP_COMMAND=fake-bootstrap CONFIGURE_COMMAND=fake-configure SETUP_MACHINE_COMMAND=fake-setup-machine
 }
 
 teardown() {
@@ -37,17 +40,17 @@ create() {
   echo "$output" | grep -q "NAME"
 }
 
-@test "creating refuses an installation whose config repo exists" {
+@test "creating refuses an installation whose config repo exists on github" {
   FAKE_REPO_EXISTS=1 run create testinst < <(echo)
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "someone/media-server-config-testinst"
   ! grep -q "^age-keygen" "$STUB_LOG" || false
 }
 
-@test "creating needs gh logged in" {
+@test "creating works without the github cli, for a local-only config" {
   FAKE_GH_LOGGED_OUT=1 run create testinst < <(echo)
-  [ "$status" -ne 0 ]
-  echo "$output" | grep -q "gh auth login"
+  [ "$status" -eq 0 ]
+  grep -q "^fake-configure" "$STUB_LOG"
 }
 
 @test "a new secrets key is added next to existing ones and shown once" {
@@ -61,7 +64,7 @@ create() {
   [ "$(stat -f %Lp "$HOME/.config/sops/age/keys.txt" 2>/dev/null || stat -c %a "$HOME/.config/sops/age/keys.txt")" = 600 ]
 }
 
-@test "the config repo starts from the template with this engine's path filled in" {
+@test "the config starts from the template with this engine's path filled in" {
   run create testinst < <(echo)
   [ -f "$CONFIG_DIR/images.yml" ]
   grep -q '"depNameTemplate": "someone/media-server-engine"' "$CONFIG_DIR/renovate.json"
@@ -69,16 +72,52 @@ create() {
   grep -q "age: age1newpublic" "$CONFIG_DIR/.sops.yaml"
 }
 
-@test "creating configures, publishes a private repo and then joins" {
+@test "an engine on a release pins that release" {
+  FAKE_ENGINE_TAG=v1.2.0 run create testinst < <(echo)
+  grep -qx "ENGINE_VERSION=v1.2.0" "$CONFIG_DIR/engine.env"
+}
+
+@test "an engine between releases is used as it is" {
+  run create testinst < <(echo)
+  grep -qx "ENGINE_VERSION=local" "$CONFIG_DIR/engine.env"
+}
+
+@test "creating configures, then sets up this machine as a new installation" {
   run create testinst < <(echo)
   [ "$status" -eq 0 ]
   grep -q "^fake-configure" "$STUB_LOG"
-  grep -q "gh repo create someone/media-server-config-testinst --private --source $CONFIG_DIR --push" "$STUB_LOG"
-  grep -q "^fake-join testinst$" "$STUB_LOG"
-  [ "$(grep -n '^fake-configure' "$STUB_LOG" | cut -d: -f1)" -lt "$(grep -n 'gh repo create' "$STUB_LOG" | cut -d: -f1)" ]
+  [ "$(grep -n '^fake-configure' "$STUB_LOG" | cut -d: -f1)" -lt "$(grep -n '^fake-setup-machine' "$STUB_LOG" | cut -d: -f1)" ]
+  ! grep -q "^gh repo create" "$STUB_LOG" || false
 }
 
-@test "the Renovate app is pointed out for the new repo" {
-  run create testinst < <(echo)
-  echo "$output" | grep -q "github.com/apps/renovate"
+@test "run from an engine elsewhere, creating lays out the installation next to a copy of it" {
+  source_engine="$STUB_DIR/checkout/media-server-engine"
+  mkdir -p "$source_engine"
+  cp -R "$BATS_TEST_DIRNAME/../scripts" "$BATS_TEST_DIRNAME/../config-template" "$source_engine/"
+  ENGINE_DIR=$source_engine CONFIG_DIR="$STUB_DIR/checkout/config" DATA_DIR="$STUB_DIR/checkout/data" INSTALL_DIR="$STUB_DIR/newinst" \
+    run "$source_engine/scripts/create-installation.sh" newinst < <(echo)
+  [ "$status" -eq 0 ]
+  [ -f "$STUB_DIR/newinst/engine/scripts/create-installation.sh" ]
+  [ -f "$STUB_DIR/newinst/config/images.yml" ]
+  [ ! -e "$STUB_DIR/checkout/config" ]
+  echo "$output" | grep -q "$STUB_DIR/newinst"
+}
+
+@test "the installation directory defaults to one named after it in the home directory" {
+  source_engine="$STUB_DIR/checkout/media-server-engine"
+  mkdir -p "$source_engine"
+  cp -R "$BATS_TEST_DIRNAME/../scripts" "$BATS_TEST_DIRNAME/../config-template" "$source_engine/"
+  unset INSTALL_DIR
+  ENGINE_DIR=$source_engine run "$source_engine/scripts/create-installation.sh" newinst < <(echo)
+  [ "$status" -eq 0 ]
+  [ -f "$HOME/newinst/config/images.yml" ]
+}
+
+@test "an installation directory that already has an engine is not overwritten" {
+  source_engine="$STUB_DIR/checkout/media-server-engine"
+  mkdir -p "$source_engine" "$STUB_DIR/newinst/engine"
+  cp -R "$BATS_TEST_DIRNAME/../scripts" "$BATS_TEST_DIRNAME/../config-template" "$source_engine/"
+  ENGINE_DIR=$source_engine INSTALL_DIR="$STUB_DIR/newinst" run "$source_engine/scripts/create-installation.sh" newinst < <(echo)
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "$STUB_DIR/newinst/engine already exists"
 }

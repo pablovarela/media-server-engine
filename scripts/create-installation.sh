@@ -4,12 +4,15 @@ set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+BOOTSTRAP_COMMAND=${BOOTSTRAP_COMMAND:-$SCRIPTS_DIR/bootstrap.sh}
 CONFIGURE_COMMAND=${CONFIGURE_COMMAND:-$SCRIPTS_DIR/configure.sh}
-JOIN_COMMAND=${JOIN_COMMAND:-$SCRIPTS_DIR/join-installation.sh}
+SETUP_MACHINE_COMMAND=${SETUP_MACHINE_COMMAND:-$SCRIPTS_DIR/setup-machine.sh}
 export SOPS_AGE_KEY_FILE=${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}
 
 NAME=${1:-${NAME:-}}
 [ -n "$NAME" ] || die "usage: make create-installation NAME=<installation name>"
+
+run_from_installation_directory "$NAME" "$0"
 
 ENGINE_REPO=$(git -C "$ENGINE_DIR" remote get-url origin | sed -E 's#^.*github\.com[:/]##; s#\.git$##')
 OWNER=${GITHUB_OWNER:-${ENGINE_REPO%%/*}}
@@ -26,7 +29,7 @@ new_secrets_key() {
   ( umask 077; grep '^AGE-SECRET-KEY-' "$generated" >> "$SOPS_AGE_KEY_FILE" )
   chmod 600 "$SOPS_AGE_KEY_FILE"
   {
-    echo "The secrets key for $NAME. Save this line in your password manager now; without it nothing in $CONFIG_REPO can be decrypted:"
+    echo "The secrets key for $NAME. Save this line in your password manager now; without it nothing in $NAME's config can be decrypted:"
     echo
     grep '^AGE-SECRET-KEY-' "$generated"
     echo
@@ -49,18 +52,23 @@ fill_template() {
   done
 }
 
-gh auth status >/dev/null 2>&1 || die "creating an installation needs the GitHub CLI; run gh auth login first"
-if gh repo view "$CONFIG_REPO" >/dev/null 2>&1; then
+pin_engine_version() {
+  local version
+  version=$(git -C "$ENGINE_DIR" describe --tags --exact-match 2>/dev/null || true)
+  echo "ENGINE_VERSION=${version:-local}" > "$CONFIG_DIR/engine.env"
+}
+
+if gh auth status >/dev/null 2>&1 && gh repo view "$CONFIG_REPO" >/dev/null 2>&1; then
   die "$CONFIG_REPO already exists; use make join-installation NAME=$NAME"
 fi
 [ ! -e "$CONFIG_DIR" ] || [ -z "$(ls -A "$CONFIG_DIR")" ] || die "$CONFIG_DIR is not empty"
 
-mkdir -p "$CONFIG_DIR"
+"$BOOTSTRAP_COMMAND"
+mkdir -p "$CONFIG_DIR" "$DATA_DIR"
 public_key=$(new_secrets_key)
 fill_template
+pin_engine_version
 write_sops_config "$public_key"
 git -C "$CONFIG_DIR" init -q -b main
 NAME=$NAME "$CONFIGURE_COMMAND"
-gh repo create "$CONFIG_REPO" --private --source "$CONFIG_DIR" --push
-echo "Created $CONFIG_REPO. Add it to the Renovate app so image and engine updates arrive as pull requests: https://github.com/apps/renovate"
-"$JOIN_COMMAND" "$NAME"
+"$SETUP_MACHINE_COMMAND"

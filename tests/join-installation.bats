@@ -4,12 +4,16 @@ setup() {
   setup_stubs
   export HOME="$STUB_DIR/home"
   mkdir -p "$HOME"
+  export INSTALL_DIR="$STUB_DIR/testinst"
+  export ENGINE_DIR="$INSTALL_DIR/engine" CONFIG_DIR="$INSTALL_DIR/config" DATA_DIR="$INSTALL_DIR/data"
+  mkdir -p "$ENGINE_DIR" "$CONFIG_DIR" "$DATA_DIR"
   make_stub git '
 dir=""
 if [ "$1" = -C ]; then dir=$2; shift 2; fi
 case $1 in
-  remote) echo "git@github.com:someone/media-server-engine.git" ;;
-  clone) mkdir -p "${@: -1}/secrets"; echo INSTALLATION_NAME=testinst > "${@: -1}/installation.env" ;;
+  remote) if [ "$2" = get-url ]; then echo "git@github.com:someone/media-server-engine.git"; fi ;;
+  clone) if [ "$2" = -q ]; then cp -R "$3" "$4"; else mkdir -p "${@: -1}/secrets"; echo INSTALLATION_NAME=testinst > "${@: -1}/installation.env"; fi ;;
+  rev-parse) echo abc123 ;;
 esac'
   make_stub sops '
 case $1 in
@@ -115,3 +119,13 @@ line_of() {
   echo "$output" | grep -q "make update"
 }
 
+
+@test "run from an engine elsewhere, joining lays out the installation next to a copy of it" {
+  source_engine="$STUB_DIR/checkout/media-server-engine"
+  mkdir -p "$source_engine"
+  cp -R "$BATS_TEST_DIRNAME/../scripts" "$source_engine/"
+  ENGINE_DIR=$source_engine INSTALL_DIR="$STUB_DIR/elsewhere" run "$source_engine/scripts/join-installation.sh" testinst < <(printf 'AGE-SECRET-KEY-GOOD\nn\n')
+  [ "$status" -eq 0 ]
+  [ -f "$STUB_DIR/elsewhere/engine/scripts/join-installation.sh" ]
+  grep -q "git clone github-media-server-config-testinst:someone/media-server-config-testinst.git $STUB_DIR/elsewhere/config" "$STUB_LOG"
+}

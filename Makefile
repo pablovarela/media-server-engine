@@ -9,10 +9,10 @@ export SOPS_AGE_KEY_FILE ?= $(HOME)/.config/sops/age/keys.txt
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-create-installation: ## create a new installation (config repo, secrets key, settings) and join this machine: NAME=<name>
+create-installation: ## create a new installation in ~/NAME (engine, config, data), asking for its settings, and set up this machine: NAME=<name>
 	@scripts/create-installation.sh $(NAME)
 
-join-installation: ## add this machine to an existing installation: NAME=<installation name>
+join-installation: ## add this machine to an installation whose config is on GitHub, in ~/NAME: NAME=<installation name>
 	@scripts/join-installation.sh $(NAME)
 
 bootstrap: ## install sops, age and restic (Homebrew on macOS, pinned binaries plus Docker on Debian)

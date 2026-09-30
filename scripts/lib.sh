@@ -121,3 +121,20 @@ installation_snapshot_filter() {
     python3 -c 'import json, sys; print(len(json.load(sys.stdin) or []))' 2>/dev/null || echo 0)
   if [ "${count:-0}" -gt 0 ]; then echo "--host $INSTALLATION_NAME"; fi
 }
+
+run_from_installation_directory() {
+  local name=$1 script=$2 install_dir engine
+  install_dir=${INSTALL_DIR:-$HOME/$name}
+  engine="$install_dir/engine"
+  if [ -d "$engine" ] && [ "$(cd "$engine" && pwd -P)" = "$(cd "$ENGINE_DIR" && pwd -P)" ]; then
+    return 0
+  fi
+  [ ! -e "$engine" ] || die "$engine already exists; run make from $engine instead"
+  mkdir -p "$install_dir"
+  git clone -q "$ENGINE_DIR" "$engine"
+  git -C "$engine" checkout -q "$(git -C "$ENGINE_DIR" rev-parse HEAD)"
+  git -C "$engine" remote set-url origin "$(git -C "$ENGINE_DIR" remote get-url origin)"
+  echo "Installing $name in $install_dir: engine, config and data side by side." >&2
+  ENGINE_DIR=$engine CONFIG_DIR=$install_dir/config DATA_DIR=$install_dir/data INSTALL_DIR=$install_dir \
+    exec "$engine/scripts/$(basename "$script")" "$name"
+}
