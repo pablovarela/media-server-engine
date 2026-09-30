@@ -21,8 +21,12 @@ case "$1 $2" in
   "auth status") [ -z "${FAKE_GH_LOGGED_OUT:-}" ] ;;
   "repo view") [ -n "${FAKE_REPO_EXISTS:-}" ] ;;
 esac'
-  make_stub age-keygen 'if [ "$1" = -o ]; then printf "# public key: age1newpublic\nAGE-SECRET-KEY-NEW\n" > "$2"; echo "Public key: age1newpublic" >&2; fi'
-  for step in bootstrap configure setup-machine; do make_stub "fake-$step" ''; done
+  make_stub age-keygen '
+if [ "$1" = -o ]; then printf "# public key: age1newpublic\nAGE-SECRET-KEY-NEW\n" > "$2"; echo "Public key: age1newpublic" >&2; fi
+if [ "$1" = -y ]; then case "$(cat)" in AGE-SECRET-KEY-NEW) echo age1newpublic ;; *) echo age1other ;; esac; fi'
+  make_stub fake-bootstrap ''
+  make_stub fake-configure '[ -z "${FAKE_CONFIGURE_FAILS:-}" ]'
+  make_stub fake-setup-machine '[ -z "${FAKE_SETUP_FAILS:-}" ]'
   export BOOTSTRAP_COMMAND=fake-bootstrap CONFIGURE_COMMAND=fake-configure SETUP_MACHINE_COMMAND=fake-setup-machine
 }
 
@@ -127,4 +131,41 @@ create() {
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "lowercase letters, digits and dashes"
   ! grep -qE "^(git clone|age-keygen|fake-)" "$STUB_LOG" || false
+}
+
+@test "a create stopped before the settings are saved leaves nothing behind" {
+  mkdir -p "$HOME/.config/sops/age"
+  echo "AGE-SECRET-KEY-EXISTING" > "$HOME/.config/sops/age/keys.txt"
+  FAKE_CONFIGURE_FAILS=1 run create testinst < <(echo)
+  [ "$status" -ne 0 ]
+  [ ! -e "$CONFIG_DIR" ]
+  [ ! -e "$DATA_DIR" ]
+  [ "$(cat "$HOME/.config/sops/age/keys.txt")" = "AGE-SECRET-KEY-EXISTING" ]
+  echo "$output" | grep -q "nothing was kept"
+}
+
+@test "a stopped create that copied the engine removes the copy too, so it can be run again" {
+  source_engine="$STUB_DIR/checkout/media-server-engine"
+  mkdir -p "$source_engine"
+  cp -R "$BATS_TEST_DIRNAME/../scripts" "$BATS_TEST_DIRNAME/../config-template" "$source_engine/"
+  FAKE_CONFIGURE_FAILS=1 ENGINE_DIR=$source_engine INSTALL_DIR="$STUB_DIR/newinst" run "$source_engine/scripts/create-installation.sh" newinst < <(echo)
+  [ "$status" -ne 0 ]
+  [ ! -e "$STUB_DIR/newinst" ]
+  [ -d "$source_engine" ]
+}
+
+@test "a create that fails after the settings are saved keeps them and says how to finish" {
+  FAKE_SETUP_FAILS=1 run create testinst < <(echo)
+  [ "$status" -ne 0 ]
+  [ -f "$CONFIG_DIR/images.yml" ]
+  grep -q "AGE-SECRET-KEY-NEW" "$HOME/.config/sops/age/keys.txt"
+  echo "$output" | grep -q "cd $ENGINE_DIR && make setup-machine"
+}
+
+@test "pressing ctrl-c during the questions also leaves nothing behind" {
+  make_stub fake-configure 'kill -INT $PPID; sleep 1'
+  run create testinst < <(echo)
+  [ "$status" -eq 130 ]
+  [ ! -e "$CONFIG_DIR" ]
+  ! grep -q "AGE-SECRET-KEY-NEW" "$HOME/.config/sops/age/keys.txt" || false
 }

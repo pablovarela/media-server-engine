@@ -1,4 +1,4 @@
-.PHONY: help urls logins create-installation join-installation bootstrap configure update install-update-timer claim-backup-main check-tools test restore backup-now verify-backup-now install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
+.PHONY: help urls logins create-installation join-installation setup-machine bootstrap configure update install-update-timer claim-backup-main check-tools test restore backup-now verify-backup-now install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
 
 SHELL := /bin/bash
 CONFIG_DIR ?= $(CURDIR)/../config
@@ -14,6 +14,9 @@ create-installation: ## create a new installation in ~/NAME (engine, config, dat
 
 join-installation: ## add this machine to an installation whose config is on GitHub, in ~/NAME: NAME=<installation name>
 	@scripts/join-installation.sh $(NAME)
+
+setup-machine: ## finish setting up this machine for its installation (checks, main question, update, timers)
+	@scripts/setup-machine.sh
 
 bootstrap: ## install sops, age and restic (Homebrew on macOS, pinned binaries plus Docker on Debian)
 	@scripts/bootstrap.sh

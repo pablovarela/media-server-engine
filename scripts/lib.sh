@@ -151,13 +151,15 @@ run_from_installation_directory() {
     return 0
   fi
   [ ! -e "$engine" ] || die "$engine already exists; run make from $engine instead"
+  local created_install_dir=""
+  [ -e "$install_dir" ] || created_install_dir=$install_dir
   mkdir -p "$install_dir"
   git clone -q "$ENGINE_DIR" "$engine"
   git -C "$engine" checkout -q "$(git -C "$ENGINE_DIR" rev-parse HEAD)"
   git -C "$engine" remote set-url origin "$(git -C "$ENGINE_DIR" remote get-url origin)"
   echo "Installing $name in $install_dir: engine, config and data side by side." >&2
   ENGINE_DIR=$engine CONFIG_DIR=$install_dir/config DATA_DIR=$install_dir/data INSTALL_DIR=$install_dir \
-    exec "$engine/scripts/$(basename "$script")" "$name"
+    CREATED_INSTALL_DIR=$created_install_dir exec "$engine/scripts/$(basename "$script")" "$name"
 }
 
 valid_installation_name() {

@@ -20,11 +20,11 @@ OWNER=${GITHUB_OWNER:-${ENGINE_REPO%%/*}}
 CONFIG_REPO="$OWNER/media-server-config-$NAME"
 
 new_secrets_key() {
-  local generated public
+  local generated
   generated=$(mktemp)
   rm -f "$generated"
   age-keygen -o "$generated" 2>/dev/null
-  public=$(sed -n 's/^# public key: //p' "$generated")
+  public_key=$(sed -n 's/^# public key: //p' "$generated")
   mkdir -p "$(dirname "$SOPS_AGE_KEY_FILE")"
   chmod 700 "$(dirname "$SOPS_AGE_KEY_FILE")"
   ( umask 077; grep '^AGE-SECRET-KEY-' "$generated" >> "$SOPS_AGE_KEY_FILE" )
@@ -38,7 +38,33 @@ new_secrets_key() {
   } >&2
   rm -f "$generated"
   read -r _ || true
-  echo "$public"
+}
+
+remove_secrets_key() {
+  local kept line
+  kept=$(mktemp)
+  while IFS= read -r line; do
+    if [[ $line == AGE-SECRET-KEY-* ]] && [ "$(printf '%s\n' "$line" | age-keygen -y 2>/dev/null)" = "$1" ]; then
+      continue
+    fi
+    printf '%s\n' "$line"
+  done < "$SOPS_AGE_KEY_FILE" > "$kept"
+  cat "$kept" > "$SOPS_AGE_KEY_FILE"
+  rm -f "$kept"
+}
+
+undo_unless_settings_saved() {
+  local status=$?
+  [ "$status" -ne 0 ] || return 0
+  if [ -n "$settings_saved" ]; then
+    echo "$NAME's settings are saved in $CONFIG_DIR. Finish setting up this machine with: cd $ENGINE_DIR && make setup-machine" >&2
+    return
+  fi
+  [ -z "$public_key" ] || remove_secrets_key "$public_key"
+  rm -rf "$CONFIG_DIR"
+  [ -z "$created_data_dir" ] || rm -rf "$DATA_DIR"
+  [ -z "${CREATED_INSTALL_DIR:-}" ] || rm -rf "$CREATED_INSTALL_DIR"
+  echo "Stopped before $NAME's settings were saved, so nothing was kept. Run make create-installation NAME=$NAME again." >&2
 }
 
 write_sops_config() {
@@ -64,12 +90,18 @@ if gh auth status >/dev/null 2>&1 && gh repo view "$CONFIG_REPO" >/dev/null 2>&1
 fi
 [ ! -e "$CONFIG_DIR" ] || [ -z "$(ls -A "$CONFIG_DIR")" ] || die "$CONFIG_DIR is not empty"
 
+public_key="" settings_saved="" created_data_dir=""
+[ -e "$DATA_DIR" ] || created_data_dir=1
+trap undo_unless_settings_saved EXIT
+trap 'exit 130' INT TERM
+
 "$BOOTSTRAP_COMMAND"
 mkdir -p "$CONFIG_DIR" "$DATA_DIR"
-public_key=$(new_secrets_key)
+new_secrets_key
 fill_template
 pin_engine_version
 write_sops_config "$public_key"
 git -C "$CONFIG_DIR" init -q -b main
 NAME=$NAME "$CONFIGURE_COMMAND"
+settings_saved=1
 "$SETUP_MACHINE_COMMAND"
