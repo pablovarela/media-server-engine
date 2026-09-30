@@ -9,6 +9,24 @@ BACKUP_ROLE_COMMAND=${BACKUP_ROLE_COMMAND:-$SCRIPTS_DIR/backup-role.sh}
 cd "$DATA_DIR"
 
 services_to_restart=""
+readonly LOCK="$DATA_DIR/.backup.lock"
+
+take_backup_lock() {
+  local holder
+  if ! mkdir "$LOCK" 2>/dev/null; then
+    holder=$(cat "$LOCK/pid" 2>/dev/null || true)
+    if [ -n "$holder" ] && kill -0 "$holder" 2>/dev/null; then
+      die "a backup is already running (process $holder)"
+    fi
+    rm -rf "$LOCK"
+    mkdir "$LOCK"
+  fi
+  echo $$ > "$LOCK/pid"
+}
+
+release_backup_lock() {
+  rm -rf "$LOCK"
+}
 
 start_stopped_services() {
   if [ -n "$services_to_restart" ]; then
@@ -21,6 +39,7 @@ start_stopped_services() {
 on_exit() {
   local status=$?
   start_stopped_services || status=1
+  release_backup_lock
   if [ "$status" -ne 0 ]; then
     ping_healthcheck backup /fail
   fi
@@ -34,6 +53,7 @@ require_main() {
   fi
 }
 
+take_backup_lock
 trap on_exit EXIT
 ping_healthcheck backup /start
 require_main

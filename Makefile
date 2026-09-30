@@ -27,7 +27,7 @@ restore: check-tools ## restore volumes/ from the latest backup (ARGS=--overwrit
 update: check-tools ## pull the config repo, switch to its engine version, bring the stack up and wire the apps
 	@scripts/update.sh
 
-install-update-timer: check-tools ## run make update every day at 05:00, after the backup (systemd)
+install-update-timer: check-tools ## schedule make update daily at 05:00, after the backup (systemd)
 	@scripts/install-timers.sh media-update
 
 configure: ## set or change this installation's settings and secrets interactively (ROTATE=sonarr regenerates one internal key)
@@ -42,21 +42,19 @@ test: ## run the script tests and shellcheck (needs bats-core and shellcheck)
 	@bats tests/
 	@shellcheck -x scripts/*.sh diagnose.sh
 
-backup-now: ## run the scheduled backup now (stops the stack for a few minutes; needs the timers installed)
-	@command -v systemctl >/dev/null || { echo "backups run under systemd; this machine has no systemctl" >&2; exit 1; }
-	@sudo systemctl start media-backup.service
+backup-now: ## back up now (stops the apps for a few minutes; only on the installation's main)
+	@sops exec-env "$(CONFIG_DIR)/secrets/healthchecks.sops.env" 'sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" scripts/backup.sh'
 
-verify-backup-now: ## run the scheduled backup verification now (needs the timers installed)
-	@command -v systemctl >/dev/null || { echo "backups run under systemd; this machine has no systemctl" >&2; exit 1; }
-	@sudo systemctl start media-verify.service
+verify-backup-now: ## check the backups now: restic check, and a test restore of the latest snapshot
+	@sops exec-env "$(CONFIG_DIR)/secrets/healthchecks.sops.env" 'sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" scripts/verify-backup.sh'
 
-install-backup-timers: check-tools ## install the nightly backup and weekly verification (systemd; only on the installation's main)
+install-backup-timers: check-tools ## schedule make backup-now daily and make verify-backup-now weekly (systemd; only on the installation's main)
 	@sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" 'scripts/install-timers.sh media-backup media-verify'
 
 claim-backup-main: check-tools ## make this machine the installation's main: runs one backup tagged with this machine
 	@sops exec-env "$(CONFIG_DIR)/secrets/healthchecks.sops.env" 'sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" scripts/claim-backup-main.sh'
 
-install-download-cleanup-timer: check-tools ## remove downloads Sonarr or Radarr flag as executables, every 15 minutes (systemd)
+install-download-cleanup-timer: check-tools ## schedule the removal of downloads Sonarr or Radarr flag as executables, every 15 minutes (systemd)
 	@scripts/install-timers.sh media-download-cleanup
 
 media-start: ## start the media server stack

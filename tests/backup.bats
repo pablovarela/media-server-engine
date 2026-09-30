@@ -103,3 +103,31 @@ line_of() {
   [ "$status" -eq 0 ]
   grep -q "restic backup" "$STUB_LOG"
 }
+
+@test "a backup refuses to start while another one is running" {
+  mkdir -p "$DATA_DIR/.backup.lock"
+  sleep 60 & running=$!
+  echo "$running" > "$DATA_DIR/.backup.lock/pid"
+  run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
+  kill "$running"
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "already running"
+  ! grep -q "^restic backup" "$STUB_LOG" || false
+  ! grep -q "docker compose stop" "$STUB_LOG" || false
+  ! grep -q "/fail" "$STUB_LOG" || false
+}
+
+@test "a lock left by a backup that no longer runs is taken over" {
+  mkdir -p "$DATA_DIR/.backup.lock"
+  echo 999999 > "$DATA_DIR/.backup.lock/pid"
+  run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
+  [ "$status" -eq 0 ]
+  grep -q "^restic backup" "$STUB_LOG"
+}
+
+@test "the lock is released after a backup, whether it worked or not" {
+  run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
+  [ ! -e "$DATA_DIR/.backup.lock" ]
+  FAKE_RESTIC_BACKUP_FAILS=1 run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
+  [ ! -e "$DATA_DIR/.backup.lock" ]
+}
