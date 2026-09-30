@@ -77,6 +77,6 @@ Bazarr's default subtitle profile for series and movies gets the declared langua
 
 Sonarr, Radarr and Prowlarr need no login from the local network. From anywhere else they ask for one, and none exists, so they stay closed. Devices on Tailscale count as local when they reach the network through a subnet router; otherwise turn on Trust CGNAT IP addresses in each app's security settings.
 
-Sonarr and Radarr tell Jellyfin about every import, upgrade, rename and deletion, so new episodes and films appear in Jellyfin straight away.
+Sonarr and Radarr tell Jellyfin about every import, upgrade, rename and deletion, so new episodes and films appear in Jellyfin about a minute after they are imported. The one exception is the very first title in a new installation: Jellyfin only acts on these updates once it has scanned a library with something in it, so that first title appears at the next scheduled library scan (every 12 hours by default), or straight away with Scan All Libraries in Jellyfin's dashboard. Everything after it follows within the minute.
 
 A new Seerr is signed in with the Jellyfin admin account from `installation.env` and the app secrets, which makes that account Seerr's owner.
