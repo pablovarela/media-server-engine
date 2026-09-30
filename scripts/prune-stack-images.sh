@@ -2,9 +2,9 @@
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "$0")/lib.sh"
-cd "$MEDIA_SERVER_DIR"
+cd "$CONFIG_DIR"
 
-readonly COMPOSE_FILES="docker-compose.yml docker-compose.monitoring.yml"
+readonly COMPOSE_FILES="images.yml images.monitoring.yml compose.override.yml"
 
 pinned_references() {
   # shellcheck disable=SC2086

@@ -1,14 +1,16 @@
 setup_stubs() {
   STUB_DIR=$(mktemp -d)
   STUB_LOG="$STUB_DIR/calls.log"
-  MEDIA_SERVER_DIR=$(mktemp -d)
-  export STUB_LOG MEDIA_SERVER_DIR
+  ENGINE_DIR=$(mktemp -d)
+  CONFIG_DIR=$(mktemp -d)
+  DATA_DIR=$(mktemp -d)
+  export STUB_LOG ENGINE_DIR CONFIG_DIR DATA_DIR
   export PATH="$STUB_DIR:$PATH"
   : > "$STUB_LOG"
 }
 
 teardown_stubs() {
-  rm -rf "$STUB_DIR" "$MEDIA_SERVER_DIR"
+  rm -rf "$STUB_DIR" "$ENGINE_DIR" "$CONFIG_DIR" "$DATA_DIR"
 }
 
 make_stub() {
@@ -23,4 +25,20 @@ EOF
 
 stub_log() {
   cat "$STUB_LOG"
+}
+
+make_compose_stub() {
+  make_stub docker "
+if [ \"\$1\" = compose ]; then
+  shift
+  while [ \$# -gt 0 ]; do
+    case \$1 in
+      --project-name|--project-directory|--env-file|-f) shift 2 ;;
+      *) break ;;
+    esac
+  done
+  echo \"docker compose \$*\" >> \"\$STUB_LOG\"
+  set -- compose \"\$@\"
+fi
+$1"
 }

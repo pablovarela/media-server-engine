@@ -6,6 +6,8 @@ After=docker.service
 Type=oneshot
 User=@USER@
 Group=@GROUP@
-WorkingDirectory=@MEDIA_SERVER_DIR@
-ExecStart=@MEDIA_SERVER_DIR@/scripts/remove-executable-downloads.sh
+WorkingDirectory=@ENGINE_DIR@
+Environment=CONFIG_DIR=@CONFIG_DIR@
+Environment=DATA_DIR=@DATA_DIR@
+ExecStart=@ENGINE_DIR@/scripts/remove-executable-downloads.sh
 Nice=10

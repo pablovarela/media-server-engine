@@ -2,8 +2,8 @@ load helpers
 
 setup() {
   setup_stubs
-  mkdir -p "$MEDIA_SERVER_DIR/systemd"
-  cp "$BATS_TEST_DIRNAME"/../systemd/* "$MEDIA_SERVER_DIR/systemd/"
+  mkdir -p "$ENGINE_DIR/systemd"
+  cp "$BATS_TEST_DIRNAME"/../systemd/* "$ENGINE_DIR/systemd/"
   export UNIT_DIR="$STUB_DIR/units"
   mkdir -p "$UNIT_DIR"
   make_stub systemctl ''
@@ -17,7 +17,10 @@ teardown() {
 @test "install renders the units for this checkout and user" {
   run "$BATS_TEST_DIRNAME/../scripts/install-timers.sh" media-backup media-verify
   [ "$status" -eq 0 ]
-  grep -q "^WorkingDirectory=$MEDIA_SERVER_DIR$" "$UNIT_DIR/media-backup.service"
+  grep -q "^WorkingDirectory=$ENGINE_DIR$" "$UNIT_DIR/media-backup.service"
+  grep -q "^Environment=CONFIG_DIR=$(cd "$CONFIG_DIR" && pwd)$" "$UNIT_DIR/media-backup.service"
+  grep -q "^Environment=DATA_DIR=$(cd "$DATA_DIR" && pwd)$" "$UNIT_DIR/media-backup.service"
+  grep -q "exec-env $(cd "$CONFIG_DIR" && pwd)/secrets/backup.sops.env scripts/backup.sh$" "$UNIT_DIR/media-backup.service"
   grep -q "^User=$(id -un)$" "$UNIT_DIR/media-backup.service"
   grep -q "^Environment=SOPS_AGE_KEY_FILE=$HOME/.config/sops/age/keys.txt$" "$UNIT_DIR/media-verify.service"
   ! grep -q "@" "$UNIT_DIR"/media-*
@@ -41,7 +44,7 @@ teardown() {
   run "$BATS_TEST_DIRNAME/../scripts/install-timers.sh" media-download-cleanup
   [ "$status" -eq 0 ]
   [ "$(ls "$UNIT_DIR" | tr '\n' ' ')" = "media-download-cleanup.service media-download-cleanup.timer " ]
-  grep -q "^ExecStart=$MEDIA_SERVER_DIR/scripts/remove-executable-downloads.sh$" "$UNIT_DIR/media-download-cleanup.service"
+  grep -q "^ExecStart=$ENGINE_DIR/scripts/remove-executable-downloads.sh$" "$UNIT_DIR/media-download-cleanup.service"
   grep -q "systemctl enable --now media-download-cleanup.timer$" "$STUB_LOG"
 }
 
@@ -57,4 +60,12 @@ teardown() {
   [ "$status" -eq 0 ]
   [ "$(ls "$UNIT_DIR" | wc -l | tr -d ' ')" -eq "$(ls "$BATS_TEST_DIRNAME"/../systemd | wc -l | tr -d ' ')" ]
   ! grep -l "@[A-Z_]*@" "$UNIT_DIR"/*
+}
+
+@test "install writes normalized paths when config and data use the default relative location" {
+  mkdir -p "$ENGINE_DIR/../config-rel" "$ENGINE_DIR/../data-rel"
+  CONFIG_DIR="$ENGINE_DIR/../config-rel" DATA_DIR="$ENGINE_DIR/../data-rel" run "$BATS_TEST_DIRNAME/../scripts/install-timers.sh" media-backup
+  [ "$status" -eq 0 ]
+  ! grep -q "\.\./" "$UNIT_DIR/media-backup.service"
+  rm -rf "$ENGINE_DIR/../config-rel" "$ENGINE_DIR/../data-rel"
 }

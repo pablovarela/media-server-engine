@@ -4,7 +4,7 @@ set -uo pipefail
 source "$(dirname "$0")/lib.sh"
 # shellcheck source=scripts/tool-versions.env
 source "$(dirname "$0")/tool-versions.env"
-cd "$MEDIA_SERVER_DIR" || exit 1
+cd "$CONFIG_DIR" || exit 1
 
 if [ "$(uname -s)" = Linux ]; then
   CHECK_PINNED_VERSIONS=${CHECK_PINNED_VERSIONS:-1}

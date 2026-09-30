@@ -2,7 +2,7 @@
 set -uo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "$0")/lib.sh"
-cd "$MEDIA_SERVER_DIR" || exit 1
+cd "$DATA_DIR" || exit 1
 
 api_key() {
   sed -n 's:.*<ApiKey>\(.*\)</ApiKey>.*:\1:p' "$1"

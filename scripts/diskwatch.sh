@@ -2,7 +2,7 @@
 # shellcheck source=scripts/lib.sh
 source "$(dirname "$0")/lib.sh"
 
-LOGDIR="$MEDIA_SERVER_DIR/logs/diskwatch"
+LOGDIR="$DATA_DIR/logs/diskwatch"
 INTERVAL=${DISKWATCH_INTERVAL:-5}
 READ_BURST_MB_PER_INTERVAL=80
 

@@ -2,12 +2,12 @@ load helpers
 
 setup() {
   setup_stubs
-  cat > "$MEDIA_SERVER_DIR/docker-compose.yml" <<'YML'
+  cat > "$CONFIG_DIR/images.yml" <<'YML'
 services:
   sonarr:
     image: lscr.io/linuxserver/sonarr:4.0.21-ls327@sha256:newsonarr
 YML
-  cat > "$MEDIA_SERVER_DIR/docker-compose.monitoring.yml" <<'YML'
+  cat > "$CONFIG_DIR/images.monitoring.yml" <<'YML'
 services:
   grafana:
     image: grafana/grafana:13.2.3@sha256:newgrafana
@@ -59,4 +59,15 @@ if [ "$1 $2" = "image rm" ] && [ "$3" = "lscr.io/linuxserver/sonarr@sha256:oldso
   run "$BATS_TEST_DIRNAME/../scripts/prune-stack-images.sh"
   [ "$status" -eq 0 ]
   grep -q "docker image rm grafana/grafana:latest" "$STUB_LOG"
+}
+
+@test "prune keeps images pinned only in the override" {
+  printf 'services:\n  extra:\n    image: example/extra:1@sha256:extra1\n' > "$CONFIG_DIR/compose.override.yml"
+  make_stub docker '
+if [ "$1 $2" = "image ls" ]; then
+  printf "%s\\n" "example/extra <none> sha256:extra1" "example/extra <none> sha256:extra0"
+fi'
+  run "$BATS_TEST_DIRNAME/../scripts/prune-stack-images.sh"
+  grep -q "docker image rm example/extra@sha256:extra0" "$STUB_LOG"
+  ! grep -q "extra1" <(grep "image rm" "$STUB_LOG")
 }

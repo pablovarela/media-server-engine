@@ -2,9 +2,9 @@ load helpers
 
 setup() {
   setup_stubs
-  mkdir -p "$MEDIA_SERVER_DIR/volumes/sonarr/data" "$MEDIA_SERVER_DIR/volumes/radarr/config"
-  echo "<Config><ApiKey>sonarr-key</ApiKey></Config>" > "$MEDIA_SERVER_DIR/volumes/sonarr/data/config.xml"
-  echo "<Config><ApiKey>radarr-key</ApiKey></Config>" > "$MEDIA_SERVER_DIR/volumes/radarr/config/config.xml"
+  mkdir -p "$DATA_DIR/volumes/sonarr/data" "$DATA_DIR/volumes/radarr/config"
+  echo "<Config><ApiKey>sonarr-key</ApiKey></Config>" > "$DATA_DIR/volumes/sonarr/data/config.xml"
+  echo "<Config><ApiKey>radarr-key</ApiKey></Config>" > "$DATA_DIR/volumes/radarr/config/config.xml"
   make_stub curl '
 case "$*" in
   *"-X DELETE"*) ;;

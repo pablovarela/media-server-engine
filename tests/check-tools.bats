@@ -67,3 +67,9 @@ teardown() {
   run "$BATS_TEST_DIRNAME/../scripts/check-tools.sh"
   echo "$output" | grep -qE "^OK +python3$"
 }
+
+@test "check-tools decrypts the secrets from the config directory" {
+  make_stub sops "if [ \"\$1\" = --version ]; then echo \"sops ${SOPS_VERSION#v}\"; else echo \"cwd=\$PWD \$*\" >> \"\$STUB_LOG\"; fi"
+  run "$BATS_TEST_DIRNAME/../scripts/check-tools.sh"
+  grep -q "cwd=.*$(basename "$CONFIG_DIR") decrypt secrets/vpn.sops.env" "$STUB_LOG"
+}

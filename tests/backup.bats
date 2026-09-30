@@ -4,7 +4,7 @@ setup() {
   setup_stubs
   export HEALTHCHECK_BACKUP_URL=https://hc.example/abc
   make_stub curl ''
-  make_stub docker 'if [ "$2" = ps ]; then printf "jellyfin\nsonarr\n"; fi'
+  make_compose_stub 'if [ "$2" = ps ]; then printf "jellyfin\nsonarr\n"; fi'
   make_stub restic 'if [ "$1" = backup ] && [ -n "${FAKE_RESTIC_BACKUP_FAILS:-}" ]; then exit 1; fi'
 }
 
@@ -48,21 +48,21 @@ line_of() {
 }
 
 @test "backup starts nothing when nothing was running" {
-  make_stub docker ''
+  make_compose_stub ''
   run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
   [ "$status" -eq 0 ]
   ! grep -q "docker compose start" "$STUB_LOG"
 }
 
 @test "backup pings fail when restarting the stack fails" {
-  make_stub docker 'if [ "$2" = ps ]; then printf "jellyfin\n"; fi; if [ "$2" = start ]; then exit 1; fi'
+  make_compose_stub 'if [ "$2" = ps ]; then printf "jellyfin\n"; fi; if [ "$2" = start ]; then exit 1; fi'
   run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
   [ "$status" -ne 0 ]
   grep -q "curl .*https://hc.example/abc/fail" "$STUB_LOG"
 }
 
 @test "backup pings fail when it cannot even list the running services" {
-  make_stub docker 'if [ "$2" = ps ]; then exit 1; fi'
+  make_compose_stub 'if [ "$2" = ps ]; then exit 1; fi'
   run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
   [ "$status" -ne 0 ]
   grep -q "curl .*https://hc.example/abc/fail" "$STUB_LOG"
@@ -72,4 +72,10 @@ line_of() {
   run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
   grep -q "restic backup --retry-lock 2h" "$STUB_LOG"
   grep -q "restic forget --retry-lock 2h" "$STUB_LOG"
+}
+
+@test "backup snapshots volumes from the data directory" {
+  make_stub restic 'if [ "$1" = backup ]; then echo "cwd=$PWD" >> "$STUB_LOG"; fi'
+  run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
+  grep -q "cwd=$(cd "$DATA_DIR" && pwd -P)\|cwd=$DATA_DIR" "$STUB_LOG"
 }

@@ -2,12 +2,19 @@
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "$0")/lib.sh"
-cd "$MEDIA_SERVER_DIR"
+cd "$ENGINE_DIR"
 
 UNIT_DIR=${UNIT_DIR:-/etc/systemd/system}
 
+absolute_path() {
+  mkdir -p "$1"
+  (cd "$1" && pwd)
+}
+
 render_unit() {
-  sed -e "s|@MEDIA_SERVER_DIR@|$MEDIA_SERVER_DIR|g" \
+  sed -e "s|@ENGINE_DIR@|$(absolute_path "$ENGINE_DIR")|g" \
+    -e "s|@CONFIG_DIR@|$(absolute_path "$CONFIG_DIR")|g" \
+    -e "s|@DATA_DIR@|$(absolute_path "$DATA_DIR")|g" \
     -e "s|@USER@|$(id -un)|g" \
     -e "s|@GROUP@|$(id -gn)|g" \
     -e "s|@HOME@|$HOME|g" \
