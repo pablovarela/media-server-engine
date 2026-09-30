@@ -4,6 +4,16 @@ set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 # shellcheck source=scripts/configure-fields.sh
 source "$(dirname "$0")/configure-fields.sh"
+# shellcheck source=scripts/configure-menus.sh
+source "$(dirname "$0")/configure-menus.sh"
+
+use_menus() {
+  case ${CONFIGURE_UI:-auto} in
+    menus) true ;;
+    prompts) false ;;
+    *) [ -t 0 ] && [ -t 1 ] && command -v whiptail >/dev/null ;;
+  esac
+}
 
 readonly ROTATABLE="sonarr:SONARR_API_KEY radarr:RADARR_API_KEY prowlarr:PROWLARR_API_KEY"
 readonly INTERNAL_CREDENTIALS="SONARR_API_KEY RADARR_API_KEY PROWLARR_API_KEY"
@@ -143,10 +153,11 @@ fi
 cd "$CONFIG_DIR"
 [ -f images.yml ] || cp -R "$ENGINE_DIR/config-template/." .
 
+[ -f installation.env ] || NEW_INSTALLATION=1
 load_current_values
 INSTALLATION_NAME=${INSTALLATION_NAME:-${NAME:-}}
 [ -n "$INSTALLATION_NAME" ] || die "this config has no installation name; create one with make create-installation NAME=<name>"
-prompt_for_values
+if use_menus; then menu_for_values; else prompt_for_values; fi
 generate_internal_credentials
 write_config
 commit_changes
