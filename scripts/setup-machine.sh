@@ -60,7 +60,7 @@ print_summary() {
   installation=$(dirname "$engine")
   echo
   echo "================================================================"
-  echo "$INSTALLATION_NAME is ready on $(hostname -s)."
+  echo "$INSTALLATION_NAME is ready on $(network_name)."
   echo
   echo "It lives in $installation. From now on, run make from its engine:"
   echo "  cd $engine"

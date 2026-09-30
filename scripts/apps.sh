@@ -6,14 +6,10 @@ load_installation
 
 readonly APPS="Jellyfin:8096 Seerr:5055 Sonarr:8989 Radarr:7878 Prowlarr:9696 Bazarr:6767 Deluge:8112 Maintainerr:6246 Portainer:9000"
 
-host() {
-  echo "${MEDIA_SERVER_HOST:-$(hostname -s).local}"
-}
-
 urls() {
   local app
   for app in $APPS; do
-    printf '%-12s http://%s:%s\n' "${app%%:*}" "$(host)" "${app#*:}"
+    printf '%-12s http://%s:%s\n' "${app%%:*}" "$(network_name)" "${app#*:}"
   done
 }
 

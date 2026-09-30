@@ -170,3 +170,13 @@ require_valid_installation_name() {
   valid_installation_name "$1" ||
     die "installation names are lowercase letters, digits and dashes, up to 40 characters, starting with a letter or digit; got '$1'"
 }
+
+network_name() {
+  if [ -n "${MEDIA_SERVER_HOST:-}" ]; then
+    echo "$MEDIA_SERVER_HOST"
+  elif [ "$(uname -s)" = Darwin ]; then
+    echo "$(scutil --get LocalHostName).local"
+  else
+    echo "$(hostname -s).local"
+  fi
+}

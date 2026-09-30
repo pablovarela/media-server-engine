@@ -68,3 +68,10 @@ setup_machine() {
   summary=$(echo "$output" | sed -n '/testinst is ready/,$p')
   echo "$summary" | grep -q "Another machine backs up"
 }
+
+@test "the summary names the machine as the network knows it" {
+  make_stub uname 'echo Darwin'
+  make_stub scutil 'echo bonjour-name'
+  run setup_machine < <(echo n)
+  echo "$output" | grep -q "testinst is ready on bonjour-name.local"
+}
