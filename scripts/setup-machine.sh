@@ -43,7 +43,7 @@ fi
 become_main=""
 if wants_to_be_main; then become_main=1; fi
 "$UPDATE_COMMAND"
-if command -v systemctl >/dev/null; then
+if systemd_running; then
   "$INSTALL_TIMERS_COMMAND" media-update media-download-cleanup
   if [ -n "$become_main" ]; then
     sops exec-env "$CONFIG_DIR/secrets/healthchecks.sops.env" "sops exec-env '$CONFIG_DIR/secrets/backup.sops.env' '$CLAIM_COMMAND'"
@@ -77,7 +77,7 @@ print_summary() {
     echo "  make backup-now   back up now"
   fi
   echo
-  if command -v systemctl >/dev/null; then
+  if systemd_running; then
     echo "This machine updates itself daily at 05:00 and removes fake downloads every 15 minutes."
     if [ -n "$become_main" ]; then
       echo "It is the main: it backs up daily at 04:30 and checks the backups on Sundays at 05:30."

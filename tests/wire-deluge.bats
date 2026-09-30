@@ -70,7 +70,7 @@ wire_once() {
   [ "$(conf_value autoremoveplus.conf min)" = 168.0 ]
   [ "$(conf_value autoremoveplus.conf sel_func)" = '"or"' ]
   for file in web.conf autoremoveplus.conf; do
-    [ "$(stat -f %Lp "$DELUGE_CONFIG/$file" 2>/dev/null || stat -c %a "$DELUGE_CONFIG/$file")" = 600 ]
+    [ "$(file_mode "$DELUGE_CONFIG/$file")" = 600 ]
   done
   [ "$(grep -c '^docker stop deluge$' "$STUB_LOG")" -eq 1 ]
   [ "$(grep -c '^docker start deluge$' "$STUB_LOG")" -eq 1 ]

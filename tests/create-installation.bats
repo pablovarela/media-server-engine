@@ -65,7 +65,7 @@ create() {
   grep -q "AGE-SECRET-KEY-EXISTING" "$HOME/.config/sops/age/keys.txt"
   grep -q "AGE-SECRET-KEY-NEW" "$HOME/.config/sops/age/keys.txt"
   [ "$(echo "$output" | grep -c "AGE-SECRET-KEY-NEW")" -eq 1 ]
-  [ "$(stat -f %Lp "$HOME/.config/sops/age/keys.txt" 2>/dev/null || stat -c %a "$HOME/.config/sops/age/keys.txt")" = 600 ]
+  [ "$(file_mode "$HOME/.config/sops/age/keys.txt")" = 600 ]
 }
 
 @test "the config starts from the template with this engine's path filled in" {

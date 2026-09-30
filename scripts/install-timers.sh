@@ -31,7 +31,7 @@ installs_backup_timers() {
 }
 
 [ $# -gt 0 ] || die "usage: $(basename "$0") UNIT_NAME..., for example media-backup"
-command -v systemctl >/dev/null || die "timers need systemd, and this machine has no systemctl"
+systemd_running || die "timers need systemd, and systemd is not running on this machine"
 if installs_backup_timers "$@"; then
   load_installation
   "${BACKUP_ROLE_COMMAND:-$ENGINE_DIR/scripts/backup-role.sh}" is-main ||

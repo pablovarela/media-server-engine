@@ -60,7 +60,7 @@ json.dump(state, open(sys.argv[1], 'w'))" "$FAKE_APP_STATE"
   [ "$(body_of /Startup/User)" = '{"Name": "admin", "Password": "admin pass"}' ]
   [ "$(body_of /Startup/Configuration | python3 -c 'import json,sys; print(json.load(sys.stdin)["ServerName"])')" = Media ]
   [ "$(cat "$DATA_DIR/volumes/.wiring/jellyfin.key")" = new-key ]
-  [ "$(stat -f %Lp "$DATA_DIR/volumes/.wiring/jellyfin.key" 2>/dev/null || stat -c %a "$DATA_DIR/volumes/.wiring/jellyfin.key")" = 600 ]
+  [ "$(file_mode "$DATA_DIR/volumes/.wiring/jellyfin.key")" = 600 ]
   echo "$output" | grep -q "jellyfin: add library Shows"
 }
 

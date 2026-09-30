@@ -268,6 +268,7 @@ answers_with() {
 }
 
 @test "a backup folder that cannot be made is explained, and can be kept anyway" {
+  [ "$(id -u)" -ne 0 ] || skip "root can write into any folder"
   mkdir -p "$STUB_DIR/readonly" && chmod 555 "$STUB_DIR/readonly"
   run configure < <(answers_for_new_installation | sed "5s#b2#local#; 6s#.*#$STUB_DIR/readonly/backups#; 7d; 8d; 9d" | sed "7a\\
 y")

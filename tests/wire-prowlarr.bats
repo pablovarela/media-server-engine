@@ -91,7 +91,7 @@ json.dump(state, open(sys.argv[1], "w"))' "$FAKE_APP_STATE"
   start_fake_app "$FIXTURES/wired.json"
   run wire
   [ "$(fake_app_writes | grep -c '^PUT /api/v1/applications/')" -eq 2 ]
-  [ "$(stat -f %Lp "$DATA_DIR/volumes/.wiring/prowlarr-application-Sonarr.sha256" 2>/dev/null || stat -c %a "$DATA_DIR/volumes/.wiring/prowlarr-application-Sonarr.sha256")" = 600 ]
+  [ "$(file_mode "$DATA_DIR/volumes/.wiring/prowlarr-application-Sonarr.sha256")" = 600 ]
   : > "$FAKE_APP_WRITES"
   run wire
   [ -z "$(fake_app_writes)" ]

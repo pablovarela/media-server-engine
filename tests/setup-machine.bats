@@ -34,7 +34,7 @@ setup_machine() {
 }
 
 @test "the main of a machine without systemd still claims, so manual backups work" {
-  rm "$STUB_DIR/systemctl"
+  without_systemd
   PATH="$STUB_DIR:/usr/bin:/bin" run setup_machine < <(echo y)
   [ "$status" -eq 0 ]
   grep -q "^fake-claim" "$STUB_LOG"
@@ -55,7 +55,7 @@ setup_machine() {
 }
 
 @test "without systemd the summary says nothing runs on its own" {
-  rm "$STUB_DIR/systemctl"
+  without_systemd
   PATH="$STUB_DIR:/usr/bin:/bin" run setup_machine < <(echo n)
   summary=$(echo "$output" | sed -n '/testinst is ready/,$p')
   echo "$summary" | grep -q "nothing runs on its own"

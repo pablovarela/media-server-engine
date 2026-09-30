@@ -14,8 +14,9 @@ die() {
 installations_on_this_machine() {
   local config
   for config in "$HOME"/*/config/installation.env; do
-    [ -f "$config" ] && [ -d "$(dirname "$(dirname "$config")")/engine" ] || continue
-    dirname "$(dirname "$config")"
+    if [ -f "$config" ] && [ -d "$(dirname "$(dirname "$config")")/engine" ]; then
+      dirname "$(dirname "$config")"
+    fi
   done
 }
 
@@ -179,4 +180,8 @@ network_name() {
   else
     echo "$(hostname -s).local"
   fi
+}
+
+systemd_running() {
+  [ -d "${SYSTEMD_RUNTIME_DIR:-/run/systemd/system}" ] && command -v systemctl >/dev/null
 }

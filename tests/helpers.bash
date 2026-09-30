@@ -9,6 +9,8 @@ setup_stubs() {
   export HOME="$STUB_DIR/home"
   mkdir -p "$HOME"
   unset SOPS_AGE_KEY_FILE
+  export SYSTEMD_RUNTIME_DIR="$STUB_DIR/systemd-running"
+  mkdir -p "$SYSTEMD_RUNTIME_DIR"
   : > "$STUB_LOG"
 }
 
@@ -90,4 +92,12 @@ start_second_fake_app() {
 
 stop_second_fake_app() {
   [ -z "${SECOND_APP_PID:-}" ] || kill "$SECOND_APP_PID" 2>/dev/null || true
+}
+
+file_mode() {
+  stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"
+}
+
+without_systemd() {
+  rm -rf "$SYSTEMD_RUNTIME_DIR" "$STUB_DIR/systemctl"
 }

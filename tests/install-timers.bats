@@ -36,7 +36,7 @@ teardown() {
 }
 
 @test "install refuses on a machine without systemd" {
-  rm "$STUB_DIR/systemctl"
+  without_systemd
   PATH="$STUB_DIR:/usr/bin:/bin" run "$BATS_TEST_DIRNAME/../scripts/install-timers.sh" media-backup media-verify
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "systemd"

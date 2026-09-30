@@ -65,7 +65,7 @@ line_of() {
 @test "the pasted secrets key is stored privately and checked" {
   run join testinst < <(printf 'AGE-SECRET-KEY-GOOD\nn\n')
   grep -q "AGE-SECRET-KEY-GOOD" "$HOME/.config/sops/age/keys.txt"
-  [ "$(stat -f %Lp "$HOME/.config/sops/age/keys.txt" 2>/dev/null || stat -c %a "$HOME/.config/sops/age/keys.txt")" = 600 ]
+  [ "$(file_mode "$HOME/.config/sops/age/keys.txt")" = 600 ]
 }
 
 @test "a key that cannot decrypt the config stops the join" {
@@ -112,7 +112,7 @@ line_of() {
 }
 
 @test "without systemd the timers are skipped with instructions" {
-  rm "$STUB_DIR/systemctl"
+  without_systemd
   PATH="$STUB_DIR:/usr/bin:/bin" run join testinst < <(printf 'AGE-SECRET-KEY-GOOD\nn\n')
   [ "$status" -eq 0 ]
   ! grep -q "^fake-install-timers" "$STUB_LOG" || false

@@ -91,7 +91,7 @@ line_of() {
 @test "decrypted secrets are readable only by the owner" {
   run update
   for f in .secrets/vpn.env .secrets/apps.env .secrets/configarr/secrets.yml .secrets/sonarr.env .secrets/radarr.env .secrets/prowlarr.env .secrets/portainer_admin; do
-    [ "$(stat -f %Lp "$ENGINE_DIR/$f" 2>/dev/null || stat -c %a "$ENGINE_DIR/$f")" = "600" ]
+    [ "$(file_mode "$ENGINE_DIR/$f")" = "600" ]
   done
 }
 
