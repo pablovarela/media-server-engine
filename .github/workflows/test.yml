@@ -16,17 +16,14 @@ jobs:
       - name: Install the test tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq bats shellcheck python3-yaml
+          sudo apt-get install -y -qq bats python3-yaml
       - name: Run the tests
         id: tests
         run: |
           mkdir -p reports
           set +e
-          make test-scripts BATS_FLAGS="--report-formatter junit --output reports" > reports/bats.log 2>&1
-          echo "bats=$?" >> "$GITHUB_OUTPUT"
-          make lint > reports/shellcheck.log 2>&1
-          echo "shellcheck=$?" >> "$GITHUB_OUTPUT"
-          cat reports/bats.log reports/shellcheck.log
+          make test-scripts BATS_FLAGS="--report-formatter junit --output reports"
+          echo "status=$?" >> "$GITHUB_OUTPUT"
       - name: Report the test results
         if: always()
         uses: EnricoMi/publish-unit-test-result-action@d0a4676d0e0b938bc201470d88276b7c74c712b3 # v2.24.0
@@ -35,14 +32,24 @@ jobs:
           files: reports/report.xml
           check_run: false
           comment_mode: off
-      - name: Report shellcheck
-        if: always()
+      - name: Fail when a test failed
+        if: steps.tests.outputs.status != '0'
+        run: exit 1
+
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install shellcheck
         run: |
-          if [ "${{ steps.tests.outputs.shellcheck }}" = 0 ]; then
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq shellcheck
+      - name: Run shellcheck
+        run: |
+          if make lint > shellcheck.log 2>&1; then
             echo "shellcheck: clean" >> "$GITHUB_STEP_SUMMARY"
           else
-            { echo "shellcheck: findings"; echo '```'; cat reports/shellcheck.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            cat shellcheck.log
+            { echo "shellcheck: findings"; echo '```'; cat shellcheck.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
           fi
-      - name: Fail when a test or shellcheck failed
-        if: steps.tests.outputs.bats != '0' || steps.tests.outputs.shellcheck != '0'
-        run: exit 1
