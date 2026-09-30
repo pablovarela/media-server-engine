@@ -13,8 +13,10 @@ die() {
 
 load_installation() {
   if [ -f "$CONFIG_DIR/installation.env" ]; then
+    set -a
     # shellcheck source=/dev/null
     source "$CONFIG_DIR/installation.env"
+    set +a
   fi
   [ -n "${INSTALLATION_NAME:-}" ] || die "INSTALLATION_NAME is not set in $CONFIG_DIR/installation.env"
   export INSTALLATION_NAME
