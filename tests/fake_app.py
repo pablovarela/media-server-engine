@@ -72,7 +72,8 @@ class Handler(BaseHTTPRequestHandler):
         body = self.body()
         rejected = os.environ.get("FAKE_APP_REJECT")
         if rejected and rejected in json.dumps(body):
-            return self.answer(400, [{"errorMessage": "rejected by the fake app"}])
+            message = os.environ.get("FAKE_APP_REJECT_MESSAGE", "rejected by the fake app")
+            return self.answer(400, [{"errorMessage": message}])
         with open(writes_log, "a") as log:
             log.write(json.dumps({"method": method, "path": self.path, "body": body}) + "\n")
         state = load()

@@ -5,6 +5,7 @@ from wirelib import Api, WiringError, app_secrets, declared, fingerprint, rememb
 
 APP = "prowlarr"
 PROWLARR_URL_SEEN_BY_APPS = "http://gluetun:9696"
+UNREACHABLE = "Unable to connect to indexer"
 
 
 def field(item, name):
@@ -48,7 +49,10 @@ class Prowlarr:
                 self.api.write("POST", f"/api/v1/{kind}?forceSave=true", item)
             return True
         except WiringError as error:
-            self.failures.append(f"{item['name']}: {error}")
+            if kind == "indexer" and UNREACHABLE in str(error):
+                report(APP, f"could not reach indexer {item['name']}; it is added at a later update once its site answers from this VPN location")
+            else:
+                self.failures.append(f"{item['name']}: {error}")
             return False
 
     def tag_id(self, label):

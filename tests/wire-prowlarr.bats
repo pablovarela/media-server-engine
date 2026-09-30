@@ -147,3 +147,20 @@ json.dump(state, open(sys.argv[1], "w"))' "$FAKE_APP_STATE"
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "proxy Nope"
 }
+
+@test "an indexer prowlarr cannot reach is reported but does not fail the step" {
+  FAKE_APP_REJECT=thepiratebay FAKE_APP_REJECT_MESSAGE="Unable to connect to indexer. Unexpected response status UnavailableForLegalReasons" start_fake_app "$FIXTURES/fresh.json"
+  run wire
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q "prowlarr: could not reach indexer The Pirate Bay"
+  [ "$(fake_app_writes | grep -c '^POST /api/v1/applications')" -eq 2 ]
+}
+
+@test "the template declares indexers that prowlarr knows" {
+  python3 -c '
+import json, sys, yaml
+template = yaml.safe_load(open(sys.argv[1]))
+names = {i["name"] for i in template["indexers"]}
+assert {"1337x", "The Pirate Bay", "YTS", "LimeTorrents"} <= names, names
+assert all(i.get("proxy") in (None, "FlareSolverr") for i in template["indexers"])' "$BATS_TEST_DIRNAME/../config-template/prowlarr.yml"
+}

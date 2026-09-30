@@ -1,7 +1,17 @@
 indexer_proxies:
   - name: FlareSolverr
     host: http://localhost:8191/
-indexers: []
+indexers:
+  - name: 1337x
+    definition: 1337x
+    priority: 25
+    proxy: FlareSolverr
+  - name: The Pirate Bay
+    definition: thepiratebay
+  - name: YTS
+    definition: yts
+  - name: LimeTorrents
+    definition: limetorrents
 applications:
   - name: Sonarr
     url: http://sonarr:8989
