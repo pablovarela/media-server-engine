@@ -15,14 +15,14 @@ teardown() {
   FAKE_RUNNING=abc123 run "$BATS_TEST_DIRNAME/../scripts/restore.sh"
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "stack is running"
-  ! grep -q "restic restore" "$STUB_LOG"
+  ! grep -q "restic restore" "$STUB_LOG" || false
 }
 
 @test "restore refuses when it cannot tell whether the stack is running" {
   make_stub docker 'exit 1'
   run "$BATS_TEST_DIRNAME/../scripts/restore.sh"
   [ "$status" -ne 0 ]
-  ! grep -q "restic restore" "$STUB_LOG"
+  ! grep -q "restic restore" "$STUB_LOG" || false
 }
 
 @test "restore refuses to overwrite existing app data" {
@@ -30,7 +30,7 @@ teardown() {
   run "$BATS_TEST_DIRNAME/../scripts/restore.sh"
   [ "$status" -ne 0 ]
   echo "$output" | grep -q -- "--overwrite"
-  ! grep -q "restic restore" "$STUB_LOG"
+  ! grep -q "restic restore" "$STUB_LOG" || false
 }
 
 @test "restore into an empty data directory needs no flag" {
@@ -58,7 +58,7 @@ teardown() {
 @test "restore without --overwrite keeps volumes in place" {
   run "$BATS_TEST_DIRNAME/../scripts/restore.sh"
   [ "$status" -eq 0 ]
-  ! ls -d "$DATA_DIR"/volumes.before-restore-* 2>/dev/null
+  ! ls -d "$DATA_DIR"/volumes.before-restore-* 2>/dev/null || false
 }
 
 @test "restore uses the installation's own snapshots when it has any" {
@@ -71,5 +71,5 @@ teardown() {
   run "$BATS_TEST_DIRNAME/../scripts/restore.sh"
   [ "$status" -eq 0 ]
   grep -q "restic restore latest:/volumes --target" "$STUB_LOG"
-  ! grep -q "restic restore .*--host" "$STUB_LOG"
+  ! grep -q "restic restore .*--host" "$STUB_LOG" || false
 }

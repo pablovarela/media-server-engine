@@ -31,7 +31,7 @@ assert json.load(sys.stdin)["services"]["configarr"]["profiles"] == ["wiring"]'
 }
 
 @test "the engine compose files carry no image versions" {
-  ! grep -qE '^\s+image:' "$REPO/docker-compose.yml" "$REPO/docker-compose.monitoring.yml"
+  ! grep -qE '^\s+image:' "$REPO/docker-compose.yml" "$REPO/docker-compose.monitoring.yml" || false
 }
 
 @test "the config template pins every service of both stacks to a digest" {

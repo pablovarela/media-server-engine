@@ -47,13 +47,13 @@ line_of() {
   FAKE_CONFIG_STATUS=" M images.yml" run update
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "uncommitted changes"
-  ! grep -q "pull --ff-only" "$STUB_LOG"
+  ! grep -q "pull --ff-only" "$STUB_LOG" || false
 }
 
 @test "update refuses local changes in the engine before pulling" {
   FAKE_ENGINE_STATUS=" M scripts/update.sh" run update
   [ "$status" -ne 0 ]
-  ! grep -q "pull --ff-only" "$STUB_LOG"
+  ! grep -q "pull --ff-only" "$STUB_LOG" || false
 }
 
 @test "update pulls the config repo, decrypts and brings the stack up" {
@@ -116,27 +116,27 @@ line_of() {
   FAKE_ENGINE_TAG=v0.9.0 FAKE_MISSING_TAG=1 run update
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "v1.0.0"
-  ! grep -q "checkout" "$STUB_LOG"
-  ! grep -q "docker compose up" "$STUB_LOG"
+  ! grep -q "checkout" "$STUB_LOG" || false
+  ! grep -q "docker compose up" "$STUB_LOG" || false
 }
 
 @test "update leaves the engine alone when it already runs the pinned version" {
   run update
-  ! grep -q "checkout" "$STUB_LOG"
-  ! grep -q "pulled=1" "$STUB_LOG"
+  ! grep -q "checkout" "$STUB_LOG" || false
+  ! grep -q "pulled=1" "$STUB_LOG" || false
 }
 
 @test "ENGINE_VERSION=local runs the checked-out engine without switching" {
   echo ENGINE_VERSION=local > "$CONFIG_DIR/engine.env"
   FAKE_ENGINE_TAG=v0.9.0 run update
   [ "$status" -eq 0 ]
-  ! grep -q "checkout" "$STUB_LOG"
+  ! grep -q "checkout" "$STUB_LOG" || false
 }
 
 @test "update stops before bringing the stack up when the merged compose is unsafe" {
   FAKE_STACK_UNSAFE=1 run update
   [ "$status" -ne 0 ]
-  ! grep -q "docker compose up" "$STUB_LOG"
+  ! grep -q "docker compose up" "$STUB_LOG" || false
 }
 
 @test "update wires the apps after the stack is up and prunes last" {
@@ -153,13 +153,13 @@ line_of() {
 
 @test "update leaves gluetun dependents alone when attached to the current gluetun" {
   run update
-  ! grep -q "force-recreate" "$STUB_LOG"
+  ! grep -q "force-recreate" "$STUB_LOG" || false
 }
 
 @test "update reattaches gluetun dependents and keeps images when bringing the stack up fails" {
   FAKE_UP_FAILS=1 FAKE_ATTACHED_TO=gluetun-old run update
   [ "$status" -ne 0 ]
   grep -q "force-recreate --no-deps prowlarr flaresolverr deluge" "$STUB_LOG"
-  ! grep -q "^fake-prune" "$STUB_LOG"
-  ! grep -q "^fake-wire" "$STUB_LOG"
+  ! grep -q "^fake-prune" "$STUB_LOG" || false
+  ! grep -q "^fake-wire" "$STUB_LOG" || false
 }

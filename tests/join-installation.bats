@@ -67,7 +67,7 @@ line_of() {
 @test "a key that cannot decrypt the config stops the join" {
   run join testinst < <(printf 'AGE-SECRET-KEY-WRONG\nn\n')
   [ "$status" -ne 0 ]
-  ! grep -q "^fake-update" "$STUB_LOG"
+  ! grep -q "^fake-update" "$STUB_LOG" || false
 }
 
 @test "an existing key that decrypts the config is not asked for again" {
@@ -75,18 +75,18 @@ line_of() {
   echo AGE-SECRET-KEY-GOOD > "$HOME/.config/sops/age/keys.txt"
   run join testinst < <(printf 'n\n')
   [ "$status" -eq 0 ]
-  ! echo "$output" | grep -qi "paste"
+  ! echo "$output" | grep -qi "paste" || false
 }
 
 @test "nothing is restored when the installation has no backups yet" {
   FAKE_NO_SNAPSHOTS=1 run join testinst < <(printf 'AGE-SECRET-KEY-GOOD\nn\n')
   [ "$status" -eq 0 ]
-  ! grep -q "^fake-restore" "$STUB_LOG"
+  ! grep -q "^fake-restore" "$STUB_LOG" || false
 }
 
 @test "SKIP_RESTORE keeps data that was moved into place" {
   SKIP_RESTORE=1 run join testinst < <(printf 'AGE-SECRET-KEY-GOOD\nn\n')
-  ! grep -q "^fake-restore" "$STUB_LOG"
+  ! grep -q "^fake-restore" "$STUB_LOG" || false
 }
 
 @test "answering yes makes the machine the main with backup timers" {
@@ -97,13 +97,13 @@ line_of() {
 
 @test "answering no leaves backups to the main" {
   run join testinst < <(printf 'AGE-SECRET-KEY-GOOD\nn\n')
-  ! grep -q "^fake-claim" "$STUB_LOG"
-  ! grep -q "media-backup" "$STUB_LOG"
+  ! grep -q "^fake-claim" "$STUB_LOG" || false
+  ! grep -q "media-backup" "$STUB_LOG" || false
 }
 
 @test "the main question defaults to no when another machine is the main" {
   FAKE_OTHER_MAIN=1 run join testinst < <(printf 'AGE-SECRET-KEY-GOOD\n\n')
-  ! grep -q "^fake-claim" "$STUB_LOG"
+  ! grep -q "^fake-claim" "$STUB_LOG" || false
   echo "$output" | grep -q "another machine"
 }
 
@@ -111,7 +111,7 @@ line_of() {
   rm "$STUB_DIR/systemctl"
   PATH="$STUB_DIR:/usr/bin:/bin" run join testinst < <(printf 'AGE-SECRET-KEY-GOOD\nn\n')
   [ "$status" -eq 0 ]
-  ! grep -q "^fake-install-timers" "$STUB_LOG"
+  ! grep -q "^fake-install-timers" "$STUB_LOG" || false
   echo "$output" | grep -q "make update"
 }
 

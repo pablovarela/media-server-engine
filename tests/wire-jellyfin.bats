@@ -65,7 +65,7 @@ json.dump(state, open(sys.argv[1], 'w'))" "$FAKE_APP_STATE"
 @test "a completed wizard is not run again" {
   start_fake_app "$FIXTURES/wired.json"
   run wire
-  ! fake_app_writes | grep -q "/Startup/"
+  ! fake_app_writes | grep -q "/Startup/" || false
 }
 
 @test "an already wired jellyfin is left untouched" {
@@ -111,7 +111,7 @@ json.dump(state, open(sys.argv[1], 'w'))" "$FAKE_APP_STATE"
   start_fake_app "$FIXTURES/wired.json"
   run wire
   [ "$status" -eq 0 ]
-  ! fake_app_writes | grep -q "/Auth/Keys"
+  ! fake_app_writes | grep -q "/Auth/Keys" || false
   [ "$(cat "$DATA_DIR/volumes/.wiring/jellyfin.key")" = stored-key ]
 }
 
@@ -128,7 +128,7 @@ json.dump(state, open(sys.argv[1], 'w'))" "$FAKE_APP_STATE"
   start_fake_app "$FIXTURES/wired.json"
   store_key stored-key
   run wire
-  ! fake_app_writes | grep -q "^DELETE"
+  ! fake_app_writes | grep -q "^DELETE" || false
 }
 
 @test "a sign-in jellyfin refuses fails with the admin user named" {

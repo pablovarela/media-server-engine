@@ -41,13 +41,13 @@ teardown() {
 
 @test "prune keeps every pinned image, running or not" {
   run "$BATS_TEST_DIRNAME/../scripts/prune-stack-images.sh"
-  ! grep -q "newsonarr" <(grep "image rm" "$STUB_LOG")
-  ! grep -q "newgrafana" <(grep "image rm" "$STUB_LOG")
+  ! grep -q "newsonarr" <(grep "image rm" "$STUB_LOG") || false
+  ! grep -q "newgrafana" <(grep "image rm" "$STUB_LOG") || false
 }
 
 @test "prune leaves images from other projects alone" {
   run "$BATS_TEST_DIRNAME/../scripts/prune-stack-images.sh"
-  ! grep -q "postgres" <(grep "image rm" "$STUB_LOG")
+  ! grep -q "postgres" <(grep "image rm" "$STUB_LOG") || false
 }
 
 @test "prune carries on when an image is still in use" {
@@ -69,5 +69,5 @@ if [ "$1 $2" = "image ls" ]; then
 fi'
   run "$BATS_TEST_DIRNAME/../scripts/prune-stack-images.sh"
   grep -q "docker image rm example/extra@sha256:extra0" "$STUB_LOG"
-  ! grep -q "extra1" <(grep "image rm" "$STUB_LOG")
+  ! grep -q "extra1" <(grep "image rm" "$STUB_LOG") || false
 }

@@ -27,7 +27,7 @@ teardown() {
 @test "ask_secret never prints the current value" {
   run bash -c "source '$LIB'; ask_secret KEY 'B2 application key' 'K005supersecretvalueXYZ' <<< '' 2>&1; echo \"=\$KEY\""
   [ "${lines[-1]}" = "=K005supersecretvalueXYZ" ]
-  ! echo "${lines[@]:0:${#lines[@]}-1}" | grep -q "supersecret"
+  ! echo "${lines[@]:0:${#lines[@]}-1}" | grep -q "supersecret" || false
   echo "$output" | grep -q "set, ends …XYZ"
 }
 

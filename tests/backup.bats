@@ -41,7 +41,7 @@ line_of() {
   FAKE_RESTIC_BACKUP_FAILS=1 run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
   [ "$status" -ne 0 ]
   grep -q "docker compose start jellyfin sonarr" "$STUB_LOG"
-  ! grep -q "restic forget" "$STUB_LOG"
+  ! grep -q "restic forget" "$STUB_LOG" || false
 }
 
 @test "backup pings fail on error" {
@@ -58,7 +58,7 @@ line_of() {
   make_compose_stub ''
   run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
   [ "$status" -eq 0 ]
-  ! grep -q "docker compose start" "$STUB_LOG"
+  ! grep -q "docker compose start" "$STUB_LOG" || false
 }
 
 @test "backup pings fail when restarting the stack fails" {
@@ -91,8 +91,8 @@ line_of() {
   touch "$DATA_DIR/.backup-main"
   FAKE_SECONDARY=1 run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
   [ "$status" -ne 0 ]
-  ! grep -q "docker compose stop" "$STUB_LOG"
-  ! grep -q "restic backup" "$STUB_LOG"
+  ! grep -q "docker compose stop" "$STUB_LOG" || false
+  ! grep -q "restic backup" "$STUB_LOG" || false
   echo "$output" | grep -q "another machine is testinst's main"
   grep -q "testinst-backup/fail?create=1" "$STUB_LOG"
   [ ! -e "$DATA_DIR/.backup-main" ]

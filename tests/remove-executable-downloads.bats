@@ -28,7 +28,7 @@ teardown() {
 
 @test "cleanup leaves ordinary downloads alone" {
   run "$BATS_TEST_DIRNAME/../scripts/remove-executable-downloads.sh"
-  ! grep -q "queue/12" "$STUB_LOG"
+  ! grep -q "queue/12" "$STUB_LOG" || false
 }
 
 @test "cleanup checks radarr as well as sonarr" {

@@ -40,7 +40,7 @@ teardown() {
 @test "without a ping key nothing is sent and a warning is logged" {
   run bash -c "source '$LIB'; HEALTHCHECKS_PING_KEY= ping_healthcheck backup /start"
   [ "$status" -eq 0 ]
-  ! grep -q "^curl" "$STUB_LOG"
+  ! grep -q "^curl" "$STUB_LOG" || false
   echo "$output" | grep -qi "no healthchecks ping key"
 }
 

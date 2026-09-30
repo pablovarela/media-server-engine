@@ -26,7 +26,7 @@ teardown() {
   grep -q "exec-env $(cd "$CONFIG_DIR" && pwd)/secrets/healthchecks.sops.env '.* exec-env $(cd "$CONFIG_DIR" && pwd)/secrets/backup.sops.env scripts/backup.sh'$" "$UNIT_DIR/media-backup.service"
   grep -q "^User=$(id -un)$" "$UNIT_DIR/media-backup.service"
   grep -q "^Environment=SOPS_AGE_KEY_FILE=$HOME/.config/sops/age/keys.txt$" "$UNIT_DIR/media-verify.service"
-  ! grep -q "@" "$UNIT_DIR"/media-*
+  ! grep -q "@" "$UNIT_DIR"/media-* || false
 }
 
 @test "install enables both timers" {
@@ -54,7 +54,7 @@ teardown() {
 @test "install refuses without unit names" {
   run "$BATS_TEST_DIRNAME/../scripts/install-timers.sh"
   [ "$status" -ne 0 ]
-  ! grep -q "systemctl" "$STUB_LOG"
+  ! grep -q "systemctl" "$STUB_LOG" || false
 }
 
 @test "every unit in systemd/ renders with no placeholder left" {
@@ -62,7 +62,7 @@ teardown() {
   run "$BATS_TEST_DIRNAME/../scripts/install-timers.sh" $names
   [ "$status" -eq 0 ]
   [ "$(ls "$UNIT_DIR" | wc -l | tr -d ' ')" -eq "$(ls "$BATS_TEST_DIRNAME"/../systemd | wc -l | tr -d ' ')" ]
-  ! grep -l "@[A-Z_]*@" "$UNIT_DIR"/*
+  ! grep -l "@[A-Z_]*@" "$UNIT_DIR"/* || false
 }
 
 @test "install writes normalized paths when config and data use the default relative location" {
@@ -70,7 +70,7 @@ teardown() {
   echo INSTALLATION_NAME=testinst > "$ENGINE_DIR/../config-rel/installation.env"
   CONFIG_DIR="$ENGINE_DIR/../config-rel" DATA_DIR="$ENGINE_DIR/../data-rel" run "$BATS_TEST_DIRNAME/../scripts/install-timers.sh" media-backup
   [ "$status" -eq 0 ]
-  ! grep -q "\.\./" "$UNIT_DIR/media-backup.service"
+  ! grep -q "\.\./" "$UNIT_DIR/media-backup.service" || false
   rm -rf "$ENGINE_DIR/../config-rel" "$ENGINE_DIR/../data-rel"
 }
 

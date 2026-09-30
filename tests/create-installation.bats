@@ -41,7 +41,7 @@ create() {
   FAKE_REPO_EXISTS=1 run create testinst < <(echo)
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "someone/media-server-config-testinst"
-  ! grep -q "^age-keygen" "$STUB_LOG"
+  ! grep -q "^age-keygen" "$STUB_LOG" || false
 }
 
 @test "creating needs gh logged in" {
@@ -65,7 +65,7 @@ create() {
   run create testinst < <(echo)
   [ -f "$CONFIG_DIR/images.yml" ]
   grep -q '"depNameTemplate": "someone/media-server-engine"' "$CONFIG_DIR/renovate.json"
-  ! grep -rq ENGINE_REPOSITORY "$CONFIG_DIR"
+  ! grep -rq ENGINE_REPOSITORY "$CONFIG_DIR" || false
   grep -q "age: age1newpublic" "$CONFIG_DIR/.sops.yaml"
 }
 

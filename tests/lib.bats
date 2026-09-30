@@ -49,7 +49,7 @@ in_lib() {
 @test "stack_compose leaves out a missing override" {
   touch "$HOME_DIR/config/images.yml"
   run in_lib 'stack_compose ps'
-  ! grep -q "compose.override.yml" "$STUB_LOG"
+  ! grep -q "compose.override.yml" "$STUB_LOG" || false
 }
 
 @test "monitoring_compose uses the monitoring images file" {

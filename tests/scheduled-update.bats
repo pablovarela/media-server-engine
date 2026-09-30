@@ -43,6 +43,6 @@ scheduled_update() {
 @test "broken tools stop the update and ping fail" {
   FAKE_TOOLS_BROKEN=1 run scheduled_update
   [ "$status" -ne 0 ]
-  ! grep -q "^fake-update" "$STUB_LOG"
+  ! grep -q "^fake-update" "$STUB_LOG" || false
   grep -q "/fail?create=1" "$STUB_LOG"
 }

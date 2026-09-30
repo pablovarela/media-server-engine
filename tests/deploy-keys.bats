@@ -34,7 +34,7 @@ keys() {
   keys >/dev/null 2>&1
   : > "$STUB_LOG"
   run keys
-  ! grep -q "^ssh-keygen" "$STUB_LOG"
+  ! grep -q "^ssh-keygen" "$STUB_LOG" || false
   [ "$(grep -c "^Host github-media-server-engine$" "$HOME/.ssh/config")" -eq 1 ]
 }
 
@@ -42,13 +42,13 @@ keys() {
   run keys
   echo "$output" | grep -q "ssh-ed25519 AAAAtest deploy"
   echo "$output" | grep -q "https://github.com/someone/media-server-engine/settings/keys/new"
-  ! grep -q "deploy-key add" "$STUB_LOG"
+  ! grep -q "deploy-key add" "$STUB_LOG" || false
 }
 
 @test "with gh logged in the keys are added for you, read-only" {
   FAKE_GH_LOGGED_IN=1 run keys
   grep -q "gh repo deploy-key add $HOME/.ssh/media-server-engine-deploy.pub --repo someone/media-server-engine --title" "$STUB_LOG"
-  ! grep -q "allow-write" "$STUB_LOG"
+  ! grep -q "allow-write" "$STUB_LOG" || false
 }
 
 @test "it waits until GitHub accepts the key" {

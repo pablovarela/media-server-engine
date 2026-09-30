@@ -61,7 +61,7 @@ teardown() {
 @test "verify skips files that are not SQLite databases" {
   run "$BATS_TEST_DIRNAME/../scripts/verify-backup.sh"
   [ "$status" -eq 0 ]
-  ! grep -q "sqlite3 .*portainer.db" "$STUB_LOG"
+  ! grep -q "sqlite3 .*portainer.db" "$STUB_LOG" || false
 }
 
 @test "verify names the database when sqlite3 itself fails" {
@@ -87,6 +87,6 @@ teardown() {
 @test "a secondary does not verify the main's backups" {
   FAKE_SECONDARY=1 run "$BATS_TEST_DIRNAME/../scripts/verify-backup.sh"
   [ "$status" -ne 0 ]
-  ! grep -q "restic check" "$STUB_LOG"
+  ! grep -q "restic check" "$STUB_LOG" || false
   echo "$output" | grep -q "another machine is testinst's main"
 }
