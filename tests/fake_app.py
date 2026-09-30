@@ -70,6 +70,9 @@ class Handler(BaseHTTPRequestHandler):
         if not self.authorised():
             return self.answer(401)
         body = self.body()
+        read_only = [f for f in json.loads(os.environ.get("FAKE_APP_READ_ONLY", "[]")) if isinstance(body, dict) and f in body]
+        if method == "PUT" and read_only:
+            return self.answer(400, {"message": f"request/body/{read_only[0]} is read-only"})
         rejected = os.environ.get("FAKE_APP_REJECT")
         if rejected and rejected in json.dumps(body):
             message = os.environ.get("FAKE_APP_REJECT_MESSAGE", "rejected by the fake app")

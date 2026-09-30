@@ -128,7 +128,8 @@ class Seerr:
             self.set_profile_and_folder(entry, kind, self.profile_and_folder(kind, arr, key, declared_arr), declared_arr["root_folder"])
             dirty = True
         if dirty:
-            self.api.write("PUT", f"/api/v1/settings/{kind}/{entry['id']}", entry)
+            body = {field: value for field, value in entry.items() if field != "id"}
+            self.api.write("PUT", f"/api/v1/settings/{kind}/{entry['id']}", body)
 
     def initialise(self):
         if not self.api.get("/api/v1/settings/public").get("initialized"):

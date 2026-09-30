@@ -8,7 +8,7 @@ setup() {
   printf 'SONARR_API_KEY=sonarr-key\nRADARR_API_KEY=radarr-key\nJELLYFIN_ADMIN_PASSWORD=admin pass\n' > "$ENGINE_DIR/.secrets/apps.env"
   printf '{"main": {"apiKey": "seerr-key"}}' > "$DATA_DIR/volumes/seerr/config/settings.json"
   cp "$BATS_TEST_DIRNAME/../config-template/apps.yml" "$CONFIG_DIR/apps.yml"
-  export JELLYFIN_ADMIN_USER=admin FAKE_APP_HEADERS='{"X-Api-Key": "seerr-key"}'
+  export JELLYFIN_ADMIN_USER=admin FAKE_APP_HEADERS='{"X-Api-Key": "seerr-key"}' FAKE_APP_READ_ONLY='["id"]'
 }
 
 teardown() {
