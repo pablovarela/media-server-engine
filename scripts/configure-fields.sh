@@ -12,7 +12,7 @@ Backup|B2_ACCOUNT_ID|text|B2 key ID
 Backup|B2_ACCOUNT_KEY|secret|B2 application key
 Backup|RESTIC_PASSWORD|password|Restic password
 VPN|VPN_SERVICE_PROVIDER|text|VPN provider (gluetun name)
-VPN|OPENVPN_USER|text|OpenVPN user
+VPN|OPENVPN_USER|secret|OpenVPN user
 VPN|OPENVPN_PASSWORD|secret|OpenVPN password
 VPN|SERVER_COUNTRIES|text|VPN server countries
 Healthchecks (optional)|HEALTHCHECKS_PING_KEY|secret|healthchecks.io project ping key

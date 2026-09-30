@@ -129,7 +129,8 @@ guided_new_installation() {
   : > "$STUB_LOG"
   answers "0|VPN" "0|Back" "0|Save"
   run configure
-  grep -q "OpenVPN user: vpn-user" "$STUB_LOG"
+  grep -q "OpenVPN user: set, ends …ser" "$STUB_LOG"
+  ! grep -q "vpn-user" "$STUB_LOG" || false
   grep -q "OpenVPN password: set, ends …ord" "$STUB_LOG"
   ! grep -q "vpn-password" "$STUB_LOG" || false
   grep -q "Back return to the sections" "$STUB_LOG"

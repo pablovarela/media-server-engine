@@ -340,3 +340,10 @@ Europe/London#")
     grep -qx "ENC:RESTIC_PASSWORD=$password" "$CONFIG_DIR/secrets/backup.sops.env" || { echo "$shell lost the end of $password"; false; }
   done
 }
+
+@test "the openvpn user is masked like a secret, since it is half of the vpn login" {
+  configure < <(answers_for_new_installation) >/dev/null 2>&1
+  run configure < <(enter_on_every_prompt)
+  ! echo "$output" | grep -q "vpn-user" || false
+  echo "$output" | grep -q "OpenVPN user \[set, ends …ser\]"
+}
