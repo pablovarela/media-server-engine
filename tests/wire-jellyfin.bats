@@ -54,7 +54,9 @@ json.dump(state, open(sys.argv[1], 'w'))" "$FAKE_APP_STATE"
     'POST /Auth/Keys?app=media-server' \
     'POST /System/Configuration' \
     'POST /Library/VirtualFolders?name=Shows&collectionType=tvshows&paths=%2Fdata%2Ftvshows&refreshLibrary=false' \
-    'POST /Library/VirtualFolders?name=Movies&collectionType=movies&paths=%2Fdata%2Fmovies&refreshLibrary=false')" ]
+    'POST /Library/VirtualFolders?name=Movies&collectionType=movies&paths=%2Fdata%2Fmovies&refreshLibrary=false' \
+    'POST /Library/Refresh')" ]
+  [ "$(body_of '/Library/VirtualFolders?name=Shows' | python3 -c 'import json,sys; print(json.load(sys.stdin)["LibraryOptions"]["EnableRealtimeMonitor"])')" = True ]
   [ "$(body_of /Startup/User)" = '{"Name": "admin", "Password": "admin pass"}' ]
   [ "$(body_of /Startup/Configuration | python3 -c 'import json,sys; print(json.load(sys.stdin)["ServerName"])')" = Media ]
   [ "$(cat "$DATA_DIR/volumes/.wiring/jellyfin.key")" = new-key ]
@@ -136,4 +138,14 @@ json.dump(state, open(sys.argv[1], 'w'))" "$FAKE_APP_STATE"
   run wire
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "sign in as admin"
+}
+
+@test "a declared library with real-time monitoring off gets it turned on, keeping its other options" {
+  start_fake_app "$FIXTURES/wired.json"
+  store_key stored-key
+  edit_state 'state["/Library/VirtualFolders"][2]["LibraryOptions"]["EnableRealtimeMonitor"] = False'
+  run wire
+  [ "$(fake_app_writes)" = "POST /Library/VirtualFolders/LibraryOptions" ]
+  [ "$(body_of /Library/VirtualFolders/LibraryOptions)" = '{"Id": "s1", "LibraryOptions": {"EnableRealtimeMonitor": true, "Enabled": true}}' ]
+  echo "$output" | grep -q "jellyfin: turn on real-time monitoring for library Shows"
 }

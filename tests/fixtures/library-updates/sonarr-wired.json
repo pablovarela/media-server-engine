@@ -110,11 +110,11 @@
     },
     {
      "name": "mapFrom",
-     "value": null
+     "value": "/tv"
     },
     {
      "name": "mapTo",
-     "value": null
+     "value": "/data/tvshows"
     }
    ],
    "id": 2

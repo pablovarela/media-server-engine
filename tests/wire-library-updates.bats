@@ -37,7 +37,7 @@ write = json.loads(open(sys.argv[1]).readline())
 body = write["body"]
 fields = {f["name"]: f.get("value") for f in body["fields"]}
 events = sorted(k for k, v in body.items() if k.startswith("on") and v is True)
-print(body["name"], fields["host"], fields["port"], fields["apiKey"], fields["updateLibrary"], fields["notify"], " ".join(events))' "$1"
+print(body["name"], fields["host"], fields["port"], fields["apiKey"], fields["updateLibrary"], fields["notify"], fields["mapFrom"], fields["mapTo"], " ".join(events))' "$1"
 }
 
 @test "fresh sonarr and radarr tell jellyfin about every library change" {
@@ -45,8 +45,8 @@ print(body["name"], fields["host"], fields["port"], fields["apiKey"], fields["up
   run wire
   [ "$status" -eq 0 ]
   [ "$(fake_app_writes)" = "POST /api/v3/notification?forceSave=true" ]
-  [ "$(body "$FAKE_APP_WRITES")" = "Emby / Jellyfin jellyfin 8096 jellyfin-key True False onApplicationUpdate onDownload onEpisodeFileDelete onEpisodeFileDeleteForUpgrade onGrab onImportComplete onRename onSeriesAdd onSeriesDelete onUpgrade" ]
-  body "$SECOND_APP_WRITES" | grep -q "^Emby / Jellyfin jellyfin 8096 jellyfin-key True False .*onMovieDelete"
+  [ "$(body "$FAKE_APP_WRITES")" = "Emby / Jellyfin jellyfin 8096 jellyfin-key True False /tv /data/tvshows onApplicationUpdate onDownload onEpisodeFileDelete onEpisodeFileDeleteForUpgrade onGrab onImportComplete onRename onSeriesAdd onSeriesDelete onUpgrade" ]
+  body "$SECOND_APP_WRITES" | grep -q "^Emby / Jellyfin jellyfin 8096 jellyfin-key True False /movies /data/movies .*onMovieDelete"
   echo "$output" | grep -q "sonarr: add the Jellyfin connection"
 }
 
@@ -101,4 +101,19 @@ json.dump(state, open(sys.argv[1], "w"))' "$FAKE_APP_STATE"
   run wire
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "jellyfin.key"
+}
+
+@test "a connection without the path mapping gets it, since jellyfin cannot see the arrs' paths" {
+  start_arrs wired
+  remember_applied_key jellyfin-key
+  python3 -c '
+import json, sys
+state = json.load(open(sys.argv[1]))
+for f in state["/api/v3/notification"][0]["fields"]:
+    if f["name"] in ("mapFrom", "mapTo"): f["value"] = None
+json.dump(state, open(sys.argv[1], "w"))' "$FAKE_APP_STATE"
+  run wire
+  [ "$(fake_app_writes)" = "PUT /api/v3/notification/2?forceSave=true" ]
+  body "$FAKE_APP_WRITES" | grep -q " /tv /data/tvshows "
+  [ -z "$(cat "$SECOND_APP_WRITES")" ]
 }

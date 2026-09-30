@@ -17,7 +17,11 @@
    "Name": "Collections",
    "Locations": [],
    "CollectionType": "boxsets",
-   "ItemId": "c1"
+   "ItemId": "c1",
+   "LibraryOptions": {
+    "EnableRealtimeMonitor": false,
+    "Enabled": true
+   }
   },
   {
    "Name": "Movies",
@@ -25,7 +29,11 @@
     "/data/movies"
    ],
    "CollectionType": "movies",
-   "ItemId": "m1"
+   "ItemId": "m1",
+   "LibraryOptions": {
+    "EnableRealtimeMonitor": true,
+    "Enabled": true
+   }
   },
   {
    "Name": "Shows",
@@ -33,7 +41,11 @@
     "/data/tvshows"
    ],
    "CollectionType": "tvshows",
-   "ItemId": "s1"
+   "ItemId": "s1",
+   "LibraryOptions": {
+    "EnableRealtimeMonitor": true,
+    "Enabled": true
+   }
   }
  ],
  "/Auth/Keys": {
@@ -79,6 +91,8 @@
   "POST /Startup/User": {},
   "POST /Startup/RemoteAccess": {},
   "POST /Library/VirtualFolders": {},
-  "POST /Library/VirtualFolders/Paths": {}
+  "POST /Library/VirtualFolders/Paths": {},
+  "POST /Library/Refresh": {},
+  "POST /Library/VirtualFolders/LibraryOptions": {}
  }
 }

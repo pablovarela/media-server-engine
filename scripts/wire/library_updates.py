@@ -7,10 +7,14 @@ APP = "library-updates"
 NAME = "Emby / Jellyfin"
 EVENTS_LEFT_OFF = {"onHealthIssue", "onHealthRestored", "onManualInteractionRequired"}
 ARRS = {
-    "sonarr": ("SONARR_URL", "http://localhost:8989", "SONARR_API_KEY"),
-    "radarr": ("RADARR_URL", "http://localhost:7878", "RADARR_API_KEY"),
+    "sonarr": ("SONARR_URL", "http://localhost:8989", "SONARR_API_KEY", "/tv", "/data/tvshows"),
+    "radarr": ("RADARR_URL", "http://localhost:7878", "RADARR_API_KEY", "/movies", "/data/movies"),
 }
-WANTED_FIELDS = {"host": "jellyfin", "port": 8096, "updateLibrary": True}
+
+
+def wanted_fields(kind):
+    arr_path, jellyfin_path = ARRS[kind][3:]
+    return {"host": "jellyfin", "port": 8096, "updateLibrary": True, "mapFrom": arr_path, "mapTo": jellyfin_path}
 
 
 def field(item, name):
@@ -36,7 +40,7 @@ def connect(kind, api, key):
         item["name"] = NAME
         for event in [k for k in item if k.startswith("on")]:
             item[event] = event not in EVENTS_LEFT_OFF
-        for name, value in WANTED_FIELDS.items():
+        for name, value in wanted_fields(kind).items():
             set_field(item, name, value)
         set_field(item, "apiKey", key)
         report(kind, "add the Jellyfin connection")
@@ -44,7 +48,7 @@ def connect(kind, api, key):
         remember(key_state, fingerprint(key))
         return
     dirty = False
-    for name, value in WANTED_FIELDS.items():
+    for name, value in wanted_fields(kind).items():
         if field(current, name) != value:
             report(kind, f"set the Jellyfin connection {name} {field(current, name)} -> {value}")
             set_field(current, name, value)
@@ -62,7 +66,7 @@ def wire():
     secrets = app_secrets()
     key = jellyfin_key()
     failures = []
-    for kind, (url_variable, default_url, api_key) in ARRS.items():
+    for kind, (url_variable, default_url, api_key, _, _) in ARRS.items():
         try:
             connect(kind, Api(kind, os.environ.get(url_variable, default_url), {"X-Api-Key": secrets[api_key]}), key)
         except WiringError as error:

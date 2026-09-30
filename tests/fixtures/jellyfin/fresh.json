@@ -59,6 +59,8 @@
   "POST /Startup/User": {},
   "POST /Startup/RemoteAccess": {},
   "POST /Library/VirtualFolders": {},
-  "POST /Library/VirtualFolders/Paths": {}
+  "POST /Library/VirtualFolders/Paths": {},
+  "POST /Library/Refresh": {},
+  "POST /Library/VirtualFolders/LibraryOptions": {}
  }
 }

@@ -108,11 +108,11 @@
     },
     {
      "name": "mapFrom",
-     "value": null
+     "value": "/movies"
     },
     {
      "name": "mapTo",
-     "value": null
+     "value": "/data/movies"
     }
    ],
    "id": 2
