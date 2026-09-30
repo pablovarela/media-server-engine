@@ -1,0 +1,9 @@
+jellyfin:
+  server_name: Media
+  libraries:
+    - name: Shows
+      type: tvshows
+      path: /data/tvshows
+    - name: Movies
+      type: movies
+      path: /data/movies

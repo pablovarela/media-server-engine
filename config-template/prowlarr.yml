@@ -1,0 +1,11 @@
+indexer_proxies:
+  - name: FlareSolverr
+    host: http://flaresolverr:8191/
+indexers: []
+applications:
+  - name: Sonarr
+    url: http://sonarr:8989
+    api_key: SONARR_API_KEY
+  - name: Radarr
+    url: http://radarr:7878
+    api_key: RADARR_API_KEY
