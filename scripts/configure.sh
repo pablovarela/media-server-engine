@@ -69,11 +69,40 @@ write_secret() {
   fi
 }
 
+engine_owner() {
+  git -C "$ENGINE_DIR" remote get-url origin 2>/dev/null | sed -E 's#^.*github\.com[:/]##; s#/.*$##'
+}
+
+default_config_on_github() {
+  if [ -n "${CONFIG_ON_GITHUB:-}" ]; then
+    echo "$CONFIG_ON_GITHUB"
+  elif gh auth status >/dev/null 2>&1; then
+    echo y
+  else
+    echo n
+  fi
+}
+
+current_subtitle_languages() {
+  python3 -c '
+import sys, yaml
+try:
+    languages = (yaml.safe_load(open("apps.yml")) or {}).get("bazarr", {}).get("languages")
+except FileNotFoundError:
+    languages = None
+print(", ".join(languages or ["en"]))'
+}
+
 prompt_for_values() {
   echo "Installation" >&2
   ask INSTALLATION_NAME "Installation name" "${NAME:-${INSTALLATION_NAME:-}}"
   ask TZ "Time zone" "${TZ:-Etc/UTC}"
-  ask GITHUB_OWNER "GitHub owner of the config repo" "${GITHUB_OWNER:-}"
+  ask CONFIG_ON_GITHUB "Keep this config in a private GitHub repo, so other machines can join? (y/n)" "$(default_config_on_github)"
+  if [ "$CONFIG_ON_GITHUB" = y ]; then
+    ask GITHUB_OWNER "GitHub owner of the config repo" "${GITHUB_OWNER:-$(engine_owner)}"
+  else
+    GITHUB_OWNER=${GITHUB_OWNER:-}
+  fi
   ask JELLYFIN_ADMIN_USER "Jellyfin admin user" "${JELLYFIN_ADMIN_USER:-admin}"
   echo "Backup" >&2
   ask RESTIC_REPOSITORY "Restic repository" "${RESTIC_REPOSITORY:-b2:$INSTALLATION_NAME-media-server-backup:restic}"
@@ -91,10 +120,25 @@ prompt_for_values() {
   ask_password JELLYFIN_ADMIN_PASSWORD "Jellyfin admin password" "${JELLYFIN_ADMIN_PASSWORD:-}"
   ask_password DELUGE_WEB_PASSWORD "Deluge web password" "${DELUGE_WEB_PASSWORD:-}"
   ask_password PORTAINER_ADMIN_PASSWORD "Portainer admin password" "${PORTAINER_ADMIN_PASSWORD:-}"
+  echo "Subtitles" >&2
+  ask SUBTITLE_LANGUAGES "Subtitle languages (codes, comma separated)" "$(current_subtitle_languages)"
+}
+
+write_subtitle_languages() {
+  SUBTITLE_LANGUAGES=$SUBTITLE_LANGUAGES python3 -c '
+import os, yaml
+wanted = [code.strip() for code in os.environ["SUBTITLE_LANGUAGES"].split(",") if code.strip()]
+config = yaml.safe_load(open("apps.yml")) or {}
+bazarr = config.setdefault("bazarr", {}) or {}
+if bazarr.get("languages") != wanted:
+    bazarr["languages"] = wanted
+    config["bazarr"] = bazarr
+    yaml.safe_dump(config, open("apps.yml", "w"), sort_keys=False)'
 }
 
 write_config() {
-  write_plain installation.env INSTALLATION_NAME TZ GITHUB_OWNER JELLYFIN_ADMIN_USER RESTIC_REPOSITORY
+  write_plain installation.env INSTALLATION_NAME TZ CONFIG_ON_GITHUB GITHUB_OWNER JELLYFIN_ADMIN_USER RESTIC_REPOSITORY
+  write_subtitle_languages
   write_secret secrets/backup.sops.env RESTIC_PASSWORD B2_ACCOUNT_ID B2_ACCOUNT_KEY
   write_secret secrets/vpn.sops.env VPN_SERVICE_PROVIDER OPENVPN_USER OPENVPN_PASSWORD SERVER_COUNTRIES
   write_secret secrets/healthchecks.sops.env HEALTHCHECKS_PING_KEY
@@ -111,7 +155,36 @@ commit_changes() {
   fi
   git diff --cached --stat
   git commit -q -m "Configure $INSTALLATION_NAME"
-  echo "Committed. Push with: git -C \"$CONFIG_DIR\" push"
+  COMMITTED=1
+}
+
+config_remote() {
+  git remote get-url origin 2>/dev/null
+}
+
+publish_config() {
+  local repository="$GITHUB_OWNER/media-server-config-$INSTALLATION_NAME"
+  gh auth status >/dev/null 2>&1 || die "keeping the config on GitHub needs the GitHub CLI; run gh auth login, then make configure again"
+  if gh repo view "$repository" >/dev/null 2>&1; then
+    die "$repository already exists on GitHub; to use it, run: git -C \"$CONFIG_DIR\" remote add origin git@github.com:$repository.git && git -C \"$CONFIG_DIR\" push -u origin main"
+  fi
+  gh repo create "$repository" --private --source . --push
+  echo "Published to https://github.com/$repository. Add it to the Renovate app so image and engine updates arrive as pull requests: https://github.com/apps/renovate"
+}
+
+apply_config_location() {
+  local remote
+  remote=$(config_remote || true)
+  if [ "$CONFIG_ON_GITHUB" = y ]; then
+    if [ -z "$remote" ]; then
+      publish_config
+    elif [ -n "${COMMITTED:-}" ]; then
+      echo "Committed. Push with: git -C \"$CONFIG_DIR\" push"
+    fi
+  elif [ -n "$remote" ]; then
+    git remote remove origin
+    echo "This config is now local only. The repository at $remote is kept; delete it there if you no longer need it."
+  fi
 }
 
 ROTATE_VARIABLE=""
@@ -129,3 +202,4 @@ prompt_for_values
 generate_internal_credentials
 write_config
 commit_changes
+apply_config_location

@@ -36,3 +36,5 @@ seerr:
     quality_profile: HD Bluray + WEB
     root_folder: /movies
     minimum_availability: released
+bazarr:
+  languages: [en]
