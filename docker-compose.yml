@@ -49,6 +49,8 @@ services:
       - PGID=1000
       - TZ=Etc/UTC
       - UMASK=022
+      - SONARR__AUTH__METHOD=Forms
+      - SONARR__AUTH__REQUIRED=DisabledForLocalAddresses
     volumes:
       - ${DATA_DIR}/volumes/sonarr/data:/config
       - ${DATA_DIR}/media/tvshows:/tv
@@ -74,6 +76,8 @@ services:
       - PGID=1000
       - TZ=Etc/UTC
       - UMASK=022
+      - RADARR__AUTH__METHOD=Forms
+      - RADARR__AUTH__REQUIRED=DisabledForLocalAddresses
     volumes:
       - ${DATA_DIR}/volumes/radarr/config:/config
       - ${DATA_DIR}/media/movies:/movies
@@ -112,6 +116,8 @@ services:
       - PGID=1000
       - TZ=Etc/UTC
       - UMASK=002
+      - PROWLARR__AUTH__METHOD=Forms
+      - PROWLARR__AUTH__REQUIRED=DisabledForLocalAddresses
     volumes:
       - ${DATA_DIR}/volumes/prowlarr/data:/config
     network_mode: service:gluetun

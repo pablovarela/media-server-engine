@@ -123,3 +123,14 @@ mount = [m for m in portainer["volumes"] if m["target"] == "/run/secrets/portain
 assert mount["source"] == os.environ["ENGINE_DIR"] + "/.secrets/portainer_admin", mount
 assert mount.get("read_only"), mount'
 }
+
+@test "sonarr, radarr and prowlarr skip their login on the local network, with no first-visit setup" {
+  run merged stack_compose
+  echo "$output" | python3 -c '
+import json, sys
+services = json.load(sys.stdin)["services"]
+for app in ("sonarr", "radarr", "prowlarr"):
+    env = services[app]["environment"]
+    assert env.get(app.upper() + "__AUTH__METHOD") == "Forms", app
+    assert env.get(app.upper() + "__AUTH__REQUIRED") == "DisabledForLocalAddresses", app'
+}

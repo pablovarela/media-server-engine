@@ -43,6 +43,7 @@ apps() {
   echo "$output" | grep -qE "^Portainer .*admin .*portainer-pass"
   echo "$output" | grep -qE "^Deluge .*deluge-pass"
   echo "$output" | grep -qE "^Seerr .*Jellyfin account"
+  echo "$output" | grep -qE "^Sonarr .*no login on the local network"
   ! echo "$output" | grep -qw k || false
 }
 

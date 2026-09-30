@@ -75,6 +75,8 @@ Deluge reads its settings at start, so when any of them differ `make update` sto
 
 Bazarr's default subtitle profile for series and movies gets the declared languages; a Bazarr without one gets a profile named Default. Other profiles are kept.
 
+Sonarr, Radarr and Prowlarr need no login from the local network. From anywhere else they ask for one, and none exists, so they stay closed. Devices on Tailscale count as local when they reach the network through a subnet router; otherwise turn on Trust CGNAT IP addresses in each app's security settings.
+
 Sonarr and Radarr tell Jellyfin about every import, upgrade, rename and deletion, so new episodes and films appear in Jellyfin straight away.
 
 A new Seerr is signed in with the Jellyfin admin account from `installation.env` and the app secrets, which makes that account Seerr's owner.

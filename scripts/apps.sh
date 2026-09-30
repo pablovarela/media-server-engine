@@ -27,9 +27,9 @@ logins() {
   printf '%-12s %s\n' Seerr "sign in with the Jellyfin account"
   printf '%-12s %-10s %s\n' Deluge "" "$(app_secret DELUGE_WEB_PASSWORD)"
   printf '%-12s %-10s %s\n' Portainer admin "$(app_secret PORTAINER_ADMIN_PASSWORD)"
-  printf '%-12s %s\n' Sonarr "set on the first visit"
-  printf '%-12s %s\n' Radarr "set on the first visit"
-  printf '%-12s %s\n' Prowlarr "set on the first visit"
+  printf '%-12s %s\n' Sonarr "no login on the local network"
+  printf '%-12s %s\n' Radarr "no login on the local network"
+  printf '%-12s %s\n' Prowlarr "no login on the local network"
 }
 
 case ${1:-} in
