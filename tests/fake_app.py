@@ -2,7 +2,7 @@ import json
 import os
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlsplit
 
 state_file, writes_log, port_file = sys.argv[1:4]
 required_headers = json.loads(os.environ.get("FAKE_APP_HEADERS", "{}"))
@@ -35,7 +35,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def body(self):
         length = int(self.headers.get("Content-Length") or 0)
-        return json.loads(self.rfile.read(length)) if length else None
+        raw = self.rfile.read(length) if length else b""
+        if self.headers.get("Content-Type", "").startswith("application/x-www-form-urlencoded"):
+            return dict(parse_qsl(raw.decode(), keep_blank_values=True))
+        return json.loads(raw) if raw else None
 
     def collection_and_id(self, path, state):
         if path in state:

@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 
 import yaml
@@ -67,13 +68,16 @@ class Api:
         self.base_url = base_url.rstrip("/")
         self.headers = headers
 
-    def request(self, method, path, body=None):
-        data = None if body is None else json.dumps(body).encode()
+    def request(self, method, path, body=None, form=None):
+        if form is not None:
+            data, content_type = urllib.parse.urlencode(form).encode(), "application/x-www-form-urlencoded"
+        else:
+            data, content_type = (None if body is None else json.dumps(body).encode()), "application/json"
         request = urllib.request.Request(self.base_url + path, data=data, method=method)
         for key, value in self.headers.items():
             request.add_header(key, value)
         if data is not None:
-            request.add_header("Content-Type", "application/json")
+            request.add_header("Content-Type", content_type)
         try:
             with urllib.request.urlopen(request, timeout=60) as response:
                 payload = response.read()
@@ -89,10 +93,10 @@ class Api:
     def get(self, path):
         return self.request("GET", path)
 
-    def write(self, method, path, body=None):
+    def write(self, method, path, body=None, form=None):
         if DRY_RUN:
             return body
-        return self.request(method, path, body)
+        return self.request(method, path, body, form)
 
 
 def run(app, wire):

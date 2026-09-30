@@ -1,0 +1,25 @@
+{
+ "/api/system/settings": {
+  "general": {
+   "use_sonarr": false,
+   "use_radarr": false,
+   "use_embedded_subs": true
+  },
+  "sonarr": {
+   "ip": "127.0.0.1",
+   "port": 8989,
+   "base_url": "/",
+   "ssl": false,
+   "apikey": "",
+   "only_monitored": false
+  },
+  "radarr": {
+   "ip": "127.0.0.1",
+   "port": 7878,
+   "base_url": "/",
+   "ssl": false,
+   "apikey": "",
+   "only_monitored": false
+  }
+ }
+}
