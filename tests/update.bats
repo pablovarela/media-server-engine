@@ -47,8 +47,22 @@ line_of() {
 @test "update refuses local changes in the config repo before pulling" {
   FAKE_CONFIG_STATUS=" M images.yml" run update
   [ "$status" -ne 0 ]
-  echo "$output" | grep -q "uncommitted changes"
+  echo "$output" | grep -q "not committed"
   ! grep -q "pull --ff-only" "$STUB_LOG" || false
+}
+
+@test "local changes to a local-only config are to be committed, and are shown" {
+  FAKE_LOCAL_CONFIG=1 FAKE_CONFIG_STATUS=" M prowlarr.yml" run update
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "prowlarr.yml"
+  echo "$output" | grep -q "git -C $CONFIG_DIR commit -am"
+  ! echo "$output" | grep -qi "push" || false
+}
+
+@test "local changes to a config on github are to be committed and pushed" {
+  FAKE_CONFIG_STATUS=" M prowlarr.yml" run update
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -qi "push"
 }
 
 @test "a local-only config is used as it is, without pulling" {

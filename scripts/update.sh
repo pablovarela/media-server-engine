@@ -10,13 +10,37 @@ WIRE_COMMAND=${WIRE_COMMAND:-$SCRIPTS_DIR/wire/wire-apps.sh}
 PRUNE_COMMAND=${PRUNE_COMMAND:-$SCRIPTS_DIR/prune-stack-images.sh}
 readonly GLUETUN_DEPENDENTS="prowlarr flaresolverr deluge"
 
-require_clean_tree() {
+config_has_remote() {
+  git -C "$CONFIG_DIR" remote get-url origin >/dev/null 2>&1
+}
+
+uncommitted_changes() {
+  git -C "$1" status --porcelain --untracked-files=no
+}
+
+require_clean_engine() {
   local changes
-  changes=$(git -C "$1" status --porcelain --untracked-files=no)
-  if [ -n "$changes" ]; then
-    echo "$changes" >&2
-    die "uncommitted changes in $1; commit them from a clone and push instead"
-  fi
+  changes=$(uncommitted_changes "$ENGINE_DIR")
+  [ -z "$changes" ] || { echo "$changes" >&2; die "uncommitted changes in the engine at $ENGINE_DIR; an installation's engine is not edited, change the engine repository instead"; }
+}
+
+require_clean_config() {
+  local changes
+  changes=$(uncommitted_changes "$CONFIG_DIR")
+  [ -n "$changes" ] || return 0
+  {
+    echo "The config has changes that are not committed:"
+    echo "$changes"
+    echo "See them with: git -C $CONFIG_DIR diff"
+    if config_has_remote; then
+      echo "Commit and push them, then run make update again:"
+      echo "  git -C $CONFIG_DIR commit -am \"<what changed>\" && git -C $CONFIG_DIR push"
+    else
+      echo "Commit them, then run make update again:"
+      echo "  git -C $CONFIG_DIR commit -am \"<what changed>\""
+    fi
+  } >&2
+  exit 1
 }
 
 pinned_engine_version() {
@@ -115,12 +139,8 @@ reattach_gluetun_dependents() {
   fi
 }
 
-require_clean_tree "$ENGINE_DIR"
-require_clean_tree "$CONFIG_DIR"
-config_has_remote() {
-  git -C "$CONFIG_DIR" remote get-url origin >/dev/null 2>&1
-}
-
+require_clean_engine
+require_clean_config
 if [ -z "${MEDIA_SERVER_PULLED:-}" ]; then
   if config_has_remote; then git -C "$CONFIG_DIR" pull --ff-only; fi
   switch_engine_and_restart_if_needed "$@"
