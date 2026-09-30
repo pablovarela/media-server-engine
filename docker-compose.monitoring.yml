@@ -2,7 +2,6 @@ name: monitoring
 
 services:
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor-arm64:v0.55.1@sha256:52d1a5b3408835f84dc2dc579d91fc28d3cf235fc6ba94cd2a913d5475b275d8
     container_name: cadvisor
     restart: unless-stopped
     privileged: true
@@ -19,7 +18,6 @@ services:
       - /etc/machine-id:/etc/machine-id:ro
 
   node-exporter:
-    image: prom/node-exporter:v1.12.1@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0
     container_name: node-exporter
     restart: unless-stopped
     command:
@@ -36,7 +34,6 @@ services:
 
   prometheus:
     container_name: prometheus
-    image: prom/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e
     volumes:
       - ./prometheus/:/etc/prometheus/
       - prometheus:/prometheus/
@@ -46,7 +43,6 @@ services:
 
   grafana:
     container_name: grafana
-    image: grafana/grafana:13.2.3@sha256:b28bae15e219c998fb0e0424ed724930cc61b1f61fb404d47c862f9a23f9e572
     ports:
       - 3000:3000
     environment:
