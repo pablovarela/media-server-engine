@@ -22,8 +22,21 @@ render_unit() {
     "$1"
 }
 
+installs_backup_timers() {
+  local name
+  for name in "$@"; do
+    case $name in media-backup | media-verify) return 0 ;; esac
+  done
+  return 1
+}
+
 [ $# -gt 0 ] || die "usage: $(basename "$0") UNIT_NAME..., for example media-backup"
 command -v systemctl >/dev/null || die "timers need systemd, and this machine has no systemctl"
+if installs_backup_timers "$@"; then
+  load_installation
+  "${BACKUP_ROLE_COMMAND:-$ENGINE_DIR/scripts/backup-role.sh}" is-main ||
+    die "this machine is not $INSTALLATION_NAME's main; run make claim-backup-main first"
+fi
 timers=""
 for name in "$@"; do
   for unit in "systemd/$name.service" "systemd/$name.timer"; do
@@ -31,6 +44,10 @@ for name in "$@"; do
   done
   timers="$timers $name.timer"
 done
+if installs_backup_timers "$@"; then
+  mkdir -p "$DATA_DIR"
+  touch "$DATA_DIR/.backup-main"
+fi
 sudo systemctl daemon-reload
 # shellcheck disable=SC2086
 sudo systemctl enable --now $timers

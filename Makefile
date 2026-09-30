@@ -1,4 +1,4 @@
-.PHONY: help bootstrap configure update install-update-timer check-tools test restore backup-now verify-backup-now install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
+.PHONY: help bootstrap configure update install-update-timer claim-backup-main check-tools test restore backup-now verify-backup-now install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
 
 SHELL := /bin/bash
 CONFIG_DIR ?= $(CURDIR)/../config
@@ -41,8 +41,11 @@ verify-backup-now: ## run the scheduled backup verification now (needs the timer
 	@command -v systemctl >/dev/null || { echo "backups run under systemd; this machine has no systemctl" >&2; exit 1; }
 	@sudo systemctl start media-verify.service
 
-install-backup-timers: check-tools ## install and enable the nightly backup and weekly verification (systemd; run on one machine only)
-	@scripts/install-timers.sh media-backup media-verify
+install-backup-timers: check-tools ## install the nightly backup and weekly verification (systemd; only on the installation's main)
+	@sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" 'scripts/install-timers.sh media-backup media-verify'
+
+claim-backup-main: check-tools ## make this machine the installation's main: runs one backup tagged with this machine
+	@sops exec-env "$(CONFIG_DIR)/secrets/healthchecks.sops.env" 'sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" scripts/claim-backup-main.sh'
 
 install-download-cleanup-timer: check-tools ## remove downloads Sonarr or Radarr flag as executables, every 15 minutes (systemd)
 	@scripts/install-timers.sh media-download-cleanup

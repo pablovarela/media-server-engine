@@ -7,6 +7,9 @@ setup() {
   export UNIT_DIR="$STUB_DIR/units"
   mkdir -p "$UNIT_DIR"
   make_stub systemctl ''
+  echo INSTALLATION_NAME=testinst > "$CONFIG_DIR/installation.env"
+  make_stub fake-role '[ "$1" = is-main ] && [ -z "${FAKE_SECONDARY:-}" ]'
+  export BACKUP_ROLE_COMMAND=fake-role
   make_stub sudo '"$@"'
 }
 
@@ -64,8 +67,28 @@ teardown() {
 
 @test "install writes normalized paths when config and data use the default relative location" {
   mkdir -p "$ENGINE_DIR/../config-rel" "$ENGINE_DIR/../data-rel"
+  echo INSTALLATION_NAME=testinst > "$ENGINE_DIR/../config-rel/installation.env"
   CONFIG_DIR="$ENGINE_DIR/../config-rel" DATA_DIR="$ENGINE_DIR/../data-rel" run "$BATS_TEST_DIRNAME/../scripts/install-timers.sh" media-backup
   [ "$status" -eq 0 ]
   ! grep -q "\.\./" "$UNIT_DIR/media-backup.service"
   rm -rf "$ENGINE_DIR/../config-rel" "$ENGINE_DIR/../data-rel"
+}
+
+@test "backup timers are refused on a machine that is not the main" {
+  FAKE_SECONDARY=1 run "$BATS_TEST_DIRNAME/../scripts/install-timers.sh" media-backup media-verify
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "claim-backup-main"
+  [ -z "$(ls "$UNIT_DIR")" ]
+}
+
+@test "installing the backup timers marks the machine as the main" {
+  run "$BATS_TEST_DIRNAME/../scripts/install-timers.sh" media-backup media-verify
+  [ "$status" -eq 0 ]
+  [ -e "$DATA_DIR/.backup-main" ]
+}
+
+@test "other timers install on any machine" {
+  FAKE_SECONDARY=1 run "$BATS_TEST_DIRNAME/../scripts/install-timers.sh" media-update media-download-cleanup
+  [ "$status" -eq 0 ]
+  [ ! -e "$DATA_DIR/.backup-main" ]
 }
