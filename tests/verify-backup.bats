@@ -2,7 +2,8 @@ load helpers
 
 setup() {
   setup_stubs
-  export HEALTHCHECK_VERIFY_URL=https://hc.example/verify
+  export HEALTHCHECKS_PING_KEY=pk
+  echo INSTALLATION_NAME=testinst > "$CONFIG_DIR/installation.env"
   make_stub curl ''
   make_stub restic '
 if [ "$1" = restore ]; then
@@ -24,28 +25,28 @@ teardown() {
   [ "$status" -eq 0 ]
   grep -q "restic check" "$STUB_LOG"
   [ "$(grep -c 'sqlite3 .*PRAGMA integrity_check' "$STUB_LOG")" -eq 2 ]
-  tail -1 "$STUB_LOG" | grep -q "curl .*https://hc.example/verify$"
+  tail -1 "$STUB_LOG" | grep -q "curl .*https://hc-ping.com/pk/testinst-verify?create=1$"
 }
 
 @test "verify fails and pings fail when a database is corrupt" {
   FAKE_CORRUPT=1 run "$BATS_TEST_DIRNAME/../scripts/verify-backup.sh"
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "b.sqlite"
-  grep -q "curl .*https://hc.example/verify/fail" "$STUB_LOG"
+  grep -q "curl .*https://hc-ping.com/pk/testinst-verify/fail?create=1" "$STUB_LOG"
 }
 
 @test "verify fails when restic check fails" {
   make_stub restic 'if [ "$1" = check ]; then exit 1; fi'
   run "$BATS_TEST_DIRNAME/../scripts/verify-backup.sh"
   [ "$status" -ne 0 ]
-  grep -q "curl .*https://hc.example/verify/fail" "$STUB_LOG"
+  grep -q "curl .*https://hc-ping.com/pk/testinst-verify/fail?create=1" "$STUB_LOG"
 }
 
 @test "verify fails when the snapshot holds no databases" {
   make_stub restic ''
   run "$BATS_TEST_DIRNAME/../scripts/verify-backup.sh"
   [ "$status" -ne 0 ]
-  grep -q "curl .*https://hc.example/verify/fail" "$STUB_LOG"
+  grep -q "curl .*https://hc-ping.com/pk/testinst-verify/fail?create=1" "$STUB_LOG"
 }
 
 @test "verify removes its temporary restore" {
@@ -66,7 +67,7 @@ teardown() {
   run "$BATS_TEST_DIRNAME/../scripts/verify-backup.sh"
   [ "$status" -ne 0 ]
   echo "$output" | grep -qE "cannot check app/(a.db|b.sqlite)"
-  grep -q "curl .*https://hc.example/verify/fail" "$STUB_LOG"
+  grep -q "curl .*https://hc-ping.com/pk/testinst-verify/fail?create=1" "$STUB_LOG"
 }
 
 @test "verify restores to disk-backed /var/tmp unless TMPDIR says otherwise" {

@@ -2,6 +2,7 @@
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "$0")/lib.sh"
+load_installation
 
 restore_dir=$(mktemp -d "${TMPDIR:-/var/tmp}/media-verify.XXXXXX")
 
@@ -9,7 +10,7 @@ on_exit() {
   local status=$?
   rm -rf "$restore_dir"
   if [ "$status" -ne 0 ]; then
-    ping_healthcheck "$HEALTHCHECK_VERIFY_URL" /fail
+    ping_healthcheck verify /fail
   fi
 }
 
@@ -28,7 +29,7 @@ check_database() {
 }
 
 trap on_exit EXIT
-ping_healthcheck "$HEALTHCHECK_VERIFY_URL" /start
+ping_healthcheck verify /start
 restic check --retry-lock 2h
 restic restore --retry-lock 2h latest --target "$restore_dir" --include '*.db' --include '*.sqlite' --include '*.sqlite3'
 databases=$(restored_databases)
@@ -38,4 +39,4 @@ while IFS= read -r database; do
     check_database "$database"
   fi
 done <<< "$databases"
-ping_healthcheck "$HEALTHCHECK_VERIFY_URL"
+ping_healthcheck verify

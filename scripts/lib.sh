@@ -40,9 +40,23 @@ monitoring_compose() {
     --env-file "$ENGINE_DIR/.env" $(compose_files docker-compose.monitoring.yml images.monitoring.yml) "$@"
 }
 
+healthcheck_url() {
+  local slug="$INSTALLATION_NAME-$1"
+  [ -n "${HEALTHCHECKS_PING_KEY:-}" ] || return 0
+  if [ "$1" = update ] && [ "${MACHINE_ROLE:-main}" = secondary ]; then
+    slug="$slug-$(hostname -s)"
+  fi
+  echo "https://hc-ping.com/$HEALTHCHECKS_PING_KEY/$slug"
+}
+
 ping_healthcheck() {
-  local url=$1 suffix=${2:-}
-  curl -fsS -m 10 --retry 3 -o /dev/null "$url$suffix" || true
+  local url
+  url=$(healthcheck_url "$1")
+  if [ -z "$url" ]; then
+    echo "no healthchecks ping key configured; not reporting $1${2:-}" >&2
+    return 0
+  fi
+  curl -fsS -m 10 --retry 3 -o /dev/null "$url${2:-}?create=1" || true
 }
 
 generate_secret() {

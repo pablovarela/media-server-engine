@@ -2,7 +2,8 @@ load helpers
 
 setup() {
   setup_stubs
-  export HEALTHCHECK_BACKUP_URL=https://hc.example/abc
+  export HEALTHCHECKS_PING_KEY=pk
+  echo INSTALLATION_NAME=testinst > "$CONFIG_DIR/installation.env"
   make_stub curl ''
   make_compose_stub 'if [ "$2" = ps ]; then printf "jellyfin\nsonarr\n"; fi'
   make_stub restic 'if [ "$1" = backup ] && [ -n "${FAKE_RESTIC_BACKUP_FAILS:-}" ]; then exit 1; fi'
@@ -22,7 +23,7 @@ line_of() {
   [ "$(line_of 'docker compose stop')" -lt "$(line_of 'restic backup')" ]
   [ "$(line_of 'restic backup')" -lt "$(line_of 'docker compose start jellyfin sonarr')" ]
   [ "$(line_of 'docker compose start')" -lt "$(line_of 'restic forget --retry-lock 2h --prune --keep-daily 7 --keep-weekly 4 --keep-monthly 6')" ]
-  tail -1 "$STUB_LOG" | grep -q "curl .*https://hc.example/abc$"
+  tail -1 "$STUB_LOG" | grep -q "curl .*https://hc-ping.com/pk/testinst-backup?create=1$"
 }
 
 @test "backup uses the excludes file and tags the snapshot" {
@@ -39,7 +40,7 @@ line_of() {
 
 @test "backup pings fail on error" {
   FAKE_RESTIC_BACKUP_FAILS=1 run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
-  grep -q "curl .*https://hc.example/abc/fail" "$STUB_LOG"
+  grep -q "curl .*https://hc-ping.com/pk/testinst-backup/fail?create=1" "$STUB_LOG"
 }
 
 @test "backup starts each service once" {
@@ -58,14 +59,14 @@ line_of() {
   make_compose_stub 'if [ "$2" = ps ]; then printf "jellyfin\n"; fi; if [ "$2" = start ]; then exit 1; fi'
   run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
   [ "$status" -ne 0 ]
-  grep -q "curl .*https://hc.example/abc/fail" "$STUB_LOG"
+  grep -q "curl .*https://hc-ping.com/pk/testinst-backup/fail?create=1" "$STUB_LOG"
 }
 
 @test "backup pings fail when it cannot even list the running services" {
   make_compose_stub 'if [ "$2" = ps ]; then exit 1; fi'
   run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
   [ "$status" -ne 0 ]
-  grep -q "curl .*https://hc.example/abc/fail" "$STUB_LOG"
+  grep -q "curl .*https://hc-ping.com/pk/testinst-backup/fail?create=1" "$STUB_LOG"
 }
 
 @test "backup waits for a restic lock held by the weekly verification" {

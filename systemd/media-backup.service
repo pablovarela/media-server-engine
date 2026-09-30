@@ -12,6 +12,6 @@ WorkingDirectory=@ENGINE_DIR@
 Environment=CONFIG_DIR=@CONFIG_DIR@
 Environment=DATA_DIR=@DATA_DIR@
 Environment=SOPS_AGE_KEY_FILE=@HOME@/.config/sops/age/keys.txt
-ExecStart=@SOPS@ exec-env @CONFIG_DIR@/secrets/backup.sops.env scripts/backup.sh
+ExecStart=@SOPS@ exec-env @CONFIG_DIR@/secrets/healthchecks.sops.env '@SOPS@ exec-env @CONFIG_DIR@/secrets/backup.sops.env scripts/backup.sh'
 Nice=10
 IOSchedulingClass=idle
