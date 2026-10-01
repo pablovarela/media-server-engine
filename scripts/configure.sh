@@ -45,8 +45,9 @@ rotate_variable() {
 load_dotenv() {
   local line
   while IFS= read -r line; do
-    [ -n "${line%%=*}" ] && [ "$line" != "${line#*=}" ] || continue
-    printf -v "${line%%=*}" '%s' "${line#*=}"
+    if [ -n "${line%%=*}" ] && [ "$line" != "${line#*=}" ]; then
+      printf -v "${line%%=*}" '%s' "${line#*=}"
+    fi
   done
 }
 

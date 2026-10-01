@@ -1,5 +1,7 @@
 # media-server-engine
 
+[![test](https://github.com/pablovarela/media-server-engine/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/pablovarela/media-server-engine/actions/workflows/test.yml)
+
 A self-hosted media server that you can rebuild on any machine from two things: the name of the installation and its secrets key.
 
 It runs Jellyfin, Sonarr, Radarr, Prowlarr, Bazarr, Deluge (behind a VPN with gluetun and FlareSolverr), Seerr, Maintainerr and Portainer, with Configarr for quality profiles and an optional monitoring stack (Prometheus, Grafana, cAdvisor, node-exporter). The apps are wired to each other automatically: API keys, indexers, download client, libraries, subtitle languages and the links between them.
