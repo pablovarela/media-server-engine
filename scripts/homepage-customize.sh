@@ -6,7 +6,10 @@ load_installation
 
 custom="$CONFIG_DIR/homepage"
 rendered="$ENGINE_DIR/.homepage"
-[ ! -e "$custom" ] || die "$custom already exists: the landing page is already customised; edit the files there"
+if [ -e "$custom" ]; then
+  echo "The landing page is already customised: edit the files in $custom, commit them and run make update."
+  exit 0
+fi
 [ -f "$rendered/services.yaml" ] || die "no landing page has been rendered yet; run make update first"
 mkdir -p "$custom"
 for file in settings.yaml services.yaml widgets.yaml bookmarks.yaml; do

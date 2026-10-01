@@ -77,9 +77,11 @@ yaml_of() {
   [ "$status" -eq 0 ]
   cmp -s "$OUT/services.yaml" "$CONFIG_DIR/homepage/services.yaml"
   echo "$output" | grep -q "git -C $CONFIG_DIR"
+  echo "title: changed" > "$CONFIG_DIR/homepage/settings.yaml"
   run "$BATS_TEST_DIRNAME/../scripts/homepage-customize.sh"
-  [ "$status" -ne 0 ]
+  [ "$status" -eq 0 ]
   echo "$output" | grep -q "already"
+  [ "$(cat "$CONFIG_DIR/homepage/settings.yaml")" = "title: changed" ]
 }
 
 @test "the default page itself is reached at the landing page's port, the apps at theirs" {
