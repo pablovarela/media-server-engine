@@ -81,35 +81,115 @@ widget = next(s["Recently added"]["widget"] for s in watch if "Recently added" i
 assert widget["headers"] == {"Authorization": "MediaBrowser Token=\"{{HOMEPAGE_VAR_JELLYFIN_KEY}}\""}, widget["headers"]' "$OUT/services.yaml"
 }
 
-apps_yml() {
-  printf '%s\n' "$@" > "$CONFIG_DIR/apps.yml"
+config_file() {
+  mkdir -p "$CONFIG_DIR/homepage"
+  local name=$1
+  shift
+  printf '%s\n' "$@" > "$CONFIG_DIR/homepage/$name"
 }
 
-@test "the landing page's theme and colour come from apps.yml" {
-  apps_yml "homepage:" "  theme: light" "  color: sky"
-  homepage render "$OUT"
-  [ "$(yaml_of "$OUT/settings.yaml" | python3 -c 'import json, sys; s=json.load(sys.stdin); print(s["theme"], s["color"])')" = "light sky" ]
+setting() {
+  python3 -c 'import sys, yaml; print(yaml.safe_load(open(sys.argv[1])).get(sys.argv[2]))' "$OUT/settings.yaml" "$1"
 }
 
-@test "without landing page settings, the page keeps Homepage's own theme" {
-  apps_yml "bazarr:" "  languages: [en]"
-  homepage render "$OUT"
-  ! grep -qE "^(theme|color):" "$OUT/settings.yaml" || false
+service_groups() {
+  python3 -c 'import sys, yaml; print("|".join(next(iter(g)) for g in yaml.safe_load(open(sys.argv[1]))))' "$OUT/services.yaml"
 }
 
-@test "apps listed as hidden are left off the page" {
-  apps_yml "homepage:" "  hidden: [Portainer, Calendar]"
-  homepage render "$OUT"
-  ! grep -qE "Portainer:|Calendar:" "$OUT/services.yaml" || false
-  grep -q "Sonarr:" "$OUT/services.yaml"
-}
-
-@test "extra links get a group of their own" {
-  apps_yml "homepage:" "  links:" "    - name: Router" "      href: http://192.168.1.1" "      icon: mdi-router"
-  homepage render "$OUT"
+group_tiles() {
   python3 -c '
 import sys, yaml
-groups = yaml.safe_load(open(sys.argv[1]))
-links = next(g["Links"] for g in groups if "Links" in g)
-assert links == [{"Router": {"href": "http://192.168.1.1", "icon": "mdi-router"}}], links' "$OUT/services.yaml"
+groups = {next(iter(g)): g[next(iter(g))] for g in yaml.safe_load(open(sys.argv[1]))}
+print("|".join(next(iter(s)) for s in groups.get(sys.argv[2], [])))' "$OUT/services.yaml" "$1"
+}
+
+calendar_views() {
+  python3 -c '
+import sys, yaml
+groups = {next(iter(g)): g[next(iter(g))] for g in yaml.safe_load(open(sys.argv[1]))}
+views = [name + "=" + s[name]["widget"]["view"] for s in groups.get(sys.argv[2], []) for name in s if (s[name].get("widget") or {}).get("type") == "calendar"]
+print(" ".join(views))' "$OUT/services.yaml" "$1"
+}
+
+@test "what is coming up leads the page: an agenda next to a month's calendar" {
+  homepage render "$OUT"
+  [ "$(service_groups | cut -d'|' -f1-2)" = "Coming up|Watch" ]
+  [ "$(calendar_views "Coming up")" = "Next up=agenda Calendar=monthly" ]
+  [ -z "$(calendar_views Library)" ]
+}
+
+@test "the engine version links to its release" {
+  HOMEPAGE_ENGINE_URL=https://github.com/someone/media-server-engine/releases/tag/v9.9.9 homepage render "$OUT"
+  yaml_of "$OUT/widgets.yaml" | grep -q '"href": "https://github.com/someone/media-server-engine/releases/tag/v9.9.9"'
+}
+
+@test "without a known engine address, the version is plain text" {
+  homepage render "$OUT"
+  ! grep -q "href" "$OUT/widgets.yaml" || false
+}
+
+@test "a config holding a copy of the engine's page renders the same page" {
+  homepage render "$OUT"
+  for file in settings.yaml services.yaml widgets.yaml bookmarks.yaml; do cp "$OUT/$file" "$OUT/$file.engine"; done
+  mkdir -p "$CONFIG_DIR/homepage"
+  cp "$BATS_TEST_DIRNAME"/../homepage/*.yaml "$CONFIG_DIR/homepage/"
+  homepage render "$OUT"
+  for file in settings.yaml services.yaml widgets.yaml bookmarks.yaml; do cmp -s "$OUT/$file" "$OUT/$file.engine" || { echo "$file changed"; false; }; done
+}
+@test "the render script draws the page from the installation's settings" {
+  printf 'INSTALLATION_NAME=testinst\nMEDIA_SERVER_HOST=media.local\n' > "$CONFIG_DIR/installation.env"
+  make_stub git 'case "$*" in *describe*) echo v1.2.3 ;; *"remote get-url"*) echo git@github.com:someone/media-server-engine.git ;; esac'
+  run "$BATS_TEST_DIRNAME/../scripts/homepage-render.sh"
+  [ "$status" -eq 0 ]
+  yaml_of "$ENGINE_DIR/.homepage/widgets.yaml" | grep -q '"href": "https://github.com/someone/media-server-engine/releases/tag/v1.2.3"'
+  grep -q "href: http://media.local:8989" "$ENGINE_DIR/.homepage/services.yaml"
+}
+
+@test "the config's files can use the same placeholders as the engine's" {
+  config_file services.yaml "- Home:" "    - Router:" "        href: http://@HOST@:8443"
+  config_file widgets.yaml "- greeting:" "    text: \"@INSTALLATION_NAME@ on @HOST@\""
+  homepage render "$OUT"
+  grep -q "href: http://media.local:8443" "$OUT/services.yaml"
+  grep -q "testinst on media.local" "$OUT/widgets.yaml"
+}
+
+@test "backup status stays off the page without an api key, even when the config declares it" {
+  cp "$BATS_TEST_DIRNAME/../homepage/services.yaml" "$CONFIG_DIR/homepage-services.yaml"
+  mkdir -p "$CONFIG_DIR/homepage" && mv "$CONFIG_DIR/homepage-services.yaml" "$CONFIG_DIR/homepage/services.yaml"
+  homepage render "$OUT"
+  ! grep -q "type: healthchecks" "$OUT/services.yaml" || false
+}
+
+@test "a file in the config is the page's file, exactly as written" {
+  config_file settings.yaml "title: mine" "theme: light"
+  config_file services.yaml "- Home:" "    - Router:" "        href: http://192.168.1.1"
+  config_file widgets.yaml "- datetime:" "    text_size: xl"
+  config_file bookmarks.yaml "- Links:" "    - Docs:" "        - href: https://gethomepage.dev"
+  config_file custom.css "html { font-size: 20px; }"
+  homepage render "$OUT"
+  [ "$(setting title) $(setting theme)" = "mine light" ]
+  [ "$(service_groups)" = Home ]
+  [ "$(python3 -c 'import sys, yaml; print([next(iter(w)) for w in yaml.safe_load(open(sys.argv[1]))])' "$OUT/widgets.yaml")" = "['datetime']" ]
+  grep -q "gethomepage.dev" "$OUT/bookmarks.yaml"
+  [ "$(cat "$OUT/custom.css")" = "html { font-size: 20px; }" ]
+}
+
+@test "a tile commented out in the config is not on the page" {
+  config_file services.yaml "- Coming up:" "    - Next up:" "        icon: mdi-calendar-clock" "#    - Calendar:" "#        icon: mdi-calendar-month"
+  homepage render "$OUT"
+  [ "$(group_tiles "Coming up")" = "Next up" ]
+}
+
+@test "a file the config does not have comes from the engine" {
+  config_file settings.yaml "title: mine"
+  homepage render "$OUT"
+  [ "$(service_groups | cut -d'|' -f1)" = "Coming up" ]
+  [ "$(cat "$OUT/custom.css")" = "html { font-size: 18px; }" ]
+}
+
+@test "backup status stays off the page without an api key, also inside a nested group" {
+  config_file services.yaml "- Manage:" "    - Maintenance:" "        - Portainer:" "            href: http://@HOST@:9000" "        - Healthchecks:" "            widget:" "              type: healthchecks"
+  homepage render "$OUT"
+  ! grep -q "Healthchecks" "$OUT/services.yaml" || false
+  grep -q "Portainer" "$OUT/services.yaml"
 }

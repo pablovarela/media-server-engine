@@ -36,51 +36,63 @@ def placeholders(text):
         ("INSTALLATION_NAME", os.environ["INSTALLATION_NAME"]),
         ("ENGINE_VERSION", os.environ.get("HOMEPAGE_ENGINE_VERSION", "")),
         ("HOST", os.environ["HOMEPAGE_HOST"]),
+        ("ENGINE_URL", os.environ.get("HOMEPAGE_ENGINE_URL", "")),
     ):
         text = text.replace(f"@{name}@", value)
     return text
 
 
-def landing_page_settings():
-    config = yaml.safe_load(read(os.path.join(CONFIG_DIR, "apps.yml"))) or {}
-    return config.get("homepage") or {}
+def page_file(name):
+    declared = os.path.join(CONFIG_DIR, "homepage", name)
+    source = declared if os.path.exists(declared) else os.path.join(DEFAULTS, name)
+    return placeholders(read(source))
 
 
-def rendered_settings(text, wanted):
-    settings = yaml.safe_load(text) or {}
-    for key in ("theme", "color"):
-        if wanted.get(key):
-            settings[key] = wanted[key]
-    if wanted.get("links"):
-        settings.setdefault("layout", []).append({"Links": {"style": "row", "columns": 4}})
-    return yaml.safe_dump(settings, sort_keys=False)
+def without_backup_status(entries):
+    kept = []
+    for entry in entries:
+        name, value = next(iter(entry.items()))
+        if name == "Healthchecks":
+            continue
+        kept.append({name: without_backup_status(value) if isinstance(value, list) else value})
+    return kept
 
 
-def rendered_services(text, wanted):
-    hidden = set(wanted.get("hidden") or [])
-    if not healthchecks_api_key():
-        hidden.add("Healthchecks")
+def rendered_services(text):
     groups = yaml.safe_load(text) or []
-    for group in groups:
-        for name, services in group.items():
-            group[name] = [s for s in services if not hidden & set(s)]
-    links = [{link["name"]: {k: v for k, v in link.items() if k != "name"}} for link in wanted.get("links") or []]
-    if links:
-        groups.append({"Links": links})
+    if not healthchecks_api_key():
+        groups = without_backup_status(groups)
     return yaml.safe_dump(groups, sort_keys=False)
+
+
+def rendered_widgets(text):
+    widgets = yaml.safe_load(text) or []
+    for widget in widgets:
+        for options in widget.values():
+            if isinstance(options, dict) and options.get("href") == "":
+                options.pop("href")
+                options.pop("target", None)
+    return yaml.safe_dump(widgets, sort_keys=False)
+
+
+def as_written(text):
+    return text
+
+
+RENDERERS = {
+    "settings.yaml": as_written,
+    "services.yaml": rendered_services,
+    "widgets.yaml": rendered_widgets,
+    "bookmarks.yaml": as_written,
+    "custom.css": as_written,
+}
 
 
 def render(out):
     os.makedirs(out, exist_ok=True)
-    wanted = landing_page_settings()
-    for name in ("settings.yaml", "widgets.yaml", "services.yaml", "bookmarks.yaml"):
-        text = placeholders(read(os.path.join(DEFAULTS, name)))
-        if name == "settings.yaml":
-            text = rendered_settings(text, wanted)
-        elif name == "services.yaml":
-            text = rendered_services(text, wanted)
-        with open(os.path.join(out, name), "w") as rendered:
-            rendered.write(text)
+    for name, rendered in RENDERERS.items():
+        with open(os.path.join(out, name), "w") as target:
+            target.write(rendered(page_file(name)))
 
 
 def seerr_key():

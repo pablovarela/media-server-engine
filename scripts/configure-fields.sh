@@ -22,10 +22,7 @@ App logins|JELLYFIN_ADMIN_PASSWORD|password|Jellyfin admin password
 App logins|DELUGE_WEB_PASSWORD|password|Deluge web password
 App logins|PORTAINER_ADMIN_PASSWORD|password|Portainer admin password (at least 12 characters)
 Subtitles|SUBTITLE_LANGUAGES|text|Subtitle languages (codes, comma separated)
-Landing page|HOMEPAGE_PORT|text|Landing page port
-Landing page|HOMEPAGE_THEME|choice|Theme
-Landing page|HOMEPAGE_COLOR|choice|Colour
-Landing page|HOMEPAGE_HIDDEN|text|Tiles to leave off the page (names, comma separated)"
+Landing page|HOMEPAGE_PORT|text|Landing page port"
 
 readonly PORTAINER_PASSWORD_MINIMUM=12
 readonly RESTIC_REPOSITORY_DOES_NOT_EXIST=10
@@ -54,36 +51,6 @@ first_free_landing_page_port() {
     port_in_use "$port" || { echo "$port"; return 0; }
   done
   echo 80
-}
-
-readonly HOMEPAGE_COLORS="slate gray zinc neutral stone red amber yellow lime green emerald teal cyan sky blue indigo violet purple fuchsia pink rose"
-
-current_homepage_setting() {
-  python3 -c '
-import sys, yaml
-try:
-    value = ((yaml.safe_load(open("apps.yml")) or {}).get("homepage") or {}).get(sys.argv[1])
-except FileNotFoundError:
-    value = None
-print(", ".join(value) if isinstance(value, list) else (value or sys.argv[2]))' "$1" "${2:-}"
-}
-
-landing_page_tiles() {
-  python3 -c '
-import sys, yaml
-for group in yaml.safe_load(open(sys.argv[1])) or []:
-    for services in group.values():
-        for service in services:
-            print(*service)' "$ENGINE_DIR/homepage/services.yaml"
-}
-
-unknown_landing_page_tiles() {
-  local name tiles
-  tiles=$(landing_page_tiles)
-  while IFS= read -r name; do
-    name=$(echo "$name" | sed 's/^ *//; s/ *$//')
-    [ -z "$name" ] || grep -qxF "$name" <<< "$tiles" || echo "$name"
-  done <<< "${1//,/$'\n'}"
 }
 
 engine_owner() {
@@ -118,8 +85,6 @@ join_restic_repository() {
 field_choices() {
   case $1 in
     CONFIG_LOCATION) printf '%s\n' "local|Only on this machine" "github|A private GitHub repo, so other machines can join" ;;
-    HOMEPAGE_THEME) printf '%s\n' "dark|Dark" "light|Light" ;;
-    HOMEPAGE_COLOR) for color in $HOMEPAGE_COLORS; do echo "$color|$color"; done ;;
     BACKUP_TYPE) printf '%s\n' "local|A folder on this machine or on a mounted disk" "b2|Backblaze B2" "other|Another restic repository (sftp:, s3:, rest: ...), its credentials added to secrets/backup.sops.env by hand" ;;
   esac
 }
@@ -136,9 +101,6 @@ field_default() {
     B2_FOLDER) echo "${B2_FOLDER-restic}" ;;
     SUBTITLE_LANGUAGES) current_subtitle_languages ;;
     HOMEPAGE_PORT) echo "${HOMEPAGE_PORT:-$(first_free_landing_page_port)}" ;;
-    HOMEPAGE_THEME) echo "${HOMEPAGE_THEME:-$(current_homepage_setting theme dark)}" ;;
-    HOMEPAGE_COLOR) echo "${HOMEPAGE_COLOR:-$(current_homepage_setting color slate)}" ;;
-    HOMEPAGE_HIDDEN) echo "${HOMEPAGE_HIDDEN-$(current_homepage_setting hidden)}" ;;
     *) echo "${!1:-}" ;;
   esac
 }
@@ -147,7 +109,6 @@ field_applies() {
   case $1 in
     GITHUB_OWNER) [ "${CONFIG_LOCATION:-}" = github ] ;;
     BACKUP_FOLDER) [ "${BACKUP_TYPE:-}" = local ] ;;
-    HOMEPAGE_THEME | HOMEPAGE_COLOR | HOMEPAGE_HIDDEN) [ -z "${NEW_INSTALLATION:-}" ] ;;
     BACKUP_URL) [ "${BACKUP_TYPE:-}" = other ] ;;
     B2_BUCKET | B2_FOLDER | B2_ACCOUNT_ID | B2_ACCOUNT_KEY) [ "${BACKUP_TYPE:-}" = b2 ] ;;
     *) true ;;
@@ -195,12 +156,7 @@ field_problem() {
         echo "Port $2 is in use on this machine; choose another, such as $(first_free_landing_page_port)."
       fi
       ;;
-    HOMEPAGE_HIDDEN)
-      local unknown
-      unknown=$(unknown_landing_page_tiles "$2" | paste -sd, - | sed 's/,/, /g')
-      [ -z "$unknown" ] || echo "$unknown is not on the landing page. Its tiles are: $(landing_page_tiles | paste -sd, - | sed 's/,/, /g')."
-      ;;
-    CONFIG_LOCATION | BACKUP_TYPE | HOMEPAGE_THEME | HOMEPAGE_COLOR)
+    CONFIG_LOCATION | BACKUP_TYPE)
       choices=$(field_choices "$1" | cut -d'|' -f1 | tr '\n' ' ')
       [[ " $choices" == *" $2 "* ]] || echo "Choose one of: ${choices% }."
       ;;

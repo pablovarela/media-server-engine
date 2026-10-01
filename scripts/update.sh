@@ -145,11 +145,6 @@ write_compose_env() {
     "$(docker_socket_gid)" "${TZ:-Etc/UTC}" "$(homepage_port)" "$(homepage_allowed_hosts)" > "$ENGINE_DIR/.env"
 }
 
-render_homepage() {
-  HOMEPAGE_HOST=$(network_name) HOMEPAGE_ENGINE_VERSION=$(git -C "$ENGINE_DIR" describe --tags --always 2>/dev/null || true) \
-    python3 "$SCRIPTS_DIR/homepage.py" render "$ENGINE_DIR/.homepage"
-}
-
 homepage_env_changed() {
   local env="$ENGINE_DIR/.secrets/homepage.env"
   ( umask 077; python3 "$SCRIPTS_DIR/homepage.py" env > "$env.new" )

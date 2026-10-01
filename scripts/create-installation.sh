@@ -76,6 +76,8 @@ write_sops_config() {
 
 fill_template() {
   cp -R "$ENGINE_DIR/config-template/." "$CONFIG_DIR/"
+  mkdir -p "$CONFIG_DIR/homepage"
+  cp "$ENGINE_DIR"/homepage/* "$CONFIG_DIR/homepage/"
   grep -rl ENGINE_REPOSITORY "$CONFIG_DIR" | while IFS= read -r file; do
     sed -i.bak "s#ENGINE_REPOSITORY#$ENGINE_REPO#g" "$file"
     rm -f "$file.bak"

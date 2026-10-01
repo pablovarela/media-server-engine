@@ -16,25 +16,26 @@ Edit these with any editor.
 | `installation.env` | `TZ` (a time zone such as `Europe/London`), `CONFIG_LOCATION` (`local` or `github`), `GITHUB_OWNER`, `JELLYFIN_ADMIN_USER`, `RESTIC_REPOSITORY` (an absolute folder path, `b2:<bucket>:<folder>` for Backblaze B2, or any other repository restic takes, such as `sftp:` or `s3:`, with its credentials added to `secrets/backup.sops.env`). `INSTALLATION_NAME` is fixed once the installation exists: its directory, repository, backups and healthchecks are named after it. Keys and comments added by hand are kept by `make configure`: `MEDIA_SERVER_HOST` sets the name the app addresses use, `HOMEPAGE_ALLOWED_HOSTS` adds names the landing page answers to, comma separated (for example a Tailscale name), next to this machine's own, and `HOMEPAGE_PORT` moves the landing page off port 80 when something else uses it. |
 | `engine.env` | `ENGINE_VERSION`: the engine release to run, or `local` to run the engine checkout as it is. |
 | `images.yml`, `images.monitoring.yml` | The image of every service, pinned to a digest. Renovate updates them. The landing page (`homepage`) runs only while its image is listed here. |
-| `apps.yml` | Jellyfin's server name and libraries, Deluge's settings and plugins, Seerr's libraries and quality profiles, Bazarr's subtitle languages, and the landing page (see below). |
+| `apps.yml` | Jellyfin's server name and libraries, Deluge's settings and plugins, Seerr's libraries and quality profiles, Bazarr's subtitle languages. |
 | `prowlarr.yml` | Prowlarr's indexers, the FlareSolverr proxy and the links to Sonarr and Radarr. |
 | `configarr/config.yml` | Sonarr's and Radarr's quality profiles, custom formats, root folders, download client and naming, applied by Configarr. `!secret NAME` refers to a key in `secrets/apps.sops.env`; Configarr is given only the keys referred to. |
 | `compose.override.yml` | Optional additions or changes to the engine's compose file, for example an extra volume. |
 
 ## The landing page
 
-The page at `http://<machine>` is the engine's default page, rendered by `make update` with the installation's name and this machine's address, so it improves with engine releases. Its `homepage:` settings in `apps.yml` are all optional, and `make configure` changes the first three in its "Landing page" section:
+The page at `http://<machine>` comes from the files in `homepage/`, in Homepage's own format ([its documentation](https://gethomepage.dev/configs/)). A new installation starts with a copy of the engine's default page there; from then on these files are the page, used as written, so anything Homepage offers can be changed:
 
-```yaml
-homepage:
-  theme: dark            # dark or light
-  color: slate           # slate, gray, zinc, neutral, stone, red, amber, yellow, lime, green, emerald, teal, cyan, sky, blue, indigo, violet, purple, fuchsia, pink, rose
-  hidden: [Portainer]    # apps or tiles to leave off the page, by their name on it
-  links:                 # extra tiles, in a group of their own
-    - name: Router
-      href: http://192.168.1.1
-      icon: mdi-router   # an icon name as Homepage takes it
-```
+| File | Holds |
+|---|---|
+| `homepage/settings.yaml` | title, theme, colour, layout and the other settings |
+| `homepage/services.yaml` | the groups and tiles |
+| `homepage/widgets.yaml` | the widgets along the top |
+| `homepage/bookmarks.yaml` | bookmarks |
+| `homepage/custom.css` | styles, for example `html { font-size: 20px; }` for bigger text |
+
+A file that is missing comes from the engine's default page. `@INSTALLATION_NAME@`, `@HOST@` (this machine's address), `@ENGINE_VERSION@` and `@ENGINE_URL@` (the engine version's page on GitHub) are filled in. A tile with a healthchecks widget is left out while no read-only healthchecks.io API key is set.
+
+While changing these files, `make homepage` redraws the page in a second without restarting anything, and an open page reloads itself; commit the files once the page looks right. The page's port is `HOMEPAGE_PORT` in `installation.env`, asked by `make configure`.
 
 ## Secrets
 
