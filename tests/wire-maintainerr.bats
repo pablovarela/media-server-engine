@@ -92,3 +92,13 @@ json.dump(state, open(sys.argv[1], "w"))' "$FAKE_APP_STATE"
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "Seerr did not answer"
 }
+
+@test "a dry run before jellyfin's key exists still checks the other connections" {
+  start_fake_app "$FIXTURES/fresh.json"
+  rm "$DATA_DIR/volumes/.wiring/jellyfin.key"
+  WIRE_DRY_RUN=1 run wire
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q "once the jellyfin wiring has stored its key"
+  echo "$output" | grep -q "(dry run) maintainerr: connect sonarr"
+  [ -z "$(fake_app_writes)" ]
+}

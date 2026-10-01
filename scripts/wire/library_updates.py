@@ -1,7 +1,7 @@
 import copy
 import os
 
-from wirelib import Api, WiringError, app_secrets, fingerprint, remember, remembered, report, run
+from wirelib import DRY_RUN, Api, WiringError, app_secrets, fingerprint, remember, remembered, report, run
 
 APP = "library-updates"
 NAME = "Emby / Jellyfin"
@@ -64,6 +64,9 @@ def connect(kind, api, key):
 
 def wire():
     secrets = app_secrets()
+    if DRY_RUN and not remembered("jellyfin.key"):
+        report(APP, "connect Sonarr and Radarr to Jellyfin once the jellyfin wiring has stored its key")
+        return
     key = jellyfin_key()
     failures = []
     for kind, (url_variable, default_url, api_key, _, _) in ARRS.items():

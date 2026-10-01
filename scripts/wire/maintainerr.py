@@ -1,7 +1,7 @@
 import json
 import os
 
-from wirelib import DATA_DIR, Api, WiringError, app_secrets, remembered, report, run
+from wirelib import DATA_DIR, DRY_RUN, Api, WiringError, app_secrets, remembered, report, run
 
 APP = "maintainerr"
 SEERR_SETTINGS = os.path.join(DATA_DIR, "volumes", "seerr", "config", "settings.json")
@@ -64,8 +64,11 @@ def jellyfin_key():
 def wire():
     secrets = app_secrets()
     maintainerr = Maintainerr(Api(APP, os.environ.get("MAINTAINERR_URL", "http://localhost:6246"), {}))
-    maintainerr.attempt(lambda: maintainerr.connect(
-        "jellyfin", "/api/settings/jellyfin", {"jellyfin_url": "http://jellyfin:8096", "jellyfin_api_key": jellyfin_key()}))
+    if DRY_RUN and not remembered("jellyfin.key"):
+        report(APP, "connect jellyfin once the jellyfin wiring has stored its key")
+    else:
+        maintainerr.attempt(lambda: maintainerr.connect(
+            "jellyfin", "/api/settings/jellyfin", {"jellyfin_url": "http://jellyfin:8096", "jellyfin_api_key": jellyfin_key()}))
     maintainerr.attempt(lambda: maintainerr.connect(
         "seerr", "/api/settings/seerr", {"url": "http://seerr:5055", "api_key": seerr_api_key()}))
     for kind, arr in ARRS.items():

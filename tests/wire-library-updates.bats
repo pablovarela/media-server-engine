@@ -117,3 +117,12 @@ json.dump(state, open(sys.argv[1], "w"))' "$FAKE_APP_STATE"
   body "$FAKE_APP_WRITES" | grep -q " /tv /data/tvshows "
   [ -z "$(cat "$SECOND_APP_WRITES")" ]
 }
+
+@test "a dry run before jellyfin's key exists says what will happen instead of failing" {
+  start_arrs fresh
+  rm "$DATA_DIR/volumes/.wiring/jellyfin.key"
+  WIRE_DRY_RUN=1 run wire
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q "once the jellyfin wiring has stored its key"
+  [ -z "$(cat "$FAKE_APP_WRITES" "$SECOND_APP_WRITES")" ]
+}
