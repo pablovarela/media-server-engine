@@ -89,3 +89,13 @@ make_app_step() {
 @test "apps get five minutes to answer, enough for a database migration on a Raspberry Pi" {
   grep -qx 'WIRE_WAIT_SECONDS=${WIRE_WAIT_SECONDS:-300}' "$WIRE/wire-apps.sh"
 }
+
+@test "jellyfin is wired once its API answers, not when its health check does, which it passes while still starting" {
+  rm "$WIRE"/[0-9]*.sh
+  make_app_step 20-jellyfin
+  make_stub curl "case \"\$*\" in *\"/System/Info/Public\"*) [ -e '$STUB_DIR/started' ] || { touch '$STUB_DIR/started'; exit 22; } ;; esac"
+  WIRE_RETRY_SECONDS=0 run "$WIRE/wire-apps.sh"
+  [ "$status" -eq 0 ]
+  [ "$(grep -c '^curl .*http://localhost:8096/System/Info/Public' "$STUB_LOG")" -eq 2 ]
+  [ "$(tail -1 "$STUB_LOG")" = 20-jellyfin ]
+}

@@ -15,7 +15,7 @@ health_urls() {
     sonarr) echo "${SONARR_URL:-http://localhost:8989}/ping" ;;
     radarr) echo "${RADARR_URL:-http://localhost:7878}/ping" ;;
     prowlarr) echo "${PROWLARR_URL:-http://localhost:9696}/ping" ;;
-    jellyfin) echo "${JELLYFIN_URL:-http://localhost:8096}/health" ;;
+    jellyfin) echo "${JELLYFIN_URL:-http://localhost:8096}/System/Info/Public" ;;
     deluge) echo "${DELUGE_URL:-http://localhost:8112}/" ;;
     seerr) echo "${SEERR_URL:-http://localhost:5055}/api/v1/status" ;;
     bazarr) echo "${BAZARR_URL:-http://localhost:6767}/api/system/ping" ;;
