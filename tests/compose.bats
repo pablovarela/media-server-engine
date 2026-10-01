@@ -7,8 +7,8 @@ setup() {
   cp -R "$REPO/scripts" "$ENGINE_DIR/"
   cp "$REPO"/config-template/images*.yml "$CONFIG_DIR/"
   : > "$ENGINE_DIR/.secrets/vpn.env"
-  for file in sonarr.env radarr.env prowlarr.env portainer_admin; do : > "$ENGINE_DIR/.secrets/$file"; done
-  echo "DOCKER_GID=0" > "$ENGINE_DIR/.env"
+  for file in sonarr.env radarr.env prowlarr.env portainer_admin homepage.env gluetun.env; do : > "$ENGINE_DIR/.secrets/$file"; done
+  printf 'DOCKER_GID=0\nHOMEPAGE_ALLOWED_HOSTS=media.local\n' > "$ENGINE_DIR/.env"
 }
 
 teardown() {
@@ -144,9 +144,42 @@ services = json.load(sys.stdin)["services"]
 wrong = {n: s["environment"].get("TZ") for n, s in services.items() if "TZ" in (s.get("environment") or {}) and s["environment"]["TZ"] != "Europe/London"}
 assert not wrong, wrong
 assert "TZ" in services["jellyfin"]["environment"]'
-  echo "DOCKER_GID=0" > "$ENGINE_DIR/.env"
+  printf 'DOCKER_GID=0\nHOMEPAGE_ALLOWED_HOSTS=media.local\n' > "$ENGINE_DIR/.env"
   run merged stack_compose
   echo "$output" | python3 -c '
 import json, sys
 assert json.load(sys.stdin)["services"]["jellyfin"]["environment"]["TZ"] == "Etc/UTC"'
+}
+
+service() {
+  merged stack_compose | python3 -c "import json, sys; print(json.dumps(json.load(sys.stdin)['services'].get('$1')))"
+}
+
+@test "the landing page runs when the config pins its image, and not otherwise" {
+  [ "$(service homepage)" != null ]
+  sed -i.bak '/^  homepage:/,/^  [a-z]/{/^  homepage:/d;/image: ghcr.io\/gethomepage/d;}' "$CONFIG_DIR/images.yml"
+  [ "$(service homepage)" = null ]
+}
+
+@test "the landing page answers on port 80, runs as uid 1000 and reads its rendered config" {
+  service homepage | python3 -c '
+import json, os, sys
+s = json.load(sys.stdin)
+assert {"published": "80", "target": 3000} in [{"published": p["published"], "target": p["target"]} for p in s["ports"]], s["ports"]
+env = s["environment"]
+assert env["PUID"] == "1000" and env["PGID"] == "1000"
+assert env["HOMEPAGE_ALLOWED_HOSTS"] == "media.local"
+assert env["LOG_TARGETS"] == "stdout"
+mounts = {m["target"]: m for m in s["volumes"]}
+assert mounts["/app/config"]["source"] == os.environ["ENGINE_DIR"] + "/.homepage"
+assert mounts["/media"]["source"] == os.environ["DATA_DIR"] + "/media" and mounts["/media"]["read_only"]
+'
+}
+
+@test "gluetun's control server takes its key from its own secrets file" {
+  echo 'HTTP_CONTROL_SERVER_AUTH_DEFAULT_ROLE={"auth":"apikey","apikey":"k1"}' > "$ENGINE_DIR/.secrets/gluetun.env"
+  service gluetun | python3 -c '
+import json, sys
+env = json.load(sys.stdin)["environment"]
+assert env["HTTP_CONTROL_SERVER_AUTH_DEFAULT_ROLE"] == "{\"auth\":\"apikey\",\"apikey\":\"k1\"}", env'
 }

@@ -68,9 +68,24 @@ compose_files() {
   fi
 }
 
+optional_services_pinned() {
+  python3 -c '
+import sys, yaml
+services = (yaml.safe_load(open(sys.argv[1])) or {}).get("services") or {}
+print(",".join(name for name in ("homepage",) if (services.get(name) or {}).get("image")))
+' "$CONFIG_DIR/images.yml" 2>/dev/null || true
+}
+
+stack_profiles() {
+  local profiles
+  profiles=$(printf '%s,%s' "${1:-}" "$(optional_services_pinned)")
+  profiles=${profiles#,}
+  echo "${profiles%,}"
+}
+
 stack_compose() {
   # shellcheck disable=SC2046
-  docker compose --project-name media-server --project-directory "$ENGINE_DIR" \
+  COMPOSE_PROFILES=$(stack_profiles "${COMPOSE_PROFILES:-}") docker compose --project-name media-server --project-directory "$ENGINE_DIR" \
     --env-file "$ENGINE_DIR/.env" $(compose_files docker-compose.yml images.yml) "$@"
 }
 
