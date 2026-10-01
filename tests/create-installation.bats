@@ -163,8 +163,8 @@ create() {
   echo "$output" | grep -q "cd $INSTALL_DIR && make setup-machine"
 }
 
-@test "pressing ctrl-c during the questions also leaves nothing behind" {
-  make_stub fake-configure 'kill -INT $PPID; sleep 1'
+@test "stopping create during the questions (ctrl-c or a kill) also leaves nothing behind" {
+  make_stub fake-configure 'kill -TERM $PPID; sleep 1'
   run create testinst < <(echo)
   [ "$status" -eq 130 ]
   [ ! -e "$CONFIG_DIR" ]
