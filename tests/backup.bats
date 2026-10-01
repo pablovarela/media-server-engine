@@ -9,7 +9,7 @@ setup() {
   make_stub restic 'if [ "$1" = backup ] && [ -n "${FAKE_RESTIC_BACKUP_FAILS:-}" ]; then exit 1; fi'
   make_stub fake-role '
 case $1 in
-  is-main) [ -z "${FAKE_SECONDARY:-}" ] ;;
+  is-main) if [ -n "${FAKE_ROLE_UNREADABLE:-}" ]; then exit 2; fi; [ -z "${FAKE_SECONDARY:-}" ] ;;
   machine-id) echo this-machine ;;
 esac'
   export BACKUP_ROLE_COMMAND=fake-role
@@ -130,4 +130,20 @@ line_of() {
   [ ! -e "$DATA_DIR/.backup.lock" ]
   FAKE_RESTIC_BACKUP_FAILS=1 run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
   [ ! -e "$DATA_DIR/.backup.lock" ]
+}
+
+@test "a backup repository that cannot be read keeps this machine the main, and says so" {
+  touch "$DATA_DIR/.backup-main"
+  FAKE_ROLE_UNREADABLE=1 run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "cannot read the backup repository"
+  ! echo "$output" | grep -q "another machine" || false
+  [ -e "$DATA_DIR/.backup-main" ]
+  ! grep -q "^restic backup" "$STUB_LOG" || false
+}
+
+@test "a successful backup marks this machine as the main again" {
+  run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
+  [ "$status" -eq 0 ]
+  [ -e "$DATA_DIR/.backup-main" ]
 }

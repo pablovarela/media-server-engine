@@ -191,3 +191,13 @@ network_name() {
 systemd_running() {
   [ -d "${SYSTEMD_RUNTIME_DIR:-/run/systemd/system}" ] && command -v systemctl >/dev/null
 }
+
+readonly NOT_THE_MAIN=1
+
+explain_main_check() {
+  if [ "$1" -eq "$NOT_THE_MAIN" ]; then
+    echo "another machine is $INSTALLATION_NAME's main"
+  else
+    echo "cannot read the backup repository to tell which machine is $INSTALLATION_NAME's main"
+  fi
+}

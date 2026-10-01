@@ -46,11 +46,15 @@ on_exit() {
 }
 
 require_main() {
+  local status=0
   [ -z "${CLAIM:-}" ] || return 0
-  if ! "$BACKUP_ROLE_COMMAND" is-main; then
+  "$BACKUP_ROLE_COMMAND" is-main || status=$?
+  [ "$status" -ne 0 ] || return 0
+  if [ "$status" -eq "$NOT_THE_MAIN" ]; then
     rm -f "$DATA_DIR/.backup-main"
-    die "another machine is $INSTALLATION_NAME's main; this machine does not back up (make claim-backup-main makes it the main)"
+    die "$(explain_main_check "$status"); this machine does not back up (make claim-backup-main makes it the main)"
   fi
+  die "$(explain_main_check "$status"); nothing was backed up"
 }
 
 take_backup_lock
@@ -64,4 +68,5 @@ stack_compose stop
 restic backup --retry-lock 2h --host "$INSTALLATION_NAME" --tag "machine:$machine_id" --tag nightly --exclude-file "$EXCLUDES_FILE" volumes
 start_stopped_services
 restic forget --retry-lock 2h --host "$INSTALLATION_NAME" --prune --keep-daily 7 --keep-weekly 4 --keep-monthly 6
+touch "$DATA_DIR/.backup-main"
 ping_healthcheck backup

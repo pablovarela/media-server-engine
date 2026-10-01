@@ -5,7 +5,7 @@ setup() {
   export HEALTHCHECKS_PING_KEY=pk
   echo INSTALLATION_NAME=testinst > "$CONFIG_DIR/installation.env"
   make_stub curl ''
-  make_stub fake-role '[ "$1" = is-main ] && [ -z "${FAKE_SECONDARY:-}" ]'
+  make_stub fake-role 'if [ -n "${FAKE_ROLE_UNREADABLE:-}" ]; then exit 2; fi; [ "$1" = is-main ] && [ -z "${FAKE_SECONDARY:-}" ]'
   export BACKUP_ROLE_COMMAND=fake-role
   make_stub restic '
 if [ "$1" = restore ]; then
@@ -95,4 +95,10 @@ teardown() {
   run "$BATS_TEST_DIRNAME/../scripts/verify-backup.sh"
   [ "$status" -eq 0 ]
   ! echo "$output" | grep -qi "null byte" || false
+}
+
+@test "a backup repository that cannot be read is reported as such, not as another main" {
+  FAKE_ROLE_UNREADABLE=1 run "$BATS_TEST_DIRNAME/../scripts/verify-backup.sh"
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "cannot read the backup repository"
 }

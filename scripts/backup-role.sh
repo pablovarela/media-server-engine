@@ -22,7 +22,7 @@ readonly RESTIC_REPOSITORY_DOES_NOT_EXIST=10
 main_machine() {
   local snapshots errors status=0
   errors=$(mktemp)
-  snapshots=$(restic snapshots --host "$INSTALLATION_NAME" --latest 1 --json 2>"$errors") || status=$?
+  snapshots=$(restic snapshots --no-lock --host "$INSTALLATION_NAME" --latest 1 --json 2>"$errors") || status=$?
   [ "$status" -eq "$RESTIC_REPOSITORY_DOES_NOT_EXIST" ] || cat "$errors" >&2
   rm -f "$errors"
   [ "$status" -ne "$RESTIC_REPOSITORY_DOES_NOT_EXIST" ] || return 0

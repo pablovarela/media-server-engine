@@ -30,8 +30,13 @@ check_database() {
 
 trap on_exit EXIT
 ping_healthcheck verify /start
-"${BACKUP_ROLE_COMMAND:-$(dirname "$0")/backup-role.sh}" is-main ||
-  die "another machine is $INSTALLATION_NAME's main; its verification runs there"
+role_status=0
+"${BACKUP_ROLE_COMMAND:-$(dirname "$0")/backup-role.sh}" is-main || role_status=$?
+case $role_status in
+  0) ;;
+  "$NOT_THE_MAIN") die "$(explain_main_check "$role_status"); its verification runs there" ;;
+  *) die "$(explain_main_check "$role_status"); nothing was checked" ;;
+esac
 restic check --retry-lock 2h
 host_filter=$(installation_snapshot_filter)
 # shellcheck disable=SC2086

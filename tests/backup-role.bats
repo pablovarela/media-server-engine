@@ -44,7 +44,7 @@ snapshots_tagged() {
 @test "snapshots are looked up for the installation, not the machine hostname" {
   make_stub restic "echo '[]'"
   run "$ROLE" is-main
-  grep -q "restic snapshots --host testinst --latest 1 --json" "$STUB_LOG"
+  grep -q "restic snapshots --no-lock --host testinst --latest 1 --json" "$STUB_LOG"
 }
 
 @test "main-machine prints the latest snapshot's machine" {
@@ -91,4 +91,10 @@ snapshots_tagged() {
   run "$ROLE" is-main
   [ "$status" -eq 2 ]
   echo "$output" | grep -q "wrong password"
+}
+
+@test "the main is read without locking the repository, so a running check does not get in the way" {
+  snapshots_tagged this-machine
+  run "$ROLE" is-main
+  grep -q "^restic snapshots .*--no-lock" "$STUB_LOG"
 }
