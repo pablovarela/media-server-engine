@@ -82,6 +82,7 @@ line_of() {
 }
 
 @test "update pulls the config repo, decrypts and brings the stack up" {
+  mkdir -p "$CONFIG_DIR/configarr" && echo "api_key: !secret SONARR_API_KEY" > "$CONFIG_DIR/configarr/config.yml"
   run update
   [ "$status" -eq 0 ]
   grep -q "git -C $CONFIG_DIR pull --ff-only" "$STUB_LOG"
@@ -221,4 +222,14 @@ line_of() {
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "compose.override.yml"
   ! grep -q "docker compose up" "$STUB_LOG" || false
+}
+
+@test "configarr gets only the secrets its config refers to" {
+  mkdir -p "$CONFIG_DIR/configarr"
+  printf 'api_key: !secret SONARR_API_KEY\nother: !secret RADARR_API_KEY\nagain: !secret SONARR_API_KEY\n' > "$CONFIG_DIR/configarr/config.yml"
+  run update
+  [ "$status" -eq 0 ]
+  grep -q "^SONARR_API_KEY: \"s1\"$" "$ENGINE_DIR/.secrets/configarr/secrets.yml"
+  grep -q "^RADARR_API_KEY: \"r1\"$" "$ENGINE_DIR/.secrets/configarr/secrets.yml"
+  [ "$(wc -l < "$ENGINE_DIR/.secrets/configarr/secrets.yml")" -eq 2 ]
 }

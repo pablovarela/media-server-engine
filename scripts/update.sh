@@ -66,12 +66,17 @@ switch_engine_and_restart_if_needed() {
 
 configarr_secrets_from() {
   python3 -c '
-import json, sys
+import json, re, sys
+try:
+    config = open(sys.argv[1]).read()
+except FileNotFoundError:
+    config = ""
+wanted = set(re.findall(r"!secret\s+([A-Za-z0-9_]+)", config))
 for line in sys.stdin:
     key, _, value = line.rstrip("\n").partition("=")
-    if key:
+    if key in wanted:
         print(f"{key}: {json.dumps(value)}")
-'
+' "$1"
 }
 
 app_secret() {
@@ -93,7 +98,7 @@ decrypt_secrets() {
     mkdir -p "$ENGINE_DIR/.secrets/configarr"
     sops decrypt --output-type dotenv "$CONFIG_DIR/secrets/vpn.sops.env" > "$ENGINE_DIR/.secrets/vpn.env"
     sops decrypt --output-type dotenv "$CONFIG_DIR/secrets/apps.sops.env" > "$ENGINE_DIR/.secrets/apps.env"
-    configarr_secrets_from < "$ENGINE_DIR/.secrets/apps.env" > "$ENGINE_DIR/.secrets/configarr/secrets.yml"
+    configarr_secrets_from "$CONFIG_DIR/configarr/config.yml" < "$ENGINE_DIR/.secrets/apps.env" > "$ENGINE_DIR/.secrets/configarr/secrets.yml"
     write_app_secret_files
   )
 }

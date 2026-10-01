@@ -18,7 +18,7 @@ Edit these with any editor.
 | `images.yml`, `images.monitoring.yml` | The image of every service, pinned to a digest. Renovate updates them. |
 | `apps.yml` | Jellyfin's server name and libraries, Deluge's settings and plugins, Seerr's libraries and quality profiles, Bazarr's subtitle languages. |
 | `prowlarr.yml` | Prowlarr's indexers, the FlareSolverr proxy and the links to Sonarr and Radarr. |
-| `configarr/config.yml` | Sonarr's and Radarr's quality profiles, custom formats, root folders, download client and naming, applied by Configarr. |
+| `configarr/config.yml` | Sonarr's and Radarr's quality profiles, custom formats, root folders, download client and naming, applied by Configarr. `!secret NAME` refers to a key in `secrets/apps.sops.env`; Configarr is given only the keys referred to. |
 | `compose.override.yml` | Optional additions or changes to the engine's compose file, for example an extra volume. |
 
 ## Secrets
