@@ -217,5 +217,6 @@ services:
       - .secrets/homepage.env
     volumes:
       - ./.homepage:/app/config
+      - ./.homepage-images:/app/public/images:ro
       - ${DATA_DIR}/media:/media:ro
     restart: unless-stopped
