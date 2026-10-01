@@ -25,7 +25,7 @@ The name is lowercase letters, digits and dashes. It names the installation's fo
 4. You are asked whether this machine is the installation's main, the one that backs up. Say yes on the first machine.
 5. `make update` pulls the images, brings the apps up and wires them. On the main, the first backup runs and creates the backup repository.
 6. On machines with systemd, timers are installed for the daily update, the fake-download cleanup and, on the main, the backups.
-7. A summary shows where the installation lives, the app addresses and the everyday commands.
+7. A summary shows where the installation lives, the app addresses and the everyday commands, and ends with the `cd` into the installation, ready to copy (make cannot change the directory of the shell it runs from).
 
 If create stops before the settings are saved, it removes what it made, including the new key (delete it from your password manager too), so it can simply be run again. If only publishing the config to GitHub fails, the settings are kept on this machine and the next `make configure` publishes them. If it stops later, the settings are kept and `make setup-machine` from `~/<name>` finishes the job.
 

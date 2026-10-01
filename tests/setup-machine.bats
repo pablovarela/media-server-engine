@@ -98,9 +98,9 @@ setup_machine() {
   grep -q "confirmed=1" "$STUB_LOG"
 }
 
-@test "the summary says to run make from the installation, not its engine" {
+@test "the summary ends with the cd into the installation, ready to copy" {
   run setup_machine < <(echo y)
   summary=$(echo "$output" | sed -n '/testinst is ready/,$p')
   echo "$summary" | grep -q "run make from it"
-  echo "$summary" | grep -qx "  cd $(cd "$(dirname "$ENGINE_DIR")" && pwd)"
+  [ "$(echo "$output" | tail -1)" = "  cd $(cd "$(dirname "$ENGINE_DIR")" && pwd)" ]
 }
