@@ -216,3 +216,11 @@ assert sonarr["description"] == "TV shows" and sonarr["widget"]["type"] == "sona
   yaml_of "$ENGINE_DIR/.homepage/widgets.yaml" | grep -q '"href": "https://github.com/someone/media-server-engine/releases/tag/v1.2.3"'
   grep -q "href: http://media.local:8989" "$ENGINE_DIR/.homepage/services.yaml"
 }
+
+@test "the config's files can use the same placeholders as the engine's" {
+  config_file services.yaml "- Home:" "    - Router:" "        href: http://@HOST@:8443"
+  config_file widgets.yaml "- greeting:" "    text: \"@INSTALLATION_NAME@ on @HOST@\""
+  homepage render "$OUT"
+  grep -q "href: http://media.local:8443" "$OUT/services.yaml"
+  grep -q "testinst on media.local" "$OUT/widgets.yaml"
+}

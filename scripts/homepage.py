@@ -43,7 +43,7 @@ def placeholders(text):
 
 
 def declared(name):
-    text = read(os.path.join(CONFIG_DIR, "homepage", name))
+    text = placeholders(read(os.path.join(CONFIG_DIR, "homepage", name)))
     return yaml.safe_load(text) if name.endswith(".yaml") else text
 
 
