@@ -86,12 +86,16 @@ def rendered_settings(text):
     return yaml.safe_dump(settings, sort_keys=False)
 
 
+def without_backup_status(groups):
+    return [{name: [tile for tile in tiles if "Healthchecks" not in tile]} for group in groups for name, tiles in group.items()]
+
+
 def rendered_services(text):
-    groups = yaml.safe_load(text) or []
-    if not healthchecks_api_key():
-        groups = [{name: [s for s in tiles if "Healthchecks" not in s]} for g in groups for name, tiles in g.items()]
     merge_tiles = lambda default_tiles, tiles: merged_by_name(default_tiles or [], tiles, merged)
-    return yaml.safe_dump(merged_by_name(groups, declared("services.yaml"), merge_tiles), sort_keys=False)
+    groups = merged_by_name(yaml.safe_load(text) or [], declared("services.yaml"), merge_tiles)
+    if not healthchecks_api_key():
+        groups = without_backup_status(groups)
+    return yaml.safe_dump(groups, sort_keys=False)
 
 
 def rendered_widgets(text):

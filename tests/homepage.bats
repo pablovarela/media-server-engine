@@ -224,3 +224,10 @@ assert sonarr["description"] == "TV shows" and sonarr["widget"]["type"] == "sona
   grep -q "href: http://media.local:8443" "$OUT/services.yaml"
   grep -q "testinst on media.local" "$OUT/widgets.yaml"
 }
+
+@test "backup status stays off the page without an api key, even when the config declares it" {
+  cp "$BATS_TEST_DIRNAME/../homepage/services.yaml" "$CONFIG_DIR/homepage-services.yaml"
+  mkdir -p "$CONFIG_DIR/homepage" && mv "$CONFIG_DIR/homepage-services.yaml" "$CONFIG_DIR/homepage/services.yaml"
+  homepage render "$OUT"
+  ! grep -q "type: healthchecks" "$OUT/services.yaml" || false
+}
