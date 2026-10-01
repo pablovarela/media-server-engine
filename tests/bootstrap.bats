@@ -66,3 +66,10 @@ teardown() {
   FAKE_OS=Linux FAKE_ARCH=aarch64 run "$BATS_TEST_DIRNAME/../scripts/bootstrap.sh"
   grep -q "sudo apt-get install -y whiptail" "$STUB_LOG"
 }
+
+@test "bootstrap on Linux installs perl and openssl with apt" {
+  for tool in sha256sum tar docker; do make_stub "$tool" ''; done
+  FAKE_OS=Linux FAKE_ARCH=aarch64 run "$BATS_TEST_DIRNAME/../scripts/bootstrap.sh"
+  grep -q "sudo apt-get install -y .*perl" "$STUB_LOG"
+  grep -q "sudo apt-get install -y .*openssl" "$STUB_LOG"
+}

@@ -13,7 +13,7 @@ download_verified() {
 
 install_apt_packages() {
   sudo apt-get update
-  sudo apt-get install -y curl git sqlite3 python3 python3-yaml make bzip2
+  sudo apt-get install -y curl git sqlite3 python3 python3-yaml make bzip2 perl openssl
 }
 
 readonly NO_MENUS="whiptail could not be installed; make configure asks plain questions instead of menus."
