@@ -186,3 +186,10 @@ print(" ".join(views))' "$OUT/services.yaml" "$1"
   [ "$(service_groups | cut -d'|' -f1)" = "Coming up" ]
   [ "$(cat "$OUT/custom.css")" = "html { font-size: 18px; }" ]
 }
+
+@test "backup status stays off the page without an api key, also inside a nested group" {
+  config_file services.yaml "- Manage:" "    - Maintenance:" "        - Portainer:" "            href: http://@HOST@:9000" "        - Healthchecks:" "            widget:" "              type: healthchecks"
+  homepage render "$OUT"
+  ! grep -q "Healthchecks" "$OUT/services.yaml" || false
+  grep -q "Portainer" "$OUT/services.yaml"
+}

@@ -48,8 +48,14 @@ def page_file(name):
     return placeholders(read(source))
 
 
-def without_backup_status(groups):
-    return [{name: [tile for tile in tiles if "Healthchecks" not in tile]} for group in groups for name, tiles in group.items()]
+def without_backup_status(entries):
+    kept = []
+    for entry in entries:
+        name, value = next(iter(entry.items()))
+        if name == "Healthchecks":
+            continue
+        kept.append({name: without_backup_status(value) if isinstance(value, list) else value})
+    return kept
 
 
 def rendered_services(text):
