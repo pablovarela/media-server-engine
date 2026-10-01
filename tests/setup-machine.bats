@@ -69,6 +69,14 @@ setup_machine() {
   echo "$summary" | grep -q "Another machine backs up"
 }
 
+@test "a machine that is not the main is never told to back up" {
+  without_systemd
+  PATH="$STUB_DIR:/usr/bin:/bin" run setup_machine < <(echo n)
+  summary=$(echo "$output" | sed -n '/testinst is ready/,$p')
+  ! echo "$summary" | grep -q "backup-now" || false
+  echo "$summary" | grep -q "run make update after config changes"
+}
+
 @test "the summary names the machine as the network knows it" {
   make_stub uname 'echo Darwin'
   make_stub scutil 'echo bonjour-name'

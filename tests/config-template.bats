@@ -27,3 +27,12 @@ for app, imported in (("sonarr", "tv_imported_category"), ("radarr", "movie_impo
     for name in ("url_base", imported, "download_directory", "completed_directory"):
         assert name in fields, (app, name)' "$REPO/config-template/configarr/config.yml"
 }
+
+@test "renovate looks for images in the config's images files" {
+  python3 -c '
+import json, re, sys
+config = json.load(open(sys.argv[1]))
+patterns = config["docker-compose"]["managerFilePatterns"]
+for name in ("images.yml", "images.monitoring.yml"):
+    assert any(re.search(p.strip("/"), name) for p in patterns), name' "$REPO/config-template/renovate.json"
+}

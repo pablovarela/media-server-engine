@@ -86,8 +86,12 @@ print_summary() {
     fi
   else
     echo "This machine has no systemd, so nothing runs on its own:"
-    echo "  run make update after config changes, and make backup-now to back up."
-    [ -n "$become_main" ] || echo "Another machine backs up; this one never does."
+    if [ -n "$become_main" ]; then
+      echo "  run make update after config changes, and make backup-now to back up."
+    else
+      echo "  run make update after config changes."
+      echo "Another machine backs up; this one never does."
+    fi
   fi
   echo "================================================================"
 }
