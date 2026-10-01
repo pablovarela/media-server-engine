@@ -45,7 +45,7 @@ pinned-tools: ## install the pinned sops, age and restic where the installed ver
 version: installation ## show the engine release this installation runs and the one its config pins
 	@scripts/version.sh
 
-homepage: installation ## redraw the landing page from the engine's defaults and the config's homepage files, without restarting anything (an open page reloads itself)
+homepage: installation ## redraw the landing page from the config's homepage files, without restarting anything (an open page reloads itself)
 	@scripts/homepage-render.sh
 
 check-tools: ## check that every tool the scripts need is installed and the age key works
