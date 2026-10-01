@@ -61,8 +61,10 @@ def render(out):
         for name in CONFIG_FILES:
             if os.path.exists(os.path.join(CUSTOM, name)):
                 shutil.copyfile(os.path.join(CUSTOM, name), os.path.join(out, name))
+        if not os.path.exists(os.path.join(out, "bookmarks.yaml")):
+            shutil.copyfile(os.path.join(DEFAULTS, "bookmarks.yaml"), os.path.join(out, "bookmarks.yaml"))
         return
-    for name in ("settings.yaml", "widgets.yaml", "services.yaml"):
+    for name in ("settings.yaml", "widgets.yaml", "services.yaml", "bookmarks.yaml"):
         text = placeholders(read(os.path.join(DEFAULTS, name)))
         if name == "services.yaml" and not healthchecks_api_key():
             text = without_backup_status(text)

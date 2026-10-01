@@ -86,3 +86,15 @@ yaml_of() {
   HOMEPAGE_PORT=8080 homepage render "$OUT"
   grep -q "href: http://media.local:8989" "$OUT/services.yaml"
 }
+
+@test "the default page has no bookmarks, so Homepage's sample links are not added" {
+  homepage render "$OUT"
+  [ "$(python3 -c 'import sys, yaml; print(yaml.safe_load(open(sys.argv[1])))' "$OUT/bookmarks.yaml")" = "[]" ]
+}
+
+@test "a customised page without bookmarks gets none either" {
+  mkdir -p "$CONFIG_DIR/homepage"
+  echo "title: mine" > "$CONFIG_DIR/homepage/settings.yaml"
+  homepage render "$OUT"
+  [ "$(cat "$OUT/bookmarks.yaml")" = "[]" ]
+}
