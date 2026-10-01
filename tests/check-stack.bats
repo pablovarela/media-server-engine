@@ -7,8 +7,8 @@ setup() {
   cp -R "$REPO/scripts" "$ENGINE_DIR/"
   cp "$REPO"/config-template/images*.yml "$CONFIG_DIR/"
   : > "$ENGINE_DIR/.secrets/vpn.env"
-  for file in sonarr.env radarr.env prowlarr.env portainer_admin; do : > "$ENGINE_DIR/.secrets/$file"; done
-  echo "DOCKER_GID=0" > "$ENGINE_DIR/.env"
+  for file in sonarr.env radarr.env prowlarr.env portainer_admin homepage.env gluetun.env; do : > "$ENGINE_DIR/.secrets/$file"; done
+  printf 'DOCKER_GID=0\nHOMEPAGE_ALLOWED_HOSTS=media.local\n' > "$ENGINE_DIR/.env"
 }
 
 teardown() {
@@ -54,4 +54,10 @@ YML
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "extra"
   echo "$output" | grep -q "1000"
+}
+
+@test "check-stack fails when the compose files cannot be merged" {
+  echo "services: {sonarr: {image: [not, a, string]}}" > "$CONFIG_DIR/compose.override.yml"
+  run "$ENGINE_DIR/scripts/check-stack.sh"
+  [ "$status" -ne 0 ]
 }

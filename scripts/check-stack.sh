@@ -21,10 +21,16 @@ for name, service in json.load(sys.stdin)["services"].items():
 '
 }
 
+merged_config() {
+  "$@" config --format json || die "the compose files cannot be merged; see the error above"
+}
+
 mkdir -p "$DATA_DIR/volumes"
+stack=$(merged_config stack_compose_with_wiring)
+monitoring=$(merged_config monitoring_compose)
 problems=$(
-  stack_compose_with_wiring config --format json | problems_in
-  monitoring_compose config --format json | problems_in
+  problems_in <<< "$stack"
+  problems_in <<< "$monitoring"
 )
 if [ -n "$problems" ]; then
   echo "$problems" >&2
