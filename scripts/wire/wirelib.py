@@ -2,6 +2,7 @@ import hashlib
 import http.client
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.parse
@@ -62,6 +63,38 @@ def remember(name, value):
         state.write(value + "\n")
 
 
+SECRET_FIELD = re.compile(r"key|password|token|secret", re.IGNORECASE)
+QUOTED = re.compile(r'"([^"]{6,})"')
+secrets_sent = set()
+
+
+def remember_secrets_sent(headers, data):
+    for value in headers.values():
+        secrets_sent.add(value)
+        secrets_sent.update(QUOTED.findall(value))
+    pending = [data]
+    while pending:
+        item = pending.pop()
+        if isinstance(item, dict):
+            for field, value in item.items():
+                if isinstance(value, str) and SECRET_FIELD.search(field):
+                    secrets_sent.add(value)
+                else:
+                    pending.append(value)
+        elif isinstance(item, list):
+            pending.extend(item)
+
+
+def without_secrets(text):
+    try:
+        known = set(app_secrets().values())
+    except FileNotFoundError:
+        known = set()
+    for secret in sorted((s for s in known | secrets_sent if len(s) >= 6), key=len, reverse=True):
+        text = re.sub(rf"(?<!\w){re.escape(secret)}(?!\w)", "<hidden>", text)
+    return text
+
+
 class Api:
     def __init__(self, app, base_url, headers):
         self.app = app
@@ -73,6 +106,7 @@ class Api:
             data, content_type = urllib.parse.urlencode(form, doseq=True).encode(), "application/x-www-form-urlencoded"
         else:
             data, content_type = (None if body is None else json.dumps(body).encode()), "application/json"
+        remember_secrets_sent(self.headers, body if form is None else form)
         request = urllib.request.Request(self.base_url + path, data=data, method=method)
         for key, value in self.headers.items():
             request.add_header(key, value)
@@ -82,7 +116,7 @@ class Api:
             with urllib.request.urlopen(request, timeout=60) as response:
                 payload = response.read()
         except urllib.error.HTTPError as error:
-            detail = error.read().decode(errors="replace")[:300]
+            detail = without_secrets(error.read().decode(errors="replace"))[:300]
             raise WiringError(f"{method} {path} answered {error.code}: {detail}") from None
         except urllib.error.URLError as error:
             raise WiringError(f"{method} {path} failed: {error.reason}") from None
@@ -103,5 +137,5 @@ def run(app, wire):
     try:
         wire()
     except WiringError as error:
-        print(f"{app}: {error}", file=sys.stderr)
+        print(without_secrets(f"{app}: {error}"), file=sys.stderr)
         sys.exit(1)

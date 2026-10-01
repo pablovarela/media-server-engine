@@ -102,3 +102,11 @@ json.dump(state, open(sys.argv[1], "w"))' "$FAKE_APP_STATE"
   echo "$output" | grep -q "(dry run) maintainerr: connect sonarr"
   [ -z "$(fake_app_writes)" ]
 }
+
+@test "an app's error that echoes a key sent in the request is reported with the key hidden" {
+  FAKE_APP_REJECT=jellyfin-key FAKE_APP_REJECT_MESSAGE="jellyfin rejected jellyfin-key" start_fake_app "$FIXTURES/fresh.json"
+  run wire
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "jellyfin rejected"
+  ! echo "$output" | grep -q "jellyfin-key" || false
+}

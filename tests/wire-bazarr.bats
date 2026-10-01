@@ -143,3 +143,12 @@ json.dump(state, open(sys.argv[1], "w"))' "$FAKE_APP_STATE"
   run wire
   [ "$(field languages-profiles)" = null ]
 }
+
+@test "an app's error that echoes a secret back is reported with the secret hidden" {
+  FAKE_APP_REJECT=sonarr-key FAKE_APP_REJECT_MESSAGE="sonarr at sonarr-key refused, sent with bazarr-key" start_fake_app "$FIXTURES/fresh.json"
+  run wire
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "refused"
+  ! echo "$output" | grep -q "sonarr-key" || false
+  ! echo "$output" | grep -q "bazarr-key" || false
+}
