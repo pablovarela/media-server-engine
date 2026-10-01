@@ -283,7 +283,7 @@ pin_homepage() {
   pin_homepage
   run update
   [ "$status" -eq 0 ]
-  grep -q 'title: "testinst"' "$ENGINE_DIR/.homepage/settings.yaml"
+  grep -q 'title: testinst' "$ENGINE_DIR/.homepage/settings.yaml"
   grep -q "type: healthchecks" "$ENGINE_DIR/.homepage/services.yaml"
   grep -qx "HOMEPAGE_VAR_SONARR_KEY=s1" "$ENGINE_DIR/.secrets/homepage.env"
   [ "$(file_mode "$ENGINE_DIR/.secrets/homepage.env")" = 600 ]

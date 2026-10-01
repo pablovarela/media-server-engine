@@ -28,7 +28,7 @@ yaml_of() {
 
 @test "the default page names the installation and the engine version, and links to this machine" {
   homepage render "$OUT"
-  grep -qx 'title: "testinst"' "$OUT/settings.yaml"
+  yaml_of "$OUT/settings.yaml" | grep -q '"title": "testinst"'
   yaml_of "$OUT/widgets.yaml" | grep -q '"text": "testinst"'
   yaml_of "$OUT/widgets.yaml" | grep -q '"text": "engine v9.9.9"'
   grep -q "href: http://media.local:8989" "$OUT/services.yaml"
@@ -41,16 +41,6 @@ yaml_of() {
   echo "HEALTHCHECKS_API_KEY=hc-read" > "$ENGINE_DIR/.secrets/healthchecks.env"
   homepage render "$OUT"
   grep -q "type: healthchecks" "$OUT/services.yaml"
-}
-
-@test "a config with its own homepage files is used as it is" {
-  mkdir -p "$CONFIG_DIR/homepage"
-  echo "title: mine" > "$CONFIG_DIR/homepage/settings.yaml"
-  echo "- Mine: []" > "$CONFIG_DIR/homepage/services.yaml"
-  homepage render "$OUT"
-  [ "$(cat "$OUT/settings.yaml")" = "title: mine" ]
-  [ "$(cat "$OUT/services.yaml")" = "- Mine: []" ]
-  [ ! -e "$OUT/widgets.yaml" ]
 }
 
 @test "the page's environment holds the keys its widgets use, and nothing else" {
@@ -71,19 +61,6 @@ yaml_of() {
   echo "$output" | grep -qx "HOMEPAGE_VAR_SEERR_KEY="
 }
 
-@test "customizing copies the page in use into the config, once" {
-  homepage render "$OUT"
-  run "$BATS_TEST_DIRNAME/../scripts/homepage-customize.sh"
-  [ "$status" -eq 0 ]
-  cmp -s "$OUT/services.yaml" "$CONFIG_DIR/homepage/services.yaml"
-  echo "$output" | grep -q "git -C $CONFIG_DIR"
-  echo "title: changed" > "$CONFIG_DIR/homepage/settings.yaml"
-  run "$BATS_TEST_DIRNAME/../scripts/homepage-customize.sh"
-  [ "$status" -eq 0 ]
-  echo "$output" | grep -q "already"
-  [ "$(cat "$CONFIG_DIR/homepage/settings.yaml")" = "title: changed" ]
-}
-
 @test "the default page itself is reached at the landing page's port, the apps at theirs" {
   HOMEPAGE_PORT=8080 homepage render "$OUT"
   grep -q "href: http://media.local:8989" "$OUT/services.yaml"
@@ -94,13 +71,6 @@ yaml_of() {
   [ "$(python3 -c 'import sys, yaml; print(yaml.safe_load(open(sys.argv[1])))' "$OUT/bookmarks.yaml")" = "[]" ]
 }
 
-@test "a customised page without bookmarks gets none either" {
-  mkdir -p "$CONFIG_DIR/homepage"
-  echo "title: mine" > "$CONFIG_DIR/homepage/settings.yaml"
-  homepage render "$OUT"
-  [ "$(cat "$OUT/bookmarks.yaml")" = "[]" ]
-}
-
 @test "recently added authenticates the way current Jellyfin accepts" {
   homepage render "$OUT"
   python3 -c '
@@ -109,4 +79,37 @@ groups = yaml.safe_load(open(sys.argv[1]))
 watch = next(g["Watch"] for g in groups if "Watch" in g)
 widget = next(s["Recently added"]["widget"] for s in watch if "Recently added" in s)
 assert widget["headers"] == {"Authorization": "MediaBrowser Token=\"{{HOMEPAGE_VAR_JELLYFIN_KEY}}\""}, widget["headers"]' "$OUT/services.yaml"
+}
+
+apps_yml() {
+  printf '%s\n' "$@" > "$CONFIG_DIR/apps.yml"
+}
+
+@test "the landing page's theme and colour come from apps.yml" {
+  apps_yml "homepage:" "  theme: light" "  color: sky"
+  homepage render "$OUT"
+  [ "$(yaml_of "$OUT/settings.yaml" | python3 -c 'import json, sys; s=json.load(sys.stdin); print(s["theme"], s["color"])')" = "light sky" ]
+}
+
+@test "without landing page settings, the page keeps Homepage's own theme" {
+  apps_yml "bazarr:" "  languages: [en]"
+  homepage render "$OUT"
+  ! grep -qE "^(theme|color):" "$OUT/settings.yaml" || false
+}
+
+@test "apps listed as hidden are left off the page" {
+  apps_yml "homepage:" "  hidden: [Portainer, Calendar]"
+  homepage render "$OUT"
+  ! grep -qE "Portainer:|Calendar:" "$OUT/services.yaml" || false
+  grep -q "Sonarr:" "$OUT/services.yaml"
+}
+
+@test "extra links get a group of their own" {
+  apps_yml "homepage:" "  links:" "    - name: Router" "      href: http://192.168.1.1" "      icon: mdi-router"
+  homepage render "$OUT"
+  python3 -c '
+import sys, yaml
+groups = yaml.safe_load(open(sys.argv[1]))
+links = next(g["Links"] for g in groups if "Links" in g)
+assert links == [{"Router": {"href": "http://192.168.1.1", "icon": "mdi-router"}}], links' "$OUT/services.yaml"
 }

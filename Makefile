@@ -1,4 +1,4 @@
-.PHONY: help installation test-scripts lint urls logins create-installation join-installation setup-machine bootstrap pinned-tools configure update install-update-timer claim-backup-main check-tools test restore backup-now verify-backup-now unlock-backup homepage-customize version install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
+.PHONY: help installation test-scripts lint urls logins create-installation join-installation setup-machine bootstrap pinned-tools configure update install-update-timer claim-backup-main check-tools test restore backup-now verify-backup-now unlock-backup version install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
 
 SHELL := /bin/bash
 CONFIG_DIR ?= $(abspath $(CURDIR)/../config)
@@ -44,9 +44,6 @@ pinned-tools: ## install the pinned sops, age and restic where the installed ver
 
 version: installation ## show the engine release this installation runs and the one its config pins
 	@scripts/version.sh
-
-homepage-customize: installation ## copy the landing page's files into the config, to change them there
-	@scripts/homepage-customize.sh
 
 check-tools: ## check that every tool the scripts need is installed and the age key works
 	@scripts/check-tools.sh

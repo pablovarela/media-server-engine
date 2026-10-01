@@ -1,6 +1,5 @@
 import json
 import os
-import shutil
 import sys
 
 import yaml
@@ -9,8 +8,6 @@ ENGINE_DIR = os.environ["ENGINE_DIR"]
 CONFIG_DIR = os.environ["CONFIG_DIR"]
 DATA_DIR = os.environ["DATA_DIR"]
 DEFAULTS = os.path.join(ENGINE_DIR, "homepage")
-CUSTOM = os.path.join(CONFIG_DIR, "homepage")
-CONFIG_FILES = ("settings.yaml", "services.yaml", "widgets.yaml", "bookmarks.yaml", "custom.css", "custom.js")
 
 
 def read(path):
@@ -44,30 +41,44 @@ def placeholders(text):
     return text
 
 
-def without_backup_status(services_yaml):
-    groups = yaml.safe_load(services_yaml) or []
+def landing_page_settings():
+    config = yaml.safe_load(read(os.path.join(CONFIG_DIR, "apps.yml"))) or {}
+    return config.get("homepage") or {}
+
+
+def rendered_settings(text, wanted):
+    settings = yaml.safe_load(text) or {}
+    for key in ("theme", "color"):
+        if wanted.get(key):
+            settings[key] = wanted[key]
+    if wanted.get("links"):
+        settings.setdefault("layout", []).append({"Links": {"style": "row", "columns": 4}})
+    return yaml.safe_dump(settings, sort_keys=False)
+
+
+def rendered_services(text, wanted):
+    hidden = set(wanted.get("hidden") or [])
+    if not healthchecks_api_key():
+        hidden.add("Healthchecks")
+    groups = yaml.safe_load(text) or []
     for group in groups:
         for name, services in group.items():
-            group[name] = [s for s in services if "Healthchecks" not in s]
+            group[name] = [s for s in services if not hidden & set(s)]
+    links = [{link["name"]: {k: v for k, v in link.items() if k != "name"}} for link in wanted.get("links") or []]
+    if links:
+        groups.append({"Links": links})
     return yaml.safe_dump(groups, sort_keys=False)
 
 
 def render(out):
     os.makedirs(out, exist_ok=True)
-    for name in CONFIG_FILES:
-        if os.path.exists(os.path.join(out, name)):
-            os.remove(os.path.join(out, name))
-    if os.path.isdir(CUSTOM):
-        for name in CONFIG_FILES:
-            if os.path.exists(os.path.join(CUSTOM, name)):
-                shutil.copyfile(os.path.join(CUSTOM, name), os.path.join(out, name))
-        if not os.path.exists(os.path.join(out, "bookmarks.yaml")):
-            shutil.copyfile(os.path.join(DEFAULTS, "bookmarks.yaml"), os.path.join(out, "bookmarks.yaml"))
-        return
+    wanted = landing_page_settings()
     for name in ("settings.yaml", "widgets.yaml", "services.yaml", "bookmarks.yaml"):
         text = placeholders(read(os.path.join(DEFAULTS, name)))
-        if name == "services.yaml" and not healthchecks_api_key():
-            text = without_backup_status(text)
+        if name == "settings.yaml":
+            text = rendered_settings(text, wanted)
+        elif name == "services.yaml":
+            text = rendered_services(text, wanted)
         with open(os.path.join(out, name), "w") as rendered:
             rendered.write(text)
 

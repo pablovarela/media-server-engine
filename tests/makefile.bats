@@ -65,10 +65,6 @@ setup() {
   rm -rf "$dir"
 }
 
-@test "make homepage-customize runs the customize script" {
-  make -s -n -C "$REPO" homepage-customize | grep -q "scripts/homepage-customize.sh"
-}
-
 @test "the config path the targets use has no .. in it" {
   out=$(make -s -n -C "$REPO" unlock-backup)
   echo "$out" | grep -q "$(cd "$REPO/.." && pwd)/config/secrets/backup.sops.env"
