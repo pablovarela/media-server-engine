@@ -191,3 +191,21 @@ line_of() {
   ! grep -q "^fake-prune" "$STUB_LOG" || false
   ! grep -q "^fake-wire" "$STUB_LOG" || false
 }
+
+@test "update waits for a running backup, and gives up with a message if it does not finish" {
+  mkdir -p "$DATA_DIR/.backup.lock"
+  sleep 60 & running=$!
+  echo "$running" > "$DATA_DIR/.backup.lock/pid"
+  UPDATE_BACKUP_WAIT_SECONDS=2 UPDATE_BACKUP_POLL_SECONDS=1 run update
+  kill "$running"
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "backup is still running"
+  ! grep -q "docker compose up" "$STUB_LOG" || false
+}
+
+@test "a lock left by a backup that no longer runs does not hold up the update" {
+  mkdir -p "$DATA_DIR/.backup.lock"
+  echo 999999 > "$DATA_DIR/.backup.lock/pid"
+  UPDATE_BACKUP_WAIT_SECONDS=2 run update
+  [ "$status" -eq 0 ]
+}

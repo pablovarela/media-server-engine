@@ -35,3 +35,9 @@ setup() {
     grep -qx "Persistent=true" "$REPO/systemd/$timer.timer" || { echo "$timer"; false; }
   done
 }
+
+@test "the scheduled update and check start after the scheduled backup" {
+  for unit in media-update media-verify; do
+    grep -q "^After=.*media-backup.service" "$REPO/systemd/$unit.service" || { echo "$unit"; false; }
+  done
+}

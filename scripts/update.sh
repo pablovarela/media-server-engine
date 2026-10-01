@@ -139,8 +139,18 @@ reattach_gluetun_dependents() {
   fi
 }
 
+wait_for_running_backup() {
+  local deadline=$((SECONDS + ${UPDATE_BACKUP_WAIT_SECONDS:-3600})) announced=""
+  while [ -n "$(running_backup_pid)" ]; do
+    [ "$SECONDS" -lt "$deadline" ] || die "a backup is still running; run make update again once it has finished"
+    [ -n "$announced" ] || { echo "Waiting for the running backup to finish..."; announced=1; }
+    sleep "${UPDATE_BACKUP_POLL_SECONDS:-10}"
+  done
+}
+
 require_clean_engine
 require_clean_config
+wait_for_running_backup
 if [ -z "${MEDIA_SERVER_PULLED:-}" ]; then
   if config_has_remote; then git -C "$CONFIG_DIR" pull --ff-only; fi
   switch_engine_and_restart_if_needed "$@"

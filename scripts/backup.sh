@@ -9,15 +9,14 @@ BACKUP_ROLE_COMMAND=${BACKUP_ROLE_COMMAND:-$SCRIPTS_DIR/backup-role.sh}
 cd "$DATA_DIR"
 
 services_to_restart=""
-readonly LOCK="$DATA_DIR/.backup.lock"
+LOCK=$(backup_lock)
+readonly LOCK
 
 take_backup_lock() {
   local holder
   if ! mkdir "$LOCK" 2>/dev/null; then
-    holder=$(cat "$LOCK/pid" 2>/dev/null || true)
-    if [ -n "$holder" ] && kill -0 "$holder" 2>/dev/null; then
-      die "a backup is already running (process $holder)"
-    fi
+    holder=$(running_backup_pid)
+    [ -z "$holder" ] || die "a backup is already running (process $holder)"
     rm -rf "$LOCK"
     mkdir "$LOCK"
   fi

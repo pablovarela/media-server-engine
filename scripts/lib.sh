@@ -201,3 +201,15 @@ explain_main_check() {
     echo "cannot read the backup repository to tell which machine is $INSTALLATION_NAME's main"
   fi
 }
+
+backup_lock() {
+  echo "$DATA_DIR/.backup.lock"
+}
+
+running_backup_pid() {
+  local holder
+  holder=$(cat "$(backup_lock)/pid" 2>/dev/null || true)
+  if [ -n "$holder" ] && kill -0 "$holder" 2>/dev/null; then
+    echo "$holder"
+  fi
+}
