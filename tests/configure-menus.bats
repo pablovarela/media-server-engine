@@ -45,7 +45,7 @@ commits() {
 guided_answers() {
   local folder="$STUB_DIR/backups"
   printf '%s\n' "0|Europe" "0|London" "0|local" "0|admin" "0|local" "0|$folder" "0|restic-typed" \
-    "0|protonvpn" "0|vpn-user" "0|vpn-password" "0|Ireland" "0|" \
+    "0|protonvpn" "0|vpn-user" "0|vpn-password" "0|Ireland" "0|" "0|" \
     "0|jelly-typed" "0|" "0|portainer-pass-long" "0|en"
 }
 

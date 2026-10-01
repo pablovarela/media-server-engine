@@ -17,6 +17,7 @@ VPN|OPENVPN_USER|secret|OpenVPN user
 VPN|OPENVPN_PASSWORD|secret|OpenVPN password
 VPN|SERVER_COUNTRIES|text|VPN server countries
 Healthchecks (optional)|HEALTHCHECKS_PING_KEY|secret|healthchecks.io project ping key
+Healthchecks (optional)|HEALTHCHECKS_API_KEY|secret|healthchecks.io read-only API key (backup status on the landing page)
 App logins|JELLYFIN_ADMIN_PASSWORD|password|Jellyfin admin password
 App logins|DELUGE_WEB_PASSWORD|password|Deluge web password
 App logins|PORTAINER_ADMIN_PASSWORD|password|Portainer admin password (at least 12 characters)

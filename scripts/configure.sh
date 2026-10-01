@@ -128,7 +128,7 @@ write_config() {
   write_subtitle_languages
   write_secret secrets/backup.sops.env RESTIC_PASSWORD B2_ACCOUNT_ID B2_ACCOUNT_KEY
   write_secret secrets/vpn.sops.env VPN_SERVICE_PROVIDER OPENVPN_USER OPENVPN_PASSWORD SERVER_COUNTRIES
-  write_secret secrets/healthchecks.sops.env HEALTHCHECKS_PING_KEY
+  write_secret secrets/healthchecks.sops.env HEALTHCHECKS_PING_KEY HEALTHCHECKS_API_KEY
   # shellcheck disable=SC2086
   write_secret secrets/apps.sops.env $INTERNAL_CREDENTIALS JELLYFIN_ADMIN_PASSWORD DELUGE_WEB_PASSWORD PORTAINER_ADMIN_PASSWORD
 }

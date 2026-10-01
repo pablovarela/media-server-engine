@@ -42,6 +42,7 @@ vpn-user
 vpn-password
 Ireland
 hc-ping-key-12345
+hc-read-only-api-key
 jellyfin-pass
 deluge-pass
 portainer-pass-long
@@ -401,3 +402,10 @@ Europe/London#")
   [ "$status" -eq 0 ]
   grep -qx "RESTIC_REPOSITORY=b2:testinst-bucket" "$CONFIG_DIR/installation.env"
 }
+
+@test "a read-only healthchecks.io api key can be given for the landing page" {
+  run configure < <(answers_for_new_installation)
+  [ "$status" -eq 0 ]
+  grep -qx "ENC:HEALTHCHECKS_API_KEY=hc-read-only-api-key" "$CONFIG_DIR/secrets/healthchecks.sops.env"
+}
+
