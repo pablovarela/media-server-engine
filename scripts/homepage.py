@@ -42,48 +42,10 @@ def placeholders(text):
     return text
 
 
-def declared(name):
-    text = placeholders(read(os.path.join(CONFIG_DIR, "homepage", name)))
-    return yaml.safe_load(text) if name.endswith(".yaml") else text
-
-
-def merged(default, override):
-    if isinstance(default, dict) and isinstance(override, dict):
-        result = dict(default)
-        for key, value in override.items():
-            result[key] = merged(default.get(key), value)
-        return result
-    return override
-
-
-def name_of(entry):
-    return next(iter(entry))
-
-
-def merged_by_name(defaults, declared_entries, merge_values):
-    order = [name_of(entry) for entry in defaults]
-    values = {name_of(entry): entry[name_of(entry)] for entry in defaults}
-    for entry in declared_entries or []:
-        name = name_of(entry)
-        if name not in values:
-            order.append(name)
-            values[name] = entry[name]
-        else:
-            values[name] = merge_values(values[name], entry[name])
-    return [{name: values[name]} for name in order if values[name] is not None]
-
-
-def rendered_settings(text):
-    settings = yaml.safe_load(text) or {}
-    wanted = declared("settings.yaml") or {}
-    declared_layout = wanted.pop("layout", None) or []
-    settings = merged(settings, wanted)
-    layout = settings.get("layout") or []
-    defaults = {name_of(entry): entry[name_of(entry)] for entry in layout}
-    first = [{name_of(e): merged(defaults.get(name_of(e)), e[name_of(e)])} for e in declared_layout]
-    named_first = {name_of(e) for e in first}
-    settings["layout"] = first + [e for e in layout if name_of(e) not in named_first]
-    return yaml.safe_dump(settings, sort_keys=False)
+def page_file(name):
+    declared = os.path.join(CONFIG_DIR, "homepage", name)
+    source = declared if os.path.exists(declared) else os.path.join(DEFAULTS, name)
+    return placeholders(read(source))
 
 
 def without_backup_status(groups):
@@ -91,15 +53,14 @@ def without_backup_status(groups):
 
 
 def rendered_services(text):
-    merge_tiles = lambda default_tiles, tiles: merged_by_name(default_tiles or [], tiles, merged)
-    groups = merged_by_name(yaml.safe_load(text) or [], declared("services.yaml"), merge_tiles)
+    groups = yaml.safe_load(text) or []
     if not healthchecks_api_key():
         groups = without_backup_status(groups)
     return yaml.safe_dump(groups, sort_keys=False)
 
 
 def rendered_widgets(text):
-    widgets = declared("widgets.yaml") or yaml.safe_load(text) or []
+    widgets = yaml.safe_load(text) or []
     for widget in widgets:
         for options in widget.values():
             if isinstance(options, dict) and options.get("href") == "":
@@ -108,19 +69,16 @@ def rendered_widgets(text):
     return yaml.safe_dump(widgets, sort_keys=False)
 
 
-def rendered_bookmarks(text):
-    return yaml.safe_dump(declared("bookmarks.yaml") or yaml.safe_load(text) or [], sort_keys=False)
-
-
-def custom_css():
-    return read(os.path.join(DEFAULTS, "custom.css")) + declared("custom.css")
+def as_written(text):
+    return text
 
 
 RENDERERS = {
-    "settings.yaml": rendered_settings,
+    "settings.yaml": as_written,
     "services.yaml": rendered_services,
     "widgets.yaml": rendered_widgets,
-    "bookmarks.yaml": rendered_bookmarks,
+    "bookmarks.yaml": as_written,
+    "custom.css": as_written,
 }
 
 
@@ -128,9 +86,7 @@ def render(out):
     os.makedirs(out, exist_ok=True)
     for name, rendered in RENDERERS.items():
         with open(os.path.join(out, name), "w") as target:
-            target.write(rendered(placeholders(read(os.path.join(DEFAULTS, name)))))
-    with open(os.path.join(out, "custom.css"), "w") as css:
-        css.write(custom_css())
+            target.write(rendered(page_file(name)))
 
 
 def seerr_key():

@@ -118,77 +118,6 @@ print(" ".join(views))' "$OUT/services.yaml" "$1"
   [ -z "$(calendar_views Library)" ]
 }
 
-@test "the config's settings are applied over the engine's, key by key" {
-  config_file settings.yaml "theme: light" "color: sky" "headerStyle: boxed"
-  homepage render "$OUT"
-  [ "$(setting theme) $(setting color) $(setting headerStyle)" = "light sky boxed" ]
-  [ "$(setting statusStyle)" = dot ]
-}
-
-@test "groups the config lays out come first, in its order, before the engine's" {
-  config_file settings.yaml "layout:" "  - Downloads:" "      style: row" "      columns: 4"
-  homepage render "$OUT"
-  python3 -c '
-import sys, yaml
-layout = yaml.safe_load(open(sys.argv[1]))["layout"]
-names = [next(iter(entry)) for entry in layout]
-assert names[0] == "Downloads" and names[1] == "Coming up", names
-assert layout[0]["Downloads"] == {"style": "row", "columns": 4}, layout[0]
-assert names.count("Downloads") == 1' "$OUT/settings.yaml"
-}
-
-@test "a tile the config declares changes the engine's tile of that name" {
-  config_file services.yaml "- Library:" "    - Sonarr:" "        description: TV shows"
-  homepage render "$OUT"
-  python3 -c '
-import sys, yaml
-groups = {next(iter(g)): g[next(iter(g))] for g in yaml.safe_load(open(sys.argv[1]))}
-sonarr = next(s["Sonarr"] for s in groups["Library"] if "Sonarr" in s)
-assert sonarr["description"] == "TV shows" and sonarr["widget"]["type"] == "sonarr", sonarr' "$OUT/services.yaml"
-}
-
-@test "a tile declared as null is left off the page" {
-  config_file services.yaml "- Maintenance:" "    - Portainer: null"
-  homepage render "$OUT"
-  [ "$(group_tiles Maintenance)" = "Maintainerr" ]
-}
-
-@test "new tiles and groups from the config are added" {
-  config_file services.yaml "- Watch:" "    - YouTube:" "        href: https://youtube.com" "- Home:" "    - Router:" "        href: http://192.168.1.1"
-  homepage render "$OUT"
-  [ "$(group_tiles Watch | tr '|' '\n' | tail -1)" = YouTube ]
-  [ "$(group_tiles Home)" = Router ]
-}
-
-@test "the config's top bar widgets replace the engine's" {
-  config_file widgets.yaml "- datetime:" "    text_size: xl"
-  homepage render "$OUT"
-  [ "$(python3 -c 'import sys, yaml; print([next(iter(w)) for w in yaml.safe_load(open(sys.argv[1]))])' "$OUT/widgets.yaml")" = "['datetime']" ]
-}
-
-@test "a config file that holds only comments changes nothing" {
-  config_file widgets.yaml "# - datetime:"
-  config_file services.yaml "# - Home: []"
-  homepage render "$OUT"
-  grep -q "greeting" "$OUT/widgets.yaml"
-  [ "$(service_groups | cut -d'|' -f1)" = "Coming up" ]
-}
-
-@test "the config's bookmarks are used" {
-  config_file bookmarks.yaml "- Links:" "    - Docs:" "        - href: https://gethomepage.dev"
-  homepage render "$OUT"
-  grep -q "gethomepage.dev" "$OUT/bookmarks.yaml"
-}
-
-@test "the text is 18px by default, and the config's css comes after the engine's" {
-  homepage render "$OUT"
-  [ "$(cat "$OUT/custom.css")" = "html { font-size: 18px; }" ]
-  config_file custom.css "html { font-size: 20px; }"
-  homepage render "$OUT"
-  [ "$(tail -1 "$OUT/custom.css")" = "html { font-size: 20px; }" ]
-  [ "$(head -1 "$OUT/custom.css")" = "html { font-size: 18px; }" ]
-}
-
 @test "the engine version links to its release" {
   HOMEPAGE_ENGINE_URL=https://github.com/someone/media-server-engine/releases/tag/v9.9.9 homepage render "$OUT"
   yaml_of "$OUT/widgets.yaml" | grep -q '"href": "https://github.com/someone/media-server-engine/releases/tag/v9.9.9"'
@@ -229,4 +158,31 @@ assert sonarr["description"] == "TV shows" and sonarr["widget"]["type"] == "sona
   mkdir -p "$CONFIG_DIR/homepage" && mv "$CONFIG_DIR/homepage-services.yaml" "$CONFIG_DIR/homepage/services.yaml"
   homepage render "$OUT"
   ! grep -q "type: healthchecks" "$OUT/services.yaml" || false
+}
+
+@test "a file in the config is the page's file, exactly as written" {
+  config_file settings.yaml "title: mine" "theme: light"
+  config_file services.yaml "- Home:" "    - Router:" "        href: http://192.168.1.1"
+  config_file widgets.yaml "- datetime:" "    text_size: xl"
+  config_file bookmarks.yaml "- Links:" "    - Docs:" "        - href: https://gethomepage.dev"
+  config_file custom.css "html { font-size: 20px; }"
+  homepage render "$OUT"
+  [ "$(setting title) $(setting theme)" = "mine light" ]
+  [ "$(service_groups)" = Home ]
+  [ "$(python3 -c 'import sys, yaml; print([next(iter(w)) for w in yaml.safe_load(open(sys.argv[1]))])' "$OUT/widgets.yaml")" = "['datetime']" ]
+  grep -q "gethomepage.dev" "$OUT/bookmarks.yaml"
+  [ "$(cat "$OUT/custom.css")" = "html { font-size: 20px; }" ]
+}
+
+@test "a tile commented out in the config is not on the page" {
+  config_file services.yaml "- Coming up:" "    - Next up:" "        icon: mdi-calendar-clock" "#    - Calendar:" "#        icon: mdi-calendar-month"
+  homepage render "$OUT"
+  [ "$(group_tiles "Coming up")" = "Next up" ]
+}
+
+@test "a file the config does not have comes from the engine" {
+  config_file settings.yaml "title: mine"
+  homepage render "$OUT"
+  [ "$(service_groups | cut -d'|' -f1)" = "Coming up" ]
+  [ "$(cat "$OUT/custom.css")" = "html { font-size: 18px; }" ]
 }

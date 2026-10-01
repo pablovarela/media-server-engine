@@ -23,15 +23,17 @@ Edit these with any editor.
 
 ## The landing page
 
-The page at `http://<machine>` is the engine's default page, rendered by `make update` with the installation's name, the engine version and this machine's address, so it improves with engine releases. The files in `homepage/` are in Homepage's own format and are applied over it, so anything Homepage offers can be changed. A new installation starts with a copy of the engine's page there, to change in place; a tile or setting declared here is what the page shows, while tiles and sections a later engine adds still appear. Removing a file, or part of one, hands that part back to the engine's defaults. See [Homepage's documentation](https://gethomepage.dev/configs/):
+The page at `http://<machine>` comes from the files in `homepage/`, in Homepage's own format ([its documentation](https://gethomepage.dev/configs/)). A new installation starts with a copy of the engine's default page there; from then on these files are the page, used as written, so anything Homepage offers can be changed:
 
-| File | Applied |
+| File | Holds |
 |---|---|
-| `homepage/settings.yaml` | key by key over the engine's settings; groups listed under `layout` come first, in that order |
-| `homepage/services.yaml` | by group and tile name: a tile with a name the page has changes that tile, a new name adds one, `null` removes one |
-| `homepage/widgets.yaml` | the widgets along the top; any declared here replace the engine's |
-| `homepage/bookmarks.yaml` | the page's bookmarks |
-| `homepage/custom.css` | after the engine's styles, for example `html { font-size: 20px; }` for bigger text |
+| `homepage/settings.yaml` | title, theme, colour, layout and the other settings |
+| `homepage/services.yaml` | the groups and tiles |
+| `homepage/widgets.yaml` | the widgets along the top |
+| `homepage/bookmarks.yaml` | bookmarks |
+| `homepage/custom.css` | styles, for example `html { font-size: 20px; }` for bigger text |
+
+A file that is missing comes from the engine's default page. `@INSTALLATION_NAME@`, `@HOST@` (this machine's address), `@ENGINE_VERSION@` and `@ENGINE_URL@` (the engine version's page on GitHub) are filled in. A tile with a healthchecks widget is left out while no read-only healthchecks.io API key is set.
 
 While changing these files, `make homepage` redraws the page in a second without restarting anything, and an open page reloads itself; commit the files once the page looks right. The page's port is `HOMEPAGE_PORT` in `installation.env`, asked by `make configure`.
 
