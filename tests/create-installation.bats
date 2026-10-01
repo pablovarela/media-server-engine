@@ -188,3 +188,20 @@ create() {
   [ "$status" -eq 0 ]
   grep -q "checkout -q abc123" "$STUB_LOG"
 }
+
+@test "a create undone after the key was shown says that key is no longer needed" {
+  FAKE_CONFIGURE_FAILS=1 run create testinst < <(echo)
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "no longer needed"
+}
+
+@test "removing the new key replaces keys.txt in one step and keeps it private" {
+  mkdir -p "$HOME/.config/sops/age"
+  echo "AGE-SECRET-KEY-EXISTING" > "$HOME/.config/sops/age/keys.txt"
+  before=$(ls -i "$HOME/.config/sops/age/keys.txt" | awk '{print $1}')
+  FAKE_CONFIGURE_FAILS=1 run create testinst < <(echo)
+  [ "$(cat "$HOME/.config/sops/age/keys.txt")" = "AGE-SECRET-KEY-EXISTING" ]
+  [ "$(ls -i "$HOME/.config/sops/age/keys.txt" | awk '{print $1}')" != "$before" ]
+  [ "$(file_mode "$HOME/.config/sops/age/keys.txt")" = 600 ]
+  [ -z "$(ls "$HOME/.config/sops/age" | grep -v '^keys.txt$')" ]
+}

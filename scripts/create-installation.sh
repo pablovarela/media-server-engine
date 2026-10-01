@@ -42,15 +42,15 @@ new_secrets_key() {
 
 remove_secrets_key() {
   local kept line
-  kept=$(mktemp)
+  kept=$(mktemp "$SOPS_AGE_KEY_FILE.XXXXXX")
   while IFS= read -r line; do
     if [[ $line == AGE-SECRET-KEY-* ]] && [ "$(printf '%s\n' "$line" | age-keygen -y 2>/dev/null)" = "$1" ]; then
       continue
     fi
     printf '%s\n' "$line"
   done < "$SOPS_AGE_KEY_FILE" > "$kept"
-  cat "$kept" > "$SOPS_AGE_KEY_FILE"
-  rm -f "$kept"
+  chmod 600 "$kept"
+  mv "$kept" "$SOPS_AGE_KEY_FILE"
 }
 
 undo_unless_settings_saved() {
@@ -60,7 +60,10 @@ undo_unless_settings_saved() {
     echo "$NAME's settings are saved in $CONFIG_DIR. Finish setting up this machine with: cd $ENGINE_DIR && make setup-machine" >&2
     return
   fi
-  [ -z "$public_key" ] || remove_secrets_key "$public_key"
+  if [ -n "$public_key" ]; then
+    remove_secrets_key "$public_key"
+    echo "The secrets key shown for $NAME was removed and is no longer needed; delete it from your password manager." >&2
+  fi
   rm -rf "$CONFIG_DIR"
   [ -z "$created_data_dir" ] || rm -rf "$DATA_DIR"
   [ -z "${CREATED_INSTALL_DIR:-}" ] || rm -rf "$CREATED_INSTALL_DIR"

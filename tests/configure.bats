@@ -14,7 +14,7 @@ esac'
 case "$1 $2" in
   "auth status") [ -z "${FAKE_GH_LOGGED_OUT:-}" ] ;;
   "repo view") [ -n "${FAKE_REPO_EXISTS:-}" ] ;;
-  "repo create") git remote add origin "git@github.com:$3.git" ;;
+  "repo create") if [ -n "${FAKE_CREATE_FAILS:-}" ]; then exit 1; fi; git remote add origin "git@github.com:$3.git" ;;
 esac'
   make_stub restic 'exit "${FAKE_RESTIC_STATUS:-10}"'
   export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.com GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.com
@@ -346,4 +346,25 @@ Europe/London#")
   run configure < <(enter_on_every_prompt)
   ! echo "$output" | grep -q "vpn-user" || false
   echo "$output" | grep -q "OpenVPN user \[set, ends …ser\]"
+}
+
+@test "a publish that fails while creating keeps the settings and says how to publish them later" {
+  FAKE_GH_LOGGED_OUT=1 CONFIGURE_FROM_CREATE=1 run configure < <(answers_for_new_installation)
+  [ "$status" -eq 0 ]
+  [ "$(commits)" -eq 1 ]
+  echo "$output" | grep -q "gh auth login"
+  echo "$output" | grep -q "not on GitHub yet"
+}
+
+@test "a github repo that could not be created while creating does not undo the settings" {
+  FAKE_CREATE_FAILS=1 CONFIGURE_FROM_CREATE=1 run configure < <(answers_for_new_installation)
+  [ "$status" -eq 0 ]
+  [ "$(commits)" -eq 1 ]
+  echo "$output" | grep -q "not on GitHub yet"
+}
+
+@test "a publish that fails when configuring by hand fails the run" {
+  FAKE_CREATE_FAILS=1 run configure < <(answers_for_new_installation)
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "not on GitHub yet"
 }

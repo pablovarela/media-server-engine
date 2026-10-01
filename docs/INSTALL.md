@@ -27,7 +27,7 @@ The name is lowercase letters, digits and dashes. It names the installation's fo
 6. On machines with systemd, timers are installed for the daily update, the fake-download cleanup and, on the main, the backups.
 7. A summary shows where the installation lives, the app addresses and the everyday commands.
 
-If create stops before the settings are saved, it removes what it made, including the new key, so it can simply be run again. If it stops later, the settings are kept and `make setup-machine` from the installation's engine finishes the job.
+If create stops before the settings are saved, it removes what it made, including the new key (delete it from your password manager too), so it can simply be run again. If only publishing the config to GitHub fails, the settings are kept on this machine and the next `make configure` publishes them. If it stops later, the settings are kept and `make setup-machine` from the installation's engine finishes the job.
 
 Jellyfin shows new titles about a minute after Sonarr or Radarr imports them, except the very first title of a new installation, which appears at the next library scan or with Scan All Libraries in Jellyfin's dashboard.
 

@@ -148,12 +148,21 @@ config_remote() {
 
 publish_config() {
   local repository="$GITHUB_OWNER/media-server-config-$INSTALLATION_NAME"
-  gh auth status >/dev/null 2>&1 || die "keeping the config on GitHub needs the GitHub CLI; run gh auth login, then make configure again"
-  if gh repo view "$repository" >/dev/null 2>&1; then
-    die "$repository already exists on GitHub; to use it, run: git -C \"$CONFIG_DIR\" remote add origin git@github.com:$repository.git && git -C \"$CONFIG_DIR\" push -u origin main"
+  if ! gh auth status >/dev/null 2>&1; then
+    echo "Keeping the config on GitHub needs the GitHub CLI logged in: run gh auth login." >&2
+    return 1
   fi
-  gh repo create "$repository" --private --source . --push
+  if gh repo view "$repository" >/dev/null 2>&1; then
+    echo "$repository already exists on GitHub. If it is this config's, empty or not, use it with: git -C \"$CONFIG_DIR\" remote add origin git@github.com:$repository.git && git -C \"$CONFIG_DIR\" push -u origin main" >&2
+    return 1
+  fi
+  gh repo create "$repository" --private --source . --push || return 1
   echo "Published to https://github.com/$repository. Add it to the Renovate app so image and engine updates arrive as pull requests: https://github.com/apps/renovate"
+}
+
+config_not_published() {
+  echo "The settings are saved and committed in $CONFIG_DIR, but not on GitHub yet. Fix the above, then run make configure again to publish them." >&2
+  [ -n "${CONFIGURE_FROM_CREATE:-}" ] || exit 1
 }
 
 apply_config_location() {
@@ -161,7 +170,7 @@ apply_config_location() {
   remote=$(config_remote || true)
   if [ "$CONFIG_LOCATION" = github ]; then
     if [ -z "$remote" ]; then
-      publish_config
+      publish_config || config_not_published
     elif [ -n "${COMMITTED:-}" ]; then
       echo "Committed. Push with: git -C \"$CONFIG_DIR\" push"
       echo "Then run make update to apply it here; the other machines apply it at their next update."
