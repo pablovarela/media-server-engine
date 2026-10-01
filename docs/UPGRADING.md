@@ -4,7 +4,7 @@ An installation runs exactly what its config pins: the engine release in `engine
 
 ## With Renovate
 
-Add the config repository to the Renovate app. It opens a pull request for each new image and each new engine release, and keeps a Dependency Dashboard issue listing them all. Merging a pull request is the upgrade: every machine of the installation applies it at its next update, daily at 05:00 with the timer, or straight away with `make update`.
+Add the config repository to the Renovate app, and the engine repository too when it is private: Renovate finds engine releases among the engine repository's tags and cannot see them otherwise. It opens a pull request for each new image and each new engine release, and keeps a Dependency Dashboard issue listing them all. Merging a pull request is the upgrade: every machine of the installation applies it at its next update, daily at 05:00 with the timer, or straight away with `make update`.
 
 Before merging an engine release, read its release notes on GitHub; they say when a config needs new files or settings.
 

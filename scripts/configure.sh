@@ -160,7 +160,7 @@ publish_config() {
     return 1
   fi
   gh repo create "$repository" --private --source . --push || return 1
-  echo "Published to https://github.com/$repository. Add it to the Renovate app so image and engine updates arrive as pull requests: https://github.com/apps/renovate"
+  echo "Published to https://github.com/$repository. Add it to the Renovate app so image and engine updates arrive as pull requests, and add the engine repository too if it is private: https://github.com/apps/renovate"
 }
 
 config_not_published() {

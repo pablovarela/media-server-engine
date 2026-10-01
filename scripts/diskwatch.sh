@@ -16,7 +16,7 @@ prev_iowait=0
 prev_total=0
 iowait_percent=0
 day=""
-ticks=0
+samples_since_reader_history_reset=0
 
 sample_iowait() {
   local user nice system idle iowait total
@@ -59,9 +59,8 @@ while :; do
     find "$LOGDIR" -name 'diskwatch-*.log' -mtime +7 -delete 2>/dev/null
   fi
 
-  # keep the pid->read map from growing without bound on a busy host
-  ticks=$((ticks+1))
-  if [ "$ticks" -ge 720 ]; then unset prev_read; declare -A prev_read; ticks=0; fi
+  samples_since_reader_history_reset=$((samples_since_reader_history_reset+1))
+  if [ "$samples_since_reader_history_reset" -ge 720 ]; then unset prev_read; declare -A prev_read; samples_since_reader_history_reset=0; fi
 
   read -r load1 _ < /proc/loadavg
   sample_memory
