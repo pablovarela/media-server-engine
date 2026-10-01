@@ -98,3 +98,13 @@ yaml_of() {
   homepage render "$OUT"
   [ "$(cat "$OUT/bookmarks.yaml")" = "[]" ]
 }
+
+@test "recently added authenticates the way current Jellyfin accepts" {
+  homepage render "$OUT"
+  python3 -c '
+import sys, yaml
+groups = yaml.safe_load(open(sys.argv[1]))
+watch = next(g["Watch"] for g in groups if "Watch" in g)
+widget = next(s["Recently added"]["widget"] for s in watch if "Recently added" in s)
+assert widget["headers"] == {"Authorization": "MediaBrowser Token=\"{{HOMEPAGE_VAR_JELLYFIN_KEY}}\""}, widget["headers"]' "$OUT/services.yaml"
+}
