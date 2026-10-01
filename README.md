@@ -4,7 +4,7 @@
 
 A self-hosted media server that you can rebuild on any machine from two things: the name of the installation and its secrets key.
 
-It runs Jellyfin, Sonarr, Radarr, Prowlarr, Bazarr, Deluge (behind a VPN with gluetun and FlareSolverr), Seerr, Maintainerr and Portainer, with Configarr for quality profiles and an optional monitoring stack (Prometheus, Grafana, cAdvisor, node-exporter). The apps are wired to each other automatically: API keys, indexers, download client, libraries, subtitle languages and the links between them.
+It runs Jellyfin, Sonarr, Radarr, Prowlarr, Bazarr, Deluge (behind a VPN with gluetun and FlareSolverr), Seerr, Maintainerr and Portainer, with Configarr for quality profiles, a landing page with Homepage at `http://<machine>` linking to every app with live summaries, and an optional monitoring stack (Prometheus, Grafana, cAdvisor, node-exporter). The apps are wired to each other automatically: API keys, indexers, download client, libraries, subtitle languages and the links between them.
 
 ## How it is split
 
@@ -37,6 +37,7 @@ From then on, run make from the installation, `cd ~/<name>` (its Makefile passes
 | `make configure` | change settings and secrets (menus with whiptail, plain questions otherwise) |
 | `make update` | apply config changes, update images and the engine, wire the apps |
 | `make urls`, `make logins` | the apps' addresses, and their logins |
+| `make version` | the engine release running, and the one the config pins |
 | `make backup-now`, `make verify-backup-now` | back up now, check the backups now |
 | `make media-stop`, `make media-start` | stop and start the apps |
 

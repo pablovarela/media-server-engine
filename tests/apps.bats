@@ -60,3 +60,14 @@ apps() {
   run apps urls
   echo "$output" | grep -q "http://bonjour-name.local:8096"
 }
+
+@test "the landing page is listed first when the config pins it" {
+  printf 'services:\n  homepage:\n    image: ghcr.io/gethomepage/homepage:v2.4.0@sha256:abc\n' > "$CONFIG_DIR/images.yml"
+  run apps urls
+  [ "$(echo "$output" | head -1)" = "Home         http://homeserver.local" ]
+}
+
+@test "without the landing page pinned, it is not listed" {
+  run apps urls
+  ! echo "$output" | grep -q "^Home " || false
+}

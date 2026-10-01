@@ -8,13 +8,14 @@ The configuration of one media server installation, used by [media-server-engine
 | `engine.env` | the engine version this installation runs |
 | `images.yml`, `images.monitoring.yml` | the image of every service, pinned to a digest |
 | `compose.override.yml` | optional additions or changes to the engine's compose file |
+| `homepage/` | optional: the landing page's own files, replacing the engine's default page |
 | `configarr/config.yml` | Sonarr and Radarr quality profiles, custom formats, naming, root folders, download client |
 | `prowlarr.yml` | Prowlarr indexers, their priorities, the FlareSolverr proxy and the links to Sonarr and Radarr |
 | `apps.yml` | Jellyfin server name and libraries, and the other apps' declared settings |
 | `secrets/*.sops.env` | VPN, backup, healthchecks and app credentials, encrypted with SOPS for the key in `.sops.yaml` |
 | `renovate.json` | Renovate opens a pull request for every image and engine update |
 
-Change settings and secrets with `make configure` from the engine, or edit any file by hand: [CONFIG.md](CONFIG.md) explains every file and how to edit the encrypted secrets. A config kept on GitHub is pushed and merged changes reach every machine of the installation at its next `make update`; a local-only config is used as it is by the one machine that has it. `make configure` switches between the two.
+Change settings and secrets with `make configure` from the installation, or edit any file by hand: [CONFIG.md](CONFIG.md) explains every file and how to edit the encrypted secrets. A config kept on GitHub is pushed and merged changes reach every machine of the installation at its next `make update`; a local-only config is used as it is by the one machine that has it. `make configure` switches between the two.
 
 ## prowlarr.yml
 
