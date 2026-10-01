@@ -93,12 +93,29 @@ write_app_secret_files() {
   printf '%s' "$(app_secret PORTAINER_ADMIN_PASSWORD)" > "$ENGINE_DIR/.secrets/portainer_admin"
 }
 
+gluetun_control_key() {
+  local key="$DATA_DIR/volumes/.wiring/gluetun-control.key"
+  [ -s "$key" ] || { mkdir -p "$(dirname "$key")"; openssl rand -hex 16 > "$key"; }
+  cat "$key"
+}
+
+decrypt_healthchecks_secrets() {
+  local secrets="$CONFIG_DIR/secrets/healthchecks.sops.env"
+  if [ -f "$secrets" ]; then
+    sops decrypt --output-type dotenv "$secrets" > "$ENGINE_DIR/.secrets/healthchecks.env"
+  else
+    : > "$ENGINE_DIR/.secrets/healthchecks.env"
+  fi
+}
+
 decrypt_secrets() {
   (
     umask 077
     mkdir -p "$ENGINE_DIR/.secrets/configarr"
     sops decrypt --output-type dotenv "$CONFIG_DIR/secrets/vpn.sops.env" > "$ENGINE_DIR/.secrets/vpn.env"
     sops decrypt --output-type dotenv "$CONFIG_DIR/secrets/apps.sops.env" > "$ENGINE_DIR/.secrets/apps.env"
+    decrypt_healthchecks_secrets
+    printf 'HTTP_CONTROL_SERVER_AUTH_DEFAULT_ROLE={"auth":"apikey","apikey":"%s"}\n' "$(gluetun_control_key)" > "$ENGINE_DIR/.secrets/gluetun.env"
     configarr_secrets_from "$CONFIG_DIR/configarr/config.yml" < "$ENGINE_DIR/.secrets/apps.env" > "$ENGINE_DIR/.secrets/configarr/secrets.yml"
     write_app_secret_files
   )
@@ -113,8 +130,44 @@ docker_socket_gid() {
   fi
 }
 
+homepage_allowed_hosts() {
+  local port_suffix="" host hosts=""
+  [ "$(homepage_port)" = 80 ] || port_suffix=":$(homepage_port)"
+  local extra_hosts=${HOMEPAGE_ALLOWED_HOSTS:-}
+  for host in $(network_name) localhost 127.0.0.1 ${extra_hosts//,/ }; do
+    hosts="$hosts,$host$port_suffix"
+  done
+  echo "${hosts#,}"
+}
+
 write_compose_env() {
-  printf 'DOCKER_GID=%s\nTZ=%s\n' "$(docker_socket_gid)" "${TZ:-Etc/UTC}" > "$ENGINE_DIR/.env"
+  printf 'DOCKER_GID=%s\nTZ=%s\nHOMEPAGE_PORT=%s\nHOMEPAGE_ALLOWED_HOSTS=%s\n' \
+    "$(docker_socket_gid)" "${TZ:-Etc/UTC}" "$(homepage_port)" "$(homepage_allowed_hosts)" > "$ENGINE_DIR/.env"
+}
+
+render_homepage() {
+  HOMEPAGE_HOST=$(network_name) HOMEPAGE_ENGINE_VERSION=$(git -C "$ENGINE_DIR" describe --tags --always 2>/dev/null || true) \
+    python3 "$SCRIPTS_DIR/homepage.py" render "$ENGINE_DIR/.homepage"
+}
+
+homepage_env_changed() {
+  local env="$ENGINE_DIR/.secrets/homepage.env"
+  ( umask 077; python3 "$SCRIPTS_DIR/homepage.py" env > "$env.new" )
+  if cmp -s "$env.new" "$env"; then
+    rm -f "$env.new"
+    return 1
+  fi
+  mv "$env.new" "$env"
+}
+
+homepage_pinned() {
+  [[ ,$(optional_services_pinned), == *,homepage,* ]]
+}
+
+refresh_homepage() {
+  if homepage_env_changed && homepage_pinned; then
+    stack_compose up -d homepage
+  fi
 }
 
 create_bind_mount_directories() {
@@ -170,6 +223,8 @@ load_installation
 write_installation_makefile
 decrypt_secrets
 write_compose_env
+render_homepage
+homepage_env_changed || true
 "$CHECK_STACK_COMMAND"
 create_bind_mount_directories
 stack_compose_with_wiring pull --quiet
@@ -177,5 +232,8 @@ up_status=0
 stack_compose up -d --remove-orphans || up_status=$?
 reattach_gluetun_dependents
 [ "$up_status" -eq 0 ] || exit "$up_status"
-"$WIRE_COMMAND"
+wire_status=0
+"$WIRE_COMMAND" || wire_status=$?
+refresh_homepage
+[ "$wire_status" -eq 0 ] || exit "$wire_status"
 "$PRUNE_COMMAND"

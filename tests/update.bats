@@ -20,6 +20,7 @@ esac'
 case "$*" in
   *vpn.sops.env*) echo "OPENVPN_USER=u" ;;
   *apps.sops.env*) printf "SONARR_API_KEY=s1\nRADARR_API_KEY=r1\nPROWLARR_API_KEY=p1\nPORTAINER_ADMIN_PASSWORD=pw 1\n" ;;
+  *healthchecks.sops.env*) printf "HEALTHCHECKS_PING_KEY=ping\nHEALTHCHECKS_API_KEY=hc-read\n" ;;
 esac'
   make_compose_stub '
 echo "pulled=${MEDIA_SERVER_PULLED:-}" >> "$STUB_LOG"
@@ -249,4 +250,70 @@ line_of() {
   CONFIG_DIR="$root/config" ENGINE_DIR="$root/engine" run "$BATS_TEST_DIRNAME/../scripts/update.sh"
   [ -f "$root/Makefile" ]
   rm -rf "$root"
+}
+
+pin_homepage() {
+  printf 'services:\n  homepage:\n    image: ghcr.io/gethomepage/homepage:v2.4.0@sha256:abc\n' > "$CONFIG_DIR/images.yml"
+  mkdir -p "$ENGINE_DIR/homepage"
+  cp "$BATS_TEST_DIRNAME"/../homepage/*.yaml "$ENGINE_DIR/homepage/"
+  mkdir -p "$CONFIG_DIR/secrets" && : > "$CONFIG_DIR/secrets/healthchecks.sops.env"
+}
+
+@test "gluetun's control server gets a key that is made once and kept" {
+  run update
+  [ "$status" -eq 0 ]
+  key=$(cat "$DATA_DIR/volumes/.wiring/gluetun-control.key")
+  [[ $key =~ ^[0-9a-f]{32}$ ]]
+  [ "$(file_mode "$DATA_DIR/volumes/.wiring/gluetun-control.key")" = 600 ]
+  grep -qx "HTTP_CONTROL_SERVER_AUTH_DEFAULT_ROLE={\"auth\":\"apikey\",\"apikey\":\"$key\"}" "$ENGINE_DIR/.secrets/gluetun.env"
+  run update
+  [ "$(cat "$DATA_DIR/volumes/.wiring/gluetun-control.key")" = "$key" ]
+}
+
+@test "the landing page answers to this machine's name, plus any names the config adds" {
+  MEDIA_SERVER_HOST=media.local run update
+  grep -qx "HOMEPAGE_PORT=80" "$ENGINE_DIR/.env"
+  grep -qx "HOMEPAGE_ALLOWED_HOSTS=media.local,localhost,127.0.0.1" "$ENGINE_DIR/.env"
+  echo "HOMEPAGE_ALLOWED_HOSTS=media.tailnet.ts.net" >> "$CONFIG_DIR/installation.env"
+  MEDIA_SERVER_HOST=media.local run update
+  grep -qx "HOMEPAGE_ALLOWED_HOSTS=media.local,localhost,127.0.0.1,media.tailnet.ts.net" "$ENGINE_DIR/.env"
+}
+
+@test "update renders the landing page and its secrets before bringing the stack up" {
+  pin_homepage
+  run update
+  [ "$status" -eq 0 ]
+  grep -q 'title: testinst' "$ENGINE_DIR/.homepage/settings.yaml"
+  grep -q "type: healthchecks" "$ENGINE_DIR/.homepage/services.yaml"
+  grep -qx "HOMEPAGE_VAR_SONARR_KEY=s1" "$ENGINE_DIR/.secrets/homepage.env"
+  [ "$(file_mode "$ENGINE_DIR/.secrets/homepage.env")" = 600 ]
+  [ "$(file_mode "$ENGINE_DIR/.secrets/healthchecks.env")" = 600 ]
+}
+
+@test "a key the wiring creates reaches the landing page, which restarts only then" {
+  pin_homepage
+  make_stub fake-wire 'mkdir -p "$DATA_DIR/volumes/.wiring"; echo new-jellyfin-key > "$DATA_DIR/volumes/.wiring/jellyfin.key"'
+  run update
+  [ "$status" -eq 0 ]
+  grep -qx "HOMEPAGE_VAR_JELLYFIN_KEY=new-jellyfin-key" "$ENGINE_DIR/.secrets/homepage.env"
+  [ "$(grep -n 'docker compose up -d homepage' "$STUB_LOG" | cut -d: -f1)" -gt "$(grep -n '^fake-wire' "$STUB_LOG" | cut -d: -f1)" ]
+  : > "$STUB_LOG"
+  run update
+  ! grep -q 'docker compose up -d homepage' "$STUB_LOG" || false
+}
+
+@test "a failed wiring still refreshes the landing page's keys, then fails the update" {
+  pin_homepage
+  make_stub fake-wire 'mkdir -p "$DATA_DIR/volumes/.wiring"; echo k2 > "$DATA_DIR/volumes/.wiring/jellyfin.key"; exit 1'
+  run update
+  [ "$status" -ne 0 ]
+  grep -qx "HOMEPAGE_VAR_JELLYFIN_KEY=k2" "$ENGINE_DIR/.secrets/homepage.env"
+  ! grep -q "^fake-prune" "$STUB_LOG" || false
+}
+
+@test "the landing page can use another port than 80, and answers to its address with that port" {
+  echo "HOMEPAGE_PORT=8080" >> "$CONFIG_DIR/installation.env"
+  MEDIA_SERVER_HOST=media.local run update
+  grep -qx "HOMEPAGE_PORT=8080" "$ENGINE_DIR/.env"
+  grep -qx "HOMEPAGE_ALLOWED_HOSTS=media.local:8080,localhost:8080,127.0.0.1:8080" "$ENGINE_DIR/.env"
 }

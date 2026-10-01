@@ -1,0 +1,18 @@
+title: "@INSTALLATION_NAME@"
+headerStyle: clean
+statusStyle: dot
+hideVersion: true
+disableUpdateCheck: true
+layout:
+  - Watch:
+      style: row
+      columns: 3
+  - Library:
+      style: row
+      columns: 3
+  - Downloads:
+      style: row
+      columns: 2
+  - Maintenance:
+      style: row
+      columns: 3

@@ -4,6 +4,7 @@ setup() {
   setup_stubs
   mkdir -p "$ENGINE_DIR/config-template"
   cp -R "$BATS_TEST_DIRNAME/../scripts" "$ENGINE_DIR/"
+  cp -R "$BATS_TEST_DIRNAME/../homepage" "$ENGINE_DIR/"
   cp -R "$BATS_TEST_DIRNAME/../config-template/." "$ENGINE_DIR/config-template/"
   make_stub sops '
 case $1 in
@@ -17,6 +18,8 @@ case "$1 $2" in
   "repo create") if [ -n "${FAKE_CREATE_FAILS:-}" ]; then exit 1; fi; git remote add origin "git@github.com:$3.git" ;;
 esac'
   make_stub restic 'exit "${FAKE_RESTIC_STATUS:-10}"'
+  make_stub fake-port-in-use '[[ " ${FAKE_PORTS_IN_USE:-} " == *" $1 "* ]]'
+  export PORT_IN_USE_COMMAND=fake-port-in-use
   export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.com GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.com
   printf 'creation_rules:\n  - path_regex: secrets/\n    age: age1test\n' > "$CONFIG_DIR/.sops.yaml"
 }
@@ -42,6 +45,7 @@ vpn-user
 vpn-password
 Ireland
 hc-ping-key-12345
+hc-read-only-api-key
 jellyfin-pass
 deluge-pass
 portainer-pass-long
@@ -400,4 +404,80 @@ Europe/London#")
   run configure < <(enter_on_every_prompt)
   [ "$status" -eq 0 ]
   grep -qx "RESTIC_REPOSITORY=b2:testinst-bucket" "$CONFIG_DIR/installation.env"
+}
+
+@test "a read-only healthchecks.io api key can be given for the landing page" {
+  run configure < <(answers_for_new_installation)
+  [ "$status" -eq 0 ]
+  grep -qx "ENC:HEALTHCHECKS_API_KEY=hc-read-only-api-key" "$CONFIG_DIR/secrets/healthchecks.sops.env"
+}
+
+
+landing_page_answers() {
+  local before
+  before=$(configure < <(enter_on_every_prompt) 2>&1 | sed -n '/Landing page/q;p' | grep -o ']: ' | wc -l)
+  for _ in $(seq "$before"); do echo; done
+  echo
+  printf '%s\n' "$@"
+}
+
+@test "a new installation is asked only for the landing page's port" {
+  run configure < <(answers_for_new_installation)
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q "Landing page port"
+  ! echo "$output" | grep -qE "Theme|Colour|Tiles to leave off" || false
+  ! grep -q "^homepage:" "$CONFIG_DIR/apps.yml" || false
+}
+
+@test "keeping the landing page's defaults leaves apps.yml as it is" {
+  configure < <(answers_for_new_installation) >/dev/null 2>&1
+  before=$(cat "$CONFIG_DIR/apps.yml")
+  run configure < <(enter_on_every_prompt)
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q "Landing page"
+  [ "$(cat "$CONFIG_DIR/apps.yml")" = "$before" ]
+}
+
+@test "the landing page's theme, colour and hidden apps are written to apps.yml" {
+  configure < <(answers_for_new_installation) >/dev/null 2>&1
+  answers=$(landing_page_answers light sky "Portainer, Calendar")
+  run configure <<< "$answers"
+  [ "$status" -eq 0 ]
+  [ "$(python3 -c 'import json, sys, yaml; print(json.dumps(yaml.safe_load(open(sys.argv[1]))["homepage"], sort_keys=True))' "$CONFIG_DIR/apps.yml")" = '{"color": "sky", "hidden": ["Portainer", "Calendar"], "theme": "light"}' ]
+  [ "$(python3 -c 'import sys, yaml; print(yaml.safe_load(open(sys.argv[1]))["bazarr"]["languages"])' "$CONFIG_DIR/apps.yml")" = "['en']" ]
+}
+
+@test "an app name the landing page does not have is explained and asked again" {
+  configure < <(answers_for_new_installation) >/dev/null 2>&1
+  answers=$(landing_page_answers "" "" "Netflix" "Portainer")
+  run configure <<< "$answers"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q "Netflix is not on the landing page"
+  grep -q "Portainer" "$CONFIG_DIR/apps.yml"
+}
+
+@test "the landing page port is 80 when nothing else uses it" {
+  run configure < <(answers_for_new_installation)
+  [ "$status" -eq 0 ]
+  grep -qx "HOMEPAGE_PORT=80" "$CONFIG_DIR/installation.env"
+}
+
+@test "with port 80 taken, the landing page is offered the first free port, saying why" {
+  FAKE_PORTS_IN_USE="80 8080" run configure < <(answers_for_new_installation)
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q "Port 80 is in use on this machine"
+  grep -qx "HOMEPAGE_PORT=8081" "$CONFIG_DIR/installation.env"
+}
+
+@test "a landing page port in use is explained and asked again" {
+  FAKE_PORTS_IN_USE=9000 run configure < <(answers_for_new_installation; echo 9000; echo 8090)
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q "Port 9000 is in use on this machine"
+  grep -qx "HOMEPAGE_PORT=8090" "$CONFIG_DIR/installation.env"
+}
+
+@test "the landing page port is a number between 1 and 65535" {
+  run configure < <(answers_for_new_installation; echo http; echo 8090)
+  echo "$output" | grep -q "a port number"
+  grep -qx "HOMEPAGE_PORT=8090" "$CONFIG_DIR/installation.env"
 }

@@ -14,7 +14,7 @@ The configuration of one media server installation, used by [media-server-engine
 | `secrets/*.sops.env` | VPN, backup, healthchecks and app credentials, encrypted with SOPS for the key in `.sops.yaml` |
 | `renovate.json` | Renovate opens a pull request for every image and engine update |
 
-Change settings and secrets with `make configure` from the engine, or edit any file by hand: [CONFIG.md](CONFIG.md) explains every file and how to edit the encrypted secrets. A config kept on GitHub is pushed and merged changes reach every machine of the installation at its next `make update`; a local-only config is used as it is by the one machine that has it. `make configure` switches between the two.
+Change settings and secrets with `make configure` from the installation, or edit any file by hand: [CONFIG.md](CONFIG.md) explains every file and how to edit the encrypted secrets. A config kept on GitHub is pushed and merged changes reach every machine of the installation at its next `make update`; a local-only config is used as it is by the one machine that has it. `make configure` switches between the two.
 
 ## prowlarr.yml
 

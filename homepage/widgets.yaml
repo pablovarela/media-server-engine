@@ -1,0 +1,14 @@
+- greeting:
+    text_size: xl
+    text: "@INSTALLATION_NAME@"
+- greeting:
+    text_size: xs
+    text: "engine @ENGINE_VERSION@"
+- resources:
+    cpu: true
+    memory: true
+    cputemp: true
+    uptime: true
+    disk: /media
+    units: metric
+    expanded: true

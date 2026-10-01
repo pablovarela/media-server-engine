@@ -1,0 +1,113 @@
+- Watch:
+    - Jellyfin:
+        href: http://@HOST@:8096
+        icon: jellyfin.png
+        siteMonitor: http://jellyfin:8096
+        widget:
+          type: jellyfin
+          url: http://jellyfin:8096
+          key: "{{HOMEPAGE_VAR_JELLYFIN_KEY}}"
+          version: 2
+          enableBlocks: true
+          enableNowPlaying: true
+    - Recently added:
+        href: http://@HOST@:8096
+        icon: jellyfin.png
+        widget:
+          type: customapi
+          url: http://jellyfin:8096/Items?SortBy=DateCreated&SortOrder=Descending&IncludeItemTypes=Movie,Episode&Recursive=true&Limit=5
+          headers:
+            Authorization: 'MediaBrowser Token="{{HOMEPAGE_VAR_JELLYFIN_KEY}}"'
+          display: dynamic-list
+          mappings:
+            items: Items
+            name: Name
+            label: SeriesName
+            limit: 5
+    - Seerr:
+        href: http://@HOST@:5055
+        icon: seerr.png
+        siteMonitor: http://seerr:5055
+        widget:
+          type: seerr
+          url: http://seerr:5055
+          key: "{{HOMEPAGE_VAR_SEERR_KEY}}"
+- Library:
+    - Sonarr:
+        href: http://@HOST@:8989
+        icon: sonarr.png
+        siteMonitor: http://sonarr:8989
+        widget:
+          type: sonarr
+          url: http://sonarr:8989
+          key: "{{HOMEPAGE_VAR_SONARR_KEY}}"
+    - Radarr:
+        href: http://@HOST@:7878
+        icon: radarr.png
+        siteMonitor: http://radarr:7878
+        widget:
+          type: radarr
+          url: http://radarr:7878
+          key: "{{HOMEPAGE_VAR_RADARR_KEY}}"
+    - Prowlarr:
+        href: http://@HOST@:9696
+        icon: prowlarr.png
+        siteMonitor: http://gluetun:9696
+        widget:
+          type: prowlarr
+          url: http://gluetun:9696
+          key: "{{HOMEPAGE_VAR_PROWLARR_KEY}}"
+    - Bazarr:
+        href: http://@HOST@:6767
+        icon: bazarr.png
+        siteMonitor: http://bazarr:6767
+        widget:
+          type: bazarr
+          url: http://bazarr:6767
+          key: "{{HOMEPAGE_VAR_BAZARR_KEY}}"
+    - Calendar:
+        icon: mdi-calendar
+        widget:
+          type: calendar
+          view: agenda
+          maxEvents: 8
+          integrations:
+            - type: sonarr
+              service_group: Library
+              service_name: Sonarr
+            - type: radarr
+              service_group: Library
+              service_name: Radarr
+- Downloads:
+    - VPN:
+        icon: gluetun.png
+        widget:
+          type: gluetun
+          url: http://gluetun:8000
+          key: "{{HOMEPAGE_VAR_GLUETUN_KEY}}"
+          version: 2
+          fields: ["public_ip", "country"]
+    - Deluge:
+        href: http://@HOST@:8112
+        icon: deluge.png
+        siteMonitor: http://gluetun:8112
+        widget:
+          type: deluge
+          url: http://gluetun:8112
+          password: "{{HOMEPAGE_VAR_DELUGE_PASSWORD}}"
+- Maintenance:
+    - Maintainerr:
+        href: http://@HOST@:6246
+        icon: maintainerr.png
+        siteMonitor: http://maintainerr:6246
+    - Portainer:
+        href: http://@HOST@:9000
+        icon: portainer.png
+        siteMonitor: http://portainer:9000
+    - Healthchecks:
+        href: https://healthchecks.io/
+        icon: healthchecks.png
+        widget:
+          type: healthchecks
+          url: https://healthchecks.io
+          key: "{{HOMEPAGE_VAR_HEALTHCHECKS_KEY}}"

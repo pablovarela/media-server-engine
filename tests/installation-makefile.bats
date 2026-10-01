@@ -70,6 +70,6 @@ lib_in() {
 
 @test "the engine's help lists the everyday targets first" {
   run make -s -C "$BATS_TEST_DIRNAME/.." help
-  first=$(echo "$output" | sed -n '2,10p' | awk '{print $1}' | sed 's/\x1b\[[0-9;]*m//g' | tr '\n' ' ')
-  [ "$first" = "update configure urls logins backup-now verify-backup-now media-start media-stop media-status " ]
+  first=$(echo "$output" | sed -n '2,11p' | awk '{print $1}' | sed 's/\x1b\[[0-9;]*m//g' | tr '\n' ' ')
+  [ "$first" = "update configure version urls logins backup-now verify-backup-now media-start media-stop media-status " ]
 }

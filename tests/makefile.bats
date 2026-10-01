@@ -51,3 +51,22 @@ setup() {
   out=$(make -s -n -C "$REPO" update CONFIG_DIR=/nowhere 2>/dev/null)
   [ "$(echo "$out" | grep -n "bootstrap.sh --pinned-tools" | cut -d: -f1)" -lt "$(echo "$out" | grep -n "scripts/check-tools.sh" | cut -d: -f1)" ]
 }
+
+@test "make version names the engine running and the version the config pins, and says when they differ" {
+  dir=$(mktemp -d)
+  mkdir -p "$dir/config"
+  echo INSTALLATION_NAME=trial > "$dir/config/installation.env"
+  echo ENGINE_VERSION=v0.9.0 > "$dir/config/engine.env"
+  run make -s -C "$REPO" version CONFIG_DIR="$dir/config"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q "^engine: $(git -C "$REPO" describe --tags --always)"
+  echo "$output" | grep -q "^config pins: v0.9.0"
+  echo "$output" | grep -q "make update"
+  rm -rf "$dir"
+}
+
+@test "the config path the targets use has no .. in it" {
+  out=$(make -s -n -C "$REPO" unlock-backup)
+  echo "$out" | grep -q "$(cd "$REPO/.." && pwd)/config/secrets/backup.sops.env"
+  ! echo "$out" | grep -q "/\.\./" || false
+}

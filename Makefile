@@ -1,12 +1,12 @@
-.PHONY: help installation test-scripts lint urls logins create-installation join-installation setup-machine bootstrap pinned-tools configure update install-update-timer claim-backup-main check-tools test restore backup-now verify-backup-now unlock-backup install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
+.PHONY: help installation test-scripts lint urls logins create-installation join-installation setup-machine bootstrap pinned-tools configure update install-update-timer claim-backup-main check-tools test restore backup-now verify-backup-now unlock-backup version install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
 
 SHELL := /bin/bash
-CONFIG_DIR ?= $(CURDIR)/../config
+CONFIG_DIR ?= $(abspath $(CURDIR)/../config)
 export CONFIG_DIR
 WITH_LIB = export CONFIG_DIR="$(CONFIG_DIR)"; source scripts/lib.sh &&
 export SOPS_AGE_KEY_FILE ?= $(HOME)/.config/sops/age/keys.txt
 
-EVERYDAY = update configure urls logins backup-now verify-backup-now media-start media-stop media-status
+EVERYDAY = update configure version urls logins backup-now verify-backup-now media-start media-stop media-status
 SHOW_TARGETS = awk 'BEGIN {FS = ":.*?\#\# "}; {printf "  \033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 help:
@@ -42,6 +42,9 @@ configure: ## set or change this installation's settings and secrets interactive
 pinned-tools: ## install the pinned sops, age and restic where the installed version differs (Linux; Homebrew manages them on macOS)
 	@scripts/bootstrap.sh --pinned-tools
 
+version: installation ## show the engine release this installation runs and the one its config pins
+	@scripts/version.sh
+
 check-tools: ## check that every tool the scripts need is installed and the age key works
 	@scripts/check-tools.sh
 
@@ -52,7 +55,7 @@ test: test-scripts lint ## run the script tests and shellcheck (needs bats-core 
 
 test-scripts: ## run the script tests (BATS_FLAGS passes options to bats)
 	@command -v bats >/dev/null || { echo "bats missing: brew install bats-core" >&2; exit 1; }
-	@bats $(BATS_FLAGS) tests/
+	@BATS_TEST_TIMEOUT=$${BATS_TEST_TIMEOUT:-120} bats $(BATS_FLAGS) tests/
 
 lint: ## shellcheck every script
 	@command -v shellcheck >/dev/null || { echo "shellcheck missing: brew install shellcheck" >&2; exit 1; }

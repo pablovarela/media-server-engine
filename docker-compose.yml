@@ -37,6 +37,7 @@ services:
       - "8198:8191"
     env_file:
       - .secrets/vpn.env
+      - .secrets/gluetun.env
 
   sonarr:
     container_name: sonarr
@@ -200,4 +201,21 @@ services:
       - TZ=${TZ:-Etc/UTC}
     volumes:
       - ${DATA_DIR}/volumes/maintainerr/data:/opt/data
+    restart: unless-stopped
+
+  homepage:
+    container_name: homepage
+    profiles: [homepage]
+    ports:
+      - "${HOMEPAGE_PORT:-80}:3000"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - HOMEPAGE_ALLOWED_HOSTS=${HOMEPAGE_ALLOWED_HOSTS:?HOMEPAGE_ALLOWED_HOSTS is written to .env by make update}
+      - LOG_TARGETS=stdout
+    env_file:
+      - .secrets/homepage.env
+    volumes:
+      - ./.homepage:/app/config
+      - ${DATA_DIR}/media:/media:ro
     restart: unless-stopped
