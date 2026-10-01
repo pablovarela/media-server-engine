@@ -1,0 +1,5 @@
+# The widgets along the top of the landing page: https://gethomepage.dev/widgets/
+# When this file declares any, they replace the engine's list.
+#
+# - datetime:
+#     text_size: xl

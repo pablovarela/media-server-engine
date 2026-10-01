@@ -413,47 +413,13 @@ Europe/London#")
 }
 
 
-landing_page_answers() {
-  local before
-  before=$(configure < <(enter_on_every_prompt) 2>&1 | sed -n '/Landing page/q;p' | grep -o ']: ' | wc -l)
-  for _ in $(seq "$before"); do echo; done
-  echo
-  printf '%s\n' "$@"
-}
 
-@test "a new installation is asked only for the landing page's port" {
+@test "a new installation is asked for the landing page's port" {
   run configure < <(answers_for_new_installation)
   [ "$status" -eq 0 ]
   echo "$output" | grep -q "Landing page port"
   ! echo "$output" | grep -qE "Theme|Colour|Tiles to leave off" || false
   ! grep -q "^homepage:" "$CONFIG_DIR/apps.yml" || false
-}
-
-@test "keeping the landing page's defaults leaves apps.yml as it is" {
-  configure < <(answers_for_new_installation) >/dev/null 2>&1
-  before=$(cat "$CONFIG_DIR/apps.yml")
-  run configure < <(enter_on_every_prompt)
-  [ "$status" -eq 0 ]
-  echo "$output" | grep -q "Landing page"
-  [ "$(cat "$CONFIG_DIR/apps.yml")" = "$before" ]
-}
-
-@test "the landing page's theme, colour and hidden apps are written to apps.yml" {
-  configure < <(answers_for_new_installation) >/dev/null 2>&1
-  answers=$(landing_page_answers light sky "Portainer, Calendar")
-  run configure <<< "$answers"
-  [ "$status" -eq 0 ]
-  [ "$(python3 -c 'import json, sys, yaml; print(json.dumps(yaml.safe_load(open(sys.argv[1]))["homepage"], sort_keys=True))' "$CONFIG_DIR/apps.yml")" = '{"color": "sky", "hidden": ["Portainer", "Calendar"], "theme": "light"}' ]
-  [ "$(python3 -c 'import sys, yaml; print(yaml.safe_load(open(sys.argv[1]))["bazarr"]["languages"])' "$CONFIG_DIR/apps.yml")" = "['en']" ]
-}
-
-@test "an app name the landing page does not have is explained and asked again" {
-  configure < <(answers_for_new_installation) >/dev/null 2>&1
-  answers=$(landing_page_answers "" "" "Netflix" "Portainer")
-  run configure <<< "$answers"
-  [ "$status" -eq 0 ]
-  echo "$output" | grep -q "Netflix is not on the landing page"
-  grep -q "Portainer" "$CONFIG_DIR/apps.yml"
 }
 
 @test "the landing page port is 80 when nothing else uses it" {

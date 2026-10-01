@@ -4,6 +4,9 @@ statusStyle: dot
 hideVersion: true
 disableUpdateCheck: true
 layout:
+  - Coming up:
+      style: row
+      columns: 2
   - Watch:
       style: row
       columns: 3

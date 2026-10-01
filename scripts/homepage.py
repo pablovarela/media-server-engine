@@ -36,51 +36,97 @@ def placeholders(text):
         ("INSTALLATION_NAME", os.environ["INSTALLATION_NAME"]),
         ("ENGINE_VERSION", os.environ.get("HOMEPAGE_ENGINE_VERSION", "")),
         ("HOST", os.environ["HOMEPAGE_HOST"]),
+        ("ENGINE_URL", os.environ.get("HOMEPAGE_ENGINE_URL", "")),
     ):
         text = text.replace(f"@{name}@", value)
     return text
 
 
-def landing_page_settings():
-    config = yaml.safe_load(read(os.path.join(CONFIG_DIR, "apps.yml"))) or {}
-    return config.get("homepage") or {}
+def declared(name):
+    text = read(os.path.join(CONFIG_DIR, "homepage", name))
+    return yaml.safe_load(text) if name.endswith(".yaml") else text
 
 
-def rendered_settings(text, wanted):
+def merged(default, override):
+    if isinstance(default, dict) and isinstance(override, dict):
+        result = dict(default)
+        for key, value in override.items():
+            result[key] = merged(default.get(key), value)
+        return result
+    return override
+
+
+def name_of(entry):
+    return next(iter(entry))
+
+
+def merged_by_name(defaults, declared_entries, merge_values):
+    order = [name_of(entry) for entry in defaults]
+    values = {name_of(entry): entry[name_of(entry)] for entry in defaults}
+    for entry in declared_entries or []:
+        name = name_of(entry)
+        if name not in values:
+            order.append(name)
+            values[name] = entry[name]
+        else:
+            values[name] = merge_values(values[name], entry[name])
+    return [{name: values[name]} for name in order if values[name] is not None]
+
+
+def rendered_settings(text):
     settings = yaml.safe_load(text) or {}
-    for key in ("theme", "color"):
-        if wanted.get(key):
-            settings[key] = wanted[key]
-    if wanted.get("links"):
-        settings.setdefault("layout", []).append({"Links": {"style": "row", "columns": 4}})
+    wanted = declared("settings.yaml") or {}
+    declared_layout = wanted.pop("layout", None) or []
+    settings = merged(settings, wanted)
+    layout = settings.get("layout") or []
+    defaults = {name_of(entry): entry[name_of(entry)] for entry in layout}
+    first = [{name_of(e): merged(defaults.get(name_of(e)), e[name_of(e)])} for e in declared_layout]
+    named_first = {name_of(e) for e in first}
+    settings["layout"] = first + [e for e in layout if name_of(e) not in named_first]
     return yaml.safe_dump(settings, sort_keys=False)
 
 
-def rendered_services(text, wanted):
-    hidden = set(wanted.get("hidden") or [])
-    if not healthchecks_api_key():
-        hidden.add("Healthchecks")
+def rendered_services(text):
     groups = yaml.safe_load(text) or []
-    for group in groups:
-        for name, services in group.items():
-            group[name] = [s for s in services if not hidden & set(s)]
-    links = [{link["name"]: {k: v for k, v in link.items() if k != "name"}} for link in wanted.get("links") or []]
-    if links:
-        groups.append({"Links": links})
-    return yaml.safe_dump(groups, sort_keys=False)
+    if not healthchecks_api_key():
+        groups = [{name: [s for s in tiles if "Healthchecks" not in s]} for g in groups for name, tiles in g.items()]
+    merge_tiles = lambda default_tiles, tiles: merged_by_name(default_tiles or [], tiles, merged)
+    return yaml.safe_dump(merged_by_name(groups, declared("services.yaml"), merge_tiles), sort_keys=False)
+
+
+def rendered_widgets(text):
+    widgets = declared("widgets.yaml") or yaml.safe_load(text) or []
+    for widget in widgets:
+        for options in widget.values():
+            if isinstance(options, dict) and options.get("href") == "":
+                options.pop("href")
+                options.pop("target", None)
+    return yaml.safe_dump(widgets, sort_keys=False)
+
+
+def rendered_bookmarks(text):
+    return yaml.safe_dump(declared("bookmarks.yaml") or yaml.safe_load(text) or [], sort_keys=False)
+
+
+def custom_css():
+    return read(os.path.join(DEFAULTS, "custom.css")) + declared("custom.css")
+
+
+RENDERERS = {
+    "settings.yaml": rendered_settings,
+    "services.yaml": rendered_services,
+    "widgets.yaml": rendered_widgets,
+    "bookmarks.yaml": rendered_bookmarks,
+}
 
 
 def render(out):
     os.makedirs(out, exist_ok=True)
-    wanted = landing_page_settings()
-    for name in ("settings.yaml", "widgets.yaml", "services.yaml", "bookmarks.yaml"):
-        text = placeholders(read(os.path.join(DEFAULTS, name)))
-        if name == "settings.yaml":
-            text = rendered_settings(text, wanted)
-        elif name == "services.yaml":
-            text = rendered_services(text, wanted)
-        with open(os.path.join(out, name), "w") as rendered:
-            rendered.write(text)
+    for name, rendered in RENDERERS.items():
+        with open(os.path.join(out, name), "w") as target:
+            target.write(rendered(placeholders(read(os.path.join(DEFAULTS, name)))))
+    with open(os.path.join(out, "custom.css"), "w") as css:
+        css.write(custom_css())
 
 
 def seerr_key():

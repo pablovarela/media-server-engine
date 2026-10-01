@@ -1,3 +1,29 @@
+- Coming up:
+    - Next up:
+        icon: mdi-calendar-clock
+        widget:
+          type: calendar
+          view: agenda
+          maxEvents: 8
+          integrations:
+            - type: sonarr
+              service_group: Library
+              service_name: Sonarr
+            - type: radarr
+              service_group: Library
+              service_name: Radarr
+    - Calendar:
+        icon: mdi-calendar-month
+        widget:
+          type: calendar
+          view: monthly
+          integrations:
+            - type: sonarr
+              service_group: Library
+              service_name: Sonarr
+            - type: radarr
+              service_group: Library
+              service_name: Radarr
 - Watch:
     - Jellyfin:
         href: http://@HOST@:8096
@@ -65,19 +91,6 @@
           type: bazarr
           url: http://bazarr:6767
           key: "{{HOMEPAGE_VAR_BAZARR_KEY}}"
-    - Calendar:
-        icon: mdi-calendar
-        widget:
-          type: calendar
-          view: agenda
-          maxEvents: 8
-          integrations:
-            - type: sonarr
-              service_group: Library
-              service_name: Sonarr
-            - type: radarr
-              service_group: Library
-              service_name: Radarr
 - Downloads:
     - VPN:
         icon: gluetun.png

@@ -81,35 +81,129 @@ widget = next(s["Recently added"]["widget"] for s in watch if "Recently added" i
 assert widget["headers"] == {"Authorization": "MediaBrowser Token=\"{{HOMEPAGE_VAR_JELLYFIN_KEY}}\""}, widget["headers"]' "$OUT/services.yaml"
 }
 
-apps_yml() {
-  printf '%s\n' "$@" > "$CONFIG_DIR/apps.yml"
+config_file() {
+  mkdir -p "$CONFIG_DIR/homepage"
+  local name=$1
+  shift
+  printf '%s\n' "$@" > "$CONFIG_DIR/homepage/$name"
 }
 
-@test "the landing page's theme and colour come from apps.yml" {
-  apps_yml "homepage:" "  theme: light" "  color: sky"
+setting() {
+  python3 -c 'import sys, yaml; print(yaml.safe_load(open(sys.argv[1])).get(sys.argv[2]))' "$OUT/settings.yaml" "$1"
+}
+
+service_groups() {
+  python3 -c 'import sys, yaml; print("|".join(next(iter(g)) for g in yaml.safe_load(open(sys.argv[1]))))' "$OUT/services.yaml"
+}
+
+group_tiles() {
+  python3 -c '
+import sys, yaml
+groups = {next(iter(g)): g[next(iter(g))] for g in yaml.safe_load(open(sys.argv[1]))}
+print("|".join(next(iter(s)) for s in groups.get(sys.argv[2], [])))' "$OUT/services.yaml" "$1"
+}
+
+calendar_views() {
+  python3 -c '
+import sys, yaml
+groups = {next(iter(g)): g[next(iter(g))] for g in yaml.safe_load(open(sys.argv[1]))}
+views = [name + "=" + s[name]["widget"]["view"] for s in groups.get(sys.argv[2], []) for name in s if (s[name].get("widget") or {}).get("type") == "calendar"]
+print(" ".join(views))' "$OUT/services.yaml" "$1"
+}
+
+@test "what is coming up leads the page: an agenda next to a month's calendar" {
   homepage render "$OUT"
-  [ "$(yaml_of "$OUT/settings.yaml" | python3 -c 'import json, sys; s=json.load(sys.stdin); print(s["theme"], s["color"])')" = "light sky" ]
+  [ "$(service_groups | cut -d'|' -f1-2)" = "Coming up|Watch" ]
+  [ "$(calendar_views "Coming up")" = "Next up=agenda Calendar=monthly" ]
+  [ -z "$(calendar_views Library)" ]
 }
 
-@test "without landing page settings, the page keeps Homepage's own theme" {
-  apps_yml "bazarr:" "  languages: [en]"
+@test "the config's settings are applied over the engine's, key by key" {
+  config_file settings.yaml "theme: light" "color: sky" "headerStyle: boxed"
   homepage render "$OUT"
-  ! grep -qE "^(theme|color):" "$OUT/settings.yaml" || false
+  [ "$(setting theme) $(setting color) $(setting headerStyle)" = "light sky boxed" ]
+  [ "$(setting statusStyle)" = dot ]
 }
 
-@test "apps listed as hidden are left off the page" {
-  apps_yml "homepage:" "  hidden: [Portainer, Calendar]"
-  homepage render "$OUT"
-  ! grep -qE "Portainer:|Calendar:" "$OUT/services.yaml" || false
-  grep -q "Sonarr:" "$OUT/services.yaml"
-}
-
-@test "extra links get a group of their own" {
-  apps_yml "homepage:" "  links:" "    - name: Router" "      href: http://192.168.1.1" "      icon: mdi-router"
+@test "groups the config lays out come first, in its order, before the engine's" {
+  config_file settings.yaml "layout:" "  - Downloads:" "      style: row" "      columns: 4"
   homepage render "$OUT"
   python3 -c '
 import sys, yaml
-groups = yaml.safe_load(open(sys.argv[1]))
-links = next(g["Links"] for g in groups if "Links" in g)
-assert links == [{"Router": {"href": "http://192.168.1.1", "icon": "mdi-router"}}], links' "$OUT/services.yaml"
+layout = yaml.safe_load(open(sys.argv[1]))["layout"]
+names = [next(iter(entry)) for entry in layout]
+assert names[0] == "Downloads" and names[1] == "Coming up", names
+assert layout[0]["Downloads"] == {"style": "row", "columns": 4}, layout[0]
+assert names.count("Downloads") == 1' "$OUT/settings.yaml"
+}
+
+@test "a tile the config declares changes the engine's tile of that name" {
+  config_file services.yaml "- Library:" "    - Sonarr:" "        description: TV shows"
+  homepage render "$OUT"
+  python3 -c '
+import sys, yaml
+groups = {next(iter(g)): g[next(iter(g))] for g in yaml.safe_load(open(sys.argv[1]))}
+sonarr = next(s["Sonarr"] for s in groups["Library"] if "Sonarr" in s)
+assert sonarr["description"] == "TV shows" and sonarr["widget"]["type"] == "sonarr", sonarr' "$OUT/services.yaml"
+}
+
+@test "a tile declared as null is left off the page" {
+  config_file services.yaml "- Maintenance:" "    - Portainer: null"
+  homepage render "$OUT"
+  [ "$(group_tiles Maintenance)" = "Maintainerr" ]
+}
+
+@test "new tiles and groups from the config are added" {
+  config_file services.yaml "- Watch:" "    - YouTube:" "        href: https://youtube.com" "- Home:" "    - Router:" "        href: http://192.168.1.1"
+  homepage render "$OUT"
+  [ "$(group_tiles Watch | tr '|' '\n' | tail -1)" = YouTube ]
+  [ "$(group_tiles Home)" = Router ]
+}
+
+@test "the config's top bar widgets replace the engine's" {
+  config_file widgets.yaml "- datetime:" "    text_size: xl"
+  homepage render "$OUT"
+  [ "$(python3 -c 'import sys, yaml; print([next(iter(w)) for w in yaml.safe_load(open(sys.argv[1]))])' "$OUT/widgets.yaml")" = "['datetime']" ]
+}
+
+@test "a config file that holds only comments changes nothing" {
+  config_file widgets.yaml "# - datetime:"
+  config_file services.yaml "# - Home: []"
+  homepage render "$OUT"
+  grep -q "greeting" "$OUT/widgets.yaml"
+  [ "$(service_groups | cut -d'|' -f1)" = "Coming up" ]
+}
+
+@test "the config's bookmarks are used" {
+  config_file bookmarks.yaml "- Links:" "    - Docs:" "        - href: https://gethomepage.dev"
+  homepage render "$OUT"
+  grep -q "gethomepage.dev" "$OUT/bookmarks.yaml"
+}
+
+@test "the text is 18px by default, and the config's css comes after the engine's" {
+  homepage render "$OUT"
+  [ "$(cat "$OUT/custom.css")" = "html { font-size: 18px; }" ]
+  config_file custom.css "html { font-size: 20px; }"
+  homepage render "$OUT"
+  [ "$(tail -1 "$OUT/custom.css")" = "html { font-size: 20px; }" ]
+  [ "$(head -1 "$OUT/custom.css")" = "html { font-size: 18px; }" ]
+}
+
+@test "the engine version links to its release" {
+  HOMEPAGE_ENGINE_URL=https://github.com/someone/media-server-engine/releases/tag/v9.9.9 homepage render "$OUT"
+  yaml_of "$OUT/widgets.yaml" | grep -q '"href": "https://github.com/someone/media-server-engine/releases/tag/v9.9.9"'
+}
+
+@test "without a known engine address, the version is plain text" {
+  homepage render "$OUT"
+  ! grep -q "href" "$OUT/widgets.yaml" || false
+}
+
+@test "the template's example files change nothing until they are uncommented" {
+  homepage render "$OUT"
+  for file in settings.yaml services.yaml widgets.yaml bookmarks.yaml; do cp "$OUT/$file" "$OUT/$file.engine"; done
+  mkdir -p "$CONFIG_DIR/homepage"
+  cp "$BATS_TEST_DIRNAME"/../config-template/homepage/* "$CONFIG_DIR/homepage/"
+  homepage render "$OUT"
+  for file in settings.yaml services.yaml widgets.yaml bookmarks.yaml; do cmp -s "$OUT/$file" "$OUT/$file.engine" || { echo "$file changed"; false; }; done
 }

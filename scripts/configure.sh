@@ -123,31 +123,9 @@ if bazarr.get("languages") != wanted:
     yaml.safe_dump(config, open("apps.yml", "w"), sort_keys=False)'
 }
 
-write_homepage_settings() {
-  HOMEPAGE_THEME=${HOMEPAGE_THEME:-} HOMEPAGE_COLOR=${HOMEPAGE_COLOR:-} HOMEPAGE_HIDDEN=${HOMEPAGE_HIDDEN:-} python3 -c '
-import os, yaml
-config = yaml.safe_load(open("apps.yml")) or {}
-current = dict(config.get("homepage") or {})
-wanted = dict(current)
-for key, default in (("theme", "dark"), ("color", "slate")):
-    value = os.environ["HOMEPAGE_" + key.upper()]
-    if value and value != current.get(key, default):
-        wanted[key] = value
-hidden = [name.strip() for name in os.environ["HOMEPAGE_HIDDEN"].split(",") if name.strip()]
-if hidden != (current.get("hidden") or []):
-    if hidden:
-        wanted["hidden"] = hidden
-    else:
-        wanted.pop("hidden", None)
-if wanted != current:
-    config["homepage"] = wanted
-    yaml.safe_dump(config, open("apps.yml", "w"), sort_keys=False)'
-}
-
 write_config() {
   write_plain installation.env INSTALLATION_NAME TZ CONFIG_LOCATION GITHUB_OWNER JELLYFIN_ADMIN_USER RESTIC_REPOSITORY HOMEPAGE_PORT
   write_subtitle_languages
-  [ -n "${NEW_INSTALLATION:-}" ] || write_homepage_settings
   write_secret secrets/backup.sops.env RESTIC_PASSWORD B2_ACCOUNT_ID B2_ACCOUNT_KEY
   write_secret secrets/vpn.sops.env VPN_SERVICE_PROVIDER OPENVPN_USER OPENVPN_PASSWORD SERVER_COUNTRIES
   write_secret secrets/healthchecks.sops.env HEALTHCHECKS_PING_KEY HEALTHCHECKS_API_KEY

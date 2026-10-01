@@ -14,7 +14,7 @@ case $1 in
     printf "%s" "$changes" ;;
   describe) echo "${FAKE_ENGINE_TAG:-v1.0.0}" ;;
   rev-parse) if [ -n "${FAKE_MISSING_TAG:-}" ]; then exit 1; fi; echo abc123 ;;
-  remote) if [ "$dir" = "$CONFIG_DIR" ] && [ -n "${FAKE_LOCAL_CONFIG:-}" ]; then exit 2; fi; echo git@github.com:someone/config.git ;;
+  remote) if [ "$dir" = "$CONFIG_DIR" ] && [ -n "${FAKE_LOCAL_CONFIG:-}" ]; then exit 2; fi; if [ "$dir" = "$ENGINE_DIR" ]; then echo "${FAKE_ENGINE_REMOTE:-github-media-server-engine:someone/media-server-engine.git}"; else echo git@github.com:someone/config.git; fi ;;
 esac'
   make_stub sops '
 case "$*" in
@@ -316,4 +316,18 @@ pin_homepage() {
   MEDIA_SERVER_HOST=media.local run update
   grep -qx "HOMEPAGE_PORT=8080" "$ENGINE_DIR/.env"
   grep -qx "HOMEPAGE_ALLOWED_HOSTS=media.local:8080,localhost:8080,127.0.0.1:8080" "$ENGINE_DIR/.env"
+}
+
+@test "the landing page links the engine version to its release on github" {
+  pin_homepage
+  FAKE_ENGINE_TAG=v1.0.0 run update
+  [ "$status" -eq 0 ]
+  grep -q "href: https://github.com/someone/media-server-engine/releases/tag/v1.0.0" "$ENGINE_DIR/.homepage/widgets.yaml"
+}
+
+@test "between releases the landing page links the engine version to its commit" {
+  pin_homepage
+  FAKE_ENGINE_TAG=v1.0.0-3-gabc1234 FAKE_ENGINE_REMOTE=https://github.com/someone/media-server-engine.git run update
+  [ "$status" -eq 0 ]
+  grep -q "href: https://github.com/someone/media-server-engine/commit/abc123" "$ENGINE_DIR/.homepage/widgets.yaml"
 }
