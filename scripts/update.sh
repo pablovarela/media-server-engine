@@ -18,6 +18,10 @@ uncommitted_changes() {
   git -C "$1" status --porcelain --untracked-files=no
 }
 
+config_changes() {
+  git -C "$CONFIG_DIR" status --porcelain
+}
+
 require_clean_engine() {
   local changes
   changes=$(uncommitted_changes "$ENGINE_DIR")
@@ -26,7 +30,7 @@ require_clean_engine() {
 
 require_clean_config() {
   local changes
-  changes=$(uncommitted_changes "$CONFIG_DIR")
+  changes=$(config_changes)
   [ -n "$changes" ] || return 0
   {
     echo "The config has changes that are not committed:"

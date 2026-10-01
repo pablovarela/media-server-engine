@@ -36,3 +36,17 @@ patterns = config["docker-compose"]["managerFilePatterns"]
 for name in ("images.yml", "images.monitoring.yml"):
     assert any(re.search(p.strip("/"), name) for p in patterns), name' "$REPO/config-template/renovate.json"
 }
+
+@test "a config never commits decrypted secrets, leftovers of an encryption or Finder files" {
+  work=$(mktemp -d)
+  cp -R "$REPO/config-template/." "$work/"
+  git -C "$work" init -q
+  mkdir -p "$work/secrets"
+  for ignored in secrets/vpn.env secrets/apps.sops.env.new .DS_Store; do
+    touch "$work/$ignored"
+    git -C "$work" check-ignore -q "$ignored" || { echo "not ignored: $ignored"; false; }
+  done
+  touch "$work/secrets/vpn.sops.env"
+  ! git -C "$work" check-ignore -q secrets/vpn.sops.env || { echo "an encrypted secret is ignored"; false; }
+  rm -rf "$work"
+}

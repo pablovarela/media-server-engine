@@ -8,7 +8,10 @@ setup() {
 dir=""
 if [ "$1" = -C ]; then dir=$2; shift 2; fi
 case $1 in
-  status) if [ "$dir" = "$CONFIG_DIR" ]; then printf "%s" "${FAKE_CONFIG_STATUS:-}"; else printf "%s" "${FAKE_ENGINE_STATUS:-}"; fi ;;
+  status)
+    if [ "$dir" = "$CONFIG_DIR" ]; then changes=${FAKE_CONFIG_STATUS:-}; else changes=${FAKE_ENGINE_STATUS:-}; fi
+    case " $* " in *" --untracked-files=no "*) changes=$(printf "%s\n" "$changes" | grep -v "^??" || true) ;; esac
+    printf "%s" "$changes" ;;
   describe) echo "${FAKE_ENGINE_TAG:-v1.0.0}" ;;
   rev-parse) if [ -n "${FAKE_MISSING_TAG:-}" ]; then exit 1; fi; echo abc123 ;;
   remote) if [ "$dir" = "$CONFIG_DIR" ] && [ -n "${FAKE_LOCAL_CONFIG:-}" ]; then exit 2; fi; echo git@github.com:someone/config.git ;;
@@ -208,4 +211,11 @@ line_of() {
   echo 999999 > "$DATA_DIR/.backup.lock/pid"
   UPDATE_BACKUP_WAIT_SECONDS=2 run update
   [ "$status" -eq 0 ]
+}
+
+@test "an untracked file in the config, such as a compose override, stops the update" {
+  FAKE_CONFIG_STATUS="?? compose.override.yml" run update
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "compose.override.yml"
+  ! grep -q "docker compose up" "$STUB_LOG" || false
 }
