@@ -83,3 +83,8 @@ setup_machine() {
   run setup_machine < <(echo n)
   echo "$output" | grep -q "testinst is ready on bonjour-name.local"
 }
+
+@test "looking for backups to restore does not lock the repository" {
+  RESTORE_FROM_BACKUP=1 run setup_machine < <(echo n)
+  grep -q "^restic snapshots --no-lock" "$STUB_LOG"
+}

@@ -101,3 +101,49 @@ file_mode() {
 without_systemd() {
   rm -rf "$SYSTEMD_RUNTIME_DIR" "$STUB_DIR/systemctl"
 }
+
+hold_backup_lock() {
+  python3 -c '
+import fcntl, sys, time
+lock = open(sys.argv[1], "a")
+fcntl.flock(lock, fcntl.LOCK_EX)
+lock.truncate(0)
+lock.write(sys.argv[2])
+lock.flush()
+open(sys.argv[3], "w").close()
+time.sleep(60)
+' "$DATA_DIR/.backup.lock" "${1:-4242}" "$STUB_DIR/lock-held" &
+  LOCK_HOLDER=$!
+  for _ in $(seq 1 50); do
+    [ -e "$STUB_DIR/lock-held" ] && return 0
+    sleep 0.1
+  done
+  echo "the test could not take the backup lock" >&2
+  return 1
+}
+
+release_held_backup_lock() {
+  kill "$LOCK_HOLDER"
+  wait "$LOCK_HOLDER" 2>/dev/null || true
+}
+
+backup_lock_is_held() {
+  python3 -c '
+import fcntl, sys
+with open(sys.argv[1], "a") as lock:
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        sys.exit(0)
+sys.exit(1)
+' "$DATA_DIR/.backup.lock" 2>/dev/null
+}
+
+make_restic_lock_stub() {
+  cat > "$STUB_DIR/restic-locks" <<'STUB'
+case "$1 $2" in
+  "list locks") echo 5f3a9c ;;
+  "cat lock") echo '{"time":"2026-09-30T04:37:23+01:00","exclusive":false,"hostname":"laptop","pid":6116}' ;;
+esac
+STUB
+}

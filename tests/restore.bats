@@ -73,3 +73,14 @@ teardown() {
   grep -q "restic restore latest:/volumes --target" "$STUB_LOG"
   ! grep -q "restic restore .*--host" "$STUB_LOG" || false
 }
+
+@test "restore clears stale restic locks first, so a main that died mid-prune does not block it" {
+  run "$BATS_TEST_DIRNAME/../scripts/restore.sh"
+  [ "$status" -eq 0 ]
+  [ "$(grep -n '^restic unlock$' "$STUB_LOG" | cut -d: -f1)" -lt "$(grep -n '^restic restore' "$STUB_LOG" | cut -d: -f1)" ]
+}
+
+@test "the snapshot count for the host filter does not lock the repository" {
+  FAKE_OWN_SNAPSHOTS=1 run "$BATS_TEST_DIRNAME/../scripts/restore.sh"
+  grep -q "^restic snapshots --no-lock" "$STUB_LOG"
+}

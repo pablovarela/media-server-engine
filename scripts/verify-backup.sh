@@ -37,10 +37,11 @@ case $role_status in
   "$NOT_THE_MAIN") die "$(explain_main_check "$role_status"); its verification runs there" ;;
   *) die "$(explain_main_check "$role_status"); nothing was checked" ;;
 esac
-restic check --retry-lock 2h
+restic unlock
+restic_explaining_locks check --retry-lock 2h
 host_filter=$(installation_snapshot_filter)
 # shellcheck disable=SC2086
-restic restore --retry-lock 2h latest $host_filter --target "$restore_dir" --include '*.db' --include '*.sqlite' --include '*.sqlite3'
+restic_explaining_locks restore --retry-lock 2h latest $host_filter --target "$restore_dir" --include '*.db' --include '*.sqlite' --include '*.sqlite3'
 databases=$(restored_databases)
 [ -n "$databases" ] || die "the latest snapshot holds no databases"
 while IFS= read -r database; do

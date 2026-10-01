@@ -102,3 +102,19 @@ teardown() {
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "cannot read the backup repository"
 }
+
+@test "verify clears stale restic locks before checking" {
+  run "$BATS_TEST_DIRNAME/../scripts/verify-backup.sh"
+  [ "$status" -eq 0 ]
+  first=$(grep -n "^restic" "$STUB_LOG" | head -1)
+  [ "${first#*:}" = "restic unlock" ]
+}
+
+@test "verify that gives up waiting for a restic lock says who holds it" {
+  make_restic_lock_stub
+  make_stub restic 'source "$(dirname "$0")/restic-locks"; if [ "$1" = check ]; then exit 11; fi'
+  run "$BATS_TEST_DIRNAME/../scripts/verify-backup.sh"
+  [ "$status" -eq 11 ]
+  echo "$output" | grep -q "laptop"
+  echo "$output" | grep -q "make unlock-backup"
+}

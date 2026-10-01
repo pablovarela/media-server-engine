@@ -21,11 +21,17 @@ One machine per installation backs up: its main. Snapshots are tagged with the m
 
 ## Running a backup
 
-`make backup-now` stops the apps, takes the snapshot, starts them again and prunes old snapshots. It takes a few minutes. A lock stops a second backup while one runs; a lock left by a backup that died is taken over.
+`make backup-now` stops the apps, takes the snapshot, starts them again and prunes old snapshots. It takes a few minutes. A lock stops a second backup while one runs. The operating system holds it for the backup and the restic it started, and releases it once they have ended, however they end, so a backup that died or a reboot never leaves it behind.
 
 `make verify-backup-now` runs `restic check`, restores the latest snapshot into a temporary folder and checks every SQLite database in it with `PRAGMA integrity_check`.
 
 On machines with systemd, the main backs up daily at 04:30 and verifies on Sundays at 05:30.
+
+## Locks in the backup repository
+
+restic locks the repository while it works, and a restic process that is killed (a power cut, a laptop going to sleep, a command interrupted) leaves its lock behind. A backup, check or restore first removes stale locks: those whose process is gone from this machine, and those nobody has refreshed for 30 minutes. A running restic refreshes its lock every few minutes, so it keeps it. If a lock still gets in the way, restic waits up to two hours, then the job fails and names the machine, process and time behind each lock.
+
+`make unlock-backup` removes stale locks and lists the ones left. `make unlock-backup ALL=1` removes every lock; use it only when no machine is running restic on the repository.
 
 ## Being told when something fails
 

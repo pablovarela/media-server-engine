@@ -105,31 +105,49 @@ line_of() {
 }
 
 @test "a backup refuses to start while another one is running" {
-  mkdir -p "$DATA_DIR/.backup.lock"
-  sleep 60 & running=$!
-  echo "$running" > "$DATA_DIR/.backup.lock/pid"
+  hold_backup_lock 4242
   run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
-  kill "$running"
+  release_held_backup_lock
   [ "$status" -ne 0 ]
-  echo "$output" | grep -q "already running"
+  echo "$output" | grep -q "already running (process 4242)"
   ! grep -q "^restic backup" "$STUB_LOG" || false
   ! grep -q "docker compose stop" "$STUB_LOG" || false
   ! grep -q "/fail" "$STUB_LOG" || false
 }
 
 @test "a lock left by a backup that no longer runs is taken over" {
-  mkdir -p "$DATA_DIR/.backup.lock"
-  echo 999999 > "$DATA_DIR/.backup.lock/pid"
+  echo 999999 > "$DATA_DIR/.backup.lock"
   run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
   [ "$status" -eq 0 ]
   grep -q "^restic backup" "$STUB_LOG"
 }
 
+@test "a lock naming a pid that another process now uses, as after a reboot, is taken over" {
+  echo $$ > "$DATA_DIR/.backup.lock"
+  run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
+  [ "$status" -eq 0 ]
+  grep -q "^restic backup" "$STUB_LOG"
+}
+
+@test "a backup holds the kernel lock while restic runs" {
+  make_stub restic 'if [ "$1" = backup ]; then python3 -c "
+import fcntl, sys
+with open(sys.argv[1], \"a\") as lock:
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        print(\"lock held during backup\")
+" "$DATA_DIR/.backup.lock" >> "$STUB_LOG"; fi'
+  run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
+  [ "$status" -eq 0 ]
+  grep -q "lock held during backup" "$STUB_LOG"
+}
+
 @test "the lock is released after a backup, whether it worked or not" {
   run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
-  [ ! -e "$DATA_DIR/.backup.lock" ]
+  ! backup_lock_is_held || false
   FAKE_RESTIC_BACKUP_FAILS=1 run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
-  [ ! -e "$DATA_DIR/.backup.lock" ]
+  ! backup_lock_is_held || false
 }
 
 @test "a backup repository that cannot be read keeps this machine the main, and says so" {
@@ -146,4 +164,24 @@ line_of() {
   run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
   [ "$status" -eq 0 ]
   [ -e "$DATA_DIR/.backup-main" ]
+}
+
+@test "a backup clears stale restic locks before it touches the repository" {
+  run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
+  [ "$status" -eq 0 ]
+  grep -qx "restic unlock" "$STUB_LOG"
+  [ "$(line_of '^restic unlock')" -lt "$(line_of 'docker compose stop')" ]
+  [ "$(line_of '^restic unlock')" -lt "$(line_of '^restic backup')" ]
+}
+
+@test "a backup that gives up waiting for a restic lock says who holds it and how to clear it" {
+  make_restic_lock_stub
+  make_stub restic 'source "$(dirname "$0")/restic-locks"; if [ "$1" = forget ]; then exit 11; fi'
+  run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
+  [ "$status" -eq 11 ]
+  echo "$output" | grep -q "laptop"
+  echo "$output" | grep -q "6116"
+  echo "$output" | grep -q "2026-09-30T04:37"
+  echo "$output" | grep -q "make unlock-backup"
+  grep -q "testinst-backup/fail?create=1" "$STUB_LOG"
 }

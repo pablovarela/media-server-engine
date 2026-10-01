@@ -1,4 +1,4 @@
-.PHONY: help installation test-scripts lint urls logins create-installation join-installation setup-machine bootstrap configure update install-update-timer claim-backup-main check-tools test restore backup-now verify-backup-now install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
+.PHONY: help installation test-scripts lint urls logins create-installation join-installation setup-machine bootstrap configure update install-update-timer claim-backup-main check-tools test restore backup-now verify-backup-now unlock-backup install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
 
 SHELL := /bin/bash
 CONFIG_DIR ?= $(CURDIR)/../config
@@ -54,6 +54,9 @@ backup-now: installation ## back up now (stops the apps for a few minutes; only 
 
 verify-backup-now: installation ## check the backups now: restic check, and a test restore of the latest snapshot
 	@sops exec-env "$(CONFIG_DIR)/secrets/healthchecks.sops.env" 'sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" scripts/verify-backup.sh'
+
+unlock-backup: installation ## remove stale locks from the backup repository and show the ones left (ALL=1 removes every lock: only when no machine is running restic)
+	@sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" 'scripts/unlock-backup.sh $(if $(ALL),--remove-all)'
 
 install-backup-timers: installation check-tools ## schedule make backup-now daily and make verify-backup-now weekly (systemd; only on the installation's main)
 	@sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" 'scripts/install-timers.sh media-backup media-verify'

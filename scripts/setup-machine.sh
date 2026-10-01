@@ -21,7 +21,7 @@ with_backup_secrets() {
 
 has_backups() {
   local count
-  count=$(with_backup_secrets restic snapshots --latest 1 --json 2>/dev/null |
+  count=$(with_backup_secrets restic snapshots --no-lock --latest 1 --json 2>/dev/null |
     python3 -c 'import json, sys; print(len(json.load(sys.stdin) or []))' 2>/dev/null || echo 0)
   [ "${count:-0}" -gt 0 ]
 }

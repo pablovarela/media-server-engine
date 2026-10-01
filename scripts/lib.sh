@@ -143,7 +143,7 @@ ask_password() {
 
 installation_snapshot_filter() {
   local count
-  count=$(restic snapshots --host "$INSTALLATION_NAME" --json 2>/dev/null |
+  count=$(restic snapshots --no-lock --host "$INSTALLATION_NAME" --json 2>/dev/null |
     python3 -c 'import json, sys; print(len(json.load(sys.stdin) or []))' 2>/dev/null || echo 0)
   if [ "${count:-0}" -gt 0 ]; then echo "--host $INSTALLATION_NAME"; fi
 }
@@ -193,6 +193,7 @@ systemd_running() {
 }
 
 readonly NOT_THE_MAIN=1
+readonly RESTIC_LOCKED=11
 
 explain_main_check() {
   if [ "$1" -eq "$NOT_THE_MAIN" ]; then
@@ -206,10 +207,46 @@ backup_lock() {
   echo "$DATA_DIR/.backup.lock"
 }
 
+lock_file_descriptor() {
+  python3 -c 'import fcntl, sys; fcntl.flock(int(sys.argv[1]), fcntl.LOCK_EX | fcntl.LOCK_NB)' "$1" 2>/dev/null
+}
+
 running_backup_pid() {
-  local holder
-  holder=$(cat "$(backup_lock)/pid" 2>/dev/null || true)
-  if [ -n "$holder" ] && kill -0 "$holder" 2>/dev/null; then
-    echo "$holder"
+  local lock
+  lock=$(backup_lock)
+  [ -f "$lock" ] || return 0
+  python3 - "$lock" <<'EOF'
+import fcntl, sys
+with open(sys.argv[1]) as lock:
+    try:
+        fcntl.flock(lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
+    except OSError:
+        print(lock.read().strip() or "unknown")
+EOF
+}
+
+describe_restic_locks() {
+  local id
+  for id in $(restic list locks --no-lock 2>/dev/null); do
+    restic cat lock "$id" --no-lock 2>/dev/null | python3 -c '
+import json, sys
+lock = json.load(sys.stdin)
+print("  {} lock from {} (process {}) since {}".format(
+    "exclusive" if lock.get("exclusive") else "shared",
+    lock.get("hostname", "an unknown host"), lock.get("pid", "?"), lock.get("time", "?")))
+' 2>/dev/null || true
+  done
+}
+
+restic_explaining_locks() {
+  local status=0
+  restic "$@" || status=$?
+  if [ "$status" -eq "$RESTIC_LOCKED" ]; then
+    {
+      echo "restic gave up waiting for a lock on the backup repository. Locks held:"
+      describe_restic_locks
+      echo "If none of those machines is running restic now, remove every lock with: make unlock-backup ALL=1"
+    } >&2
   fi
+  return "$status"
 }

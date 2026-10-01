@@ -41,3 +41,8 @@ setup() {
     grep -q "^After=.*media-backup.service" "$REPO/systemd/$unit.service" || { echo "$unit"; false; }
   done
 }
+
+@test "unlock-backup runs the unlock script with the backup secrets, and passes ALL" {
+  make -s -n -C "$REPO" unlock-backup | grep -q "backup.sops.env.*scripts/unlock-backup.sh"
+  make -s -n -C "$REPO" unlock-backup ALL=1 | grep -q "scripts/unlock-backup.sh --remove-all"
+}
