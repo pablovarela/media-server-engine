@@ -29,7 +29,7 @@ has_backups() {
 wants_to_be_main() {
   local default=y answer
   if ! with_backup_secrets "$BACKUP_ROLE_COMMAND" is-main; then
-    echo "$INSTALLATION_NAME's main is $(with_backup_secrets "$BACKUP_ROLE_COMMAND" describe-main); say yes only to take over from it" >&2
+    echo "another machine is $INSTALLATION_NAME's main ($(with_backup_secrets "$BACKUP_ROLE_COMMAND" describe-main)); say yes only to take over from it" >&2
     default=n
   fi
   ask answer "Make this machine $INSTALLATION_NAME's main, the one that backs up? (y/n)" "$default"
