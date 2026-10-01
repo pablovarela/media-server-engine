@@ -4,7 +4,7 @@
 
 1. Branch from an up-to-date `main`, one change per branch.
 2. Change the code, its tests and its docs together. A change in behaviour comes with a test that fails without it, and the docs describe the system as it is after the change, not its history.
-3. Run `make test` (bats and shellcheck).
+3. Run `make test` (bats and shellcheck). With GNU parallel installed (`brew install parallel`), the tests run in parallel, one job per CPU; `TEST_JOBS=1` runs them one at a time.
 4. Push the branch and open a pull request. Its title becomes the commit on `main`, so write it as a commit subject: short, imperative, saying what changes. Its description says why; the diff already shows what.
 5. CI runs `test`, `lint` and `tool-pins` on the pull request. All three pass before it is merged.
 6. The owner merges, with a squash merge.
