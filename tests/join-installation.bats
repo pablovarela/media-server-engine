@@ -162,3 +162,10 @@ existing_keys() {
   [ "$status" -eq 0 ]
   grep -qx "AGE-SECRET-KEY-GOOD" "$HOME/.config/sops/age/keys.txt"
 }
+
+@test "the engine fetches its releases through its own deploy key" {
+  run join testinst < <(printf 'AGE-SECRET-KEY-GOOD\nn\n')
+  [ "$status" -eq 0 ]
+  grep -q "^git -C $ENGINE_DIR remote set-url origin github-media-server-engine:someone/media-server-engine.git$" "$STUB_LOG"
+  [ "$(grep -n 'remote set-url origin github-' "$STUB_LOG" | cut -d: -f1)" -gt "$(grep -n '^fake-deploy-keys' "$STUB_LOG" | cut -d: -f1)" ]
+}
