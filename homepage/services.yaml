@@ -25,17 +25,6 @@
               service_group: Library
               service_name: Radarr
 - Watch:
-    - Jellyfin:
-        href: http://@HOST@:8096
-        icon: jellyfin.png
-        siteMonitor: http://jellyfin:8096
-        widget:
-          type: jellyfin
-          url: http://jellyfin:8096
-          key: "{{HOMEPAGE_VAR_JELLYFIN_KEY}}"
-          version: 2
-          enableBlocks: true
-          enableNowPlaying: true
     - Recently added:
         href: http://@HOST@:8096
         icon: jellyfin.png
@@ -50,6 +39,17 @@
             name: Name
             label: SeriesName
             limit: 5
+    - Jellyfin:
+        href: http://@HOST@:8096
+        icon: jellyfin.png
+        siteMonitor: http://jellyfin:8096
+        widget:
+          type: jellyfin
+          url: http://jellyfin:8096
+          key: "{{HOMEPAGE_VAR_JELLYFIN_KEY}}"
+          version: 2
+          enableBlocks: true
+          enableNowPlaying: true
     - Seerr:
         href: http://@HOST@:5055
         icon: seerr.png
@@ -99,7 +99,7 @@
           url: http://gluetun:8000
           key: "{{HOMEPAGE_VAR_GLUETUN_KEY}}"
           version: 2
-          fields: ["public_ip", "country"]
+          fields: [ "public_ip", "region", "country" ]
     - Deluge:
         href: http://@HOST@:8112
         icon: deluge.png

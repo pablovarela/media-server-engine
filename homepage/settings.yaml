@@ -4,16 +4,15 @@ statusStyle: dot
 hideVersion: true
 disableUpdateCheck: true
 layout:
-  - Coming up:
+  - Downloads:
+      header: false
       style: row
       columns: 2
+  - Coming up:
+      style: column
   - Watch:
-      style: row
-      columns: 3
+      style: column
   - Library:
-      style: row
-      columns: 3
-  - Downloads:
       style: row
       columns: 2
   - Maintenance:
