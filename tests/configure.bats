@@ -368,3 +368,13 @@ Europe/London#")
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "not on GitHub yet"
 }
+
+@test "reconfiguring keeps keys and comments added to installation.env by hand" {
+  configure < <(answers_for_new_installation) >/dev/null 2>&1
+  printf '# the name the apps are reached by=media.local\nMEDIA_SERVER_HOST=media.local\n' >> "$CONFIG_DIR/installation.env"
+  run configure < <(enter_on_every_prompt)
+  [ "$status" -eq 0 ]
+  grep -qx "MEDIA_SERVER_HOST=media.local" "$CONFIG_DIR/installation.env"
+  grep -qx "# the name the apps are reached by=media.local" "$CONFIG_DIR/installation.env"
+  grep -qx "TZ=Europe/London" "$CONFIG_DIR/installation.env"
+}

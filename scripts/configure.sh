@@ -45,7 +45,7 @@ rotate_variable() {
 load_dotenv() {
   local line
   while IFS= read -r line; do
-    if [ -n "${line%%=*}" ] && [ "$line" != "${line#*=}" ]; then
+    if [[ ${line%%=*} =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] && [ "$line" != "${line#*=}" ]; then
       printf -v "${line%%=*}" '%s' "${line#*=}"
     fi
   done
@@ -77,9 +77,12 @@ dotenv_of() {
 }
 
 write_plain() {
-  local file=$1 content
+  local file=$1 content current="" extra
   shift
+  [ ! -f "$file" ] || current=$(cat "$file")
   content=$(dotenv_of "$@")
+  extra=$(lines_not_managed "$*" "$current")
+  [ -z "$extra" ] || content="$content"$'\n'"$extra"
   if [ ! -f "$file" ] || [ "$(cat "$file")" != "$content" ]; then
     printf '%s\n' "$content" > "$file"
   fi
