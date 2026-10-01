@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-WIRE_WAIT_SECONDS=${WIRE_WAIT_SECONDS:-60}
+WIRE_WAIT_SECONDS=${WIRE_WAIT_SECONDS:-300}
 WIRE_RETRY_SECONDS=${WIRE_RETRY_SECONDS:-2}
 
 app_of() {

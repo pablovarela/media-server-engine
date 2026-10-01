@@ -85,3 +85,7 @@ make_app_step() {
   grep -q '^curl .*http://localhost:7878/ping' "$STUB_LOG"
   [ "$(tail -1 "$STUB_LOG")" = 25-library-updates ]
 }
+
+@test "apps get five minutes to answer, enough for a database migration on a Raspberry Pi" {
+  grep -qx 'WIRE_WAIT_SECONDS=${WIRE_WAIT_SECONDS:-300}' "$WIRE/wire-apps.sh"
+}
