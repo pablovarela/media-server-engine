@@ -55,7 +55,7 @@ test: test-scripts lint ## run the script tests and shellcheck (needs bats-core 
 
 test-scripts: ## run the script tests (BATS_FLAGS passes options to bats)
 	@command -v bats >/dev/null || { echo "bats missing: brew install bats-core" >&2; exit 1; }
-	@bats $(BATS_FLAGS) tests/
+	@BATS_TEST_TIMEOUT=$${BATS_TEST_TIMEOUT:-120} bats $(BATS_FLAGS) tests/
 
 lint: ## shellcheck every script
 	@command -v shellcheck >/dev/null || { echo "shellcheck missing: brew install shellcheck" >&2; exit 1; }

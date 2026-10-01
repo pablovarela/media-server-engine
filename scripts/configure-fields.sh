@@ -22,6 +22,7 @@ App logins|JELLYFIN_ADMIN_PASSWORD|password|Jellyfin admin password
 App logins|DELUGE_WEB_PASSWORD|password|Deluge web password
 App logins|PORTAINER_ADMIN_PASSWORD|password|Portainer admin password (at least 12 characters)
 Subtitles|SUBTITLE_LANGUAGES|text|Subtitle languages (codes, comma separated)
+Landing page|HOMEPAGE_PORT|text|Landing page port
 Landing page|HOMEPAGE_THEME|choice|Theme
 Landing page|HOMEPAGE_COLOR|choice|Colour
 Landing page|HOMEPAGE_HIDDEN|text|Tiles to leave off the page (names, comma separated)"
@@ -39,6 +40,20 @@ try:
 except FileNotFoundError:
     languages = None
 print(", ".join(languages or ["en"]))'
+}
+
+PORT_IN_USE_COMMAND=${PORT_IN_USE_COMMAND:-$(dirname "${BASH_SOURCE[0]}")/port-in-use.sh}
+
+port_in_use() {
+  "$PORT_IN_USE_COMMAND" "$1"
+}
+
+first_free_landing_page_port() {
+  local port
+  for port in 80 $(seq 8080 8099); do
+    port_in_use "$port" || { echo "$port"; return 0; }
+  done
+  echo 80
 }
 
 readonly HOMEPAGE_COLORS="slate gray zinc neutral stone red amber yellow lime green emerald teal cyan sky blue indigo violet purple fuchsia pink rose"
@@ -120,6 +135,7 @@ field_default() {
     B2_BUCKET) echo "${B2_BUCKET:-$INSTALLATION_NAME-media-server-backup}" ;;
     B2_FOLDER) echo "${B2_FOLDER-restic}" ;;
     SUBTITLE_LANGUAGES) current_subtitle_languages ;;
+    HOMEPAGE_PORT) echo "${HOMEPAGE_PORT:-$(first_free_landing_page_port)}" ;;
     HOMEPAGE_THEME) echo "${HOMEPAGE_THEME:-$(current_homepage_setting theme dark)}" ;;
     HOMEPAGE_COLOR) echo "${HOMEPAGE_COLOR:-$(current_homepage_setting color slate)}" ;;
     HOMEPAGE_HIDDEN) echo "${HOMEPAGE_HIDDEN-$(current_homepage_setting hidden)}" ;;
@@ -144,11 +160,19 @@ field_help() {
     BACKUP_FOLDER) echo "An absolute path; ~ stands for your home folder. It is created if it does not exist." ;;
     BACKUP_URL) echo "As restic takes it in -r, such as sftp:user@host:/srv/restic or s3:s3.amazonaws.com/bucket/restic. It is not checked here." ;;
     TZ) echo "A name from the time zone database, such as Europe/London or America/New_York." ;;
+    HOMEPAGE_PORT)
+      if [ -z "${HOMEPAGE_PORT:-}" ] && port_in_use 80; then
+        echo "Port 80 is in use on this machine, so a free one is suggested. The page is at http://<machine>:<port>."
+      else
+        echo "The page is at http://<machine>, with :<port> unless the port is 80."
+      fi
+      ;;
   esac
 }
 
 field_normalize() {
   case $1 in
+    HOMEPAGE_PORT) printf '%s' "${2:-$(first_free_landing_page_port)}" ;;
     BACKUP_FOLDER)
       if [[ $2 == "~"* ]]; then printf '%s' "$HOME${2#"~"}"; else printf '%s' "$2"; fi
       ;;
@@ -164,6 +188,13 @@ field_problem() {
   local choices
   case $1 in
     TZ) known_time_zone "$2" || echo "$2 is not a time zone. Use a name such as Europe/London." ;;
+    HOMEPAGE_PORT)
+      if ! [[ $2 =~ ^[0-9]+$ ]] || [ "$2" -lt 1 ] || [ "$2" -gt 65535 ]; then
+        echo "The landing page port must be a port number, from 1 to 65535."
+      elif port_in_use "$2"; then
+        echo "Port $2 is in use on this machine; choose another, such as $(first_free_landing_page_port)."
+      fi
+      ;;
     HOMEPAGE_HIDDEN)
       local unknown
       unknown=$(unknown_landing_page_tiles "$2" | paste -sd, - | sed 's/,/, /g')

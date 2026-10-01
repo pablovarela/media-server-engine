@@ -13,6 +13,8 @@ case $1 in
 esac'
   make_stub gh '[ "$1 $2" != "auth status" ]'
   make_stub restic 'exit "${FAKE_RESTIC_STATUS:-10}"'
+  make_stub fake-port-in-use 'false'
+  export PORT_IN_USE_COMMAND=fake-port-in-use
   WHIPTAIL_ANSWERS="$STUB_DIR/whiptail-answers"
   : > "$WHIPTAIL_ANSWERS"
   make_stub whiptail '
@@ -47,7 +49,7 @@ guided_answers() {
   local folder="$STUB_DIR/backups"
   printf '%s\n' "0|Europe" "0|London" "0|local" "0|admin" "0|local" "0|$folder" "0|restic-typed" \
     "0|protonvpn" "0|vpn-user" "0|vpn-password" "0|Ireland" "0|" "0|" \
-    "0|jelly-typed" "0|" "0|portainer-pass-long" "0|en"
+    "0|jelly-typed" "0|" "0|portainer-pass-long" "0|en" "0|"
 }
 
 guided_new_installation() {
@@ -196,4 +198,11 @@ guided_new_installation() {
   run configure
   [ "$status" -eq 0 ]
   grep -q "Landing page" "$STUB_LOG"
+}
+
+@test "an empty landing page port in the menus keeps the suggested port" {
+  guided_new_installation
+  run configure
+  [ "$status" -eq 0 ]
+  grep -qx "HOMEPAGE_PORT=80" "$CONFIG_DIR/installation.env"
 }

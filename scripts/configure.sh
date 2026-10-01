@@ -145,7 +145,7 @@ if wanted != current:
 }
 
 write_config() {
-  write_plain installation.env INSTALLATION_NAME TZ CONFIG_LOCATION GITHUB_OWNER JELLYFIN_ADMIN_USER RESTIC_REPOSITORY
+  write_plain installation.env INSTALLATION_NAME TZ CONFIG_LOCATION GITHUB_OWNER JELLYFIN_ADMIN_USER RESTIC_REPOSITORY HOMEPAGE_PORT
   write_subtitle_languages
   [ -n "${NEW_INSTALLATION:-}" ] || write_homepage_settings
   write_secret secrets/backup.sops.env RESTIC_PASSWORD B2_ACCOUNT_ID B2_ACCOUNT_KEY
