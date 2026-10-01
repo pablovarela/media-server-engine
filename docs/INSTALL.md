@@ -21,7 +21,7 @@ The name is lowercase letters, digits and dashes. It names the installation's fo
 
 1. The engine copies itself into `~/<name>/engine` (set `INSTALL_DIR` to use another folder) and continues from there; config and data go next to it.
 2. A secrets key is made and shown once. Save the `AGE-SECRET-KEY-...` line in your password manager before pressing Enter: without it, nothing in the config can be decrypted on another machine.
-3. `make configure` asks for the settings: time zone, where to keep the config (only on this machine, or a private GitHub repository), where to keep the backups (a local folder or Backblaze B2, checked before it is accepted), the VPN, the healthchecks ping key, the app passwords and the subtitle languages. Pressing Enter on a password generates one; `make logins` shows it later.
+3. `make configure` asks for the settings: time zone, where to keep the config (only on this machine, or a private GitHub repository), where to keep the backups (a local folder or Backblaze B2, checked before it is accepted, or another restic repository such as sftp or s3), the VPN, the healthchecks ping key, the app passwords and the subtitle languages. Pressing Enter on a password generates one; `make logins` shows it later.
 4. You are asked whether this machine is the installation's main, the one that backs up. Say yes on the first machine.
 5. `make update` pulls the images, brings the apps up and wires them. On the main, the first backup runs and creates the backup repository.
 6. On machines with systemd, timers are installed for the daily update, the fake-download cleanup and, on the main, the backups.

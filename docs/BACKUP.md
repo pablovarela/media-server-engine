@@ -8,7 +8,7 @@ The config repository is not part of the backup. It lives in git, locally or on 
 
 ## Where
 
-In a restic repository, set by `make configure`: a local folder (`RESTIC_REPOSITORY=/path/to/folder`) or a Backblaze B2 bucket (`RESTIC_REPOSITORY=b2:<bucket>:<folder>`). The restic password and the B2 key are in `secrets/backup.sops.env`. Keep the installation's secrets key in your password manager: it decrypts the restic password, and without it the backups cannot be read.
+In a restic repository, set by `make configure`: a local folder (`RESTIC_REPOSITORY=/path/to/folder`), a Backblaze B2 bucket (`RESTIC_REPOSITORY=b2:<bucket>:<folder>`), or another kind of repository restic supports, such as `sftp:` or `s3:`. For another kind, add the variables restic needs for it (for example `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`) to `secrets/backup.sops.env` with `sops edit`; configure keeps them, but does not check that repository. The restic password and the B2 key are in `secrets/backup.sops.env`. Keep the installation's secrets key in your password manager: it decrypts the restic password, and without it the backups cannot be read.
 
 restic keeps the last 7 daily, 4 weekly and 6 monthly snapshots, and removes older ones after each backup.
 

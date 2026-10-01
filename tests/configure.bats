@@ -378,3 +378,26 @@ Europe/London#")
   grep -qx "# the name the apps are reached by=media.local" "$CONFIG_DIR/installation.env"
   grep -qx "TZ=Europe/London" "$CONFIG_DIR/installation.env"
 }
+
+@test "another kind of restic repository, such as sftp or s3, can be chosen and is used as typed" {
+  run configure < <(answers_for_new_installation | sed "5s#b2#other#; 6s#.*#s3:s3.amazonaws.com/testinst-bucket/restic#; 7d; 8d; 9d")
+  [ "$status" -eq 0 ]
+  ! echo "$output" | grep -q "B2 key ID" || false
+  grep -qx "RESTIC_REPOSITORY=s3:s3.amazonaws.com/testinst-bucket/restic" "$CONFIG_DIR/installation.env"
+}
+
+@test "reconfiguring keeps a restic repository that is neither a folder nor b2" {
+  configure < <(answers_for_new_installation) >/dev/null 2>&1
+  sed -i.bak 's#^RESTIC_REPOSITORY=.*#RESTIC_REPOSITORY=sftp:backup@nas:/srv/restic#' "$CONFIG_DIR/installation.env" && rm "$CONFIG_DIR/installation.env.bak"
+  run configure < <(enter_on_every_prompt)
+  [ "$status" -eq 0 ]
+  grep -qx "RESTIC_REPOSITORY=sftp:backup@nas:/srv/restic" "$CONFIG_DIR/installation.env"
+}
+
+@test "reconfiguring keeps a b2 bucket used without a folder" {
+  configure < <(answers_for_new_installation) >/dev/null 2>&1
+  sed -i.bak 's#^RESTIC_REPOSITORY=.*#RESTIC_REPOSITORY=b2:testinst-bucket#' "$CONFIG_DIR/installation.env" && rm "$CONFIG_DIR/installation.env.bak"
+  run configure < <(enter_on_every_prompt)
+  [ "$status" -eq 0 ]
+  grep -qx "RESTIC_REPOSITORY=b2:testinst-bucket" "$CONFIG_DIR/installation.env"
+}

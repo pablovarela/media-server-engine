@@ -13,7 +13,7 @@ Edit these with any editor.
 
 | File | What it holds |
 |---|---|
-| `installation.env` | `TZ` (a time zone such as `Europe/London`), `CONFIG_LOCATION` (`local` or `github`), `GITHUB_OWNER`, `JELLYFIN_ADMIN_USER`, `RESTIC_REPOSITORY` (an absolute folder path, or `b2:<bucket>:<folder>` for Backblaze B2). `INSTALLATION_NAME` is fixed once the installation exists: its directory, repository, backups and healthchecks are named after it. Keys and comments added by hand, such as `MEDIA_SERVER_HOST` (the name the app addresses use), are kept by `make configure`. |
+| `installation.env` | `TZ` (a time zone such as `Europe/London`), `CONFIG_LOCATION` (`local` or `github`), `GITHUB_OWNER`, `JELLYFIN_ADMIN_USER`, `RESTIC_REPOSITORY` (an absolute folder path, `b2:<bucket>:<folder>` for Backblaze B2, or any other repository restic takes, such as `sftp:` or `s3:`, with its credentials added to `secrets/backup.sops.env`). `INSTALLATION_NAME` is fixed once the installation exists: its directory, repository, backups and healthchecks are named after it. Keys and comments added by hand, such as `MEDIA_SERVER_HOST` (the name the app addresses use), are kept by `make configure`. |
 | `engine.env` | `ENGINE_VERSION`: the engine release to run, or `local` to run the engine checkout as it is. |
 | `images.yml`, `images.monitoring.yml` | The image of every service, pinned to a digest. Renovate updates them. |
 | `apps.yml` | Jellyfin's server name and libraries, Deluge's settings and plugins, Seerr's libraries and quality profiles, Bazarr's subtitle languages. |
