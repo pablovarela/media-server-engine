@@ -15,7 +15,7 @@ It restores the latest backup before the apps start, then wires them, so they co
 To roll a machine's app state back to the latest backup:
 
 ```
-cd ~/<name>/engine
+cd ~/<name>
 make media-stop
 make restore ARGS=--overwrite
 make update

@@ -160,7 +160,7 @@ create() {
   [ "$status" -ne 0 ]
   [ -f "$CONFIG_DIR/images.yml" ]
   grep -q "AGE-SECRET-KEY-NEW" "$HOME/.config/sops/age/keys.txt"
-  echo "$output" | grep -q "cd $ENGINE_DIR && make setup-machine"
+  echo "$output" | grep -q "cd $INSTALL_DIR && make setup-machine"
 }
 
 @test "pressing ctrl-c during the questions also leaves nothing behind" {

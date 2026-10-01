@@ -8,7 +8,7 @@
 - Optional: a Backblaze B2 bucket and application key for off-site backups; a local folder works too.
 - Optional: a healthchecks.io project and its ping key, to be told when a backup or update fails.
 
-`make bootstrap` installs the rest: sops, age, restic and, on Debian, Docker. The create and join targets run it for you. On a fresh Debian machine it adds you to the `docker` group, which only applies after logging in again: if create or join stops saying docker cannot be used yet, log out and back in, then run `make setup-machine` from `~/<name>/engine` to finish.
+`make bootstrap` installs the rest: sops, age, restic and, on Debian, Docker. The create and join targets run it for you. On a fresh Debian machine it adds you to the `docker` group, which only applies after logging in again: if create or join stops saying docker cannot be used yet, log out and back in, then run `make setup-machine` from `~/<name>` to finish.
 
 ## Creating an installation
 
@@ -27,7 +27,7 @@ The name is lowercase letters, digits and dashes. It names the installation's fo
 6. On machines with systemd, timers are installed for the daily update, the fake-download cleanup and, on the main, the backups.
 7. A summary shows where the installation lives, the app addresses and the everyday commands.
 
-If create stops before the settings are saved, it removes what it made, including the new key (delete it from your password manager too), so it can simply be run again. If only publishing the config to GitHub fails, the settings are kept on this machine and the next `make configure` publishes them. If it stops later, the settings are kept and `make setup-machine` from the installation's engine finishes the job.
+If create stops before the settings are saved, it removes what it made, including the new key (delete it from your password manager too), so it can simply be run again. If only publishing the config to GitHub fails, the settings are kept on this machine and the next `make configure` publishes them. If it stops later, the settings are kept and `make setup-machine` from `~/<name>` finishes the job.
 
 Jellyfin shows new titles about a minute after Sonarr or Radarr imports them, except the very first title of a new installation, which appears at the next library scan or with Scan All Libraries in Jellyfin's dashboard.
 
@@ -51,7 +51,7 @@ A backup holds app state, not media. A machine rebuilt without the media shows t
 
 ## Running it
 
-Everything runs by hand from the installation's engine, on any machine. The systemd timers are one supported way to schedule the same commands:
+Everything runs by hand with make from the installation, `~/<name>`, on any machine. Its Makefile passes every target to the engine's, so `make` there works the same as in `~/<name>/engine`, and `make` alone lists the everyday targets first. The systemd timers are one supported way to schedule the same commands:
 
 | Timer | When | Runs |
 |---|---|---|

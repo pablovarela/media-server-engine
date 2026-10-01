@@ -167,6 +167,7 @@ if [ -z "${MEDIA_SERVER_PULLED:-}" ]; then
 fi
 "$PINNED_TOOLS_COMMAND" --pinned-tools
 load_installation
+write_installation_makefile
 decrypt_secrets
 write_compose_env
 "$CHECK_STACK_COMMAND"

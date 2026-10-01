@@ -57,7 +57,7 @@ undo_unless_settings_saved() {
   local status=$?
   [ "$status" -ne 0 ] || return 0
   if [ -n "$settings_saved" ]; then
-    echo "$NAME's settings are saved in $CONFIG_DIR. Finish setting up this machine with: cd $ENGINE_DIR && make setup-machine" >&2
+    echo "$NAME's settings are saved in $CONFIG_DIR. Finish setting up this machine with: cd $(dirname "$ENGINE_DIR") && make setup-machine" >&2
     return
   fi
   if [ -n "$public_key" ]; then

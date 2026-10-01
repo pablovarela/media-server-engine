@@ -25,7 +25,7 @@ setup() {
     run env HOME="$home" make -s -C "$REPO" "$target" CONFIG_DIR="$home/nowhere/config"
     [ "$status" -ne 0 ] || { echo "$target did not refuse"; false; }
     echo "$output" | grep -q "not an installation" || { echo "$target: $output"; false; }
-    echo "$output" | grep -q "cd $home/trial/engine" || { echo "$target: $output"; false; }
+    echo "$output" | grep -qx "  cd $home/trial" || { echo "$target: $output"; false; }
   done
   rm -rf "$home"
 }

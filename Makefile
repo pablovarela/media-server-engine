@@ -6,8 +6,14 @@ export CONFIG_DIR
 WITH_LIB = export CONFIG_DIR="$(CONFIG_DIR)"; source scripts/lib.sh &&
 export SOPS_AGE_KEY_FILE ?= $(HOME)/.config/sops/age/keys.txt
 
+EVERYDAY = update configure urls logins backup-now verify-backup-now media-start media-stop media-status
+SHOW_TARGETS = awk 'BEGIN {FS = ":.*?\#\# "}; {printf "  \033[36m%-30s\033[0m %s\n", $$1, $$2}'
+
 help:
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+	@echo "Everyday:"
+	@for target in $(EVERYDAY); do grep -hE "^$$target:.*## " $(MAKEFILE_LIST) | $(SHOW_TARGETS); done
+	@echo "Everything else:"
+	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep -v $(foreach target,$(EVERYDAY),-e '^$(target):') | sort | $(SHOW_TARGETS)
 
 create-installation: ## create a new installation in ~/NAME (engine, config, data), asking for its settings, and set up this machine: NAME=<name>
 	@scripts/create-installation.sh $(NAME)

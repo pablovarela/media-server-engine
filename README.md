@@ -8,7 +8,7 @@ It runs Jellyfin, Sonarr, Radarr, Prowlarr, Bazarr, Deluge (behind a VPN with gl
 
 ## How it is split
 
-An installation is three folders side by side, in `~/<name>`:
+An installation is three folders side by side in `~/<name>`, with a Makefile there that runs the engine's targets:
 
 | Folder | What it holds | Where it comes from |
 |---|---|---|
@@ -30,7 +30,7 @@ make create-installation NAME=<name>
 
 It installs the tools, makes a secrets key (save it in your password manager), asks for the settings, brings the apps up, wires them and prints where everything is. To add another machine to an existing installation, or to rebuild one after losing a machine, use `make join-installation NAME=<name>` instead.
 
-From then on, run make from the installation's engine, `cd ~/<name>/engine`:
+From then on, run make from the installation, `cd ~/<name>` (its Makefile passes every target to the engine):
 
 | Command | Does |
 |---|---|
