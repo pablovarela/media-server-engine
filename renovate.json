@@ -1,0 +1,112 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "docker:pinDigests",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "dependencyDashboard": true,
+  "automerge": false,
+  "docker-compose": {
+    "managerFilePatterns": [
+      "/^config-template\\/images(\\.monitoring)?\\.yml$/"
+    ]
+  },
+  "packageRules": [
+    {
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "/linuxserver\\//"
+      ],
+      "versioning": "regex:^v?(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(?:\\.(?<build>\\d+))?-ls(?<revision>\\d+)$"
+    },
+    {
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "/linuxserver\\/jellyfin$/"
+      ],
+      "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)ubu(?<compatibility>\\d+)-ls(?<patch>\\d+)$"
+    },
+    {
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "ghcr.io/raydak-labs/configarr"
+      ],
+      "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-(?<compatibility>alpine[\\d.]+)$"
+    },
+    {
+      "matchFileNames": [
+        "config-template/**"
+      ],
+      "groupName": "template images",
+      "schedule": [
+        "before 6am on monday"
+      ]
+    },
+    {
+      "matchFileNames": [
+        "scripts/tool-versions.env",
+        ".github/workflows/test.yml"
+      ],
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "prBodyNotes": [
+        "Update the SHA256 pinned next to this version to the new release file's: the tool-pins check fails until it matches."
+      ]
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^scripts\\/tool-versions\\.env$/"
+      ],
+      "matchStrings": [
+        "SOPS_VERSION=(?<currentValue>v\\d+\\.\\d+\\.\\d+)"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "getsops/sops"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^scripts\\/tool-versions\\.env$/"
+      ],
+      "matchStrings": [
+        "AGE_VERSION=(?<currentValue>v\\d+\\.\\d+\\.\\d+)"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "FiloSottile/age"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^scripts\\/tool-versions\\.env$/"
+      ],
+      "matchStrings": [
+        "RESTIC_VERSION=(?<currentValue>\\d+\\.\\d+\\.\\d+)"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "restic/restic",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github\\/workflows\\/test\\.yml$/"
+      ],
+      "matchStrings": [
+        "SHELLCHECK_VERSION: (?<currentValue>v\\d+\\.\\d+\\.\\d+)"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "koalaman/shellcheck"
+    }
+  ]
+}

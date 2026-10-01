@@ -52,4 +52,4 @@ From then on, run make from the installation's engine, `cd ~/<name>/engine`:
 
 ## Developing
 
-`make test` runs the bats tests and shellcheck; GitHub Actions runs both on every push and pull request. See [AGENTS.md](AGENTS.md) for the rules this repository follows.
+`make test` runs the bats tests and shellcheck; GitHub Actions runs both on every push and pull request, and checks that the pinned sops, age and restic downloads match their checksums. Renovate opens pull requests for the template's images, the pinned tools, shellcheck and the actions; a tool update needs its SHA256 in `scripts/tool-versions.env` updated by hand before that check passes. See [AGENTS.md](AGENTS.md) for the rules this repository follows.

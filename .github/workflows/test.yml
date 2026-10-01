@@ -59,3 +59,10 @@ jobs:
             { echo "shellcheck: findings"; echo '```'; cat shellcheck.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
+
+  tool-pins:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check the pinned tool downloads against their checksums
+        run: scripts/check-tool-downloads.sh | tee -a "$GITHUB_STEP_SUMMARY"
