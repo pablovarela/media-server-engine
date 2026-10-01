@@ -2,7 +2,7 @@
 
 There are two ways to change the config, and they can be mixed:
 
-- `make configure`, run from the installation's engine (`cd ~/<name>/engine`). It shows menus when whiptail is installed and asks plain questions otherwise. It covers the settings and secrets below, and checks them: the time zone must exist, a backup folder must be writable and Backblaze B2 must accept the key, bucket and password.
+- `make configure`, run from the installation (`cd ~/<name>`). It shows menus when whiptail is installed and asks plain questions otherwise. It covers the settings and secrets below, and checks them: the time zone must exist, a backup folder must be writable and Backblaze B2 must accept the key, bucket and password.
 - Editing the files in this repository by hand. Every setting is a file here, so nothing needs the configuration tool.
 
 Either way, a change reaches the apps at the next `make update`.
@@ -50,6 +50,6 @@ Commit it:
 git -C ~/<name>/config commit -am "What changed"
 ```
 
-For a config kept on GitHub, push the commit. Every machine of the installation applies it at its next daily update, or straight away with `make update` from its engine. For a local-only config, run `make update` from `~/<name>/engine`.
+For a config kept on GitHub, push the commit. Every machine of the installation applies it at its next daily update, or straight away with `make update` from `~/<name>`. For a local-only config, run `make update` from `~/<name>`.
 
 `make update` refuses to run while the config has changes that are not committed, and lists them.

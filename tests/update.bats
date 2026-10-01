@@ -240,3 +240,13 @@ line_of() {
   [ "$status" -eq 0 ]
   [ "$(grep -n '^fake-pinned-tools' "$STUB_LOG" | cut -d: -f1)" -lt "$(grep -n 'docker compose pull' "$STUB_LOG" | cut -d: -f1)" ]
 }
+
+@test "update writes the installation's makefile" {
+  root=$(mktemp -d)
+  mkdir -p "$root/engine/installation" "$root/config"
+  cp -R "$BATS_TEST_DIRNAME/../installation/." "$root/engine/installation/"
+  cp -R "$CONFIG_DIR/." "$root/config/"
+  CONFIG_DIR="$root/config" ENGINE_DIR="$root/engine" run "$BATS_TEST_DIRNAME/../scripts/update.sh"
+  [ -f "$root/Makefile" ]
+  rm -rf "$root"
+}

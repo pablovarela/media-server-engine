@@ -78,7 +78,7 @@ in_lib() {
   run in_lib 'load_installation'
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "not an installation"
-  echo "$output" | grep -q "cd $HOME/trial/engine"
+  echo "$output" | grep -qx "  cd $HOME/trial"
   ! echo "$output" | grep -q "other" || false
   echo "$output" | grep -q "make create-installation NAME="
 }

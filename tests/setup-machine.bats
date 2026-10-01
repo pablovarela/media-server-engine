@@ -46,7 +46,7 @@ setup_machine() {
   [ "$status" -eq 0 ]
   summary=$(echo "$output" | sed -n '/testinst is ready/,$p')
   [ -n "$summary" ]
-  echo "$summary" | grep -q "cd $(cd "$ENGINE_DIR" && pwd)"
+  echo "$summary" | grep -q "cd $(cd "$(dirname "$ENGINE_DIR")" && pwd)"
   echo "$summary" | grep -q "http://homeserver.local:8096"
   echo "$summary" | grep -q "make logins"
   echo "$summary" | grep -q "make configure"
@@ -96,4 +96,11 @@ setup_machine() {
   [ "$status" -eq 0 ]
   echo "$output" | grep -q "pi, last backup 2026-09-30 04:30"
   grep -q "confirmed=1" "$STUB_LOG"
+}
+
+@test "the summary says to run make from the installation, not its engine" {
+  run setup_machine < <(echo y)
+  summary=$(echo "$output" | sed -n '/testinst is ready/,$p')
+  echo "$summary" | grep -q "run make from it"
+  echo "$summary" | grep -qx "  cd $(cd "$(dirname "$ENGINE_DIR")" && pwd)"
 }

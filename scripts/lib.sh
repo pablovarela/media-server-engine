@@ -26,12 +26,24 @@ die_not_an_installation() {
   {
     echo "$ENGINE_DIR is not an installation: there is no config next to it."
     if [ -n "$found" ]; then
-      echo "Installations on this machine; run make from the engine of the one you mean:"
-      echo "$found" | while IFS= read -r installation; do echo "  cd $installation/engine"; done
+      echo "Installations on this machine; run make from the one you mean:"
+      echo "$found" | while IFS= read -r installation; do echo "  cd $installation"; done
     fi
     echo "To create one: make create-installation NAME=<name>"
   } >&2
   exit 1
+}
+
+installation_root() {
+  local root
+  root=$(cd "$ENGINE_DIR/.." && pwd -P)
+  [ "$(basename "$ENGINE_DIR")" = engine ] && [ "$(cd "$CONFIG_DIR" 2>/dev/null && pwd -P)" = "$root/config" ] && echo "$root"
+}
+
+write_installation_makefile() {
+  local root
+  root=$(installation_root) || return 0
+  cmp -s "$ENGINE_DIR/installation/Makefile" "$root/Makefile" || cp "$ENGINE_DIR/installation/Makefile" "$root/Makefile"
 }
 
 require_installation() {

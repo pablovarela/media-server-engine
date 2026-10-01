@@ -62,8 +62,8 @@ print_summary() {
   echo "================================================================"
   echo "$INSTALLATION_NAME is ready on $(network_name)."
   echo
-  echo "It lives in $installation. From now on, run make from its engine:"
-  echo "  cd $engine"
+  echo "It lives in $installation. From now on, run make from it:"
+  echo "  cd $installation"
   echo
   echo "Apps (make urls lists them again):"
   "$APPS_COMMAND" urls | sed 's/^/  /'
