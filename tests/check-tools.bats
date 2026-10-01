@@ -5,7 +5,10 @@ setup() {
   source "$BATS_TEST_DIRNAME/../scripts/tool-versions.env"
   for tool in git make curl sqlite3; do make_stub "$tool" ''; done
   make_stub python3 'if [ "$*" = "-c import yaml" ] && [ -n "${FAKE_NO_YAML:-}" ]; then exit 1; fi'
-  make_stub docker 'if [ "$1 $2" = "compose version" ]; then echo "Docker Compose version v5.4.0"; fi'
+  make_stub docker '
+if [ "$1 $2" = "compose version" ]; then echo "Docker Compose version v5.4.0"; fi
+if [ "$1" = info ] && [ -n "${FAKE_DOCKER_DENIED:-}" ]; then echo "permission denied while trying to connect to the docker API at unix:///var/run/docker.sock" >&2; exit 1; fi
+if [ "$1" = info ] && [ -n "${FAKE_DOCKER_DOWN:-}" ]; then echo "Cannot connect to the Docker daemon. Is the docker daemon running?" >&2; exit 1; fi'
   make_stub sops "if [ \"\$1\" = --version ]; then echo \"sops ${SOPS_VERSION#v}\"; elif [ -n \"\${FAKE_BAD_KEY:-}\" ]; then exit 1; fi"
   make_stub age "echo ${AGE_VERSION}"
   make_stub restic "echo \"restic ${RESTIC_VERSION} compiled with go\""
@@ -91,4 +94,17 @@ teardown() {
   make_stub whiptail ''
   run "$BATS_TEST_DIRNAME/../scripts/check-tools.sh"
   echo "$output" | grep -qE "^OK +whiptail"
+}
+
+@test "a user just added to the docker group is told to log in again" {
+  FAKE_DOCKER_DENIED=1 run "$BATS_TEST_DIRNAME/../scripts/check-tools.sh"
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "log out and back in"
+  echo "$output" | grep -q "make setup-machine"
+}
+
+@test "a docker that is not running is reported" {
+  FAKE_DOCKER_DOWN=1 run "$BATS_TEST_DIRNAME/../scripts/check-tools.sh"
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "docker is not running"
 }

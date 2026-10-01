@@ -8,7 +8,7 @@
 - Optional: a Backblaze B2 bucket and application key for off-site backups; a local folder works too.
 - Optional: a healthchecks.io project and its ping key, to be told when a backup or update fails.
 
-`make bootstrap` installs the rest: sops, age, restic and, on Debian, Docker. The create and join targets run it for you.
+`make bootstrap` installs the rest: sops, age, restic and, on Debian, Docker. The create and join targets run it for you. On a fresh Debian machine it adds you to the `docker` group, which only applies after logging in again: if create or join stops saying docker cannot be used yet, log out and back in, then run `make setup-machine` from `~/<name>/engine` to finish.
 
 ## Creating an installation
 

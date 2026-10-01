@@ -51,6 +51,17 @@ reports_version() {
   return 1
 }
 
+check_docker_access() {
+  local answer
+  if answer=$(docker info 2>&1 >/dev/null); then
+    report OK "docker can be used by $(id -un)"
+  elif [[ $answer == *"permission denied"* ]]; then
+    problem NO-ACCESS "docker cannot be used by $(id -un) yet: log out and back in so the docker group applies, then run make setup-machine"
+  else
+    problem DOWN "docker is not running: start it, then run make setup-machine"
+  fi
+}
+
 check_compose_plugin() {
   if docker compose version >/dev/null 2>&1; then report OK "docker compose"; else problem MISSING "docker compose plugin"; fi
 }
@@ -79,6 +90,7 @@ for tool in docker git make curl sqlite3 python3 sops age restic; do
   check_command "$tool"
 done
 installed docker && check_compose_plugin
+installed docker && check_docker_access
 installed python3 && check_python_yaml
 check_optional_menus
 check_pinned_version sops "$SOPS_VERSION" --version
