@@ -4,12 +4,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 # shellcheck source=scripts/tool-versions.env
 source scripts/tool-versions.env
-
-download_verified() {
-  local url=$1 sha256=$2 out=$3
-  curl -fsSL -o "$out" "$url"
-  echo "$sha256  $out" | sha256sum -c -
-}
+# shellcheck source=scripts/tool-pins.sh
+source scripts/tool-pins.sh
 
 install_apt_packages() {
   sudo apt-get update
@@ -32,7 +28,7 @@ install_docker() {
 install_sops() {
   local tmp
   tmp=$(mktemp -d)
-  download_verified "https://github.com/getsops/sops/releases/download/$SOPS_VERSION/$SOPS_ASSET" "$SOPS_SHA256" "$tmp/sops"
+  download_verified "$(sops_url)" "$SOPS_SHA256" "$tmp/sops"
   sudo install -m 755 "$tmp/sops" /usr/local/bin/sops
   rm -rf "$tmp"
 }
@@ -40,7 +36,7 @@ install_sops() {
 install_age() {
   local tmp
   tmp=$(mktemp -d)
-  download_verified "https://github.com/FiloSottile/age/releases/download/$AGE_VERSION/$AGE_ASSET" "$AGE_SHA256" "$tmp/age.tgz"
+  download_verified "$(age_url)" "$AGE_SHA256" "$tmp/age.tgz"
   tar xzf "$tmp/age.tgz" -C "$tmp"
   sudo install -m 755 "$tmp/age/age" "$tmp/age/age-keygen" /usr/local/bin/
   rm -rf "$tmp"
@@ -49,7 +45,7 @@ install_age() {
 install_restic() {
   local tmp
   tmp=$(mktemp -d)
-  download_verified "https://github.com/restic/restic/releases/download/v$RESTIC_VERSION/$RESTIC_ASSET" "$RESTIC_SHA256" "$tmp/restic.bz2"
+  download_verified "$(restic_url)" "$RESTIC_SHA256" "$tmp/restic.bz2"
   bunzip2 "$tmp/restic.bz2"
   sudo install -m 755 "$tmp/restic" /usr/local/bin/restic
   rm -rf "$tmp"
@@ -62,6 +58,12 @@ bootstrap_debian() {
   install_sops
   install_age
   install_restic
+}
+
+install_pinned_tools_that_differ() {
+  pinned_version_installed sops "$SOPS_VERSION" --version || { echo "Installing sops $SOPS_VERSION"; install_sops; }
+  pinned_version_installed age "$AGE_VERSION" --version || { echo "Installing age $AGE_VERSION"; install_age; }
+  pinned_version_installed restic "$RESTIC_VERSION" version || { echo "Installing restic $RESTIC_VERSION"; install_restic; }
 }
 
 bootstrap_macos() {
@@ -77,6 +79,11 @@ require_arm64() {
     *) echo "bootstrap: the pinned Linux binaries are arm64; this machine is $(uname -m)" >&2; exit 1 ;;
   esac
 }
+
+if [ "${1:-}" = --pinned-tools ]; then
+  if [ "$(uname -s)" = Linux ]; then require_arm64 && install_pinned_tools_that_differ; fi
+  exit 0
+fi
 
 case $(uname -s) in
   Linux) require_arm64 && bootstrap_debian ;;

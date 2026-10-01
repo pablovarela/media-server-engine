@@ -1,4 +1,4 @@
-.PHONY: help installation test-scripts lint urls logins create-installation join-installation setup-machine bootstrap configure update install-update-timer claim-backup-main check-tools test restore backup-now verify-backup-now unlock-backup install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
+.PHONY: help installation test-scripts lint urls logins create-installation join-installation setup-machine bootstrap pinned-tools configure update install-update-timer claim-backup-main check-tools test restore backup-now verify-backup-now unlock-backup install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
 
 SHELL := /bin/bash
 CONFIG_DIR ?= $(CURDIR)/../config
@@ -24,7 +24,7 @@ bootstrap: ## install sops, age and restic (Homebrew on macOS, pinned binaries p
 restore: installation check-tools ## restore volumes/ from the latest backup (ARGS=--overwrite replaces existing data)
 	@sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" "scripts/restore.sh $(ARGS)"
 
-update: installation check-tools ## pull the config repo, switch to its engine version, bring the stack up and wire the apps
+update: installation pinned-tools check-tools ## pull the config repo, switch to its engine version, bring the stack up and wire the apps
 	@scripts/update.sh
 
 install-update-timer: installation check-tools ## schedule make update daily at 05:00, after the backup (systemd)
@@ -32,6 +32,9 @@ install-update-timer: installation check-tools ## schedule make update daily at 
 
 configure: ## set or change this installation's settings and secrets interactively (ROTATE=sonarr regenerates one internal key)
 	@scripts/configure.sh $(if $(ROTATE),--rotate $(ROTATE))
+
+pinned-tools: ## install the pinned sops, age and restic where the installed version differs (Linux; Homebrew manages them on macOS)
+	@scripts/bootstrap.sh --pinned-tools
 
 check-tools: ## check that every tool the scripts need is installed and the age key works
 	@scripts/check-tools.sh

@@ -23,7 +23,8 @@ Revert the commit that made the change, in the config repository, and run `make 
 1. Refuses if the engine or the config has uncommitted changes, and shows them.
 2. Pulls the config, if it has a remote.
 3. Switches the engine to the release in `engine.env`, if it differs, and continues with the new engine.
-4. Checks that every image is pinned and that every app that writes state runs as uid and gid 1000.
-5. Pulls the images, starts the apps and removes containers no longer declared.
-6. Wires the apps, printing one line per change.
-7. Removes images no longer pinned.
+4. Installs the sops, age and restic versions that engine pins, where the installed ones differ (on Linux; Homebrew manages them on macOS). This needs `sudo` without a password for the scheduled update; otherwise run `make pinned-tools` by hand after an engine upgrade that changes them.
+5. Checks that every image is pinned and that every app that writes state runs as uid and gid 1000.
+6. Pulls the images, starts the apps and removes containers no longer declared.
+7. Wires the apps, printing one line per change.
+8. Removes images no longer pinned.

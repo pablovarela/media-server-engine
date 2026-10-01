@@ -4,6 +4,8 @@ set -uo pipefail
 source "$(dirname "$0")/lib.sh"
 # shellcheck source=scripts/tool-versions.env
 source "$(dirname "$0")/tool-versions.env"
+# shellcheck source=scripts/tool-pins.sh
+source "$(dirname "$0")/tool-pins.sh"
 cd "$CONFIG_DIR" || exit 1
 
 if [ "$(uname -s)" = Linux ]; then
@@ -35,20 +37,12 @@ check_pinned_version() {
   local name=$1 pinned=$2 version_flag=$3 installed_version
   installed "$name" || return 0
   [ "$CHECK_PINNED_VERSIONS" = 1 ] || return 0
-  installed_version=$("$name" "$version_flag" 2>&1 | head -1)
+  installed_version=$(installed_version "$name" "$version_flag")
   if reports_version "$installed_version" "$pinned"; then
     report OK "$name $pinned"
   else
     problem WRONG "$name: pinned $pinned, installed ${installed_version:-unknown}"
   fi
-}
-
-reports_version() {
-  local word
-  for word in $1; do
-    [ "${word#v}" = "${2#v}" ] && return 0
-  done
-  return 1
 }
 
 check_docker_access() {

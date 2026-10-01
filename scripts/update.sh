@@ -8,6 +8,7 @@ SCRIPTS_DIR="$(dirname "$SCRIPT_PATH")"
 CHECK_STACK_COMMAND=${CHECK_STACK_COMMAND:-$SCRIPTS_DIR/check-stack.sh}
 WIRE_COMMAND=${WIRE_COMMAND:-$SCRIPTS_DIR/wire/wire-apps.sh}
 PRUNE_COMMAND=${PRUNE_COMMAND:-$SCRIPTS_DIR/prune-stack-images.sh}
+PINNED_TOOLS_COMMAND=${PINNED_TOOLS_COMMAND:-$SCRIPTS_DIR/bootstrap.sh}
 readonly GLUETUN_DEPENDENTS="prowlarr flaresolverr deluge"
 
 config_has_remote() {
@@ -164,6 +165,7 @@ if [ -z "${MEDIA_SERVER_PULLED:-}" ]; then
   if config_has_remote; then git -C "$CONFIG_DIR" pull --ff-only; fi
   switch_engine_and_restart_if_needed "$@"
 fi
+"$PINNED_TOOLS_COMMAND" --pinned-tools
 load_installation
 decrypt_secrets
 write_compose_env

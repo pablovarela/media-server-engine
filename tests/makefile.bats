@@ -46,3 +46,8 @@ setup() {
   make -s -n -C "$REPO" unlock-backup | grep -q "backup.sops.env.*scripts/unlock-backup.sh"
   make -s -n -C "$REPO" unlock-backup ALL=1 | grep -q "scripts/unlock-backup.sh --remove-all"
 }
+
+@test "make update installs the pinned tools before checking them" {
+  out=$(make -s -n -C "$REPO" update CONFIG_DIR=/nowhere 2>/dev/null)
+  [ "$(echo "$out" | grep -n "bootstrap.sh --pinned-tools" | cut -d: -f1)" -lt "$(echo "$out" | grep -n "scripts/check-tools.sh" | cut -d: -f1)" ]
+}

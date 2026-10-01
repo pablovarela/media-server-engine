@@ -73,3 +73,36 @@ teardown() {
   grep -q "sudo apt-get install -y .*perl" "$STUB_LOG"
   grep -q "sudo apt-get install -y .*openssl" "$STUB_LOG"
 }
+
+pinned_tool_stubs() {
+  source "$BATS_TEST_DIRNAME/../scripts/tool-versions.env"
+  for tool in sha256sum tar bunzip2; do make_stub "$tool" ''; done
+  make_stub sops "echo \"sops ${SOPS_VERSION#v} (latest)\""
+  make_stub age "echo ${AGE_VERSION}"
+  make_stub restic "echo \"restic \${FAKE_RESTIC_VERSION:-$RESTIC_VERSION} compiled with go\""
+}
+
+@test "pinned tools are left alone when the installed versions match the pins" {
+  pinned_tool_stubs
+  FAKE_OS=Linux FAKE_ARCH=aarch64 run "$BATS_TEST_DIRNAME/../scripts/bootstrap.sh" --pinned-tools
+  [ "$status" -eq 0 ]
+  ! grep -qE "^(curl|sudo|apt-get)" "$STUB_LOG" || false
+}
+
+@test "only a pinned tool whose installed version differs is installed again" {
+  pinned_tool_stubs
+  FAKE_RESTIC_VERSION=0.17.0 FAKE_OS=Linux FAKE_ARCH=aarch64 run "$BATS_TEST_DIRNAME/../scripts/bootstrap.sh" --pinned-tools
+  [ "$status" -eq 0 ]
+  grep -q "^curl .*restic/releases" "$STUB_LOG"
+  ! grep -q "^curl .*sops/releases" "$STUB_LOG" || false
+  ! grep -q "^curl .*age/releases" "$STUB_LOG" || false
+  ! grep -q "^apt-get" "$STUB_LOG" || false
+  echo "$output" | grep -q "restic"
+}
+
+@test "pinned tools are not managed on macOS, where Homebrew installs them" {
+  pinned_tool_stubs
+  run "$BATS_TEST_DIRNAME/../scripts/bootstrap.sh" --pinned-tools
+  [ "$status" -eq 0 ]
+  ! grep -qE "^(brew|curl|sudo)" "$STUB_LOG" || false
+}

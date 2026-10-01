@@ -8,7 +8,8 @@ setup() {
   make_stub hostname 'echo laptop'
   make_stub fake-check-tools 'if [ -n "${FAKE_TOOLS_BROKEN:-}" ]; then exit 1; fi'
   make_stub fake-update 'if [ -n "${FAKE_UPDATE_FAILS:-}" ]; then exit 1; fi'
-  export CHECK_TOOLS_COMMAND=fake-check-tools UPDATE_COMMAND=fake-update
+  make_stub fake-pinned-tools ''
+  export CHECK_TOOLS_COMMAND=fake-check-tools UPDATE_COMMAND=fake-update PINNED_TOOLS_COMMAND=fake-pinned-tools
 }
 
 teardown() {
@@ -45,4 +46,10 @@ scheduled_update() {
   [ "$status" -ne 0 ]
   ! grep -q "^fake-update" "$STUB_LOG" || false
   grep -q "/fail?create=1" "$STUB_LOG"
+}
+
+@test "the scheduled update installs the pinned tools before checking them" {
+  run scheduled_update
+  [ "$status" -eq 0 ]
+  [ "$(grep -n '^fake-pinned-tools' "$STUB_LOG" | cut -d: -f1)" -lt "$(grep -n '^fake-check-tools' "$STUB_LOG" | cut -d: -f1)" ]
 }

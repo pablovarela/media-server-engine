@@ -32,7 +32,8 @@ if [ "$2" = up ] && [ "$3" = -d ] && [ "$4" = --remove-orphans ] && [ -n "${FAKE
   make_stub fake-check-stack 'if [ -n "${FAKE_STACK_UNSAFE:-}" ]; then exit 1; fi'
   make_stub fake-wire ''
   make_stub fake-prune ''
-  export CHECK_STACK_COMMAND=fake-check-stack WIRE_COMMAND=fake-wire PRUNE_COMMAND=fake-prune
+  make_stub fake-pinned-tools ''
+  export CHECK_STACK_COMMAND=fake-check-stack WIRE_COMMAND=fake-wire PRUNE_COMMAND=fake-prune PINNED_TOOLS_COMMAND=fake-pinned-tools
 }
 
 teardown() {
@@ -232,4 +233,10 @@ line_of() {
   grep -q "^SONARR_API_KEY: \"s1\"$" "$ENGINE_DIR/.secrets/configarr/secrets.yml"
   grep -q "^RADARR_API_KEY: \"r1\"$" "$ENGINE_DIR/.secrets/configarr/secrets.yml"
   [ "$(wc -l < "$ENGINE_DIR/.secrets/configarr/secrets.yml")" -eq 2 ]
+}
+
+@test "update installs the tools the engine it runs pins, before bringing the stack up" {
+  run update
+  [ "$status" -eq 0 ]
+  [ "$(grep -n '^fake-pinned-tools' "$STUB_LOG" | cut -d: -f1)" -lt "$(grep -n 'docker compose pull' "$STUB_LOG" | cut -d: -f1)" ]
 }
