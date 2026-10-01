@@ -98,3 +98,16 @@ snapshots_tagged() {
   run "$ROLE" is-main
   grep -q "^restic snapshots .*--no-lock" "$STUB_LOG"
 }
+
+@test "the main is described by the name of the machine and the time of its last backup" {
+  make_stub restic "echo '[{\"time\":\"2026-09-30T04:30:14.66+01:00\",\"hostname\":\"testinst\",\"tags\":[\"nightly\",\"machine:other\",\"machine-name:pi\"]}]'"
+  run "$ROLE" describe-main
+  [ "$status" -eq 0 ]
+  [ "$output" = "pi, last backup 2026-09-30 04:30" ]
+}
+
+@test "a main whose snapshots carry no machine name is described by its id" {
+  snapshots_tagged other-machine
+  run "$ROLE" describe-main
+  [ "$output" = "machine other-machine, last backup 2026-09-30 04:30" ]
+}

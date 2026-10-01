@@ -29,7 +29,7 @@ has_backups() {
 wants_to_be_main() {
   local default=y answer
   if ! with_backup_secrets "$BACKUP_ROLE_COMMAND" is-main; then
-    echo "another machine is $INSTALLATION_NAME's main; say yes only to take over from it" >&2
+    echo "$INSTALLATION_NAME's main is $(with_backup_secrets "$BACKUP_ROLE_COMMAND" describe-main); say yes only to take over from it" >&2
     default=n
   fi
   ask answer "Make this machine $INSTALLATION_NAME's main, the one that backs up? (y/n)" "$default"
@@ -46,12 +46,12 @@ if wants_to_be_main; then become_main=1; fi
 if systemd_running; then
   "$INSTALL_TIMERS_COMMAND" media-update media-download-cleanup
   if [ -n "$become_main" ]; then
-    sops exec-env "$CONFIG_DIR/secrets/healthchecks.sops.env" "sops exec-env '$CONFIG_DIR/secrets/backup.sops.env' '$CLAIM_COMMAND'"
+    CLAIM_CONFIRMED=1 sops exec-env "$CONFIG_DIR/secrets/healthchecks.sops.env" "sops exec-env '$CONFIG_DIR/secrets/backup.sops.env' '$CLAIM_COMMAND'"
     with_backup_secrets "$INSTALL_TIMERS_COMMAND" media-backup media-verify
   fi
 else
   if [ -n "$become_main" ]; then
-    sops exec-env "$CONFIG_DIR/secrets/healthchecks.sops.env" "sops exec-env '$CONFIG_DIR/secrets/backup.sops.env' '$CLAIM_COMMAND'"
+    CLAIM_CONFIRMED=1 sops exec-env "$CONFIG_DIR/secrets/healthchecks.sops.env" "sops exec-env '$CONFIG_DIR/secrets/backup.sops.env' '$CLAIM_COMMAND'"
   fi
 fi
 print_summary() {

@@ -34,7 +34,7 @@ line_of() {
 
 @test "backup uses the excludes file and tags the snapshot" {
   run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
-  grep -q "restic backup --retry-lock 2h --host testinst --tag machine:this-machine --tag nightly --exclude-file .*scripts/backup-excludes.txt volumes" "$STUB_LOG"
+  grep -q "restic backup --retry-lock 2h --host testinst --tag machine:this-machine --tag machine-name:.* --tag nightly --exclude-file .*scripts/backup-excludes.txt volumes" "$STUB_LOG"
 }
 
 @test "backup restarts services when restic fails" {
@@ -184,4 +184,9 @@ with open(sys.argv[1], \"a\") as lock:
   echo "$output" | grep -q "2026-09-30T04:37"
   echo "$output" | grep -q "make unlock-backup"
   grep -q "testinst-backup/fail?create=1" "$STUB_LOG"
+}
+
+@test "backup tags the snapshot with this machine's name, so people can tell the main apart" {
+  run "$BATS_TEST_DIRNAME/../scripts/backup.sh"
+  grep -q "restic backup .*--tag machine-name:$(hostname -s) " "$STUB_LOG"
 }

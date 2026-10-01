@@ -60,7 +60,7 @@ services_to_restart=$(stack_compose ps --status running --services | tr '\n' ' '
 services_to_restart=${services_to_restart% }
 restic unlock
 stack_compose stop
-restic_explaining_locks backup --retry-lock 2h --host "$INSTALLATION_NAME" --tag "machine:$machine_id" --tag nightly --exclude-file "$EXCLUDES_FILE" volumes
+restic_explaining_locks backup --retry-lock 2h --host "$INSTALLATION_NAME" --tag "machine:$machine_id" --tag "machine-name:$(hostname -s)" --tag nightly --exclude-file "$EXCLUDES_FILE" volumes
 start_stopped_services
 restic_explaining_locks forget --retry-lock 2h --host "$INSTALLATION_NAME" --prune --keep-daily 7 --keep-weekly 4 --keep-monthly 6
 touch "$DATA_DIR/.backup-main"

@@ -19,7 +19,7 @@ machine_id() {
 
 readonly RESTIC_REPOSITORY_DOES_NOT_EXIST=10
 
-main_machine() {
+latest_snapshot_field() {
   local snapshots errors status=0
   errors=$(mktemp)
   snapshots=$(restic snapshots --no-lock --host "$INSTALLATION_NAME" --latest 1 --json 2>"$errors") || status=$?
@@ -30,9 +30,21 @@ main_machine() {
   echo "$snapshots" | python3 -c '
 import json, sys
 snapshots = sorted(json.load(sys.stdin) or [], key=lambda s: s["time"])
-tags = snapshots[-1].get("tags", []) if snapshots else []
-print(next((t.split(":", 1)[1] for t in tags if t.startswith("machine:")), ""))
-'
+if not snapshots:
+    sys.exit()
+latest = snapshots[-1]
+tags = dict(t.split(":", 1) for t in latest.get("tags", []) if ":" in t)
+machine = tags.get("machine", "")
+if sys.argv[1] == "machine":
+    print(machine)
+else:
+    name = tags.get("machine-name") or "machine " + machine
+    print(name + ", last backup " + latest["time"][:16].replace("T", " "))
+' "$1"
+}
+
+main_machine() {
+  latest_snapshot_field machine
 }
 
 is_main() {
@@ -44,6 +56,7 @@ is_main() {
 case ${1:-} in
   machine-id) machine_id ;;
   main-machine) main_machine ;;
+  describe-main) latest_snapshot_field description ;;
   is-main) is_main ;;
-  *) die "usage: $(basename "$0") is-main|main-machine|machine-id" ;;
+  *) die "usage: $(basename "$0") is-main|main-machine|describe-main|machine-id" ;;
 esac

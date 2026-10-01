@@ -88,3 +88,12 @@ setup_machine() {
   RESTORE_FROM_BACKUP=1 run setup_machine < <(echo n)
   grep -q "^restic snapshots --no-lock" "$STUB_LOG"
 }
+
+@test "the main question names the current main, and a yes is not asked again by the claim" {
+  make_stub fake-role 'case $1 in is-main) exit 1 ;; describe-main) echo "pi, last backup 2026-09-30 04:30" ;; esac'
+  make_stub fake-claim 'echo "confirmed=${CLAIM_CONFIRMED:-}" >> "$STUB_LOG"'
+  run setup_machine < <(echo y)
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q "pi, last backup 2026-09-30 04:30"
+  grep -q "confirmed=1" "$STUB_LOG"
+}

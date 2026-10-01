@@ -14,10 +14,10 @@ restic keeps the last 7 daily, 4 weekly and 6 monthly snapshots, and removes old
 
 ## Which machine backs up
 
-One machine per installation backs up: its main. Snapshots are tagged with the machine that made them, and the machine behind the latest snapshot is the main. Any other machine refuses to back up, so two machines never write competing snapshots.
+One machine per installation backs up: its main. Snapshots are tagged with the machine that made them (its id and its name), and the machine behind the latest snapshot is the main. Any other machine refuses to back up, so two machines never write competing snapshots.
 
 - The first machine of a new installation becomes the main with its first backup; the backup repository is created then.
-- `make claim-backup-main` makes this machine the main: it runs one backup tagged with it, and from then on the old main refuses. Use it when the main is replaced.
+- `make claim-backup-main` makes this machine the main: it runs one backup tagged with it, and from then on the old main refuses. When another machine is the main, it first names that machine and the time of its last backup, and asks. Use it when the main is replaced: a claim made while the old main still runs also replaces that day's snapshot from the old main.
 
 ## Running a backup
 
