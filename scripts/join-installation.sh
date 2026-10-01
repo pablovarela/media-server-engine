@@ -28,15 +28,25 @@ secrets_key_works() {
 }
 
 ensure_secrets_key() {
-  local key
+  local key previous
   secrets_key_works && return 0
   printf 'Paste the secrets key for %s (the AGE-SECRET-KEY-... line): ' "$NAME" >&2
   read_answer key secret
+  key=$(printf '%s' "$key" | tr -d '[:space:]')
+  printf '%s\n' "$key" | age-keygen -y >/dev/null 2>&1 ||
+    die "that is not an age secrets key (the line starts with AGE-SECRET-KEY-); nothing was changed"
   mkdir -p "$(dirname "$SOPS_AGE_KEY_FILE")"
   chmod 700 "$(dirname "$SOPS_AGE_KEY_FILE")"
+  previous=$(mktemp)
+  [ ! -f "$SOPS_AGE_KEY_FILE" ] || cp -p "$SOPS_AGE_KEY_FILE" "$previous"
   ( umask 077; printf '%s\n' "$key" >> "$SOPS_AGE_KEY_FILE" )
   chmod 600 "$SOPS_AGE_KEY_FILE"
-  secrets_key_works || die "that key cannot decrypt $CONFIG_REPO; check the password manager entry"
+  if ! secrets_key_works; then
+    if [ -s "$previous" ]; then cat "$previous" > "$SOPS_AGE_KEY_FILE"; else rm -f "$SOPS_AGE_KEY_FILE"; fi
+    rm -f "$previous"
+    die "that key cannot decrypt $CONFIG_REPO; check the password manager entry; the keys file is unchanged"
+  fi
+  rm -f "$previous"
 }
 
 "$BOOTSTRAP_COMMAND"

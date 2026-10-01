@@ -22,6 +22,7 @@ case $1 in
 esac'
   make_stub restic 'if [ "$1" = snapshots ]; then if [ -n "${FAKE_NO_SNAPSHOTS:-}" ]; then echo "[]"; else echo "[{\"id\":\"s1\"}]"; fi; fi'
   make_stub systemctl ''
+  make_stub age-keygen 'if [ "$1" = -y ]; then case "$(cat)" in AGE-SECRET-KEY-*) echo age1public ;; *) echo "error at line 1: unknown identity type" >&2; exit 1 ;; esac; fi'
   for step in bootstrap deploy-keys check-tools restore update install-timers claim; do
     make_stub "fake-$step" ''
   done
@@ -134,4 +135,30 @@ line_of() {
   run join "Bad Name" < /dev/null
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "lowercase letters, digits and dashes"
+}
+
+existing_keys() {
+  mkdir -p "$HOME/.config/sops/age"
+  printf 'AGE-SECRET-KEY-OTHER-INSTALLATION\n' > "$HOME/.config/sops/age/keys.txt"
+}
+
+@test "something that is not an age key is refused before the keys file is touched" {
+  existing_keys
+  run join testinst < <(printf 'not a key at all\nn\n')
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "not an age secrets key"
+  [ "$(cat "$HOME/.config/sops/age/keys.txt")" = "AGE-SECRET-KEY-OTHER-INSTALLATION" ]
+}
+
+@test "a key that cannot decrypt the config leaves the keys file as it was" {
+  existing_keys
+  run join testinst < <(printf 'AGE-SECRET-KEY-WRONG\nn\n')
+  [ "$status" -ne 0 ]
+  [ "$(cat "$HOME/.config/sops/age/keys.txt")" = "AGE-SECRET-KEY-OTHER-INSTALLATION" ]
+}
+
+@test "spaces and a carriage return pasted around the key are dropped" {
+  run join testinst < <(printf '  AGE-SECRET-KEY-GOOD \r\nn\n')
+  [ "$status" -eq 0 ]
+  grep -qx "AGE-SECRET-KEY-GOOD" "$HOME/.config/sops/age/keys.txt"
 }
