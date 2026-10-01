@@ -76,6 +76,10 @@ print(",".join(name for name in ("homepage",) if (services.get(name) or {}).get(
 ' "$CONFIG_DIR/images.yml" 2>/dev/null || true
 }
 
+homepage_port() {
+  echo "${HOMEPAGE_PORT:-80}"
+}
+
 stack_profiles() {
   local profiles
   profiles=$(printf '%s,%s' "${1:-}" "$(optional_services_pinned)")

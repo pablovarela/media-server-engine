@@ -81,3 +81,8 @@ yaml_of() {
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "already"
 }
+
+@test "the default page itself is reached at the landing page's port, the apps at theirs" {
+  HOMEPAGE_PORT=8080 homepage render "$OUT"
+  grep -q "href: http://media.local:8989" "$OUT/services.yaml"
+}

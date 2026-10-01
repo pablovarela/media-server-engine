@@ -71,3 +71,10 @@ apps() {
   run apps urls
   ! echo "$output" | grep -q "^Home " || false
 }
+
+@test "the landing page's address includes its port when it is not 80" {
+  printf 'services:\n  homepage:\n    image: ghcr.io/gethomepage/homepage:v2.4.0@sha256:abc\n' > "$CONFIG_DIR/images.yml"
+  echo "HOMEPAGE_PORT=8080" >> "$CONFIG_DIR/installation.env"
+  run apps urls
+  [ "$(echo "$output" | head -1)" = "Home         http://homeserver.local:8080" ]
+}

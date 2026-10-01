@@ -272,6 +272,7 @@ pin_homepage() {
 
 @test "the landing page answers to this machine's name, plus any names the config adds" {
   MEDIA_SERVER_HOST=media.local run update
+  grep -qx "HOMEPAGE_PORT=80" "$ENGINE_DIR/.env"
   grep -qx "HOMEPAGE_ALLOWED_HOSTS=media.local,localhost,127.0.0.1" "$ENGINE_DIR/.env"
   echo "HOMEPAGE_ALLOWED_HOSTS=media.tailnet.ts.net" >> "$CONFIG_DIR/installation.env"
   MEDIA_SERVER_HOST=media.local run update
@@ -308,4 +309,11 @@ pin_homepage() {
   [ "$status" -ne 0 ]
   grep -qx "HOMEPAGE_VAR_JELLYFIN_KEY=k2" "$ENGINE_DIR/.secrets/homepage.env"
   ! grep -q "^fake-prune" "$STUB_LOG" || false
+}
+
+@test "the landing page can use another port than 80, and answers to its address with that port" {
+  echo "HOMEPAGE_PORT=8080" >> "$CONFIG_DIR/installation.env"
+  MEDIA_SERVER_HOST=media.local run update
+  grep -qx "HOMEPAGE_PORT=8080" "$ENGINE_DIR/.env"
+  grep -qx "HOMEPAGE_ALLOWED_HOSTS=media.local:8080,localhost:8080,127.0.0.1:8080" "$ENGINE_DIR/.env"
 }

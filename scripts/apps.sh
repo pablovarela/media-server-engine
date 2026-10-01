@@ -9,7 +9,11 @@ readonly APPS="Jellyfin:8096 Seerr:5055 Sonarr:8989 Radarr:7878 Prowlarr:9696 Ba
 urls() {
   local app
   if [[ ,$(optional_services_pinned), == *,homepage,* ]]; then
-    printf '%-12s http://%s\n' Home "$(network_name)"
+    if [ "$(homepage_port)" = 80 ]; then
+      printf '%-12s http://%s\n' Home "$(network_name)"
+    else
+      printf '%-12s http://%s:%s\n' Home "$(network_name)" "$(homepage_port)"
+    fi
   fi
   for app in $APPS; do
     printf '%-12s http://%s:%s\n' "${app%%:*}" "$(network_name)" "${app#*:}"

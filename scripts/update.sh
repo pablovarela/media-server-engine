@@ -131,11 +131,18 @@ docker_socket_gid() {
 }
 
 homepage_allowed_hosts() {
-  printf '%s,localhost,127.0.0.1%s' "$(network_name)" "${HOMEPAGE_ALLOWED_HOSTS:+,$HOMEPAGE_ALLOWED_HOSTS}"
+  local port_suffix="" host hosts=""
+  [ "$(homepage_port)" = 80 ] || port_suffix=":$(homepage_port)"
+  local extra_hosts=${HOMEPAGE_ALLOWED_HOSTS:-}
+  for host in $(network_name) localhost 127.0.0.1 ${extra_hosts//,/ }; do
+    hosts="$hosts,$host$port_suffix"
+  done
+  echo "${hosts#,}"
 }
 
 write_compose_env() {
-  printf 'DOCKER_GID=%s\nTZ=%s\nHOMEPAGE_ALLOWED_HOSTS=%s\n' "$(docker_socket_gid)" "${TZ:-Etc/UTC}" "$(homepage_allowed_hosts)" > "$ENGINE_DIR/.env"
+  printf 'DOCKER_GID=%s\nTZ=%s\nHOMEPAGE_PORT=%s\nHOMEPAGE_ALLOWED_HOSTS=%s\n' \
+    "$(docker_socket_gid)" "${TZ:-Etc/UTC}" "$(homepage_port)" "$(homepage_allowed_hosts)" > "$ENGINE_DIR/.env"
 }
 
 render_homepage() {

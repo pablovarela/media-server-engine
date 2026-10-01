@@ -183,3 +183,10 @@ import json, sys
 env = json.load(sys.stdin)["environment"]
 assert env["HTTP_CONTROL_SERVER_AUTH_DEFAULT_ROLE"] == "{\"auth\":\"apikey\",\"apikey\":\"k1\"}", env'
 }
+
+@test "the landing page's host port comes from .env" {
+  printf 'DOCKER_GID=0\nHOMEPAGE_ALLOWED_HOSTS=media.local\nHOMEPAGE_PORT=8080\n' > "$ENGINE_DIR/.env"
+  service homepage | python3 -c '
+import json, sys
+assert [p["published"] for p in json.load(sys.stdin)["ports"]] == ["8080"]'
+}
