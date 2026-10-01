@@ -23,7 +23,7 @@ Edit these with any editor.
 
 ## The landing page
 
-The page at `http://<machine>` is the engine's default page, rendered by `make update` with the installation's name, the engine version and this machine's address, so it improves with engine releases. The files in `homepage/` are in Homepage's own format and are applied over it, so anything Homepage offers can be changed; each starts as comments with an example and a link to Homepage's documentation:
+The page at `http://<machine>` is the engine's default page, rendered by `make update` with the installation's name, the engine version and this machine's address, so it improves with engine releases. The files in `homepage/` are in Homepage's own format and are applied over it, so anything Homepage offers can be changed. A new installation starts with a copy of the engine's page there, to change in place; a tile or setting declared here is what the page shows, while tiles and sections a later engine adds still appear. Removing a file, or part of one, hands that part back to the engine's defaults. See [Homepage's documentation](https://gethomepage.dev/configs/):
 
 | File | Applied |
 |---|---|

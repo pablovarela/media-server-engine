@@ -199,15 +199,14 @@ assert sonarr["description"] == "TV shows" and sonarr["widget"]["type"] == "sona
   ! grep -q "href" "$OUT/widgets.yaml" || false
 }
 
-@test "the template's example files change nothing until they are uncommented" {
+@test "a config holding a copy of the engine's page renders the same page" {
   homepage render "$OUT"
   for file in settings.yaml services.yaml widgets.yaml bookmarks.yaml; do cp "$OUT/$file" "$OUT/$file.engine"; done
   mkdir -p "$CONFIG_DIR/homepage"
-  cp "$BATS_TEST_DIRNAME"/../config-template/homepage/* "$CONFIG_DIR/homepage/"
+  cp "$BATS_TEST_DIRNAME"/../homepage/*.yaml "$CONFIG_DIR/homepage/"
   homepage render "$OUT"
   for file in settings.yaml services.yaml widgets.yaml bookmarks.yaml; do cmp -s "$OUT/$file" "$OUT/$file.engine" || { echo "$file changed"; false; }; done
 }
-
 @test "the render script draws the page from the installation's settings" {
   printf 'INSTALLATION_NAME=testinst\nMEDIA_SERVER_HOST=media.local\n' > "$CONFIG_DIR/installation.env"
   make_stub git 'case "$*" in *describe*) echo v1.2.3 ;; *"remote get-url"*) echo git@github.com:someone/media-server-engine.git ;; esac'

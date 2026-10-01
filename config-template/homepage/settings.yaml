@@ -1,9 +1,0 @@
-# Settings applied over the engine's landing page, key by key: https://gethomepage.dev/configs/settings/
-# Groups listed under layout come first, in this order, before the engine's.
-#
-# theme: light
-# color: sky
-# layout:
-#   - Coming up:
-#       style: row
-#       columns: 2

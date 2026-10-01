@@ -8,7 +8,7 @@ The configuration of one media server installation, used by [media-server-engine
 | `engine.env` | the engine version this installation runs |
 | `images.yml`, `images.monitoring.yml` | the image of every service, pinned to a digest |
 | `compose.override.yml` | optional additions or changes to the engine's compose file |
-| `homepage/` | changes to the landing page, in Homepage's own format, applied over the engine's page |
+| `homepage/` | the landing page, in Homepage's own format, applied over the engine's page; starts as a copy of it |
 | `configarr/config.yml` | Sonarr and Radarr quality profiles, custom formats, naming, root folders, download client |
 | `prowlarr.yml` | Prowlarr indexers, their priorities, the FlareSolverr proxy and the links to Sonarr and Radarr |
 | `apps.yml` | Jellyfin server name and libraries, and the other apps' declared settings |

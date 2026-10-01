@@ -6,6 +6,7 @@ setup() {
   export ENGINE_DIR="$INSTALL_DIR/engine" CONFIG_DIR="$INSTALL_DIR/config" DATA_DIR="$INSTALL_DIR/data"
   mkdir -p "$ENGINE_DIR/config-template"
   cp -R "$BATS_TEST_DIRNAME/../config-template/." "$ENGINE_DIR/config-template/"
+  cp -R "$BATS_TEST_DIRNAME/../homepage" "$ENGINE_DIR/homepage"
   make_stub git '
 dir=""
 if [ "$1" = -C ]; then dir=$2; shift 2; fi
@@ -98,7 +99,7 @@ create() {
 @test "run from an engine elsewhere, creating lays out the installation next to a copy of it" {
   source_engine="$STUB_DIR/checkout/media-server-engine"
   mkdir -p "$source_engine"
-  cp -R "$BATS_TEST_DIRNAME/../scripts" "$BATS_TEST_DIRNAME/../config-template" "$source_engine/"
+  cp -R "$BATS_TEST_DIRNAME/../scripts" "$BATS_TEST_DIRNAME/../config-template" "$BATS_TEST_DIRNAME/../homepage" "$source_engine/"
   ENGINE_DIR=$source_engine CONFIG_DIR="$STUB_DIR/checkout/config" DATA_DIR="$STUB_DIR/checkout/data" INSTALL_DIR="$STUB_DIR/newinst" \
     run "$source_engine/scripts/create-installation.sh" newinst < <(echo)
   [ "$status" -eq 0 ]
@@ -111,7 +112,7 @@ create() {
 @test "the installation directory defaults to one named after it in the home directory" {
   source_engine="$STUB_DIR/checkout/media-server-engine"
   mkdir -p "$source_engine"
-  cp -R "$BATS_TEST_DIRNAME/../scripts" "$BATS_TEST_DIRNAME/../config-template" "$source_engine/"
+  cp -R "$BATS_TEST_DIRNAME/../scripts" "$BATS_TEST_DIRNAME/../config-template" "$BATS_TEST_DIRNAME/../homepage" "$source_engine/"
   unset INSTALL_DIR
   ENGINE_DIR=$source_engine run "$source_engine/scripts/create-installation.sh" newinst < <(echo)
   [ "$status" -eq 0 ]
@@ -121,7 +122,7 @@ create() {
 @test "an installation directory that already has an engine is not overwritten" {
   source_engine="$STUB_DIR/checkout/media-server-engine"
   mkdir -p "$source_engine" "$STUB_DIR/newinst/engine"
-  cp -R "$BATS_TEST_DIRNAME/../scripts" "$BATS_TEST_DIRNAME/../config-template" "$source_engine/"
+  cp -R "$BATS_TEST_DIRNAME/../scripts" "$BATS_TEST_DIRNAME/../config-template" "$BATS_TEST_DIRNAME/../homepage" "$source_engine/"
   ENGINE_DIR=$source_engine INSTALL_DIR="$STUB_DIR/newinst" run "$source_engine/scripts/create-installation.sh" newinst < <(echo)
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "$STUB_DIR/newinst/engine already exists"
@@ -148,7 +149,7 @@ create() {
 @test "a stopped create that copied the engine removes the copy too, so it can be run again" {
   source_engine="$STUB_DIR/checkout/media-server-engine"
   mkdir -p "$source_engine"
-  cp -R "$BATS_TEST_DIRNAME/../scripts" "$BATS_TEST_DIRNAME/../config-template" "$source_engine/"
+  cp -R "$BATS_TEST_DIRNAME/../scripts" "$BATS_TEST_DIRNAME/../config-template" "$BATS_TEST_DIRNAME/../homepage" "$source_engine/"
   FAKE_CONFIGURE_FAILS=1 ENGINE_DIR=$source_engine INSTALL_DIR="$STUB_DIR/newinst" run "$source_engine/scripts/create-installation.sh" newinst < <(echo)
   [ "$status" -ne 0 ]
   [ ! -e "$STUB_DIR/newinst" ]
@@ -174,7 +175,7 @@ create() {
 @test "an engine copied from a branch stays on that branch, so it can be pulled" {
   source_engine="$STUB_DIR/checkout/media-server-engine"
   mkdir -p "$source_engine"
-  cp -R "$BATS_TEST_DIRNAME/../scripts" "$BATS_TEST_DIRNAME/../config-template" "$source_engine/"
+  cp -R "$BATS_TEST_DIRNAME/../scripts" "$BATS_TEST_DIRNAME/../config-template" "$BATS_TEST_DIRNAME/../homepage" "$source_engine/"
   ENGINE_DIR=$source_engine INSTALL_DIR="$STUB_DIR/newinst" run "$source_engine/scripts/create-installation.sh" newinst < <(echo)
   [ "$status" -eq 0 ]
   ! grep -q "checkout -q abc123" "$STUB_LOG" || false
@@ -183,7 +184,7 @@ create() {
 @test "an engine copied from a detached release checks out that exact commit" {
   source_engine="$STUB_DIR/checkout/media-server-engine"
   mkdir -p "$source_engine"
-  cp -R "$BATS_TEST_DIRNAME/../scripts" "$BATS_TEST_DIRNAME/../config-template" "$source_engine/"
+  cp -R "$BATS_TEST_DIRNAME/../scripts" "$BATS_TEST_DIRNAME/../config-template" "$BATS_TEST_DIRNAME/../homepage" "$source_engine/"
   FAKE_DETACHED_ENGINE=1 ENGINE_DIR=$source_engine INSTALL_DIR="$STUB_DIR/newinst" run "$source_engine/scripts/create-installation.sh" newinst < <(echo)
   [ "$status" -eq 0 ]
   grep -q "checkout -q abc123" "$STUB_LOG"
@@ -204,4 +205,12 @@ create() {
   [ "$(ls -i "$HOME/.config/sops/age/keys.txt" | awk '{print $1}')" != "$before" ]
   [ "$(file_mode "$HOME/.config/sops/age/keys.txt")" = 600 ]
   [ -z "$(ls "$HOME/.config/sops/age" | grep -v '^keys.txt$')" ]
+}
+
+@test "a new config starts with a copy of the engine's landing page, to change in place" {
+  run create testinst < <(echo)
+  [ "$status" -eq 0 ]
+  for file in settings.yaml services.yaml widgets.yaml bookmarks.yaml custom.css; do
+    cmp -s "$ENGINE_DIR/homepage/$file" "$CONFIG_DIR/homepage/$file" || { echo "$file differs"; false; }
+  done
 }

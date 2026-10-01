@@ -1,9 +1,0 @@
-# Tiles applied over the engine's landing page, by group and tile name: https://gethomepage.dev/configs/services/
-# A tile with a name the page has changes that tile, a new name adds one, and null removes one.
-#
-# - Maintenance:
-#     - Portainer: null
-# - Home:
-#     - Router:
-#         href: http://192.168.1.1
-#         icon: mdi-router
