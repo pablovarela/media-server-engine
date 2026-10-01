@@ -207,3 +207,12 @@ assert sonarr["description"] == "TV shows" and sonarr["widget"]["type"] == "sona
   homepage render "$OUT"
   for file in settings.yaml services.yaml widgets.yaml bookmarks.yaml; do cmp -s "$OUT/$file" "$OUT/$file.engine" || { echo "$file changed"; false; }; done
 }
+
+@test "the render script draws the page from the installation's settings" {
+  printf 'INSTALLATION_NAME=testinst\nMEDIA_SERVER_HOST=media.local\n' > "$CONFIG_DIR/installation.env"
+  make_stub git 'case "$*" in *describe*) echo v1.2.3 ;; *"remote get-url"*) echo git@github.com:someone/media-server-engine.git ;; esac'
+  run "$BATS_TEST_DIRNAME/../scripts/homepage-render.sh"
+  [ "$status" -eq 0 ]
+  yaml_of "$ENGINE_DIR/.homepage/widgets.yaml" | grep -q '"href": "https://github.com/someone/media-server-engine/releases/tag/v1.2.3"'
+  grep -q "href: http://media.local:8989" "$ENGINE_DIR/.homepage/services.yaml"
+}

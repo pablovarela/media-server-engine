@@ -70,3 +70,8 @@ setup() {
   echo "$out" | grep -q "$(cd "$REPO/.." && pwd)/config/secrets/backup.sops.env"
   ! echo "$out" | grep -q "/\.\./" || false
 }
+
+@test "make homepage re-renders the landing page, and nothing else" {
+  make -s -n -C "$REPO" homepage | grep -q "scripts/homepage-render.sh"
+  ! make -s -n -C "$REPO" homepage | grep -qE "update.sh|compose" || false
+}

@@ -33,7 +33,7 @@ The page at `http://<machine>` is the engine's default page, rendered by `make u
 | `homepage/bookmarks.yaml` | the page's bookmarks |
 | `homepage/custom.css` | after the engine's styles, for example `html { font-size: 20px; }` for bigger text |
 
-The page's port is `HOMEPAGE_PORT` in `installation.env`, asked by `make configure`.
+While changing these files, `make homepage` redraws the page in a second without restarting anything, and an open page reloads itself; commit the files once the page looks right. The page's port is `HOMEPAGE_PORT` in `installation.env`, asked by `make configure`.
 
 ## Secrets
 

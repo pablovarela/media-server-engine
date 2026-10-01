@@ -80,6 +80,29 @@ homepage_port() {
   echo "${HOMEPAGE_PORT:-80}"
 }
 
+engine_version() {
+  git -C "$ENGINE_DIR" describe --tags --always 2>/dev/null || true
+}
+
+engine_page_url() {
+  local remote repository version
+  remote=$(git -C "$ENGINE_DIR" remote get-url origin 2>/dev/null) || return 0
+  [[ $remote == *github* ]] || return 0
+  repository=$(sed -nE 's#^.*[:/]([^/:]+/[^/:]+)$#\1#p' <<< "${remote%.git}")
+  [ -n "$repository" ] || return 0
+  version=$(engine_version)
+  if [[ $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "https://github.com/$repository/releases/tag/$version"
+  else
+    echo "https://github.com/$repository/commit/$(git -C "$ENGINE_DIR" rev-parse HEAD)"
+  fi
+}
+
+render_homepage() {
+  HOMEPAGE_HOST=$(network_name) HOMEPAGE_ENGINE_VERSION=$(engine_version) HOMEPAGE_ENGINE_URL=$(engine_page_url) \
+    python3 "$(dirname "${BASH_SOURCE[0]}")/homepage.py" render "$ENGINE_DIR/.homepage"
+}
+
 stack_profiles() {
   local profiles
   profiles=$(printf '%s,%s' "${1:-}" "$(optional_services_pinned)")
