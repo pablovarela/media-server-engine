@@ -4,6 +4,7 @@ setup() {
   setup_stubs
   mkdir -p "$ENGINE_DIR/config-template"
   cp -R "$BATS_TEST_DIRNAME/../scripts" "$ENGINE_DIR/"
+  cp -R "$BATS_TEST_DIRNAME/../homepage" "$ENGINE_DIR/"
   cp -R "$BATS_TEST_DIRNAME/../config-template/." "$ENGINE_DIR/config-template/"
   make_stub sops '
 case $1 in
@@ -186,4 +187,13 @@ guided_new_installation() {
   [ "$status" -eq 0 ]
   grep -q -- "--msgbox Rotating Radarr's API key" "$STUB_LOG"
   echo "$output" | grep -q "Run make update"
+}
+
+@test "the landing page has its own section in the menu, outside the first walk" {
+  guided_new_installation
+  configure >/dev/null 2>&1
+  answers "0|Save"
+  run configure
+  [ "$status" -eq 0 ]
+  grep -q "Landing page" "$STUB_LOG"
 }
