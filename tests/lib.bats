@@ -20,7 +20,7 @@ in_lib() {
 
 @test "lib derives config and data beside the engine" {
   run in_lib 'echo "$CONFIG_DIR|$DATA_DIR"'
-  [ "$output" = "$HOME_DIR/engine/../config|$HOME_DIR/engine/../data" ]
+  [ "$output" = "$HOME_DIR/config|$HOME_DIR/data" ]
 }
 
 @test "config and data locations can be overridden" {
@@ -43,7 +43,7 @@ in_lib() {
 @test "stack_compose merges the engine compose with the config's images and override" {
   touch "$HOME_DIR/config/images.yml" "$HOME_DIR/config/compose.override.yml"
   run in_lib 'stack_compose ps'
-  grep -q "docker compose --project-name media-server --project-directory $HOME_DIR/engine --env-file $HOME_DIR/engine/.env -f $HOME_DIR/engine/docker-compose.yml -f $HOME_DIR/engine/../config/images.yml -f $HOME_DIR/engine/../config/compose.override.yml ps" "$STUB_LOG"
+  grep -q "docker compose --project-name media-server --project-directory $HOME_DIR/engine --env-file $HOME_DIR/engine/.env -f $HOME_DIR/engine/docker-compose.yml -f $HOME_DIR/config/images.yml -f $HOME_DIR/config/compose.override.yml ps" "$STUB_LOG"
 }
 
 @test "stack_compose leaves out a missing override" {
@@ -55,7 +55,7 @@ in_lib() {
 @test "monitoring_compose uses the monitoring images file" {
   touch "$HOME_DIR/config/images.monitoring.yml"
   run in_lib 'monitoring_compose ps'
-  grep -q "docker compose --project-name monitoring .* -f $HOME_DIR/engine/docker-compose.monitoring.yml -f $HOME_DIR/engine/../config/images.monitoring.yml ps" "$STUB_LOG"
+  grep -q "docker compose --project-name monitoring .* -f $HOME_DIR/engine/docker-compose.monitoring.yml -f $HOME_DIR/config/images.monitoring.yml ps" "$STUB_LOG"
 }
 
 @test "tests run with a throwaway home and no real key file" {

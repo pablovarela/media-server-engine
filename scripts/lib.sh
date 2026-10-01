@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 ENGINE_DIR=${ENGINE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}
-CONFIG_DIR=${CONFIG_DIR:-$ENGINE_DIR/../config}
-DATA_DIR=${DATA_DIR:-$ENGINE_DIR/../data}
+CONFIG_DIR=${CONFIG_DIR:-$(dirname "$ENGINE_DIR")/config}
+DATA_DIR=${DATA_DIR:-$(dirname "$ENGINE_DIR")/data}
 export ENGINE_DIR CONFIG_DIR DATA_DIR
 
 export SNAPSHOT_VOLUMES_PATH=/volumes

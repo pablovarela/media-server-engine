@@ -1,7 +1,7 @@
 .PHONY: help installation test-scripts lint urls logins create-installation join-installation setup-machine bootstrap pinned-tools configure update install-update-timer claim-backup-main check-tools test restore backup-now verify-backup-now unlock-backup homepage-customize version install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
 
 SHELL := /bin/bash
-CONFIG_DIR ?= $(CURDIR)/../config
+CONFIG_DIR ?= $(abspath $(CURDIR)/../config)
 export CONFIG_DIR
 WITH_LIB = export CONFIG_DIR="$(CONFIG_DIR)"; source scripts/lib.sh &&
 export SOPS_AGE_KEY_FILE ?= $(HOME)/.config/sops/age/keys.txt
