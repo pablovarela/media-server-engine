@@ -50,7 +50,7 @@ ensure_secrets_key() {
 }
 
 "$BOOTSTRAP_COMMAND"
-"$DEPLOY_KEYS_COMMAND" "$ENGINE_REPO" "$CONFIG_REPO"
+"$DEPLOY_KEYS_COMMAND" "$ENGINE_REPO" "$CONFIG_REPO:write"
 git -C "$ENGINE_DIR" remote set-url origin "github-${ENGINE_REPO##*/}:$ENGINE_REPO.git"
 [ -d "$CONFIG_DIR/.git" ] || git clone "github-media-server-config-$NAME:$CONFIG_REPO.git" "$CONFIG_DIR"
 load_installation

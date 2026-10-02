@@ -28,11 +28,16 @@ key_accepted() {
 }
 
 add_key() {
-  local owner_repo=$1 repo=${1#*/} key=$2
+  local owner_repo=$1 repo=${1#*/} key=$2 access=$3
   if gh auth status >/dev/null 2>&1; then
-    gh repo deploy-key add "$key.pub" --repo "$owner_repo" --title "$(hostname -s)"
+    # shellcheck disable=SC2046
+    gh repo deploy-key add "$key.pub" --repo "$owner_repo" --title "$(hostname -s)" $([ "$access" = write ] && echo --allow-write)
   else
-    echo "Add this read-only deploy key to $owner_repo:"
+    if [ "$access" = write ]; then
+      echo "Add this deploy key to $owner_repo, with Allow write access ticked:"
+    else
+      echo "Add this read-only deploy key to $owner_repo:"
+    fi
     echo "  $(cat "$key.pub")"
     echo "  https://github.com/$owner_repo/settings/keys/new"
   fi
@@ -41,12 +46,15 @@ add_key() {
   echo "GitHub accepts the key for $repo."
 }
 
-[ $# -gt 0 ] || die "usage: $(basename "$0") OWNER/REPO..."
+[ $# -gt 0 ] || die "usage: $(basename "$0") OWNER/REPO[:write]..."
 mkdir -p "$SSH_DIR"
 chmod 700 "$SSH_DIR"
-for owner_repo in "$@"; do
+for wanted in "$@"; do
+  owner_repo=${wanted%:write}
+  access="read"
+  [ "$wanted" = "$owner_repo" ] || access="write"
   repo=${owner_repo#*/}
   key=$(ensure_key "$repo")
   ensure_alias "$repo" "$key"
-  key_accepted "$repo" || add_key "$owner_repo" "$key"
+  key_accepted "$repo" || add_key "$owner_repo" "$key" "$access"
 done

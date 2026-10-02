@@ -21,7 +21,7 @@ The name is lowercase letters, digits and dashes. It names the installation's fo
 
 1. The engine copies itself into `~/<name>/engine` (set `INSTALL_DIR` to use another folder) and continues from there; config and data go next to it.
 2. A secrets key is made and shown once. Save the `AGE-SECRET-KEY-...` line in your password manager before pressing Enter: without it, nothing in the config can be decrypted on another machine.
-3. `make configure` asks for the settings: time zone, where to keep the config (only on this machine, or a private GitHub repository), where to keep the backups (a local folder or Backblaze B2, checked before it is accepted, or another restic repository such as sftp or s3), the VPN, the healthchecks ping key and, for the landing page, an optional read-only healthchecks API key, the app passwords and the subtitle languages. Pressing Enter on a password generates one; `make logins` shows it later. The landing page asks only for its port: 80 when it is free on this machine, otherwise the first free one from 8080 is suggested. Everything else on it can be changed later in the config's `homepage/` files.
+3. `make configure` checks that git has a name and email to commit the config with, then asks for the settings: time zone, where to keep the config (only on this machine, or a private GitHub repository), where to keep the backups (a local folder or Backblaze B2, checked before it is accepted, or another restic repository such as sftp or s3), the VPN, the healthchecks ping key and, for the landing page, an optional read-only healthchecks API key, the app passwords and the subtitle languages. Pressing Enter on a password generates one; `make logins` shows it later. The landing page asks only for its port: 80 when it is free on this machine, otherwise the first free one from 8080 is suggested. Everything else on it can be changed later in the config's `homepage/` files.
 4. You are asked whether this machine is the installation's main, the one that backs up. Say yes on the first machine.
 5. `make update` pulls the images, brings the apps up and wires them. On the main, the first backup runs and creates the backup repository.
 6. On machines with systemd, timers are installed for the daily update, the fake-download cleanup and, on the main, the backups.
@@ -41,7 +41,7 @@ make join-installation NAME=<name>
 ```
 
 1. The engine copies itself into `~/<name>/engine`, as when creating.
-2. A read-only deploy key is made for the engine and the config repositories. With the GitHub CLI logged in it is added for you; otherwise the key and the page to add it are shown, and join waits until GitHub accepts it.
+2. A deploy key is made for the engine repository, read-only, and one for the config repository, with write access so that `make configure` on this machine can push what it changes. With the GitHub CLI logged in they are added for you; otherwise each key and the page to add it are shown (tick "Allow write access" for the config's), and join waits until GitHub accepts them.
 3. The config is cloned, and you are asked for the secrets key if this machine does not have it yet.
 4. The latest backup is restored, so the apps come back with their libraries, history and users. Set `SKIP_RESTORE=1` when the data is already in place.
 5. You are asked whether this machine should be the main. Say no while another machine backs up; say yes to take over from a machine that is gone.

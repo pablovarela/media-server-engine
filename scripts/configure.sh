@@ -168,6 +168,18 @@ config_not_published() {
   [ -n "${CONFIGURE_FROM_CREATE:-}" ] || exit 1
 }
 
+push_config() {
+  if git push -q origin HEAD; then
+    echo "Committed and pushed. Run make update to apply it here; the other machines apply it at their next update."
+    return
+  fi
+  {
+    echo "Committed here, but the push to GitHub failed (see above), so the other machines do not have it yet."
+    echo "If this machine can only read the config, give its deploy key write access on GitHub, then push with: git -C \"$CONFIG_DIR\" push"
+  } >&2
+  exit 1
+}
+
 apply_config_location() {
   local remote
   remote=$(config_remote || true)
@@ -175,8 +187,7 @@ apply_config_location() {
     if [ -z "$remote" ]; then
       publish_config || config_not_published
     elif [ -n "${COMMITTED:-}" ]; then
-      echo "Committed. Push with: git -C \"$CONFIG_DIR\" push"
-      echo "Then run make update to apply it here; the other machines apply it at their next update."
+      push_config
     fi
   elif [ -n "${COMMITTED:-}" ] && [ -z "${CONFIGURE_FROM_CREATE:-}" ]; then
     echo "Committed. Run make update to apply it."
@@ -193,7 +204,15 @@ if [ "${1:-}" = --rotate ]; then
   ROTATE_APP=$2
 fi
 
+git_identity_known() {
+  { [ -n "${GIT_COMMITTER_NAME:-}" ] || git -C "$CONFIG_DIR" config user.name >/dev/null; } &&
+    { [ -n "${GIT_COMMITTER_EMAIL:-}" ] || git -C "$CONFIG_DIR" config user.email >/dev/null; }
+}
+
 [ -f "$CONFIG_DIR/.sops.yaml" ] || die_not_an_installation
+git_identity_known || die "git has no name or email to commit the config with; set them, then run make configure again:
+  git -C $CONFIG_DIR config user.name \"Your Name\"
+  git -C $CONFIG_DIR config user.email you@example.com"
 cd "$CONFIG_DIR"
 [ -f images.yml ] || cp -R "$ENGINE_DIR/config-template/." .
 
