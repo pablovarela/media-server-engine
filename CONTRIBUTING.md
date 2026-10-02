@@ -18,7 +18,7 @@
 - Never commit decrypted secrets, and never print them in output or logs.
 - Every service that writes app state runs as uid and gid 1000; a test enforces it.
 - The engine's Python runs on Python 3.9 and later, the Python of Raspberry Pi OS bullseye.
-- Python is tested with pytest, in `tests/python/`, by calling its functions; HTTP calls are mocked at `urllib.request.urlopen`, so a test states the requests it expects and the answers it gets. Shell scripts are tested with bats, in `tests/`, and so is the way they call the Python.
+- Python is tested with pytest, in `tests/python/`, by calling its functions; HTTP calls are mocked at `urllib.request.urlopen`, so a test states the requests it expects and the answers it gets. Shell scripts are tested with bats, in `tests/`, and so is the way they call the Python. `make test-python` reports which lines and branches of the Python no test reaches; a change covers the branches it adds, errors included. The command-line entry points are left to the bats tests.
 - New logic that is mostly API calls or YAML is written in Python, not shell.
 - Comments say why, only where the code cannot; names say what.
 - Follow-ups and ideas for later are GitHub issues in this repository.

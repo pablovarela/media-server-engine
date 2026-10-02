@@ -330,3 +330,42 @@ def test_a_redraw_keeps_the_images_folder_itself_which_homepage_has_mounted(page
     (images / "a.svg").write_text("<svg/>\n")
     page.render()
     assert page.images.stat().st_ino == before
+
+
+def test_blank_lines_in_a_secrets_file_are_skipped(page, capsys):
+    (page.dirs.engine / ".secrets" / "apps.env").write_text("\nSONARR_API_KEY=s1\n\nRADARR_API_KEY=r1\n")
+    page.homepage.env()
+    lines = capsys.readouterr().out.splitlines()
+    assert "HOMEPAGE_VAR_SONARR_KEY=s1" in lines
+    assert "HOMEPAGE_VAR_RADARR_KEY=r1" in lines
+
+
+def test_a_page_without_health_check_markers_is_drawn_without_asking_healthchecks(page, urlopen):
+    with_read_only_key(page)
+    page.config_file("services.yaml", "- Home:\n    - Router:\n        href: http://@HOST@:8443\n")
+    page.render()
+    urlopen.assert_not_called()
+    assert page.tiles("Home") == ["Router"]
+
+
+def test_a_tile_written_without_options_is_kept_next_to_the_health_checks(page, checks):
+    checks("testinst-backup")
+    page.config_file(
+        "services.yaml",
+        "- Home:\n    - Router:\n- Healthchecks:\n    - Backup:\n        widget:\n"
+        "          url: https://healthchecks.io/api/v3/checks/?slug=@HEALTHCHECK_BACKUP@\n",
+    )
+    page.render()
+    assert page.yaml("services.yaml")[0] == {"Home": [{"Router": None}]}
+    assert page.groups()["Healthchecks"] == [{"Backup": {"widget": {"url": "https://healthchecks.io/api/v3/checks/?slug=testinst-backup"}}}]
+
+
+def test_folders_in_the_configs_images_are_served_and_old_ones_removed(page):
+    icons = page.dirs.config / "homepage" / "images" / "icons"
+    icons.mkdir(parents=True)
+    (icons / "router.svg").write_text("<svg/>\n")
+    (page.images / "old-folder").mkdir(parents=True)
+    (page.images / "old-folder" / "x.png").write_text("old\n")
+    page.render()
+    assert (page.images / "icons" / "router.svg").read_text() == "<svg/>\n"
+    assert not (page.images / "old-folder").exists()
