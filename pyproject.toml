@@ -1,0 +1,27 @@
+[project]
+name = "media-server-engine"
+version = "0"
+requires-python = ">=3.9"
+
+[dependency-groups]
+test = [
+    "pytest",
+    "pytest-cov",
+    "pyyaml",
+]
+
+[tool.uv]
+package = false
+default-groups = ["test"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/python"]
+pythonpath = ["scripts", "tests"]
+addopts = "--strict-markers --cov --cov-report=term-missing"
+
+[tool.coverage.run]
+branch = true
+source = ["scripts"]
+
+[tool.coverage.report]
+exclude_also = ['if __name__ == "__main__":']
