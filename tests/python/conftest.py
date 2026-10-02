@@ -66,20 +66,21 @@ class Http:
     def __call__(self, request, timeout=None):
         url = urllib.parse.urlsplit(request.full_url)
         path = url.path + (f"?{url.query}" if url.query else "")
-        self.requests.append(SimpleNamespace(method=request.get_method(), path=path, body=body_of(request), headers=dict(request.header_items())))
-        outcomes = self.answers.get((request.get_method(), path))
+        method = request.get_method()
+        self.requests.append(SimpleNamespace(method=method, host=url.netloc, path=path, body=body_of(request), headers=dict(request.header_items())))
+        outcomes = self.answers.get((method, f"{url.scheme}://{url.netloc}{path}")) or self.answers.get((method, path))
         if outcomes is None:
-            raise AssertionError(f"unexpected request: {request.get_method()} {path}")
+            raise AssertionError(f"unexpected request: {method} {url.netloc}{path}")
         outcome = outcomes.pop(0) if len(outcomes) > 1 else outcomes[0]
         if callable(outcome):
             raise outcome()
         return answer(outcome)
 
-    def writes(self):
-        return [f"{r.method} {r.path}" for r in self.requests if r.method != "GET"]
+    def writes(self, host=None):
+        return [f"{r.method} {r.path}" for r in self.requests if r.method != "GET" and host in (None, r.host)]
 
-    def body(self, method, path):
-        return next(r.body for r in self.requests if (r.method, r.path) == (method, path))
+    def body(self, method, path, host=None):
+        return next(r.body for r in self.requests if (r.method, r.path) == (method, path) and host in (None, r.host))
 
 
 def body_of(request):
