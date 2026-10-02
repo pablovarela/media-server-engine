@@ -221,8 +221,8 @@ def test_a_dry_run_reports_a_library_and_an_app_seerr_does_not_have_yet_without_
     http.on("GET", "/api/v1/settings/radarr", [])
     seerr.wire()
     assert http.writes() == []
-    reported = capsys.readouterr().out
-    assert "(dry run) seerr: enable library Cartoons" in reported
+    reported = capsys.readouterr().out.splitlines()
+    assert [line for line in reported if "enable library" in line] == ["(dry run) seerr: enable library Cartoons"]
     assert "(dry run) seerr: add radarr with quality profile HD Bluray + WEB and root folder /movies" in reported
 
 
