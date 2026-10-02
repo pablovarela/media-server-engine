@@ -206,6 +206,20 @@ wait_for_running_backup() {
   done
 }
 
+pull_images() {
+  local attempts=${UPDATE_PULL_ATTEMPTS:-4} attempt=1 output wait_seconds
+  while ! output=$(stack_compose_with_wiring pull --quiet 2>&1); do
+    printf '%s\n' "$output" >&2
+    case $output in *toomanyrequests* | *"Too Many Requests"*) ;; *) return 1 ;; esac
+    [ "$attempt" -lt "$attempts" ] || die "a registry kept refusing pulls as too many requests; run make update again later"
+    wait_seconds=$((${UPDATE_PULL_RETRY_SECONDS:-30} * attempt))
+    echo "A registry is limiting requests; trying the pull again in $wait_seconds seconds..."
+    sleep "$wait_seconds"
+    attempt=$((attempt + 1))
+  done
+  [ -z "$output" ] || printf '%s\n' "$output"
+}
+
 require_clean_engine
 require_clean_config
 wait_for_running_backup
@@ -222,7 +236,7 @@ render_homepage
 homepage_env_changed || true
 "$CHECK_STACK_COMMAND"
 create_bind_mount_directories
-stack_compose_with_wiring pull --quiet
+pull_images
 up_status=0
 stack_compose up -d --remove-orphans || up_status=$?
 reattach_gluetun_dependents
