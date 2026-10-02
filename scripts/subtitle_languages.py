@@ -4,7 +4,19 @@ import sys
 import yaml
 
 
+def as_yaml_text(code):
+    try:
+        reads_back_as_itself = yaml.safe_load(f"[{code}]") == [code]
+    except yaml.YAMLError:
+        reads_back_as_itself = False
+    return code if reads_back_as_itself else "'" + code.replace("'", "''") + "'"
+
+
 def flow_list(codes):
+    return "[" + ", ".join(as_yaml_text(code) for code in codes) + "]"
+
+
+def plain(codes):
     return "[" + ", ".join(codes) + "]"
 
 
@@ -19,6 +31,8 @@ def is_list_item_of(line, key_indent):
 
 def with_languages(text, codes):
     lines = text.split("\n")
+    if any(re.match(r"^bazarr:\s*[^\s#]", line) for line in lines):
+        return None
     if "bazarr:" not in [line.split("#")[0].rstrip() for line in lines]:
         body = text.rstrip("\n")
         return (body + "\n" if body else "") + f"bazarr:\n  languages: {flow_list(codes)}\n"
@@ -40,15 +54,22 @@ def with_languages(text, codes):
     return "\n".join(lines)
 
 
+def languages_in(text):
+    try:
+        return ((yaml.safe_load(text) or {}).get("bazarr") or {}).get("languages")
+    except yaml.YAMLError:
+        return None
+
+
 def main(path, wanted):
     codes = [code.strip() for code in wanted.split(",") if code.strip()]
     text = open(path).read()
-    current = ((yaml.safe_load(text) or {}).get("bazarr") or {}).get("languages")
+    current = languages_in(text)
     if current == codes:
         return
     updated = with_languages(text, codes)
-    if ((yaml.safe_load(updated) or {}).get("bazarr") or {}).get("languages") != codes:
-        sys.exit(f"could not set the subtitle languages in {path}; set bazarr.languages to {flow_list(codes)} by hand")
+    if updated is None or languages_in(updated) != codes:
+        sys.exit(f"could not set the subtitle languages in {path}; set bazarr.languages to {plain(codes)} by hand")
     with open(path, "w") as out:
         out.write(updated)
 
