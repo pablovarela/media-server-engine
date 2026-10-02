@@ -46,7 +46,8 @@ class Seerr:
         libraries = self.api.get("/api/v1/settings/jellyfin/library")
         if any(name not in {library["name"] for library in libraries} for name in names):
             report(APP, "sync libraries from jellyfin")
-            libraries = self.api.write("POST", "/api/v1/settings/jellyfin/library/sync") or []
+            if not DRY_RUN:
+                libraries = self.api.write("POST", "/api/v1/settings/jellyfin/library/sync") or []
         by_name = {library["name"]: library for library in libraries}
         for name in names:
             library = by_name.get(name)
