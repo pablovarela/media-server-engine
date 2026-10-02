@@ -183,3 +183,12 @@ json.dump(state, open(sys.argv[1], 'w'))" "$FAKE_APP_STATE"
   [ "$status" -ne 0 ]
   [ -z "$(fake_app_writes)" ]
 }
+
+@test "fewer than one request attempt still sends every request once" {
+  start_fake_app "$FIXTURES/wired.json"
+  store_key stored-key
+  edit_state 'state["/System/Configuration"]["ServerName"] = "Other"'
+  WIRE_REQUEST_ATTEMPTS=0 run wire
+  [ "$status" -eq 0 ]
+  [ "$(fake_app_writes)" = "POST /System/Configuration" ]
+}

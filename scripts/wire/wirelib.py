@@ -109,7 +109,7 @@ class Api:
         self.headers = headers
 
     def request(self, method, path, body=None, form=None):
-        attempts = int(os.environ.get("WIRE_REQUEST_ATTEMPTS", "5"))
+        attempts = max(1, int(os.environ.get("WIRE_REQUEST_ATTEMPTS", "5")))
         for attempt in range(1, attempts + 1):
             try:
                 return self.send(method, path, body, form)
