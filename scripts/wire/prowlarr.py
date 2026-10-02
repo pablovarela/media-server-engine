@@ -44,6 +44,13 @@ class Prowlarr:
             raise WiringError(f"no {kind} type {value}")
         return copy.deepcopy(found)
 
+    def schema_or_failure(self, kind, key, value, what):
+        try:
+            return self.schema(kind, key, value)
+        except WiringError as error:
+            self.failures.append(f"{what}: {error}")
+            return None
+
     def save(self, kind, item):
         try:
             if "id" in item:
@@ -55,7 +62,7 @@ class Prowlarr:
             if kind == "indexer" and UNREACHABLE in str(error):
                 report(APP, f"could not reach indexer {item['name']}; it is added at a later update once its site answers from this VPN location")
             else:
-                self.failures.append(f"{item['name']}: {error}")
+                self.failures.append(f"could not save {item['name']}: {error}")
             return False
 
     def tag_id(self, label):
@@ -73,7 +80,9 @@ class Prowlarr:
             tags[name] = self.tag_id(name.lower())
             item = by_name(current, name)
             if item is None:
-                item = self.schema("indexerproxy", "implementation", proxy.get("type", name))
+                item = self.schema_or_failure("indexerproxy", "implementation", proxy.get("type", name), f"proxy {name}")
+                if item is None:
+                    continue
                 item.update(name=name, tags=[tags[name]])
                 set_field(item, "host", proxy["host"])
                 self.change(f"add proxy {name}")
@@ -98,12 +107,15 @@ class Prowlarr:
         for indexer in indexers:
             name = indexer["name"]
             if indexer.get("proxy") and indexer["proxy"] not in proxy_tags:
-                raise WiringError(f"indexer {name} uses proxy {indexer['proxy']}, which is not declared")
+                self.failures.append(f"indexer {name} uses proxy {indexer['proxy']}, which is not declared")
+                continue
             wanted_tags = [proxy_tags[indexer["proxy"]]] if indexer.get("proxy") else []
             fields = indexer.get("fields") or {}
             item = by_name(current, name)
             if item is None:
-                item = self.schema("indexer", "definitionName", indexer["definition"])
+                item = self.schema_or_failure("indexer", "definitionName", indexer["definition"], f"indexer {name}")
+                if item is None:
+                    continue
                 item.update(name=name, enable=True, appProfileId=profile_id, tags=wanted_tags)
                 if "priority" in indexer:
                     item["priority"] = indexer["priority"]
@@ -136,7 +148,8 @@ class Prowlarr:
             name = application["name"]
             key = self.secrets.get(application["api_key"])
             if not key:
-                raise WiringError(f"{application['api_key']} is not in the app secrets")
+                self.failures.append(f"application {name}: {application['api_key']} is not in the app secrets")
+                continue
             key_state = f"prowlarr-application-{name}.sha256"
             key_fingerprint = fingerprint(name, key)
             wanted = {"baseUrl": application["url"], "prowlarrUrl": PROWLARR_URL_SEEN_BY_APPS}
@@ -144,7 +157,9 @@ class Prowlarr:
                 wanted["syncCategories"] = application["sync_categories"]
             item = by_name(current, name)
             if item is None:
-                item = self.schema("applications", "implementation", application.get("type", name))
+                item = self.schema_or_failure("applications", "implementation", application.get("type", name), f"application {name}")
+                if item is None:
+                    continue
                 item["name"] = name
                 for key_name, value in wanted.items():
                     set_field(item, key_name, value)
@@ -183,7 +198,7 @@ def wire():
     prowlarr.wire_applications(config.get("applications") or [])
     prowlarr.sync_indexers_to_applications()
     if prowlarr.failures:
-        raise WiringError("could not save " + "; ".join(prowlarr.failures))
+        raise WiringError("; ".join(prowlarr.failures))
 
 
 def address_from_this_machine(application):
