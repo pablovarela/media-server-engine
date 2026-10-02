@@ -29,6 +29,10 @@ jobs:
           make test-python PYTEST_FLAGS="--junitxml=reports/pytest.xml"
           python=$?
           echo "status=$((scripts || python))" >> "$GITHUB_OUTPUT"
+      - name: Report the Python test coverage
+        if: always()
+        run: |
+          { echo "## Python test coverage"; echo; uv run --frozen coverage report --format=markdown --show-missing; } >> "$GITHUB_STEP_SUMMARY"
       - name: Report the test results
         if: always()
         uses: EnricoMi/publish-unit-test-result-action@d0a4676d0e0b938bc201470d88276b7c74c712b3 # v2.24.0
