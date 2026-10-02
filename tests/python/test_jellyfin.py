@@ -126,10 +126,11 @@ def test_a_drifted_server_name_is_corrected_with_one_write_that_keeps_the_other_
     assert "jellyfin: set server name Other -> Media" in capsys.readouterr().out
 
 
-def test_a_declared_path_missing_from_a_library_is_added_to_it(jellyfin, http, stored_key):
+def test_a_declared_path_missing_from_a_library_is_added_to_it_and_scanned(jellyfin, http, stored_key):
     wired(http, libraries=libraries_with("Shows", Locations=[]))
+    http.on("POST", "/Library/Refresh", None)
     jellyfin.wire()
-    assert http.writes() == ["POST /Library/VirtualFolders/Paths?refreshLibrary=false"]
+    assert http.writes() == ["POST /Library/VirtualFolders/Paths?refreshLibrary=false", "POST /Library/Refresh"]
     assert http.body("POST", "/Library/VirtualFolders/Paths?refreshLibrary=false") == {"Name": "Shows", "PathInfo": {"Path": "/data/tvshows"}}
 
 

@@ -76,7 +76,7 @@ class Jellyfin:
 
     def wire_libraries(self, libraries):
         current = {library["Name"]: library for library in self.api.get("/Library/VirtualFolders")}
-        added = False
+        to_scan = False
         for library in libraries:
             name, kind, path = library["name"], library["type"], library["path"]
             existing = current.get(name)
@@ -84,7 +84,7 @@ class Jellyfin:
                 report(APP, f"add library {name}")
                 query = urllib.parse.urlencode({"name": name, "collectionType": kind, "paths": path, "refreshLibrary": "false"})
                 self.api.write("POST", f"/Library/VirtualFolders?{query}", {"LibraryOptions": {"EnableRealtimeMonitor": True}})
-                added = True
+                to_scan = True
                 continue
             if existing.get("CollectionType") != kind:
                 self.failures.append(f"library {name} is {existing.get('CollectionType')}, not {kind}; change it in Jellyfin")
@@ -92,13 +92,14 @@ class Jellyfin:
             if path not in existing.get("Locations", []):
                 report(APP, f"add {path} to library {name}")
                 self.api.write("POST", "/Library/VirtualFolders/Paths?refreshLibrary=false", {"Name": name, "PathInfo": {"Path": path}})
+                to_scan = True
             options = existing.get("LibraryOptions") or {}
             if options.get("EnableRealtimeMonitor") is not True:
                 report(APP, f"turn on real-time monitoring for library {name}")
                 options["EnableRealtimeMonitor"] = True
                 self.api.write("POST", "/Library/VirtualFolders/LibraryOptions", {"Id": existing["ItemId"], "LibraryOptions": options})
-        if added:
-            report(APP, "scan the new libraries")
+        if to_scan:
+            report(APP, "scan the libraries for what was added")
             self.api.write("POST", "/Library/Refresh")
 
 
