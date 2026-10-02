@@ -19,6 +19,7 @@ case "$1 $2" in
 esac'
   make_stub restic 'exit "${FAKE_RESTIC_STATUS:-10}"'
   make_stub fake-port-in-use '[[ " ${FAKE_PORTS_IN_USE:-} " == *" $1 "* ]]'
+  make_stub git 'if [ "$1" = push ]; then echo PUSHED >> "$STUB_LOG"; [ -z "${FAKE_PUSH_FAILS:-}" ]; exit; fi; exec /usr/bin/git "$@"'
   export PORT_IN_USE_COMMAND=fake-port-in-use
   export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.com GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.com
   printf 'creation_rules:\n  - path_regex: secrets/\n    age: age1test\n' > "$CONFIG_DIR/.sops.yaml"
@@ -141,10 +142,42 @@ commits() {
   echo "$output" | grep -q "sonarr"
 }
 
-@test "configure never pushes" {
-  make_stub git 'if [ "$1" = push ]; then echo PUSHED >> "$STUB_LOG"; exit 1; fi; exec /usr/bin/git "$@"'
+@test "a new config is published, not pushed separately" {
   run configure < <(answers_for_new_installation)
+  [ "$status" -eq 0 ]
   ! grep -q PUSHED "$STUB_LOG" || false
+}
+
+@test "a change to a config on github is pushed once committed" {
+  configure < <(answers_for_new_installation) >/dev/null 2>&1
+  : > "$STUB_LOG"
+  run configure < <(for i in $(seq 22); do if [ "$i" -eq 13 ]; then echo new-vpn-password; else echo; fi; done)
+  [ "$status" -eq 0 ]
+  grep -q PUSHED "$STUB_LOG"
+  echo "$output" | grep -q "Committed and pushed"
+}
+
+@test "a push that fails keeps the commit, says why and fails configure" {
+  configure < <(answers_for_new_installation) >/dev/null 2>&1
+  before=$(commits)
+  FAKE_PUSH_FAILS=1 run configure < <(for i in $(seq 22); do if [ "$i" -eq 13 ]; then echo new-vpn-password; else echo; fi; done)
+  [ "$status" -ne 0 ]
+  [ "$(commits)" -eq $((before + 1)) ]
+  echo "$output" | grep -q "write access"
+}
+
+@test "configure stops before asking anything when git has no name or email for the config" {
+  run env -u GIT_AUTHOR_NAME -u GIT_AUTHOR_EMAIL -u GIT_COMMITTER_NAME -u GIT_COMMITTER_EMAIL \
+    GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null NAME=testinst "$ENGINE_DIR/scripts/configure.sh" < <(answers_for_new_installation)
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "config user.email"
+  ! echo "$output" | grep -q "Time zone" || false
+}
+
+@test "configure finds its port check when run by a relative path" {
+  unset PORT_IN_USE_COMMAND
+  run bash -c "cd '$ENGINE_DIR' && NAME=testinst scripts/configure.sh" < <(answers_for_new_installation)
+  ! echo "$output" | grep -q "port-in-use.sh: No such file" || false
 }
 
 @test "configure refuses a config directory without .sops.yaml" {

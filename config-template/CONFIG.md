@@ -61,7 +61,7 @@ Deluge's web password is applied at every update. Jellyfin's and Portainer's adm
 
 ## Applying a change
 
-Commit it:
+`make configure` commits what it changes and, for a config kept on GitHub, pushes it; if the push fails, it says so and keeps the commit. A machine that joined the installation can push because its deploy key for the config has write access. For a change made by hand, commit it:
 
 ```
 git -C ~/<name>/config commit -am "What changed"

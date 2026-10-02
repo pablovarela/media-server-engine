@@ -18,7 +18,7 @@ teardown() {
 }
 
 keys() {
-  "$BATS_TEST_DIRNAME/../scripts/deploy-keys.sh" someone/media-server-engine someone/media-server-config-testinst
+  "$BATS_TEST_DIRNAME/../scripts/deploy-keys.sh" someone/media-server-engine someone/media-server-config-testinst:write
 }
 
 @test "a key and an ssh alias are created for each repository" {
@@ -45,10 +45,24 @@ keys() {
   ! grep -q "deploy-key add" "$STUB_LOG" || false
 }
 
-@test "with gh logged in the keys are added for you, read-only" {
+@test "with gh logged in the keys are added for you, read-only for the engine" {
   FAKE_GH_LOGGED_IN=1 run keys
   grep -q "gh repo deploy-key add $HOME/.ssh/media-server-engine-deploy.pub --repo someone/media-server-engine --title" "$STUB_LOG"
-  ! grep -q "allow-write" "$STUB_LOG" || false
+  ! grep "repo someone/media-server-engine " "$STUB_LOG" | grep -q "allow-write" || false
+}
+
+config_key() {
+  "$BATS_TEST_DIRNAME/../scripts/deploy-keys.sh" someone/media-server-config-testinst:write
+}
+
+@test "the config's key can write, so this machine can push what configure commits" {
+  FAKE_GH_LOGGED_IN=1 run config_key
+  grep -q "gh repo deploy-key add $HOME/.ssh/media-server-config-testinst-deploy.pub --repo someone/media-server-config-testinst --title .* --allow-write" "$STUB_LOG"
+}
+
+@test "without gh the config's key is shown with the write access it needs" {
+  run config_key
+  echo "$output" | grep -q "someone/media-server-config-testinst, with Allow write access ticked"
 }
 
 @test "it waits until GitHub accepts the key" {

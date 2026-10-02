@@ -54,7 +54,7 @@ line_of() {
 @test "joining sets up access, restores, updates and installs timers in order" {
   run join testinst < <(printf 'AGE-SECRET-KEY-GOOD\nn\n')
   [ "$status" -eq 0 ]
-  grep -q "^fake-deploy-keys someone/media-server-engine someone/media-server-config-testinst$" "$STUB_LOG"
+  grep -q "^fake-deploy-keys someone/media-server-engine someone/media-server-config-testinst:write$" "$STUB_LOG"
   grep -q "git clone github-media-server-config-testinst:someone/media-server-config-testinst.git $CONFIG_DIR" "$STUB_LOG"
   [ "$(line_of '^fake-bootstrap')" -lt "$(line_of '^fake-deploy-keys')" ]
   [ "$(line_of '^git clone')" -lt "$(line_of '^fake-check-tools')" ]

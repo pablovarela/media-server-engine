@@ -39,7 +39,7 @@ except FileNotFoundError:
 print(", ".join(languages or ["en"]))'
 }
 
-PORT_IN_USE_COMMAND=${PORT_IN_USE_COMMAND:-$(dirname "${BASH_SOURCE[0]}")/port-in-use.sh}
+PORT_IN_USE_COMMAND=${PORT_IN_USE_COMMAND:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/port-in-use.sh}
 
 port_in_use() {
   "$PORT_IN_USE_COMMAND" "$1"
