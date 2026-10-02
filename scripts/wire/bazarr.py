@@ -21,20 +21,14 @@ def bazarr_api_key():
         raise WiringError(f"no API key in {CONFIG_FILE}; start bazarr once so it writes its config") from None
 
 
-def form_value(value):
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    return str(value)
-
-
 def wanted_changes(settings, secrets):
     changes = {}
     for kind, arr in ARRS.items():
         current = settings[kind]
         for field, value in (("ip", arr["ip"]), ("port", arr["port"]), ("base_url", "")):
-            if form_value(current.get(field)) != form_value(value):
+            if str(current.get(field)) != str(value):
                 report(APP, f"set {kind} {field} {current.get(field)} -> {value}")
-                changes[f"settings-{kind}-{field}"] = form_value(value)
+                changes[f"settings-{kind}-{field}"] = str(value)
         if current.get("apikey") != secrets[arr["key"]]:
             report(APP, f"set {kind} api key")
             changes[f"settings-{kind}-apikey"] = secrets[arr["key"]]
@@ -104,10 +98,16 @@ def wire():
     settings = api.get("/api/system/settings")
     changes = wanted_changes(settings, app_secrets())
     languages = (declared("apps.yml").get("bazarr") or {}).get("languages")
+    language_failure = None
     if languages:
-        changes.update(language_changes(api, settings["general"], languages))
+        try:
+            changes.update(language_changes(api, settings["general"], languages))
+        except WiringError as error:
+            language_failure = error
     if changes:
         api.write("POST", "/api/system/settings", form=changes)
+    if language_failure:
+        raise language_failure
 
 
 if __name__ == "__main__":
