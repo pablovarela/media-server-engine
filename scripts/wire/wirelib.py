@@ -109,14 +109,14 @@ class Api:
         self.headers = headers
 
     def request(self, method, path, body=None, form=None):
-        attempts = int(os.environ.get("WIRE_RETRY_ATTEMPTS", "5"))
+        attempts = int(os.environ.get("WIRE_REQUEST_ATTEMPTS", "5"))
         for attempt in range(1, attempts + 1):
             try:
                 return self.send(method, path, body, form)
             except StillStarting as starting:
                 if attempt == attempts or (starting.maybe_acted and method != "GET"):
                     raise WiringError(str(starting)) from None
-                time.sleep(float(os.environ.get("WIRE_RETRY_SECONDS", "3")))
+                time.sleep(float(os.environ.get("WIRE_REQUEST_RETRY_SECONDS", "3")))
 
     def send(self, method, path, body, form):
         if form is not None:

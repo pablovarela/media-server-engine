@@ -9,7 +9,7 @@ setup_stubs() {
   export HOME="$STUB_DIR/home"
   mkdir -p "$HOME"
   unset SOPS_AGE_KEY_FILE
-  export WIRE_RETRY_SECONDS=0
+  export WIRE_REQUEST_RETRY_SECONDS=0
   export SYSTEMD_RUNTIME_DIR="$STUB_DIR/systemd-running"
   mkdir -p "$SYSTEMD_RUNTIME_DIR"
   : > "$STUB_LOG"

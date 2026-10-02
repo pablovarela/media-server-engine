@@ -153,7 +153,7 @@ json.dump(state, open(sys.argv[1], 'w'))" "$FAKE_APP_STATE"
 @test "a jellyfin that resets a connection and answers 503 while starting is wired once it settles" {
   FAKE_APP_HICCUPS='[{"answer": "reset"}, {"answer": 503}]' start_fake_app "$FIXTURES/wired.json"
   store_key stored-key
-  WIRE_RETRY_SECONDS=0 run wire
+  WIRE_REQUEST_RETRY_SECONDS=0 run wire
   [ "$status" -eq 0 ]
   [ -z "$(fake_app_writes)" ]
 }
@@ -161,7 +161,7 @@ json.dump(state, open(sys.argv[1], 'w'))" "$FAKE_APP_STATE"
 @test "a jellyfin that keeps answering 503 fails the step after a few tries" {
   FAKE_APP_HICCUPS='[{"answer": 503}, {"answer": 503}, {"answer": 503}, {"answer": 503}]' start_fake_app "$FIXTURES/wired.json"
   store_key stored-key
-  WIRE_RETRY_ATTEMPTS=3 WIRE_RETRY_SECONDS=0 run wire
+  WIRE_REQUEST_ATTEMPTS=3 WIRE_REQUEST_RETRY_SECONDS=0 run wire
   [ "$status" -ne 0 ]
   echo "$output" | grep -q "answered 503"
 }
@@ -170,7 +170,7 @@ json.dump(state, open(sys.argv[1], 'w'))" "$FAKE_APP_STATE"
   FAKE_APP_HICCUPS='[{"method": "POST", "answer": 503}]' start_fake_app "$FIXTURES/wired.json"
   store_key stored-key
   edit_state 'state["/System/Configuration"]["ServerName"] = "Other"'
-  WIRE_RETRY_SECONDS=0 run wire
+  WIRE_REQUEST_RETRY_SECONDS=0 run wire
   [ "$status" -eq 0 ]
   [ "$(fake_app_writes)" = "POST /System/Configuration" ]
 }
@@ -179,7 +179,7 @@ json.dump(state, open(sys.argv[1], 'w'))" "$FAKE_APP_STATE"
   FAKE_APP_HICCUPS='[{"method": "POST", "answer": "reset"}]' start_fake_app "$FIXTURES/wired.json"
   store_key stored-key
   edit_state 'state["/System/Configuration"]["ServerName"] = "Other"'
-  WIRE_RETRY_SECONDS=0 run wire
+  WIRE_REQUEST_RETRY_SECONDS=0 run wire
   [ "$status" -ne 0 ]
   [ -z "$(fake_app_writes)" ]
 }
