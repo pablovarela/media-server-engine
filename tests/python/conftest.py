@@ -1,6 +1,9 @@
 import importlib
+import io
 import json
 import sys
+import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from types import SimpleNamespace
@@ -38,3 +41,74 @@ def urlopen(monkeypatch):
     opened = mock.Mock(side_effect=OSError("no answer was set up for this request"))
     monkeypatch.setattr(urllib.request, "urlopen", opened)
     return opened
+
+
+def http_error(code, body=""):
+    return lambda: urllib.error.HTTPError("http://app", code, "error", {}, io.BytesIO(body.encode()))
+
+
+def reset():
+    return lambda: ConnectionResetError("connection reset by peer")
+
+
+def refused():
+    return lambda: urllib.error.URLError(ConnectionRefusedError("connection refused"))
+
+
+class Http:
+    def __init__(self):
+        self.answers = {}
+        self.requests = []
+
+    def on(self, method, path, *outcomes):
+        self.answers[(method, path)] = list(outcomes) or [None]
+
+    def __call__(self, request, timeout=None):
+        url = urllib.parse.urlsplit(request.full_url)
+        path = url.path + (f"?{url.query}" if url.query else "")
+        self.requests.append(SimpleNamespace(method=request.get_method(), path=path, body=body_of(request), headers=dict(request.header_items())))
+        outcomes = self.answers.get((request.get_method(), path))
+        if outcomes is None:
+            raise AssertionError(f"unexpected request: {request.get_method()} {path}")
+        outcome = outcomes.pop(0) if len(outcomes) > 1 else outcomes[0]
+        if callable(outcome):
+            raise outcome()
+        return answer(outcome)
+
+    def writes(self):
+        return [f"{r.method} {r.path}" for r in self.requests if r.method != "GET"]
+
+    def body(self, method, path):
+        return next(r.body for r in self.requests if (r.method, r.path) == (method, path))
+
+
+def body_of(request):
+    if request.data is None:
+        return None
+    if request.get_header("Content-type") == "application/x-www-form-urlencoded":
+        return dict(urllib.parse.parse_qsl(request.data.decode(), keep_blank_values=True))
+    return json.loads(request.data)
+
+
+@pytest.fixture
+def http(monkeypatch):
+    mock_http = Http()
+    monkeypatch.setattr(urllib.request, "urlopen", mock_http)
+    return mock_http
+
+
+@pytest.fixture
+def wiring(dirs, monkeypatch):
+    monkeypatch.setenv("WIRE_REQUEST_RETRY_SECONDS", "0")
+    (dirs.engine / ".secrets").mkdir()
+
+    def load(module, secrets="", dry_run=False):
+        (dirs.engine / ".secrets" / "apps.env").write_text(secrets)
+        if dry_run:
+            monkeypatch.setenv("WIRE_DRY_RUN", "1")
+        else:
+            monkeypatch.delenv("WIRE_DRY_RUN", raising=False)
+        sys.modules.pop("wirelib", None)
+        return fresh_import(module)
+
+    return load

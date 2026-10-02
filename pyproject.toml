@@ -16,7 +16,7 @@ default-groups = ["test"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests/python"]
-pythonpath = ["scripts", "tests"]
+pythonpath = ["scripts", "scripts/wire", "tests"]
 addopts = "--strict-markers --cov --cov-report=term-missing"
 
 [tool.coverage.run]
