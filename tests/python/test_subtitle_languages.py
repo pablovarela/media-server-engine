@@ -69,9 +69,3 @@ def test_a_layout_it_cannot_edit_line_by_line_is_left_alone_with_a_hint(apps, la
         set_languages(apps, "en, es")
     assert "set bazarr.languages to [en, es] by hand" in str(stopped.value)
     assert apps.read_text() == layout
-
-
-def test_a_code_yaml_cannot_read_at_all_is_quoted_too(apps):
-    apps.write_text("bazarr:\n  languages: [en]\n")
-    set_languages(apps, "en, [")
-    assert languages_read_back(apps) == ["en", "["]

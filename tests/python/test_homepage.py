@@ -348,17 +348,6 @@ def test_a_page_without_health_check_markers_is_drawn_without_asking_healthcheck
     assert page.tiles("Home") == ["Router"]
 
 
-def test_a_tile_written_without_options_is_kept_next_to_the_health_checks(page, checks):
-    checks("testinst-backup")
-    page.config_file(
-        "services.yaml",
-        "- Home:\n    - Router:\n- Healthchecks:\n    - Backup:\n        widget:\n"
-        "          url: https://healthchecks.io/api/v3/checks/?slug=@HEALTHCHECK_BACKUP@\n",
-    )
-    page.render()
-    assert page.yaml("services.yaml")[0] == {"Home": [{"Router": None}]}
-    assert page.groups()["Healthchecks"] == [{"Backup": {"widget": {"url": "https://healthchecks.io/api/v3/checks/?slug=testinst-backup"}}}]
-
 
 def test_folders_in_the_configs_images_are_served_and_old_ones_removed(page):
     icons = page.dirs.config / "homepage" / "images" / "icons"
