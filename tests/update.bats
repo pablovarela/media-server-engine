@@ -29,7 +29,15 @@ if [ "$2" = up ]; then echo "up profiles=${COMPOSE_PROFILES:-}" >> "$STUB_LOG"; 
 if [ "$2" = config ]; then echo "{\"services\": {\"sonarr\": {\"volumes\": [{\"type\": \"bind\", \"source\": \"$DATA_DIR/volumes/sonarr/data\"}, {\"type\": \"bind\", \"source\": \"$DATA_DIR/media/tvshows\"}]}}}"; fi
 if [ "$2" = ps ] && [ "$4" = gluetun ]; then echo "gluetun-current"; fi
 if [ "$1" = inspect ]; then echo "container:${FAKE_ATTACHED_TO:-gluetun-current}"; fi
-if [ "$2" = up ] && [ "$3" = -d ] && [ "$4" = --remove-orphans ] && [ -n "${FAKE_UP_FAILS:-}" ]; then exit 1; fi'
+if [ "$2" = up ] && [ "$3" = -d ] && [ "$4" = --remove-orphans ] && [ -n "${FAKE_UP_FAILS:-}" ]; then exit 1; fi
+if [ "$2" = pull ] && [ -n "${FAKE_PULL_ERROR:-}" ]; then
+  refusals=$(cat "$BATS_TEST_TMPDIR/pull-refusals" 2>/dev/null || echo 0)
+  if [ "$refusals" -lt "${FAKE_PULL_REFUSALS:-99}" ]; then
+    echo $((refusals + 1)) > "$BATS_TEST_TMPDIR/pull-refusals"
+    echo "Error response from daemon: $FAKE_PULL_ERROR" >&2
+    exit 1
+  fi
+fi'
   make_stub fake-check-stack 'if [ -n "${FAKE_STACK_UNSAFE:-}" ]; then exit 1; fi'
   make_stub fake-wire ''
   make_stub fake-prune ''
@@ -330,4 +338,30 @@ pin_homepage() {
   FAKE_ENGINE_TAG=v1.0.0-3-gabc1234 FAKE_ENGINE_REMOTE=https://github.com/someone/media-server-engine.git run update
   [ "$status" -eq 0 ]
   grep -q "href: https://github.com/someone/media-server-engine/commit/abc123" "$ENGINE_DIR/.homepage/widgets.yaml"
+}
+
+@test "a pull refused as too many requests is tried again and the update carries on" {
+  FAKE_PULL_ERROR="toomanyrequests: retry-after: 896.394µs, allowed: 44000/minute" FAKE_PULL_REFUSALS=2 UPDATE_PULL_RETRY_SECONDS=0 run update
+  [ "$status" -eq 0 ]
+  [ "$(grep -c "^pull profiles=wiring$" "$STUB_LOG")" -eq 3 ]
+  echo "$output" | grep -q "toomanyrequests"
+  echo "$output" | grep -q "A registry is limiting requests; trying the pull again"
+  grep -q "docker compose up -d --remove-orphans" "$STUB_LOG"
+  grep -q "fake-wire" "$STUB_LOG"
+}
+
+@test "update gives up when a registry keeps refusing pulls as too many requests" {
+  FAKE_PULL_ERROR="toomanyrequests: retry-after: 1s" UPDATE_PULL_ATTEMPTS=3 UPDATE_PULL_RETRY_SECONDS=0 run update
+  [ "$status" -ne 0 ]
+  [ "$(grep -c "^pull profiles=wiring$" "$STUB_LOG")" -eq 3 ]
+  echo "$output" | grep -q "a registry kept refusing pulls as too many requests; run make update again later"
+  ! grep -q "docker compose up -d --remove-orphans" "$STUB_LOG" || false
+}
+
+@test "a pull that fails for another reason is not tried again" {
+  FAKE_PULL_ERROR="manifest unknown" UPDATE_PULL_RETRY_SECONDS=0 run update
+  [ "$status" -ne 0 ]
+  [ "$(grep -c "^pull profiles=wiring$" "$STUB_LOG")" -eq 1 ]
+  echo "$output" | grep -q "manifest unknown"
+  ! grep -q "docker compose up -d --remove-orphans" "$STUB_LOG" || false
 }
