@@ -57,3 +57,32 @@ sync() {
   [ -z "$(fake_app_writes)" ]
   echo "$output" | grep -q "prowlarr: sync indexers again: Sonarr has 0 of 1"
 }
+
+@test "an indexer outside an app's sync categories is not expected in that app" {
+  python3 -c '
+import json, sys
+state = json.load(open(sys.argv[1]))
+tv = dict(state["/api/v1/indexer"][0], id=1, name="TV and more", capabilities={"categories": [{"id": 3000, "subCategories": [{"id": 5040}]}]})
+movies = dict(state["/api/v1/indexer"][0], id=2, name="YTS", capabilities={"categories": [{"id": 2000, "subCategories": [{"id": 2040}]}]})
+state["/api/v1/indexer"] = [tv, movies]
+json.dump(state, open(sys.argv[2], "w"))' "$FIXTURES/wired.json" "$STUB_DIR/categories.json"
+  stop_fake_app
+  FAKE_APP_HEADERS='{"X-Api-Key": "prowlarr-key"}' start_fake_app "$STUB_DIR/categories.json"
+  sonarr_with_indexers "TV and more (Prowlarr)"
+  run sync
+  [ "$status" -eq 0 ]
+  [ -z "$(fake_app_writes)" ]
+  [ -z "$output" ]
+}
+
+@test "an app's address on this machine keeps the declared port and path, and needs no port" {
+  run python3 -c '
+import sys
+sys.path.insert(0, sys.argv[1])
+from prowlarr import address_from_this_machine
+print(address_from_this_machine({"name": "Sonarr", "url": "http://sonarr:8989"}))
+print(address_from_this_machine({"name": "Sonarr", "url": "http://sonarr"}))
+print(address_from_this_machine({"name": "Sonarr", "url": "http://sonarr:8989/sonarr"}))' "$BATS_TEST_DIRNAME/../scripts/wire"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$(printf '%s\n' http://localhost:8989 http://localhost http://localhost:8989/sonarr)" ]
+}

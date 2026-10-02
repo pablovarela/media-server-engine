@@ -187,8 +187,21 @@ def wire():
 
 
 def address_from_this_machine(application):
-    port = urllib.parse.urlsplit(application["url"]).port
-    return os.environ.get(f"{application['name'].upper()}_URL", f"http://localhost:{port}")
+    declared_url = urllib.parse.urlsplit(application["url"])
+    host = "localhost" if declared_url.port is None else f"localhost:{declared_url.port}"
+    return os.environ.get(f"{application['name'].upper()}_URL", urllib.parse.urlunsplit(declared_url._replace(netloc=host)))
+
+
+def categories_of(indexer):
+    categories = (indexer.get("capabilities") or {}).get("categories")
+    if categories is None:
+        return None
+    return {category["id"] for category in categories} | {sub["id"] for category in categories for sub in category.get("subCategories") or []}
+
+
+def indexers_prowlarr_syncs_to(name, indexers, prowlarr_applications):
+    sync_categories = set(field(by_name(prowlarr_applications, name) or {"fields": []}, "syncCategories") or [])
+    return sum(1 for indexer in indexers if indexer.get("enable") and (categories_of(indexer) is None or categories_of(indexer) & sync_categories))
 
 
 def indexers_synced_to(application, secrets):
@@ -200,16 +213,18 @@ def sync_again():
     applications = declared("prowlarr.yml").get("applications") or []
     secrets = app_secrets()
     api = Api(APP, os.environ.get("PROWLARR_URL", "http://localhost:9696"), {"X-Api-Key": secrets["PROWLARR_API_KEY"]})
-    wanted = sum(1 for indexer in api.get("/api/v1/indexer") if indexer.get("enable"))
+    indexers = api.get("/api/v1/indexer")
+    prowlarr_applications = api.get("/api/v1/applications")
+    wanted = {application["name"]: indexers_prowlarr_syncs_to(application["name"], indexers, prowlarr_applications) for application in applications}
 
     def short_of_indexers(candidates):
         counted = ((application, indexers_synced_to(application, secrets)) for application in candidates)
-        return [(application, count) for application, count in counted if count < wanted]
+        return [(application, count) for application, count in counted if count < wanted[application["name"]]]
 
     short = short_of_indexers(applications)
     if not short:
         return
-    report(APP, "sync indexers again: " + ", ".join(f"{application['name']} has {count} of {wanted}" for application, count in short))
+    report(APP, "sync indexers again: " + ", ".join(f"{application['name']} has {count} of {wanted[application['name']]}" for application, count in short))
     if DRY_RUN:
         return
     api.write("POST", "/api/v1/command", {"name": "ApplicationIndexerSync"})
@@ -218,7 +233,7 @@ def sync_again():
         time.sleep(5)
         short = short_of_indexers(application for application, _ in short)
     for application, count in short:
-        print(f"{APP}: {application['name']} still has {count} of prowlarr's {wanted} indexers; prowlarr will retry on its own schedule")
+        print(f"{APP}: {application['name']} still has {count} of prowlarr's {wanted[application['name']]} indexers; prowlarr will retry on its own schedule")
 
 
 if __name__ == "__main__":
