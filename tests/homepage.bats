@@ -26,12 +26,14 @@ serve_checks() {
   echo "HEALTHCHECKS_API_KEY=hc-read" > "$ENGINE_DIR/.secrets/healthchecks.env"
 }
 
-health_columns() {
+health_tiles() {
   python3 -c '
 import sys, yaml
 groups = {next(iter(g)): g[next(iter(g))] for g in yaml.safe_load(open(sys.argv[1]))}
-tile = groups["Healthchecks"][0]["Healthchecks"]
-print(" ".join(m["label"] + "=" + m["field"] for m in tile["widget"]["mappings"]))' "$OUT/services.yaml"
+for tile in groups["Healthchecks"]:
+    for name, options in tile.items():
+        widget = options["widget"]
+        print(name + "=" + widget["url"].split("slug=")[1] + ":" + widget["mappings"][0]["field"], end=" ")' "$OUT/services.yaml" | sed 's/ $//'
 }
 
 homepage() {
@@ -59,16 +61,42 @@ yaml_of() {
   [ "$(service_groups | cut -d'|' -f1)" = Healthchecks ]
 }
 
-@test "each health check's column reads that check, wherever healthchecks lists it" {
+@test "each health check has its own tile, which asks healthchecks for that check by name" {
   serve_checks testinst-update other-backup testinst-verify testinst-backup
   homepage render "$OUT"
-  [ "$(health_columns)" = "Backup=checks.3.status Update=checks.0.status Verify=checks.2.status" ]
+  [ "$(health_tiles)" = "Backup=testinst-backup:checks.0.status Update=testinst-update:checks.0.status Verify=testinst-verify:checks.0.status" ]
 }
 
-@test "a check healthchecks does not have yet gets no column" {
+@test "a check healthchecks does not have yet gets no tile" {
   serve_checks testinst-update
   homepage render "$OUT"
-  [ "$(health_columns)" = "Update=checks.0.status" ]
+  [ "$(health_tiles)" = "Update=testinst-update:checks.0.status" ]
+}
+
+@test "a secondary machine's page shows its own update check" {
+  serve_checks testinst-backup testinst-update testinst-update-pi2
+  HOMEPAGE_HEALTHCHECK_UPDATE=testinst-update-pi2 homepage render "$OUT"
+  [ "$(health_tiles)" = "Backup=testinst-backup:checks.0.status Update=testinst-update-pi2:checks.0.status" ]
+}
+
+@test "the page is drawn with the update check this machine pings" {
+  make_stub docker 'exit 1'
+  serve_checks testinst-backup testinst-update "testinst-update-$(hostname -s)"
+  ENGINE_DIR=$ENGINE_DIR bash -c 'source "$1/scripts/lib.sh"; INSTALLATION_NAME=testinst HOMEPAGE_PORT=80 render_homepage' _ "$BATS_TEST_DIRNAME/.."
+  [ "$(health_tiles)" = "Backup=testinst-backup:checks.0.status Update=testinst-update-$(hostname -s):checks.0.status" ]
+  touch "$DATA_DIR/.backup-main"
+  ENGINE_DIR=$ENGINE_DIR bash -c 'source "$1/scripts/lib.sh"; INSTALLATION_NAME=testinst HOMEPAGE_PORT=80 render_homepage' _ "$BATS_TEST_DIRNAME/.."
+  [ "$(health_tiles)" = "Backup=testinst-backup:checks.0.status Update=testinst-update:checks.0.status" ]
+}
+
+@test "the health check tiles show only their status, with the tile titles hidden" {
+  homepage render "$OUT"
+  grep -q 'li\[id^="healthchecks-"\] .service-title' "$OUT/custom.css"
+  python3 -c '
+import sys, yaml
+groups = {next(iter(g)): g[next(iter(g))] for g in yaml.safe_load(open(sys.argv[1]))}
+ids = [options["id"] for tile in groups["Healthchecks"] for options in tile.values()]
+assert ids == ["healthchecks-backup", "healthchecks-update", "healthchecks-verify"], ids' "$BATS_TEST_DIRNAME/../homepage/services.yaml"
 }
 
 @test "without any of the installation's checks, the health checks are not on the page" {
@@ -96,7 +124,7 @@ import sys, yaml
 layout = yaml.safe_load(open(sys.argv[1]))["layout"]
 first = layout[0]
 assert next(iter(first)) == "Healthchecks", first
-assert first["Healthchecks"] == {"style": "row", "columns": 1, "header": False}, first
+assert first["Healthchecks"] == {"style": "row", "columns": 3, "header": False}, first
 assert [next(iter(g)) for g in layout] == ["Healthchecks", "Coming up", "Watch", "Downloads", "Library", "Maintenance"], layout
 assert all(g[next(iter(g))].get("style") == "columns" for g in layout[3:]), layout' "$OUT/settings.yaml"
 }
@@ -242,7 +270,7 @@ print(" ".join(views))' "$OUT/services.yaml" "$1"
   config_file settings.yaml "title: mine"
   homepage render "$OUT"
   [ "$(service_groups | cut -d'|' -f1)" = "Coming up" ]
-  [ "$(cat "$OUT/custom.css")" = "html { font-size: 18px; }" ]
+  grep -q "html { font-size: 18px; }" "$OUT/custom.css"
 }
 
 @test "backup status stays off the page without an api key, also inside a nested group" {

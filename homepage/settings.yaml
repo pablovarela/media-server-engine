@@ -6,7 +6,7 @@ disableUpdateCheck: true
 layout:
   - Healthchecks:
       style: row
-      columns: 1
+      columns: 3
       header: false
   - Coming up:
       style: column

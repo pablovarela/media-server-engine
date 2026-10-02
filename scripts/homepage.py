@@ -64,7 +64,7 @@ def without_backup_status(entries):
 HEALTHCHECK_MARKER = re.compile(r"@HEALTHCHECK_([A-Z]+)@")
 
 
-def healthcheck_positions():
+def existing_checks():
     url = os.environ.get("HEALTHCHECKS_API_URL", "https://healthchecks.io/api/v3/checks/")
     request = urllib.request.Request(url, headers={"X-Api-Key": healthchecks_api_key()})
     try:
@@ -72,41 +72,35 @@ def healthcheck_positions():
             checks = json.load(response)["checks"]
     except (OSError, ValueError, KeyError) as error:
         print(f"could not read the checks from healthchecks ({error}); the page is drawn without them", file=sys.stderr)
-        return {}
-    return {check.get("slug"): position for position, check in enumerate(checks)}
+        return set()
+    return {check.get("slug") for check in checks}
 
 
-def with_found_checks(tile, positions):
-    mappings = (tile.get("widget") or {}).get("mappings")
-    if not isinstance(mappings, list):
-        return tile
-    kept = []
-    for mapping in mappings:
-        field = str(mapping.get("field", ""))
-        marker = HEALTHCHECK_MARKER.search(field)
-        if marker:
-            position = positions.get(f"{os.environ['INSTALLATION_NAME']}-{marker.group(1).lower()}")
-            if position is None:
-                continue
-            mapping = dict(mapping, field=field.replace(marker.group(0), str(position)))
-        kept.append(mapping)
-    if not kept:
+def check_slug(job):
+    return os.environ.get(f"HOMEPAGE_HEALTHCHECK_{job}", f"{os.environ['INSTALLATION_NAME']}-{job.lower()}")
+
+
+def with_check_slugs(tile, existing):
+    text = json.dumps(tile)
+    jobs = set(HEALTHCHECK_MARKER.findall(text))
+    if any(check_slug(job) not in existing for job in jobs):
         return None
-    tile["widget"]["mappings"] = kept
-    return tile
+    for job in jobs:
+        text = text.replace(f"@HEALTHCHECK_{job}@", check_slug(job))
+    return json.loads(text)
 
 
-def with_health_checks(entries, positions):
+def with_health_checks(entries, existing):
     kept = []
     for entry in entries:
         name, value = next(iter(entry.items()))
         if isinstance(value, list):
-            found = with_health_checks(value, positions)
+            found = with_health_checks(value, existing)
             if value and not found:
                 continue
             value = found
         elif isinstance(value, dict):
-            value = with_found_checks(value, positions)
+            value = with_check_slugs(value, existing)
             if value is None:
                 continue
         kept.append({name: value})
@@ -118,7 +112,7 @@ def rendered_services(text):
     if not healthchecks_api_key():
         groups = without_backup_status(groups)
     elif HEALTHCHECK_MARKER.search(text):
-        groups = with_health_checks(groups, healthcheck_positions())
+        groups = with_health_checks(groups, existing_checks())
     return yaml.safe_dump(groups, sort_keys=False, allow_unicode=True)
 
 
