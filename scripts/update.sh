@@ -210,7 +210,7 @@ pull_images() {
   local attempts=${UPDATE_PULL_ATTEMPTS:-4} attempt=1 output wait_seconds
   while ! output=$(stack_compose_with_wiring pull --quiet 2>&1); do
     printf '%s\n' "$output" >&2
-    case $output in *toomanyrequests*) ;; *) return 1 ;; esac
+    case $output in *toomanyrequests* | *"Too Many Requests"*) ;; *) return 1 ;; esac
     [ "$attempt" -lt "$attempts" ] || die "a registry kept refusing pulls as too many requests; run make update again later"
     wait_seconds=$((${UPDATE_PULL_RETRY_SECONDS:-30} * attempt))
     echo "A registry is limiting requests; trying the pull again in $wait_seconds seconds..."

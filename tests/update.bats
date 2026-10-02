@@ -365,3 +365,9 @@ pin_homepage() {
   echo "$output" | grep -q "manifest unknown"
   ! grep -q "docker compose up -d --remove-orphans" "$STUB_LOG" || false
 }
+
+@test "a pull refused with a bare 429 status is tried again" {
+  FAKE_PULL_ERROR="unexpected status from HEAD request to https://ghcr.io/v2/x/manifests/1: 429 Too Many Requests" FAKE_PULL_REFUSALS=1 UPDATE_PULL_RETRY_SECONDS=0 run update
+  [ "$status" -eq 0 ]
+  [ "$(grep -c "^pull profiles=wiring$" "$STUB_LOG")" -eq 2 ]
+}
