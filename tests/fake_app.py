@@ -1,5 +1,7 @@
 import json
 import os
+import socket
+import struct
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qsl, urlsplit
@@ -18,9 +20,37 @@ def save(state):
         json.dump(state, out)
 
 
+def next_hiccup(method):
+    hiccups_file = state_file + ".hiccups"
+    if not os.path.exists(hiccups_file):
+        with open(hiccups_file, "w") as out:
+            out.write(os.environ.get("FAKE_APP_HICCUPS", "[]"))
+    with open(hiccups_file) as source:
+        hiccups = json.load(source)
+    for position, hiccup in enumerate(hiccups):
+        if hiccup.get("method", method) == method:
+            del hiccups[position]
+            with open(hiccups_file, "w") as out:
+                json.dump(hiccups, out)
+            return hiccup["answer"]
+    return None
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
+
+    def stumbled(self, method):
+        hiccup = next_hiccup(method)
+        if hiccup == "reset":
+            self.connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+            self.connection.close()
+            self.close_connection = True
+            return True
+        if hiccup == 503:
+            self.answer(503, {"message": "starting"})
+            return True
+        return False
 
     def answer(self, code, body=None):
         payload = b"" if body is None else json.dumps(body).encode()
@@ -52,6 +82,8 @@ class Handler(BaseHTTPRequestHandler):
         return None, None
 
     def do_GET(self):
+        if self.stumbled("GET"):
+            return
         if not self.authorised():
             return self.answer(401)
         state = load()
@@ -67,6 +99,8 @@ class Handler(BaseHTTPRequestHandler):
         return self.answer(200, item) if item else self.answer(404)
 
     def write(self, method):
+        if self.stumbled(method):
+            return
         if not self.authorised():
             return self.answer(401)
         body = self.body()

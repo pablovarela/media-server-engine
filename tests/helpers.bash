@@ -9,6 +9,7 @@ setup_stubs() {
   export HOME="$STUB_DIR/home"
   mkdir -p "$HOME"
   unset SOPS_AGE_KEY_FILE
+  export WIRE_REQUEST_RETRY_SECONDS=0
   export SYSTEMD_RUNTIME_DIR="$STUB_DIR/systemd-running"
   export HEALTHCHECKS_API_URL=http://127.0.0.1:9/api/v3/checks/
   mkdir -p "$SYSTEMD_RUNTIME_DIR"
