@@ -12,6 +12,7 @@ app_of() {
 health_urls() {
   case $1 in
     library-updates) health_urls sonarr; health_urls radarr ;;
+    prowlarr-sync) health_urls prowlarr; health_urls sonarr; health_urls radarr ;;
     sonarr) echo "${SONARR_URL:-http://localhost:8989}/ping" ;;
     radarr) echo "${RADARR_URL:-http://localhost:7878}/ping" ;;
     prowlarr) echo "${PROWLARR_URL:-http://localhost:9696}/ping" ;;
