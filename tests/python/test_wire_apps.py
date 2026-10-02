@@ -140,3 +140,10 @@ def test_the_configarr_step_runs_its_script_and_fails_when_it_does(wire_apps, mo
     with pytest.raises(subprocess.CalledProcessError):
         wire_apps.configarr()
     assert commands[0][0].endswith("scripts/wire/configarr.sh")
+
+
+def test_an_app_that_answers_garbage_while_starting_is_waited_for_like_one_that_does_not_answer(wire_apps, http):
+    http.on("GET", "http://localhost:9696/ping", lambda: wire_apps.http.client.BadStatusLine("garbage"), None)
+    ran = []
+    assert wire_apps.run_steps([("prowlarr", ["prowlarr"], recording(ran, "prowlarr"))]) == 0
+    assert ran == ["prowlarr"]

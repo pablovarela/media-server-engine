@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import http.client
 import importlib
 import os
 import subprocess
@@ -35,7 +36,7 @@ def answers(url):
     try:
         with urllib.request.urlopen(urllib.request.Request(url), timeout=5):
             return True
-    except (urllib.error.URLError, OSError, ValueError):
+    except (urllib.error.URLError, http.client.HTTPException, OSError, ValueError):
         return False
 
 
