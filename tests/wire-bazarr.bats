@@ -152,3 +152,17 @@ json.dump(state, open(sys.argv[1], "w"))' "$FAKE_APP_STATE"
   ! echo "$output" | grep -q "sonarr-key" || false
   ! echo "$output" | grep -q "bazarr-key" || false
 }
+
+@test "a dry run reports a default profile that would point elsewhere, and writes nothing" {
+  python3 -c '
+import json, sys
+state = json.load(open(sys.argv[1]))
+state["/api/system/languages/profiles"].append({"profileId": 7, "name": "Spanish", "cutoff": None, "items": [], "mustContain": [], "mustNotContain": [], "originalFormat": 0, "tag": None})
+state["/api/system/settings"]["general"]["movie_default_profile"] = 7
+json.dump(state, open(sys.argv[2], "w"))' "$FIXTURES/wired.json" "$STUB_DIR/moved.json"
+  start_fake_app "$STUB_DIR/moved.json"
+  WIRE_DRY_RUN=1 run wire
+  [ "$status" -eq 0 ]
+  [ -z "$(fake_app_writes)" ]
+  [ "$output" = "(dry run) bazarr: set the default subtitle profile for movies Spanish -> English" ]
+}
