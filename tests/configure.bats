@@ -480,3 +480,43 @@ Europe/London#")
   echo "$output" | grep -q "a port number"
   grep -qx "HOMEPAGE_PORT=8090" "$CONFIG_DIR/installation.env"
 }
+
+@test "changing the subtitle languages changes only that line of apps.yml, keeping its comments" {
+  run configure < <(answers_for_new_installation)
+  [ "$status" -eq 0 ]
+  sed -i.bak 's/^  languages: \[en\]$/  languages: [en]  # what bazarr fetches/' "$CONFIG_DIR/apps.yml"
+  printf '# deluge stays seeding for two days\n' | cat - "$CONFIG_DIR/apps.yml" > "$CONFIG_DIR/apps.yml.new" && mv "$CONFIG_DIR/apps.yml.new" "$CONFIG_DIR/apps.yml"
+  cp "$CONFIG_DIR/apps.yml" "$BATS_TEST_TMPDIR/before.yml"
+  run configure < <(answers_with '$s/en/en, es/')
+  [ "$status" -eq 0 ]
+  [ "$(diff "$BATS_TEST_TMPDIR/before.yml" "$CONFIG_DIR/apps.yml" | grep '^[<>]')" = "$(printf '%s\n' '<   languages: [en]  # what bazarr fetches' '>   languages: [en, es]  # what bazarr fetches')" ]
+}
+
+@test "subtitle languages written as a block list are replaced in place" {
+  run configure < <(answers_for_new_installation)
+  python3 - "$CONFIG_DIR/apps.yml" <<'PY'
+import sys
+path = sys.argv[1]
+text = open(path).read().replace("  languages: [en]\n", "  languages:\n    - en\n    - fr\n")
+open(path, "w").write(text + "maintainerr: {}\n")
+PY
+  run configure < <(answers_with '$s/.*/es/')
+  [ "$status" -eq 0 ]
+  grep -q "^  languages: \[es\]$" "$CONFIG_DIR/apps.yml"
+  ! grep -qx "    - en\|    - fr" "$CONFIG_DIR/apps.yml" || false
+  grep -q "^maintainerr: {}$" "$CONFIG_DIR/apps.yml"
+}
+
+@test "an apps.yml without a bazarr section gets one with the subtitle languages" {
+  run configure < <(answers_for_new_installation)
+  python3 -c '
+import sys
+path = sys.argv[1]
+lines = open(path).read().split("\n")
+start = lines.index("bazarr:")
+end = next((i for i in range(start + 1, len(lines)) if lines[i] and not lines[i].startswith(" ")), len(lines))
+open(path, "w").write("\n".join(lines[:start] + lines[end:]))' "$CONFIG_DIR/apps.yml"
+  run configure < <(answers_with '$s/en/en, es/')
+  [ "$status" -eq 0 ]
+  [ "$(python3 -c 'import sys, yaml; print(yaml.safe_load(open(sys.argv[1]))["bazarr"]["languages"])' "$CONFIG_DIR/apps.yml")" = "['en', 'es']" ]
+}
