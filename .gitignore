@@ -4,3 +4,5 @@
 __pycache__/
 /.homepage/
 /.homepage-images/
+/.venv/
+.pytest_cache/

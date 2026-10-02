@@ -54,13 +54,17 @@ check-tools: ## check that every tool the scripts need is installed and the age 
 installation:
 	@$(WITH_LIB) require_installation
 
-test: test-scripts lint ## run the script tests and shellcheck (needs bats-core and shellcheck)
+test: test-scripts test-python lint ## run the script tests, the Python tests and shellcheck (needs bats-core, uv and shellcheck)
 
 TEST_JOBS ?= $(shell command -v parallel >/dev/null && getconf _NPROCESSORS_ONLN)
 
 test-scripts: ## run the script tests, in parallel when GNU parallel is installed (TEST_JOBS=1 runs them one at a time, BATS_FLAGS passes options to bats)
 	@command -v bats >/dev/null || { echo "bats missing: brew install bats-core" >&2; exit 1; }
 	@BATS_TEST_TIMEOUT=$${BATS_TEST_TIMEOUT:-120} bats $(if $(TEST_JOBS),--jobs $(TEST_JOBS)) $(BATS_FLAGS) tests/
+
+test-python: ## run the Python tests with pytest through uv (PYTHON=3.9 runs them on that Python, PYTEST_FLAGS passes options to pytest)
+	@command -v uv >/dev/null || { echo "uv missing: brew install uv" >&2; exit 1; }
+	@uv run --frozen $(if $(PYTHON),--python $(PYTHON)) pytest $(PYTEST_FLAGS)
 
 lint: ## shellcheck every script
 	@command -v shellcheck >/dev/null || { echo "shellcheck missing: brew install shellcheck" >&2; exit 1; }

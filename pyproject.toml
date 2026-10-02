@@ -1,0 +1,16 @@
+[project]
+name = "media-server-engine"
+version = "0"
+requires-python = ">=3.9"
+
+[dependency-groups]
+test = ["pytest", "pyyaml"]
+
+[tool.uv]
+package = false
+default-groups = ["test"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/python"]
+pythonpath = ["scripts", "tests"]
+addopts = "--strict-markers"
