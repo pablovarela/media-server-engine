@@ -86,7 +86,8 @@ def body_of(request):
     if request.data is None:
         return None
     if request.get_header("Content-type") == "application/x-www-form-urlencoded":
-        return dict(urllib.parse.parse_qsl(request.data.decode(), keep_blank_values=True))
+        fields = urllib.parse.parse_qs(request.data.decode(), keep_blank_values=True)
+        return {field: values[0] if len(values) == 1 else values for field, values in fields.items()}
     return json.loads(request.data)
 
 
