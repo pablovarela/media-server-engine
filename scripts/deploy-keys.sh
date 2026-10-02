@@ -51,8 +51,8 @@ mkdir -p "$SSH_DIR"
 chmod 700 "$SSH_DIR"
 for wanted in "$@"; do
   owner_repo=${wanted%:write}
-  access=read
-  [ "$wanted" = "$owner_repo" ] || access=write
+  access="read"
+  [ "$wanted" = "$owner_repo" ] || access="write"
   repo=${owner_repo#*/}
   key=$(ensure_key "$repo")
   ensure_alias "$repo" "$key"
