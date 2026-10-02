@@ -6,7 +6,7 @@ SCRIPT_PATH="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 SCRIPTS_DIR="$(dirname "$SCRIPT_PATH")"
 
 CHECK_STACK_COMMAND=${CHECK_STACK_COMMAND:-$SCRIPTS_DIR/check-stack.sh}
-WIRE_COMMAND=${WIRE_COMMAND:-$SCRIPTS_DIR/wire/wire-apps.sh}
+WIRE_COMMAND=${WIRE_COMMAND:-$SCRIPTS_DIR/wire/wire_apps.py}
 PRUNE_COMMAND=${PRUNE_COMMAND:-$SCRIPTS_DIR/prune-stack-images.sh}
 PINNED_TOOLS_COMMAND=${PINNED_TOOLS_COMMAND:-$SCRIPTS_DIR/bootstrap.sh}
 readonly GLUETUN_DEPENDENTS="prowlarr flaresolverr deluge"
