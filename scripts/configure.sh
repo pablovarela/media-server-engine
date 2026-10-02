@@ -112,15 +112,7 @@ write_secret() {
 }
 
 write_subtitle_languages() {
-  SUBTITLE_LANGUAGES=$SUBTITLE_LANGUAGES python3 -c '
-import os, yaml
-wanted = [code.strip() for code in os.environ["SUBTITLE_LANGUAGES"].split(",") if code.strip()]
-config = yaml.safe_load(open("apps.yml")) or {}
-bazarr = config.setdefault("bazarr", {}) or {}
-if bazarr.get("languages") != wanted:
-    bazarr["languages"] = wanted
-    config["bazarr"] = bazarr
-    yaml.safe_dump(config, open("apps.yml", "w"), sort_keys=False)'
+  python3 "$ENGINE_DIR/scripts/subtitle_languages.py" apps.yml "$SUBTITLE_LANGUAGES"
 }
 
 write_config() {
