@@ -43,7 +43,10 @@ def password_hash(salt, password):
 
 
 def docker(*args):
-    return subprocess.run(["docker", *args], check=True, capture_output=True, text=True).stdout.strip()
+    try:
+        return subprocess.run(["docker", *args], check=True, capture_output=True, text=True).stdout.strip()
+    except subprocess.CalledProcessError as error:
+        raise WiringError(f"docker {args[0]} {CONTAINER} failed: {(error.stderr or '').strip()[-300:]}") from None
 
 
 def container_python():
@@ -81,8 +84,8 @@ class Deluge:
                 continue
             try:
                 build_plugin(plugin)
-            except subprocess.CalledProcessError as error:
-                self.failures.append(f"could not build plugin {plugin['name']}: {(error.stderr or '').strip()[-300:]}")
+            except WiringError as error:
+                self.failures.append(f"could not build plugin {plugin['name']}: {error}")
 
     def wire_core(self, settings, plugins):
         for key, value in settings.items():
@@ -129,11 +132,19 @@ class Deluge:
         if not changed or DRY_RUN:
             return
         docker("stop", CONTAINER)
-        try:
-            for conf in changed:
+        failures = []
+        for conf in changed:
+            try:
                 conf.save()
-        finally:
+            except OSError as error:
+                failures.append(f"could not write {os.path.basename(conf.path)}: {error.strerror}")
+                break
+        try:
             docker("start", CONTAINER)
+        except WiringError as error:
+            failures.append(str(error))
+        if failures:
+            raise WiringError("; ".join(failures))
 
     def wait_for_web_login(self, url):
         api = Api(APP, url, {})
