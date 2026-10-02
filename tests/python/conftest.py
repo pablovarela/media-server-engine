@@ -77,15 +77,16 @@ class Http:
         return answer(outcome)
 
     def writes(self, host=None):
-        return [f"{r.method} {r.path}" for r in self.requests if r.method != "GET" and self.made_to(r, host)]
+        return [f"{r.method} {r.path}" for r in self.requests_to(host) if r.method != "GET"]
 
     def body(self, method, path, host=None):
-        return next(r.body for r in self.requests if (r.method, r.path) == (method, path) and self.made_to(r, host))
+        return next(r.body for r in self.requests_to(host) if (r.method, r.path) == (method, path))
 
-    def made_to(self, request, host):
-        if host is not None and "://" in host:
-            raise AssertionError(f"name the host without its scheme: {host}")
-        return host in (None, request.host)
+    def requests_to(self, host):
+        hosts = {r.host for r in self.requests}
+        if host is not None and host not in hosts:
+            raise AssertionError(f"no request was made to {host}; requests went to {sorted(hosts)}")
+        return [r for r in self.requests if host in (None, r.host)]
 
 
 def body_of(request):
