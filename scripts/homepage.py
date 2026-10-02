@@ -1,7 +1,9 @@
 import json
 import os
+import re
 import shutil
 import sys
+import urllib.request
 
 import yaml
 
@@ -59,11 +61,65 @@ def without_backup_status(entries):
     return kept
 
 
+HEALTHCHECK_MARKER = re.compile(r"@HEALTHCHECK_([A-Z]+)@")
+
+
+def healthcheck_positions():
+    url = os.environ.get("HEALTHCHECKS_API_URL", "https://healthchecks.io/api/v3/checks/")
+    request = urllib.request.Request(url, headers={"X-Api-Key": healthchecks_api_key()})
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            checks = json.load(response)["checks"]
+    except (OSError, ValueError, KeyError) as error:
+        print(f"could not read the checks from healthchecks ({error}); the page is drawn without them", file=sys.stderr)
+        return {}
+    return {check.get("slug"): position for position, check in enumerate(checks)}
+
+
+def with_found_checks(tile, positions):
+    mappings = (tile.get("widget") or {}).get("mappings")
+    if not isinstance(mappings, list):
+        return tile
+    kept = []
+    for mapping in mappings:
+        field = str(mapping.get("field", ""))
+        marker = HEALTHCHECK_MARKER.search(field)
+        if marker:
+            position = positions.get(f"{os.environ['INSTALLATION_NAME']}-{marker.group(1).lower()}")
+            if position is None:
+                continue
+            mapping = dict(mapping, field=field.replace(marker.group(0), str(position)))
+        kept.append(mapping)
+    if not kept:
+        return None
+    tile["widget"]["mappings"] = kept
+    return tile
+
+
+def with_health_checks(entries, positions):
+    kept = []
+    for entry in entries:
+        name, value = next(iter(entry.items()))
+        if isinstance(value, list):
+            found = with_health_checks(value, positions)
+            if value and not found:
+                continue
+            value = found
+        elif isinstance(value, dict):
+            value = with_found_checks(value, positions)
+            if value is None:
+                continue
+        kept.append({name: value})
+    return kept
+
+
 def rendered_services(text):
     groups = yaml.safe_load(text) or []
     if not healthchecks_api_key():
         groups = without_backup_status(groups)
-    return yaml.safe_dump(groups, sort_keys=False)
+    elif HEALTHCHECK_MARKER.search(text):
+        groups = with_health_checks(groups, healthcheck_positions())
+    return yaml.safe_dump(groups, sort_keys=False, allow_unicode=True)
 
 
 def rendered_widgets(text):

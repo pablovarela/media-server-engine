@@ -15,7 +15,23 @@ setup() {
 }
 
 teardown() {
+  stop_fake_app 2>/dev/null || true
   teardown_stubs
+}
+
+serve_checks() {
+  printf '{"/api/v3/checks/": {"checks": [%s]}}' "$(printf '{"slug": "%s", "status": "up"},' "$@" | sed 's/,$//')" > "$STUB_DIR/checks.json"
+  FAKE_APP_HEADERS='{"X-Api-Key": "hc-read"}' start_fake_app "$STUB_DIR/checks.json"
+  export HEALTHCHECKS_API_URL="$FAKE_APP_URL/api/v3/checks/"
+  echo "HEALTHCHECKS_API_KEY=hc-read" > "$ENGINE_DIR/.secrets/healthchecks.env"
+}
+
+health_columns() {
+  python3 -c '
+import sys, yaml
+groups = {next(iter(g)): g[next(iter(g))] for g in yaml.safe_load(open(sys.argv[1]))}
+tile = groups["Healthchecks"][0]["Healthchecks"]
+print(" ".join(m["label"] + "=" + m["field"] for m in tile["widget"]["mappings"]))' "$OUT/services.yaml"
 }
 
 homepage() {
@@ -37,10 +53,52 @@ yaml_of() {
 
 @test "backup status is shown only with a read-only healthchecks api key" {
   homepage render "$OUT"
-  ! grep -q "type: healthchecks" "$OUT/services.yaml" || false
-  echo "HEALTHCHECKS_API_KEY=hc-read" > "$ENGINE_DIR/.secrets/healthchecks.env"
+  ! grep -q "Healthchecks" "$OUT/services.yaml" || false
+  serve_checks testinst-backup testinst-update testinst-verify
   homepage render "$OUT"
-  grep -q "type: healthchecks" "$OUT/services.yaml"
+  [ "$(service_groups | cut -d'|' -f1)" = Healthchecks ]
+}
+
+@test "each health check's column reads that check, wherever healthchecks lists it" {
+  serve_checks testinst-update other-backup testinst-verify testinst-backup
+  homepage render "$OUT"
+  [ "$(health_columns)" = "Backup=checks.3.status Update=checks.0.status Verify=checks.2.status" ]
+}
+
+@test "a check healthchecks does not have yet gets no column" {
+  serve_checks testinst-update
+  homepage render "$OUT"
+  [ "$(health_columns)" = "Update=checks.0.status" ]
+}
+
+@test "without any of the installation's checks, the health checks are not on the page" {
+  serve_checks other-backup
+  homepage render "$OUT"
+  ! grep -q "Healthchecks" "$OUT/services.yaml" || false
+  [ "$(service_groups | cut -d'|' -f1)" = "Coming up" ]
+}
+
+@test "when healthchecks cannot be reached, the page is drawn without the health checks" {
+  echo "HEALTHCHECKS_API_KEY=hc-read" > "$ENGINE_DIR/.secrets/healthchecks.env"
+  run homepage render "$OUT"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q "could not read the checks from healthchecks"
+  ! grep -q "Healthchecks" "$OUT/services.yaml" || false
+  grep -q "Sonarr" "$OUT/services.yaml"
+}
+
+@test "the health checks lead the page, without a heading, under a boxed header" {
+  serve_checks testinst-backup testinst-update testinst-verify
+  homepage render "$OUT"
+  [ "$(setting headerStyle)" = boxed ]
+  python3 -c '
+import sys, yaml
+layout = yaml.safe_load(open(sys.argv[1]))["layout"]
+first = layout[0]
+assert next(iter(first)) == "Healthchecks", first
+assert first["Healthchecks"] == {"style": "row", "columns": 1, "header": False}, first
+assert [next(iter(g)) for g in layout] == ["Healthchecks", "Coming up", "Watch", "Downloads", "Library", "Maintenance"], layout
+assert all(g[next(iter(g))].get("style") == "columns" for g in layout[3:]), layout' "$OUT/settings.yaml"
 }
 
 @test "the page's environment holds the keys its widgets use, and nothing else" {

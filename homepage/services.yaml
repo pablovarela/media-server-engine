@@ -1,3 +1,41 @@
+- Healthchecks:
+    - Healthchecks:
+        href: https://healthchecks.io/
+        icon: healthchecks.png
+        widget:
+          type: customapi
+          url: https://healthchecks.io/api/v3/checks/
+          headers:
+            X-Api-Key: "{{HOMEPAGE_VAR_HEALTHCHECKS_KEY}}"
+          refreshInterval: 60000
+          mappings:
+            - field: checks.@HEALTHCHECK_BACKUP@.status
+              label: Backup
+              remap:
+                - value: up
+                  to: "🟢 Up"
+                - value: grace
+                  to: "🟠 Late"
+                - value: down
+                  to: "🔴 Down"
+            - field: checks.@HEALTHCHECK_UPDATE@.status
+              label: Update
+              remap:
+                - value: up
+                  to: "🟢 Up"
+                - value: grace
+                  to: "🟠 Late"
+                - value: down
+                  to: "🔴 Down"
+            - field: checks.@HEALTHCHECK_VERIFY@.status
+              label: Verify
+              remap:
+                - value: up
+                  to: "🟢 Up"
+                - value: grace
+                  to: "🟠 Late"
+                - value: down
+                  to: "🔴 Down"
 - Coming up:
     - Next up:
         icon: mdi-calendar-clock
@@ -117,10 +155,3 @@
         href: http://@HOST@:9000
         icon: portainer.png
         siteMonitor: http://portainer:9000
-    - Healthchecks:
-        href: https://healthchecks.io/
-        icon: healthchecks.png
-        widget:
-          type: healthchecks
-          url: https://healthchecks.io
-          key: "{{HOMEPAGE_VAR_HEALTHCHECKS_KEY}}"
