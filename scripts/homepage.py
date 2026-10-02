@@ -1,7 +1,9 @@
 import json
 import os
+import re
 import shutil
 import sys
+import urllib.request
 
 import yaml
 
@@ -59,11 +61,59 @@ def without_backup_status(entries):
     return kept
 
 
+HEALTHCHECK_MARKER = re.compile(r"@HEALTHCHECK_([A-Z]+)@")
+
+
+def existing_checks():
+    url = os.environ.get("HEALTHCHECKS_API_URL", "https://healthchecks.io/api/v3/checks/")
+    request = urllib.request.Request(url, headers={"X-Api-Key": healthchecks_api_key()})
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            checks = json.load(response)["checks"]
+    except (OSError, ValueError, KeyError) as error:
+        print(f"could not read the checks from healthchecks ({error}); the page is drawn without them", file=sys.stderr)
+        return set()
+    return {check.get("slug") for check in checks}
+
+
+def check_slug(job):
+    return os.environ.get(f"HOMEPAGE_HEALTHCHECK_{job}", f"{os.environ['INSTALLATION_NAME']}-{job.lower()}")
+
+
+def with_check_slugs(tile, existing):
+    text = json.dumps(tile)
+    jobs = set(HEALTHCHECK_MARKER.findall(text))
+    if any(check_slug(job) not in existing for job in jobs):
+        return None
+    for job in jobs:
+        text = text.replace(f"@HEALTHCHECK_{job}@", check_slug(job))
+    return json.loads(text)
+
+
+def with_health_checks(entries, existing):
+    kept = []
+    for entry in entries:
+        name, value = next(iter(entry.items()))
+        if isinstance(value, list):
+            found = with_health_checks(value, existing)
+            if value and not found:
+                continue
+            value = found
+        elif isinstance(value, dict):
+            value = with_check_slugs(value, existing)
+            if value is None:
+                continue
+        kept.append({name: value})
+    return kept
+
+
 def rendered_services(text):
     groups = yaml.safe_load(text) or []
     if not healthchecks_api_key():
         groups = without_backup_status(groups)
-    return yaml.safe_dump(groups, sort_keys=False)
+    elif HEALTHCHECK_MARKER.search(text):
+        groups = with_health_checks(groups, existing_checks())
+    return yaml.safe_dump(groups, sort_keys=False, allow_unicode=True)
 
 
 def rendered_widgets(text):

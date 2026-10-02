@@ -15,7 +15,25 @@ setup() {
 }
 
 teardown() {
+  stop_fake_app 2>/dev/null || true
   teardown_stubs
+}
+
+serve_checks() {
+  printf '{"/api/v3/checks/": {"checks": [%s]}}' "$(printf '{"slug": "%s", "status": "up"},' "$@" | sed 's/,$//')" > "$STUB_DIR/checks.json"
+  FAKE_APP_HEADERS='{"X-Api-Key": "hc-read"}' start_fake_app "$STUB_DIR/checks.json"
+  export HEALTHCHECKS_API_URL="$FAKE_APP_URL/api/v3/checks/"
+  echo "HEALTHCHECKS_API_KEY=hc-read" > "$ENGINE_DIR/.secrets/healthchecks.env"
+}
+
+health_tiles() {
+  python3 -c '
+import sys, yaml
+groups = {next(iter(g)): g[next(iter(g))] for g in yaml.safe_load(open(sys.argv[1]))}
+for tile in groups["Healthchecks"]:
+    for name, options in tile.items():
+        widget = options["widget"]
+        print(name + "=" + widget["url"].split("slug=")[1] + ":" + widget["mappings"][0]["field"], end=" ")' "$OUT/services.yaml" | sed 's/ $//'
 }
 
 homepage() {
@@ -37,10 +55,78 @@ yaml_of() {
 
 @test "backup status is shown only with a read-only healthchecks api key" {
   homepage render "$OUT"
-  ! grep -q "type: healthchecks" "$OUT/services.yaml" || false
-  echo "HEALTHCHECKS_API_KEY=hc-read" > "$ENGINE_DIR/.secrets/healthchecks.env"
+  ! grep -q "Healthchecks" "$OUT/services.yaml" || false
+  serve_checks testinst-backup testinst-update testinst-verify
   homepage render "$OUT"
-  grep -q "type: healthchecks" "$OUT/services.yaml"
+  [ "$(service_groups | cut -d'|' -f1)" = Healthchecks ]
+}
+
+@test "each health check has its own tile, which asks healthchecks for that check by name" {
+  serve_checks testinst-update other-backup testinst-verify testinst-backup
+  homepage render "$OUT"
+  [ "$(health_tiles)" = "Backup=testinst-backup:checks.0.status Update=testinst-update:checks.0.status Verify=testinst-verify:checks.0.status" ]
+}
+
+@test "a check healthchecks does not have yet gets no tile" {
+  serve_checks testinst-update
+  homepage render "$OUT"
+  [ "$(health_tiles)" = "Update=testinst-update:checks.0.status" ]
+}
+
+@test "a secondary machine's page shows its own update check" {
+  serve_checks testinst-backup testinst-update testinst-update-pi2
+  HOMEPAGE_HEALTHCHECK_UPDATE=testinst-update-pi2 homepage render "$OUT"
+  [ "$(health_tiles)" = "Backup=testinst-backup:checks.0.status Update=testinst-update-pi2:checks.0.status" ]
+}
+
+@test "the page is drawn with the update check this machine pings" {
+  make_stub docker 'exit 1'
+  serve_checks testinst-backup testinst-update "testinst-update-$(hostname -s)"
+  ENGINE_DIR=$ENGINE_DIR bash -c 'source "$1/scripts/lib.sh"; INSTALLATION_NAME=testinst HOMEPAGE_PORT=80 render_homepage' _ "$BATS_TEST_DIRNAME/.."
+  [ "$(health_tiles)" = "Backup=testinst-backup:checks.0.status Update=testinst-update-$(hostname -s):checks.0.status" ]
+  touch "$DATA_DIR/.backup-main"
+  ENGINE_DIR=$ENGINE_DIR bash -c 'source "$1/scripts/lib.sh"; INSTALLATION_NAME=testinst HOMEPAGE_PORT=80 render_homepage' _ "$BATS_TEST_DIRNAME/.."
+  [ "$(health_tiles)" = "Backup=testinst-backup:checks.0.status Update=testinst-update:checks.0.status" ]
+}
+
+@test "the health check tiles show only their status, with the tile titles hidden" {
+  homepage render "$OUT"
+  grep -q 'li\[id^="healthchecks-"\] .service-title' "$OUT/custom.css"
+  python3 -c '
+import sys, yaml
+groups = {next(iter(g)): g[next(iter(g))] for g in yaml.safe_load(open(sys.argv[1]))}
+ids = [options["id"] for tile in groups["Healthchecks"] for options in tile.values()]
+assert ids == ["healthchecks-backup", "healthchecks-update", "healthchecks-verify"], ids' "$BATS_TEST_DIRNAME/../homepage/services.yaml"
+}
+
+@test "without any of the installation's checks, the health checks are not on the page" {
+  serve_checks other-backup
+  homepage render "$OUT"
+  ! grep -q "Healthchecks" "$OUT/services.yaml" || false
+  [ "$(service_groups | cut -d'|' -f1)" = "Coming up" ]
+}
+
+@test "when healthchecks cannot be reached, the page is drawn without the health checks" {
+  echo "HEALTHCHECKS_API_KEY=hc-read" > "$ENGINE_DIR/.secrets/healthchecks.env"
+  run homepage render "$OUT"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q "could not read the checks from healthchecks"
+  ! grep -q "Healthchecks" "$OUT/services.yaml" || false
+  grep -q "Sonarr" "$OUT/services.yaml"
+}
+
+@test "the health checks lead the page, without a heading, under a boxed header" {
+  serve_checks testinst-backup testinst-update testinst-verify
+  homepage render "$OUT"
+  [ "$(setting headerStyle)" = boxed ]
+  python3 -c '
+import sys, yaml
+layout = yaml.safe_load(open(sys.argv[1]))["layout"]
+first = layout[0]
+assert next(iter(first)) == "Healthchecks", first
+assert first["Healthchecks"] == {"style": "row", "columns": 3, "header": False}, first
+assert [next(iter(g)) for g in layout] == ["Healthchecks", "Coming up", "Watch", "Downloads", "Library", "Maintenance"], layout
+assert all(g[next(iter(g))].get("style") == "columns" for g in layout[3:]), layout' "$OUT/settings.yaml"
 }
 
 @test "the page's environment holds the keys its widgets use, and nothing else" {
@@ -184,7 +270,7 @@ print(" ".join(views))' "$OUT/services.yaml" "$1"
   config_file settings.yaml "title: mine"
   homepage render "$OUT"
   [ "$(service_groups | cut -d'|' -f1)" = "Coming up" ]
-  [ "$(cat "$OUT/custom.css")" = "html { font-size: 18px; }" ]
+  grep -q "html { font-size: 18px; }" "$OUT/custom.css"
 }
 
 @test "backup status stays off the page without an api key, also inside a nested group" {

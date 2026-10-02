@@ -1,3 +1,61 @@
+- Healthchecks:
+    - Backup:
+        id: healthchecks-backup
+        href: https://healthchecks.io/
+        widget:
+          type: customapi
+          url: https://healthchecks.io/api/v3/checks/?slug=@HEALTHCHECK_BACKUP@
+          headers:
+            X-Api-Key: "{{HOMEPAGE_VAR_HEALTHCHECKS_KEY}}"
+          refreshInterval: 60000
+          mappings:
+            - field: checks.0.status
+              label: Backup
+              remap:
+                - value: up
+                  to: "🟢 Up"
+                - value: grace
+                  to: "🟠 Late"
+                - value: down
+                  to: "🔴 Down"
+    - Update:
+        id: healthchecks-update
+        href: https://healthchecks.io/
+        widget:
+          type: customapi
+          url: https://healthchecks.io/api/v3/checks/?slug=@HEALTHCHECK_UPDATE@
+          headers:
+            X-Api-Key: "{{HOMEPAGE_VAR_HEALTHCHECKS_KEY}}"
+          refreshInterval: 60000
+          mappings:
+            - field: checks.0.status
+              label: Update
+              remap:
+                - value: up
+                  to: "🟢 Up"
+                - value: grace
+                  to: "🟠 Late"
+                - value: down
+                  to: "🔴 Down"
+    - Verify:
+        id: healthchecks-verify
+        href: https://healthchecks.io/
+        widget:
+          type: customapi
+          url: https://healthchecks.io/api/v3/checks/?slug=@HEALTHCHECK_VERIFY@
+          headers:
+            X-Api-Key: "{{HOMEPAGE_VAR_HEALTHCHECKS_KEY}}"
+          refreshInterval: 60000
+          mappings:
+            - field: checks.0.status
+              label: Verify
+              remap:
+                - value: up
+                  to: "🟢 Up"
+                - value: grace
+                  to: "🟠 Late"
+                - value: down
+                  to: "🔴 Down"
 - Coming up:
     - Next up:
         icon: mdi-calendar-clock
@@ -117,10 +175,3 @@
         href: http://@HOST@:9000
         icon: portainer.png
         siteMonitor: http://portainer:9000
-    - Healthchecks:
-        href: https://healthchecks.io/
-        icon: healthchecks.png
-        widget:
-          type: healthchecks
-          url: https://healthchecks.io
-          key: "{{HOMEPAGE_VAR_HEALTHCHECKS_KEY}}"

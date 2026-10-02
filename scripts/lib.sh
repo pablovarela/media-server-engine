@@ -111,7 +111,10 @@ homepage_running() {
 render_homepage() {
   local images_before
   images_before=$(homepage_images_signature)
+  local role=${MACHINE_ROLE:-$(machine_role)}
   HOMEPAGE_HOST=$(network_name) HOMEPAGE_ENGINE_VERSION=$(engine_version) HOMEPAGE_ENGINE_URL=$(engine_page_url) \
+    HOMEPAGE_HEALTHCHECK_BACKUP=$(healthcheck_slug backup) HOMEPAGE_HEALTHCHECK_VERIFY=$(healthcheck_slug verify) \
+    HOMEPAGE_HEALTHCHECK_UPDATE=$(MACHINE_ROLE=$role healthcheck_slug update) \
     python3 "$(dirname "${BASH_SOURCE[0]}")/homepage.py" render "$ENGINE_DIR/.homepage"
   homepage_running || return 0
   if [ "$(homepage_images_signature)" != "$images_before" ]; then
@@ -144,13 +147,21 @@ monitoring_compose() {
     --env-file "$ENGINE_DIR/.env" $(compose_files docker-compose.monitoring.yml images.monitoring.yml) "$@"
 }
 
-healthcheck_url() {
-  local slug="$INSTALLATION_NAME-$1"
-  [ -n "${HEALTHCHECKS_PING_KEY:-}" ] || return 0
+machine_role() {
+  if [ -e "$DATA_DIR/.backup-main" ]; then echo main; else echo secondary; fi
+}
+
+healthcheck_slug() {
   if [ "$1" = update ] && [ "${MACHINE_ROLE:-main}" = secondary ]; then
-    slug="$slug-$(hostname -s)"
+    echo "$INSTALLATION_NAME-$1-$(hostname -s)"
+  else
+    echo "$INSTALLATION_NAME-$1"
   fi
-  echo "https://hc-ping.com/$HEALTHCHECKS_PING_KEY/$slug"
+}
+
+healthcheck_url() {
+  [ -n "${HEALTHCHECKS_PING_KEY:-}" ] || return 0
+  echo "https://hc-ping.com/$HEALTHCHECKS_PING_KEY/$(healthcheck_slug "$1")"
 }
 
 ping_healthcheck() {

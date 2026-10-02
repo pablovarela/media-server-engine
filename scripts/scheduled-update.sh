@@ -16,7 +16,7 @@ on_exit() {
 }
 
 load_installation
-if [ -e "$DATA_DIR/.backup-main" ]; then MACHINE_ROLE=main; else MACHINE_ROLE=secondary; fi
+MACHINE_ROLE=$(machine_role)
 export MACHINE_ROLE
 trap on_exit EXIT
 ping_healthcheck update /start

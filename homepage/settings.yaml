@@ -1,20 +1,20 @@
 title: "@INSTALLATION_NAME@"
-headerStyle: clean
+headerStyle: boxed
 statusStyle: dot
 hideVersion: true
 disableUpdateCheck: true
 layout:
-  - Downloads:
-      header: false
+  - Healthchecks:
       style: row
-      columns: 2
+      columns: 3
+      header: false
   - Coming up:
       style: column
   - Watch:
       style: column
+  - Downloads:
+      style: columns
   - Library:
-      style: row
-      columns: 2
+      style: columns
   - Maintenance:
-      style: row
-      columns: 3
+      style: columns
