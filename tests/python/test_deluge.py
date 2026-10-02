@@ -208,3 +208,23 @@ def test_a_docker_command_that_fails_ends_the_step_with_dockers_error(deluge, do
     docker.failing["stop deluge"] = "Error response from daemon: No such container: deluge"
     with pytest.raises(deluge.WiringError, match="docker stop deluge failed: Error response from daemon: No such container: deluge"):
         deluge.wire()
+
+
+def test_a_config_deluge_cannot_have_written_is_reported_and_deluge_is_still_started_again(deluge, docker, web, monkeypatch):
+    def full_disk(conf):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(deluge.DelugeConfig, "save", full_disk)
+    with pytest.raises(deluge.WiringError, match=r"^could not write core.conf: No space left on device$"):
+        deluge.wire()
+    assert docker.restarts() == ["stop deluge", "start deluge"]
+
+
+def test_a_failed_write_is_still_reported_when_deluge_will_not_start_again_either(deluge, docker, web, monkeypatch):
+    def full_disk(conf):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(deluge.DelugeConfig, "save", full_disk)
+    docker.failing["start deluge"] = "Error response from daemon: No such container: deluge"
+    with pytest.raises(deluge.WiringError, match="could not write core.conf: No space left on device; docker start deluge failed: .*No such container"):
+        deluge.wire()

@@ -132,11 +132,19 @@ class Deluge:
         if not changed or DRY_RUN:
             return
         docker("stop", CONTAINER)
-        try:
-            for conf in changed:
+        failures = []
+        for conf in changed:
+            try:
                 conf.save()
-        finally:
+            except OSError as error:
+                failures.append(f"could not write {os.path.basename(conf.path)}: {error.strerror}")
+                break
+        try:
             docker("start", CONTAINER)
+        except WiringError as error:
+            failures.append(str(error))
+        if failures:
+            raise WiringError("; ".join(failures))
 
     def wait_for_web_login(self, url):
         api = Api(APP, url, {})
