@@ -11,6 +11,9 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install the test tools
@@ -26,9 +29,17 @@ jobs:
           set +e
           make test-scripts BATS_FLAGS="--report-formatter junit --output reports"
           scripts=$?
-          make test-python PYTEST_FLAGS="--junitxml=reports/pytest.xml"
+          make test-python PYTEST_FLAGS="--junitxml=reports/pytest.xml" > reports/pytest-coverage.txt 2>&1
           python=$?
+          cat reports/pytest-coverage.txt
           echo "status=$((scripts || python))" >> "$GITHUB_OUTPUT"
+      - name: Report the Python test coverage
+        if: always()
+        uses: MishaKav/pytest-coverage-comment@432ac90e8d345c93e1d90ee0838b35913abc9c9b # v1.12.2
+        with:
+          title: Python test coverage
+          pytest-coverage-path: reports/pytest-coverage.txt
+          junitxml-path: reports/pytest.xml
       - name: Report the test results
         if: always()
         uses: EnricoMi/publish-unit-test-result-action@d0a4676d0e0b938bc201470d88276b7c74c712b3 # v2.24.0
