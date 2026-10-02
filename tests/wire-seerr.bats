@@ -138,7 +138,7 @@ json.dump(state, open(sys.argv[1], 'w'))" "$FAKE_APP_STATE"
   echo "$output" | grep -q "settings.json"
 }
 
-@test "a declared jellyfin external url is kept with one write" {
+@test "a declared jellyfin external url is kept with one write of that setting alone" {
   start_fake_app "$FIXTURES/wired.json"
   python3 -c '
 import sys, yaml
@@ -150,5 +150,5 @@ yaml.safe_dump(config, open(path, "w"))' "$CONFIG_DIR/apps.yml"
   run wire
   [ "$(fake_app_writes)" = "POST /api/v1/settings/jellyfin" ]
   [ "$(body_of 'POST /api/v1/settings/jellyfin' | value_in externalHostname)" = '"http://media.example:8096"' ]
-  [ "$(body_of 'POST /api/v1/settings/jellyfin' | value_in ip)" = '"jellyfin"' ]
+  [ "$(body_of 'POST /api/v1/settings/jellyfin')" = '{"externalHostname": "http://media.example:8096"}' ]
 }

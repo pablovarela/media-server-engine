@@ -64,8 +64,7 @@ class Seerr:
         settings = self.api.get("/api/v1/settings/jellyfin")
         if settings.get("externalHostname") != url:
             report(APP, f"set jellyfin external url {settings.get('externalHostname') or '(none)'} -> {url}")
-            settings["externalHostname"] = url
-            self.api.write("POST", "/api/v1/settings/jellyfin", settings)
+            self.api.write("POST", "/api/v1/settings/jellyfin", {"externalHostname": url})
 
     def profile_and_folder(self, kind, arr, key, declared_arr):
         found = self.api.request("POST", f"/api/v1/settings/{kind}/test", {
