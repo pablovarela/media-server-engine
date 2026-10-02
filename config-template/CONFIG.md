@@ -32,10 +32,11 @@ The page at `http://<machine>` comes from the files in `homepage/`, in Homepage'
 | `homepage/widgets.yaml` | the widgets along the top |
 | `homepage/bookmarks.yaml` | bookmarks |
 | `homepage/custom.css` | styles, for example `html { font-size: 20px; }` for bigger text |
+| `homepage/images/` | images the page serves at `/images/<file>`: for example `background: /images/background.svg` or `favicon: /images/favicon.png` in `settings.yaml`, or an `icon:` of a tile |
 
 A file that is missing comes from the engine's default page. `@INSTALLATION_NAME@`, `@HOST@` (this machine's address), `@ENGINE_VERSION@` and `@ENGINE_URL@` (the engine version's page on GitHub) are filled in. A tile with a healthchecks widget is left out while no read-only healthchecks.io API key is set.
 
-While changing these files, `make homepage` redraws the page in a second without restarting anything, and an open page reloads itself; commit the files once the page looks right. The page's port is `HOMEPAGE_PORT` in `installation.env`, asked by `make configure`.
+While changing these files, `make homepage` redraws the page in a second and an open page reloads itself; it restarts Homepage only when the images change, since Homepage serves only the images it found when it started. Commit the files once the page looks right. The page's port is `HOMEPAGE_PORT` in `installation.env`, asked by `make configure`.
 
 ## Secrets
 

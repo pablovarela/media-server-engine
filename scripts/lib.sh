@@ -98,9 +98,27 @@ engine_page_url() {
   fi
 }
 
+homepage_images_signature() {
+  local images="$ENGINE_DIR/.homepage-images"
+  [ -d "$images" ] || return 0
+  (cd "$images" && find . -type f -exec cksum {} + | sort)
+}
+
+homepage_running() {
+  [ "$(docker inspect -f '{{.State.Running}}' homepage 2>/dev/null)" = true ]
+}
+
 render_homepage() {
+  local images_before
+  images_before=$(homepage_images_signature)
   HOMEPAGE_HOST=$(network_name) HOMEPAGE_ENGINE_VERSION=$(engine_version) HOMEPAGE_ENGINE_URL=$(engine_page_url) \
     python3 "$(dirname "${BASH_SOURCE[0]}")/homepage.py" render "$ENGINE_DIR/.homepage"
+  homepage_running || return 0
+  if [ "$(homepage_images_signature)" != "$images_before" ]; then
+    docker restart homepage >/dev/null
+  else
+    curl -fsS -o /dev/null "http://localhost:$(homepage_port)/api/revalidate" || true
+  fi
 }
 
 stack_profiles() {

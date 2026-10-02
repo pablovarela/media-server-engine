@@ -190,3 +190,11 @@ assert env["HTTP_CONTROL_SERVER_AUTH_DEFAULT_ROLE"] == "{\"auth\":\"apikey\",\"a
 import json, sys
 assert [p["published"] for p in json.load(sys.stdin)["ports"]] == ["8080"]'
 }
+
+@test "the landing page serves the config's images from its own folder" {
+  service homepage | python3 -c '
+import json, os, sys
+mounts = {m["target"]: m for m in json.load(sys.stdin)["volumes"]}
+assert mounts["/app/public/images"]["source"] == os.environ["ENGINE_DIR"] + "/.homepage-images", mounts
+assert mounts["/app/public/images"]["read_only"]'
+}

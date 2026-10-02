@@ -193,3 +193,51 @@ print(" ".join(views))' "$OUT/services.yaml" "$1"
   ! grep -q "Healthchecks" "$OUT/services.yaml" || false
   grep -q "Portainer" "$OUT/services.yaml"
 }
+
+@test "images in the config's homepage folder are served by the page" {
+  mkdir -p "$CONFIG_DIR/homepage/images"
+  echo "<svg/>" > "$CONFIG_DIR/homepage/images/background.svg"
+  mkdir -p "$OUT-images" && echo old > "$OUT-images/gone.png"
+  homepage render "$OUT"
+  cmp -s "$CONFIG_DIR/homepage/images/background.svg" "$OUT-images/background.svg"
+  [ ! -e "$OUT-images/gone.png" ]
+}
+
+@test "a redraw keeps the images folder itself, which Homepage has mounted" {
+  mkdir -p "$OUT-images"
+  before=$(ls -di "$OUT-images" | awk '{print $1}')
+  mkdir -p "$CONFIG_DIR/homepage/images" && echo "<svg/>" > "$CONFIG_DIR/homepage/images/a.svg"
+  homepage render "$OUT"
+  [ "$(ls -di "$OUT-images" | awk '{print $1}')" = "$before" ]
+}
+
+render_in_installation() {
+  printf 'INSTALLATION_NAME=testinst\nHOMEPAGE_PORT=8080\n' > "$CONFIG_DIR/installation.env"
+  make_stub git ''
+  make_stub docker 'if [ "$1" = inspect ]; then [ -n "${FAKE_HOMEPAGE_RUNNING:-}" ] && echo true || exit 1; fi'
+  make_stub curl ''
+  "$BATS_TEST_DIRNAME/../scripts/homepage-render.sh"
+}
+
+@test "a running landing page restarts when its images change, so it serves the new ones" {
+  mkdir -p "$CONFIG_DIR/homepage/images" && echo "<svg/>" > "$CONFIG_DIR/homepage/images/a.svg"
+  FAKE_HOMEPAGE_RUNNING=1 run render_in_installation
+  [ "$status" -eq 0 ]
+  grep -q "^docker restart homepage" "$STUB_LOG"
+  : > "$STUB_LOG"
+  FAKE_HOMEPAGE_RUNNING=1 run render_in_installation
+  ! grep -q "^docker restart" "$STUB_LOG" || false
+}
+
+@test "a running landing page rebuilds its cached page after a redraw" {
+  FAKE_HOMEPAGE_RUNNING=1 run render_in_installation
+  [ "$status" -eq 0 ]
+  grep -q "^curl .*http://localhost:8080/api/revalidate" "$STUB_LOG"
+}
+
+@test "a landing page that is not running is only redrawn" {
+  mkdir -p "$CONFIG_DIR/homepage/images" && echo "<svg/>" > "$CONFIG_DIR/homepage/images/a.svg"
+  run render_in_installation
+  [ "$status" -eq 0 ]
+  ! grep -qE "^docker restart|^curl" "$STUB_LOG" || false
+}

@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import sys
 
 import yaml
@@ -88,11 +89,26 @@ RENDERERS = {
 }
 
 
+def copy_images(out):
+    images = out.rstrip("/") + "-images"
+    os.makedirs(images, exist_ok=True)
+    for name in os.listdir(images):
+        path = os.path.join(images, name)
+        if os.path.isdir(path) and not os.path.islink(path):
+            shutil.rmtree(path)
+        else:
+            os.remove(path)
+    declared = os.path.join(CONFIG_DIR, "homepage", "images")
+    if os.path.isdir(declared):
+        shutil.copytree(declared, images, dirs_exist_ok=True)
+
+
 def render(out):
     os.makedirs(out, exist_ok=True)
     for name, rendered in RENDERERS.items():
         with open(os.path.join(out, name), "w") as target:
             target.write(rendered(page_file(name)))
+    copy_images(out)
 
 
 def seerr_key():
