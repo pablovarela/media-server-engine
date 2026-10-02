@@ -1,7 +1,10 @@
 import copy
 import os
+import sys
+import time
+import urllib.parse
 
-from wirelib import Api, WiringError, app_secrets, declared, fingerprint, remember, remembered, report, run
+from wirelib import DRY_RUN, Api, WiringError, app_secrets, declared, fingerprint, remember, remembered, report, run
 
 APP = "prowlarr"
 PROWLARR_URL_SEEN_BY_APPS = "http://gluetun:9696"
@@ -183,5 +186,55 @@ def wire():
         raise WiringError("could not save " + "; ".join(prowlarr.failures))
 
 
+def address_from_this_machine(application):
+    declared_url = urllib.parse.urlsplit(application["url"])
+    host = "localhost" if declared_url.port is None else f"localhost:{declared_url.port}"
+    return os.environ.get(f"{application['name'].upper()}_URL", urllib.parse.urlunsplit(declared_url._replace(netloc=host)))
+
+
+def categories_of(indexer):
+    categories = (indexer.get("capabilities") or {}).get("categories")
+    if categories is None:
+        return None
+    return {category["id"] for category in categories} | {sub["id"] for category in categories for sub in category.get("subCategories") or []}
+
+
+def indexers_prowlarr_syncs_to(name, indexers, prowlarr_applications):
+    sync_categories = set(field(by_name(prowlarr_applications, name) or {"fields": []}, "syncCategories") or [])
+    return sum(1 for indexer in indexers if indexer.get("enable") and (categories_of(indexer) is None or categories_of(indexer) & sync_categories))
+
+
+def indexers_synced_to(application, secrets):
+    api = Api(application["name"].lower(), address_from_this_machine(application), {"X-Api-Key": secrets[application["api_key"]]})
+    return sum(1 for indexer in api.get("/api/v3/indexer") if indexer.get("name", "").endswith("(Prowlarr)"))
+
+
+def sync_again():
+    applications = declared("prowlarr.yml").get("applications") or []
+    secrets = app_secrets()
+    api = Api(APP, os.environ.get("PROWLARR_URL", "http://localhost:9696"), {"X-Api-Key": secrets["PROWLARR_API_KEY"]})
+    indexers = api.get("/api/v1/indexer")
+    prowlarr_applications = api.get("/api/v1/applications")
+    wanted = {application["name"]: indexers_prowlarr_syncs_to(application["name"], indexers, prowlarr_applications) for application in applications}
+
+    def short_of_indexers(candidates):
+        counted = ((application, indexers_synced_to(application, secrets)) for application in candidates)
+        return [(application, count) for application, count in counted if count < wanted[application["name"]]]
+
+    short = short_of_indexers(applications)
+    if not short:
+        return
+    report(APP, "sync indexers again: " + ", ".join(f"{application['name']} has {count} of {wanted[application['name']]}" for application, count in short))
+    if DRY_RUN:
+        return
+    api.write("POST", "/api/v1/command", {"name": "ApplicationIndexerSync"})
+    deadline = time.monotonic() + float(os.environ.get("WIRE_SYNC_WAIT_SECONDS", "60"))
+    while short and time.monotonic() < deadline:
+        time.sleep(5)
+        short = short_of_indexers(application for application, _ in short)
+    for application, count in short:
+        print(f"{APP}: {application['name']} still has {count} of prowlarr's {wanted[application['name']]} indexers; prowlarr will retry on its own schedule")
+
+
 if __name__ == "__main__":
-    run(APP, wire)
+    run(APP, sync_again if sys.argv[1:] == ["sync"] else wire)

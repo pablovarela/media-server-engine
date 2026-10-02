@@ -41,7 +41,7 @@ make_app_step() {
 
 @test "the engine wires the apps in dependency order" {
   [ "$(cd "$BATS_TEST_DIRNAME/../scripts/wire" && ls [0-9][0-9]-*.sh | tr '\n' ' ')" = \
-    "10-prowlarr.sh 20-jellyfin.sh 25-library-updates.sh 30-deluge.sh 40-configarr.sh 50-seerr.sh 60-bazarr.sh 70-maintainerr.sh " ]
+    "10-prowlarr.sh 20-jellyfin.sh 25-library-updates.sh 30-deluge.sh 40-configarr.sh 50-seerr.sh 60-bazarr.sh 70-maintainerr.sh 80-prowlarr-sync.sh " ]
 }
 
 @test "a step waits until its app answers" {
