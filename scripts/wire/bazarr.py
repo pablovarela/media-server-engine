@@ -90,7 +90,11 @@ def language_changes(api, general, languages):
         if general.get(f"{kind}_default_enabled") is not True:
             report(APP, f"use a default subtitle profile for {label}")
             changes[f"settings-general-{kind}_default_enabled"] = "true"
-        if str(general.get(f"{kind}_default_profile")) != str(profile["profileId"]):
+        current_id = general.get(f"{kind}_default_profile")
+        if str(current_id) != str(profile["profileId"]):
+            if general.get(f"{kind}_default_enabled") is True:
+                current = next((p["name"] for p in profiles if str(p["profileId"]) == str(current_id)), current_id)
+                report(APP, f"set the default subtitle profile for {label} {current} -> {profile['name']}")
             changes[f"settings-general-{kind}_default_profile"] = str(profile["profileId"])
     return changes
 
