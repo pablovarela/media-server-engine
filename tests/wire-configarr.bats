@@ -13,7 +13,7 @@ teardown() {
 }
 
 wire_configarr() {
-  "$BATS_TEST_DIRNAME/../scripts/wire/40-configarr.sh"
+  "$BATS_TEST_DIRNAME/../scripts/wire/configarr.sh"
 }
 
 @test "configarr runs once as a throwaway container" {
