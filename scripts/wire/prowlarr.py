@@ -148,7 +148,8 @@ class Prowlarr:
             name = application["name"]
             key = self.secrets.get(application["api_key"])
             if not key:
-                raise WiringError(f"{application['api_key']} is not in the app secrets")
+                self.failures.append(f"application {name}: {application['api_key']} is not in the app secrets")
+                continue
             key_state = f"prowlarr-application-{name}.sha256"
             key_fingerprint = fingerprint(name, key)
             wanted = {"baseUrl": application["url"], "prowlarrUrl": PROWLARR_URL_SEEN_BY_APPS}

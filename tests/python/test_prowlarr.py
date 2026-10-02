@@ -308,8 +308,9 @@ def test_an_apps_address_on_this_machine_keeps_the_declared_port_and_path(prowla
         (lambda config: config["indexers"][0].update(definition="thepiratebayy"), "indexer The Pirate Bay: no indexer type thepiratebayy", "POST /api/v1/applications?forceSave=true"),
         (lambda config: config["indexer_proxies"][0].update(type="Flaresolver"), "proxy FlareSolverr: no indexerproxy type Flaresolver", "POST /api/v1/applications?forceSave=true"),
         (lambda config: config["applications"][1].update(type="Radar"), "application Radarr: no applications type Radar", "POST /api/v1/indexer?forceSave=true"),
+        (lambda config: config["applications"][0].update(api_key="SONAR_API_KEY"), "application Sonarr: SONAR_API_KEY is not in the app secrets", "POST /api/v1/applications?forceSave=true"),
     ],
-    ids=["indexer definition", "proxy type", "application type"],
+    ids=["indexer definition", "proxy type", "application type", "application key name"],
 )
 def test_a_type_prowlarr_does_not_know_fails_the_step_after_the_rest_is_wired(prowlarr, http, dirs, typo, message, still_written):
     config = yaml.safe_load(PROWLARR_YML)
