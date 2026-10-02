@@ -40,6 +40,7 @@ jobs:
           title: Python test coverage
           pytest-coverage-path: reports/pytest-coverage.txt
           junitxml-path: reports/pytest.xml
+          hide-comment: ${{ github.event_name != 'pull_request' }}
       - name: Report the test results
         if: always()
         uses: EnricoMi/publish-unit-test-result-action@d0a4676d0e0b938bc201470d88276b7c74c712b3 # v2.24.0
