@@ -7,6 +7,7 @@ SCRIPTS_DIR="$(dirname "$SCRIPT_PATH")"
 
 CHECK_STACK_COMMAND=${CHECK_STACK_COMMAND:-$SCRIPTS_DIR/check-stack.sh}
 WIRE_COMMAND=${WIRE_COMMAND:-$SCRIPTS_DIR/wire/wire_apps.py}
+HEALTHCHECKS_COMMAND=${HEALTHCHECKS_COMMAND:-$SCRIPTS_DIR/healthchecks.py}
 PRUNE_COMMAND=${PRUNE_COMMAND:-$SCRIPTS_DIR/prune-stack-images.sh}
 PINNED_TOOLS_COMMAND=${PINNED_TOOLS_COMMAND:-$SCRIPTS_DIR/bootstrap.sh}
 readonly GLUETUN_DEPENDENTS="prowlarr flaresolverr deluge"
@@ -220,6 +221,33 @@ pull_images() {
   [ -z "$output" ] || printf '%s\n' "$output"
 }
 
+checks_this_machine_sets_up() {
+  local job
+  if [ "$(machine_role)" = main ]; then
+    for job in backup verify update; do echo "$job=$(healthcheck_slug "$job")"; done
+  else
+    echo "update=$(MACHINE_ROLE=secondary healthcheck_slug update)"
+  fi
+}
+
+installation_directory_as_typed() {
+  local root home
+  root=$(installation_root) || root=$(dirname "$ENGINE_DIR")
+  home=$(cd "$HOME" && pwd -P)
+  # shellcheck disable=SC2088 # the tilde is for a person to type, not for this shell to expand
+  case $root in
+    "$home"/*) echo "~/${root#"$home"/}" ;;
+    *) echo "$root" ;;
+  esac
+}
+
+set_up_healthchecks() {
+  # shellcheck disable=SC2046
+  HEALTHCHECKS_SSH="$(id -un)@$(network_name)" HEALTHCHECKS_DIRECTORY=$(installation_directory_as_typed) \
+    "$HEALTHCHECKS_COMMAND" $(checks_this_machine_sets_up) ||
+    echo "could not set up the healthchecks.io checks; carrying on" >&2
+}
+
 require_clean_engine
 require_clean_config
 wait_for_running_backup
@@ -234,6 +262,7 @@ decrypt_secrets
 write_compose_env
 render_homepage
 homepage_env_changed || true
+set_up_healthchecks
 "$CHECK_STACK_COMMAND"
 create_bind_mount_directories
 pull_images

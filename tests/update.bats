@@ -42,7 +42,8 @@ fi'
   make_stub fake-wire ''
   make_stub fake-prune ''
   make_stub fake-pinned-tools ''
-  export CHECK_STACK_COMMAND=fake-check-stack WIRE_COMMAND=fake-wire PRUNE_COMMAND=fake-prune PINNED_TOOLS_COMMAND=fake-pinned-tools
+  make_stub fake-healthchecks 'echo "healthchecks-env ssh=$HEALTHCHECKS_SSH dir=$HEALTHCHECKS_DIRECTORY" >> "$STUB_LOG"; if [ -n "${FAKE_HEALTHCHECKS_FAILS:-}" ]; then exit 1; fi'
+  export CHECK_STACK_COMMAND=fake-check-stack WIRE_COMMAND=fake-wire PRUNE_COMMAND=fake-prune PINNED_TOOLS_COMMAND=fake-pinned-tools HEALTHCHECKS_COMMAND=fake-healthchecks
 }
 
 teardown() {
@@ -370,4 +371,42 @@ pin_homepage() {
   FAKE_PULL_ERROR="unexpected status from HEAD request to https://ghcr.io/v2/x/manifests/1: 429 Too Many Requests" FAKE_PULL_REFUSALS=1 UPDATE_PULL_RETRY_SECONDS=0 run update
   [ "$status" -eq 0 ]
   [ "$(grep -c "^pull profiles=wiring$" "$STUB_LOG")" -eq 2 ]
+}
+
+@test "the main sets up its backup, verify and update checks before pulling images" {
+  touch "$DATA_DIR/.backup-main"
+  run update
+  [ "$status" -eq 0 ]
+  grep -qx "fake-healthchecks backup=testinst-backup verify=testinst-verify update=testinst-update" "$STUB_LOG"
+  [ "$(line_of fake-healthchecks)" -lt "$(line_of "pull profiles")" ]
+}
+
+@test "a machine that is not the main sets up only its own update check" {
+  run update
+  [ "$status" -eq 0 ]
+  grep -qx "fake-healthchecks update=testinst-update-$(hostname -s)" "$STUB_LOG"
+}
+
+@test "the checks tell how to reach this machine and its installation" {
+  echo MEDIA_SERVER_HOST=media.example >> "$CONFIG_DIR/installation.env"
+  run update
+  [ "$status" -eq 0 ]
+  grep -qx "healthchecks-env ssh=$(id -un)@media.example dir=$(dirname "$ENGINE_DIR")" "$STUB_LOG"
+}
+
+@test "an installation under the home directory is shown with a tilde" {
+  root=$HOME/testinst
+  mkdir -p "$root/engine/installation" "$root/config"
+  cp -R "$BATS_TEST_DIRNAME/../installation/." "$root/engine/installation/"
+  cp -R "$CONFIG_DIR/." "$root/config/"
+  CONFIG_DIR="$root/config" ENGINE_DIR="$root/engine" run update
+  [ "$status" -eq 0 ]
+  grep -qx "healthchecks-env ssh=.* dir=~/testinst" "$STUB_LOG"
+}
+
+@test "failing to set up the checks does not stop the update" {
+  FAKE_HEALTHCHECKS_FAILS=1 run update
+  [ "$status" -eq 0 ]
+  [[ $output == *"could not set up the healthchecks.io checks"* ]]
+  grep -q "^fake-prune" "$STUB_LOG"
 }
