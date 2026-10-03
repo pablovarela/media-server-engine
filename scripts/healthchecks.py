@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import http.client
 import json
 import os
 import sys
@@ -84,8 +85,16 @@ def set_up(key, body):
     request = urllib.request.Request(API_URL, data=json.dumps(body).encode(), method="POST")
     request.add_header("X-Api-Key", key)
     request.add_header("Content-Type", "application/json")
-    with urllib.request.urlopen(request, timeout=30):
+    with urllib.request.urlopen(request, timeout=10):
         pass
+
+
+def refusal(error):
+    try:
+        reason = json.loads(error.read()).get("error")
+    except ValueError:
+        reason = None
+    return f"healthchecks.io answered {error.code}" + (f": {reason}" if reason else "")
 
 
 def warn(slug, reason):
@@ -102,8 +111,8 @@ def sync(checks, facts):
             set_up(key, payload(job, slug, facts))
             set_up_slugs.append(slug)
         except urllib.error.HTTPError as error:
-            warn(slug, f"healthchecks.io answered {error.code}")
-        except OSError as error:
+            warn(slug, refusal(error))
+        except (OSError, http.client.HTTPException) as error:
             warn(slug, getattr(error, "reason", error))
     if set_up_slugs:
         print(f"healthchecks: set up {', '.join(set_up_slugs)}")

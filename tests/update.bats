@@ -42,6 +42,7 @@ fi'
   make_stub fake-wire ''
   make_stub fake-prune ''
   make_stub fake-pinned-tools ''
+  make_stub systemctl ''
   make_stub fake-healthchecks 'echo "healthchecks-env ssh=$HEALTHCHECKS_SSH dir=$HEALTHCHECKS_DIRECTORY" >> "$STUB_LOG"; if [ -n "${FAKE_HEALTHCHECKS_FAILS:-}" ]; then exit 1; fi'
   export CHECK_STACK_COMMAND=fake-check-stack WIRE_COMMAND=fake-wire PRUNE_COMMAND=fake-prune PINNED_TOOLS_COMMAND=fake-pinned-tools HEALTHCHECKS_COMMAND=fake-healthchecks
 }
@@ -415,4 +416,12 @@ pin_homepage() {
   MACHINE_ROLE=main run update
   [ "$status" -eq 0 ]
   grep -qx "fake-healthchecks backup=testinst-backup verify=testinst-verify update=testinst-update" "$STUB_LOG"
+}
+
+@test "a machine without systemd timers sets up no checks, since nothing there pings them" {
+  without_systemd
+  touch "$DATA_DIR/.backup-main"
+  run update
+  [ "$status" -eq 0 ]
+  ! grep -q "^fake-healthchecks" "$STUB_LOG" || false
 }

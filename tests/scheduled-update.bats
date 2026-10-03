@@ -7,7 +7,7 @@ setup() {
   make_stub curl ''
   make_stub hostname 'echo laptop'
   make_stub fake-check-tools 'if [ -n "${FAKE_TOOLS_BROKEN:-}" ]; then exit 1; fi'
-  make_stub fake-update 'if [ -n "${FAKE_UPDATE_FAILS:-}" ]; then exit 1; fi'
+  make_stub fake-update 'echo "update-env api=${HEALTHCHECKS_API_KEY:-} manage=${HEALTHCHECKS_MANAGE_KEY:-}" >> "$STUB_LOG"; if [ -n "${FAKE_UPDATE_FAILS:-}" ]; then exit 1; fi'
   make_stub fake-pinned-tools ''
   export CHECK_TOOLS_COMMAND=fake-check-tools UPDATE_COMMAND=fake-update PINNED_TOOLS_COMMAND=fake-pinned-tools
 }
@@ -52,4 +52,11 @@ scheduled_update() {
   run scheduled_update
   [ "$status" -eq 0 ]
   [ "$(grep -n '^fake-pinned-tools' "$STUB_LOG" | cut -d: -f1)" -lt "$(grep -n '^fake-check-tools' "$STUB_LOG" | cut -d: -f1)" ]
+}
+
+@test "the update and everything it starts see the ping key but not the api keys" {
+  HEALTHCHECKS_API_KEY=read-key HEALTHCHECKS_MANAGE_KEY=write-key run scheduled_update
+  [ "$status" -eq 0 ]
+  grep -qx "update-env api= manage=" "$STUB_LOG"
+  grep -q "https://hc-ping.com/pk/testinst-update-laptop?create=1$" "$STUB_LOG"
 }

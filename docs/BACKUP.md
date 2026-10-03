@@ -44,7 +44,7 @@ With a healthchecks.io ping key in `secrets/healthchecks.sops.env`, backups, che
 | `<name>-update` | the scheduled update on the main |
 | `<name>-update-<host>` | the scheduled update on other machines |
 
-With a read-write API key of the same project as `HEALTHCHECKS_MANAGE_KEY`, every `make update` also sets up the checks this machine pings: the main its backup, verify and update checks, any other machine its own update check. Each gets its schedule in the time zone this machine's timers run in, its grace, all the project's integrations, its job's name as a tag and a description saying what runs and what to do when it fails; a description or integration changed in healthchecks.io is replaced.
+With a read-write API key of the same project as `HEALTHCHECKS_MANAGE_KEY`, every `make update` on a machine that runs the systemd timers also sets up the checks it pings: the main its backup, verify and update checks, any other machine its own update check. Each gets its schedule in the time zone this machine's timers run in, its grace, all the project's integrations, its job's name as a tag and a description saying what runs and what to do when it fails; a description or integration changed in healthchecks.io is replaced.
 
 | Check | Schedule | Grace |
 |---|---|---|

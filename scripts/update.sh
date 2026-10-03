@@ -242,6 +242,7 @@ installation_directory_as_typed() {
 }
 
 set_up_healthchecks() {
+  systemd_running || return 0
   # shellcheck disable=SC2046
   HEALTHCHECKS_SSH="$(id -un)@$(network_name)" HEALTHCHECKS_DIRECTORY=$(installation_directory_as_typed) \
     "$HEALTHCHECKS_COMMAND" $(checks_this_machine_sets_up) ||

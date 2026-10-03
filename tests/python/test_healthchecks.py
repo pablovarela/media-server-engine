@@ -1,3 +1,5 @@
+import http.client
+
 import pytest
 
 from conftest import REPO, fresh_import, http_error
@@ -109,7 +111,7 @@ def test_a_check_healthchecks_refuses_is_reported_and_the_others_are_still_set_u
     http.on("POST", API, http_error(401, '{"error": "wrong api key"}'), {}, {})
     healthchecks.sync(MAIN, facts(healthchecks))
     output = capsys.readouterr()
-    assert output.err == "healthchecks: could not set up home-backup: healthchecks.io answered 401\n"
+    assert output.err == "healthchecks: could not set up home-backup: healthchecks.io answered 401: wrong api key\n"
     assert output.out == "healthchecks: set up home-verify, home-update\n"
 
 
@@ -141,3 +143,26 @@ def test_the_checks_use_the_time_zone_the_machines_timers_run_in(dirs, tmp_path,
 def test_a_machine_without_a_time_zone_runs_its_timers_in_utc(dirs, tmp_path, monkeypatch):
     installation(monkeypatch, tmp_path / "missing")
     assert fresh_import("healthchecks").facts_from_env().tz == "Etc/UTC"
+
+
+def test_an_error_page_that_is_not_healthchecks_json_is_reported_by_its_status(healthchecks, dirs, http, capsys):
+    with_manage_key(dirs)
+    http.on("POST", API, http_error(502, "<html>bad gateway</html>"))
+    healthchecks.sync([("update", "home-update")], facts(healthchecks))
+    assert capsys.readouterr().err == "healthchecks: could not set up home-update: healthchecks.io answered 502\n"
+
+
+def test_a_garbled_answer_is_reported_like_any_other_failure(healthchecks, dirs, urlopen, capsys):
+    with_manage_key(dirs)
+    urlopen.side_effect = http.client.BadStatusLine("garbage")
+    healthchecks.sync([("update", "home-update"), ("backup", "home-backup")], facts(healthchecks))
+    assert capsys.readouterr().err.splitlines() == [
+        "healthchecks: could not set up home-update: garbage",
+        "healthchecks: could not set up home-backup: garbage",
+    ]
+
+
+def test_a_hanging_healthchecks_holds_the_update_no_longer_than_a_ping_would(healthchecks, dirs, urlopen):
+    with_manage_key(dirs)
+    healthchecks.sync([("update", "home-update")], facts(healthchecks))
+    assert urlopen.call_args.kwargs["timeout"] == 10
