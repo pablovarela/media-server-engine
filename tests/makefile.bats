@@ -73,5 +73,9 @@ setup() {
 
 @test "make homepage re-renders the landing page, and nothing else" {
   make -s -n -C "$REPO" homepage | grep -q "scripts/homepage-render.sh"
-  ! make -s -n -C "$REPO" homepage | grep -qE "update.sh|compose" || false
+  ! make -s -n -C "$REPO" homepage | grep -qE "update\.(sh|py)|compose" || false
+}
+
+@test "make update runs the Python update" {
+  make -s -n -C "$REPO" update | grep -q "scripts/update.py"
 }

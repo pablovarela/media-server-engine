@@ -2,13 +2,13 @@
 import http.client
 import json
 import os
-import subprocess
 import sys
 import urllib.error
 import urllib.request
 from collections import namedtuple
 
-ENGINE_DIR = os.environ["ENGINE_DIR"]
+from engine import commands, installation
+
 API_URL = os.environ.get("HEALTHCHECKS_API_URL", "https://healthchecks.io/api/v3/checks/")
 LOCALTIME = os.environ.get("HEALTHCHECKS_LOCALTIME", "/etc/localtime")
 HOUR = 3600
@@ -77,7 +77,7 @@ def payload(job, slug, facts):
 
 
 def manage_key():
-    with open(os.path.join(ENGINE_DIR, ".secrets", "healthchecks.env")) as env:
+    with open(os.path.join(installation.engine_dir(), ".secrets", "healthchecks.env")) as env:
         lines = env.read().splitlines()
     return dict(line.partition("=")[::2] for line in lines if line).get("HEALTHCHECKS_MANAGE_KEY", "")
 
@@ -120,12 +120,7 @@ def sync(checks, facts):
 
 
 def timers_time_zone():
-    try:
-        zone = subprocess.run(
-            ["timedatectl", "show", "-p", "Timezone", "--value"], capture_output=True, text=True, check=True, timeout=10
-        ).stdout.strip()
-    except (OSError, subprocess.SubprocessError):
-        zone = ""
+    zone = commands.output(["timedatectl", "show", "-p", "Timezone", "--value"], check=False, discard_errors=True).strip()
     return zone or linked_time_zone()
 
 
@@ -136,17 +131,3 @@ def linked_time_zone():
         return "Etc/UTC"
     _, found, zone = link.partition("zoneinfo/")
     return zone if found else "Etc/UTC"
-
-
-def facts_from_env():
-    return Facts(
-        name=os.environ["INSTALLATION_NAME"],
-        tz=timers_time_zone(),
-        repository=os.environ.get("RESTIC_REPOSITORY", ""),
-        ssh=os.environ["HEALTHCHECKS_SSH"],
-        directory=os.environ["HEALTHCHECKS_DIRECTORY"],
-    )
-
-
-if __name__ == "__main__":
-    sync([argument.split("=", 1) for argument in sys.argv[1:]], facts_from_env())

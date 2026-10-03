@@ -37,18 +37,6 @@ die_not_an_installation() {
   exit 1
 }
 
-installation_root() {
-  local root
-  root=$(cd "$ENGINE_DIR/.." && pwd -P)
-  [ "$(basename "$ENGINE_DIR")" = engine ] && [ "$(cd "$CONFIG_DIR" 2>/dev/null && pwd -P)" = "$root/config" ] && echo "$root"
-}
-
-write_installation_makefile() {
-  local root
-  root=$(installation_root) || return 0
-  cmp -s "$ENGINE_DIR/installation/Makefile" "$root/Makefile" || cp "$ENGINE_DIR/installation/Makefile" "$root/Makefile"
-}
-
 require_installation() {
   [ -f "$CONFIG_DIR/installation.env" ] || die_not_an_installation
 }
@@ -118,7 +106,7 @@ render_homepage() {
   HOMEPAGE_HOST=$(network_name) HOMEPAGE_ENGINE_VERSION=$(engine_version) HOMEPAGE_ENGINE_URL=$(engine_page_url) \
     HOMEPAGE_HEALTHCHECK_BACKUP=$(healthcheck_slug backup) HOMEPAGE_HEALTHCHECK_VERIFY=$(healthcheck_slug verify) \
     HOMEPAGE_HEALTHCHECK_UPDATE=$(MACHINE_ROLE=$role healthcheck_slug update) \
-    python3 "$(dirname "${BASH_SOURCE[0]}")/homepage.py" render "$ENGINE_DIR/.homepage"
+    PYTHONPATH="$(dirname "${BASH_SOURCE[0]}")" python3 -m engine.homepage render "$ENGINE_DIR/.homepage"
   homepage_running || return 0
   if [ "$(homepage_images_signature)" != "$images_before" ]; then
     docker restart homepage >/dev/null

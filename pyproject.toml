@@ -21,7 +21,7 @@ addopts = "--strict-markers --cov --cov-report=term-missing"
 
 [tool.coverage.run]
 branch = true
-source_dirs = ["scripts", "scripts/wire"]
+source_dirs = ["scripts", "scripts/engine", "scripts/wire"]
 
 [tool.coverage.report]
 exclude_also = ['if __name__ == "__main__":']

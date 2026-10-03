@@ -5,7 +5,7 @@ source "$(dirname "$0")/lib.sh"
 SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 CHECK_TOOLS_COMMAND=${CHECK_TOOLS_COMMAND:-$SCRIPTS_DIR/check-tools.sh}
-UPDATE_COMMAND=${UPDATE_COMMAND:-$SCRIPTS_DIR/update.sh}
+UPDATE_COMMAND=${UPDATE_COMMAND:-$SCRIPTS_DIR/update.py}
 PINNED_TOOLS_COMMAND=${PINNED_TOOLS_COMMAND:-$SCRIPTS_DIR/bootstrap.sh}
 
 on_exit() {

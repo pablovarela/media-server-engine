@@ -1,6 +1,7 @@
 import importlib
 import io
 import json
+import subprocess
 import sys
 import urllib.error
 import urllib.parse
@@ -120,3 +121,81 @@ def wiring(dirs, monkeypatch):
         return fresh_import(module)
 
     return load
+
+
+def done(stdout="", stderr="", returncode=0, then=None):
+    return SimpleNamespace(stdout=stdout, stderr=stderr, returncode=returncode, then=then)
+
+
+def matches(words, args):
+    position = 0
+    for arg in args:
+        if position < len(words) and (arg == words[position] or arg.endswith("/" + words[position])):
+            position += 1
+    return position == len(words)
+
+
+def real():
+    return SimpleNamespace(real=True, then=None)
+
+
+class Commands:
+    def __init__(self, run):
+        self.run = run
+        self.answers = []
+        self.ran = []
+
+    def on(self, words, *outcomes):
+        self.answers.insert(0, (list(words), list(outcomes) or [done()]))
+
+    def __call__(self, args, **options):
+        args = [str(arg) for arg in args]
+        self.ran.append(SimpleNamespace(args=args, env=options.get("env")))
+        outcomes = next((outcomes for words, outcomes in self.answers if matches(words, args)), None)
+        if outcomes is None:
+            raise AssertionError(f"unexpected command: {' '.join(args)}")
+        outcome = outcomes.pop(0) if len(outcomes) > 1 else outcomes[0]
+        if getattr(outcome, "real", False):
+            return self.run(args, **options)
+        if outcome.then:
+            outcome.then()
+        return completed(args, outcome, options)
+
+    def did(self, *words):
+        return any(matches(words, command.args) for command in self.ran)
+
+    def count(self, *words):
+        return sum(matches(words, command.args) for command in self.ran)
+
+    def index(self, *words):
+        return next(i for i, command in enumerate(self.ran) if matches(words, command.args))
+
+    def env_of(self, *words):
+        return next(command.env for command in self.ran if matches(words, command.args))
+
+
+def completed(args, outcome, options):
+    if options.pop("capture_output", False):
+        options.update(stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    captured = options.get("stdout") == subprocess.PIPE
+    merged = options.get("stderr") == subprocess.STDOUT
+    if not captured and options.get("stdout") != subprocess.DEVNULL:
+        sys.stdout.write(outcome.stdout)
+    if not merged and options.get("stderr") not in (subprocess.DEVNULL, subprocess.PIPE):
+        sys.stderr.write(outcome.stderr)
+    stdout = outcome.stdout + (outcome.stderr if merged else "") if captured else None
+    stderr = outcome.stderr if options.get("stderr") == subprocess.PIPE else None
+    return subprocess.CompletedProcess(args, outcome.returncode, stdout, stderr)
+
+
+@pytest.fixture
+def commands(monkeypatch):
+    mock_commands = Commands(subprocess.run)
+    monkeypatch.setattr(subprocess, "run", mock_commands)
+    return mock_commands
+
+
+def fresh_engine(name):
+    for module in [module for module in sys.modules if module == "engine" or module.startswith("engine.")]:
+        sys.modules.pop(module)
+    return importlib.import_module(name)
