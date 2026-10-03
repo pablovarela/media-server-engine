@@ -18,6 +18,8 @@ class CommandFailed(Exception):
 
 
 def completed(args, **options):
+    sys.stdout.flush()
+    sys.stderr.flush()
     try:
         return subprocess.run(args, text=True, **options)
     except FileNotFoundError:

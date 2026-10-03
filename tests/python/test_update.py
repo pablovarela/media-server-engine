@@ -8,7 +8,7 @@ from unittest import mock
 
 import pytest
 
-from conftest import REPO, done, fresh_engine
+from conftest import REPO, done, fresh_engine, real
 
 
 class Restarted(Exception):
@@ -42,6 +42,7 @@ def update(dirs, commands, urlopen, monkeypatch, tmp_path):
         (["git", "-C", engine, "remote", "get-url", "origin"], done(stdout="github-media-server-engine:someone/media-server-engine.git\n")),
         (["git", "-C", engine, "rev-parse", "HEAD"], done(stdout="abc123\n")),
         (["bootstrap.sh", "--pinned-tools"], done()),
+        (["bash", "-c"], real()),
         (["sops", "decrypt", "vpn.sops.env"], done(stdout="OPENVPN_USER=u\n")),
         (["sops", "decrypt", "apps.sops.env"], done(stdout="SONARR_API_KEY=s1\nRADARR_API_KEY=r1\nPROWLARR_API_KEY=p1\nPORTAINER_ADMIN_PASSWORD=pw 1\n")),
         (["timedatectl"], done(stdout="Europe/London\n")),

@@ -27,17 +27,40 @@ def test_the_engine_directory_defaults_to_this_checkout(monkeypatch):
     assert os.environ["ENGINE_DIR"] == str(REPO)
 
 
-def test_loading_the_installation_reads_values_as_bash_would(installation, dirs):
+def test_loading_the_installation_reads_values_as_bash_would(installation, dirs, monkeypatch):
+    monkeypatch.setitem(os.environ, "HOME", "/home/me")
     (dirs.config / "installation.env").write_text(
-        '# set by make configure\nINSTALLATION_NAME=home\n\nTZ="Europe/London"\nMEDIA_SERVER_HOST=\'media.local\'\nHOMEPAGE_PORT=8080\n'
+        "# set by make configure\nINSTALLATION_NAME=home\n\nTZ=\"Europe/London\"\nMEDIA_SERVER_HOST='media.local' # the Pi\n"
+        "export HOMEPAGE_PORT=8080\nRESTIC_REPOSITORY=~/backups\nHOMEPAGE_ALLOWED_HOSTS=\"$HOME/x\"\nJELLYFIN_ADMIN_USER= # unset\n"
     )
     installation.load_installation()
-    assert (os.environ["INSTALLATION_NAME"], os.environ["TZ"], os.environ["MEDIA_SERVER_HOST"], os.environ["HOMEPAGE_PORT"]) == (
-        "home",
-        "Europe/London",
-        "media.local",
-        "8080",
-    )
+    assert {name: os.environ[name] for name in (
+        "INSTALLATION_NAME", "TZ", "MEDIA_SERVER_HOST", "HOMEPAGE_PORT", "RESTIC_REPOSITORY", "HOMEPAGE_ALLOWED_HOSTS", "JELLYFIN_ADMIN_USER",
+    )} == {
+        "INSTALLATION_NAME": "home",
+        "TZ": "Europe/London",
+        "MEDIA_SERVER_HOST": "media.local",
+        "HOMEPAGE_PORT": "8080",
+        "RESTIC_REPOSITORY": "/home/me/backups",
+        "HOMEPAGE_ALLOWED_HOSTS": "/home/me/x",
+        "JELLYFIN_ADMIN_USER": "",
+    }
+
+
+def test_loading_leaves_the_shells_own_variables_out(installation, dirs, monkeypatch):
+    monkeypatch.setitem(os.environ, "PWD", "/somewhere")
+    os.environ.pop("SHLVL", None)
+    (dirs.config / "installation.env").write_text("INSTALLATION_NAME=home\n")
+    installation.load_installation()
+    assert os.environ["PWD"] == "/somewhere"
+    assert "SHLVL" not in os.environ
+
+
+def test_an_installation_file_bash_cannot_read_stops_the_update(installation, dirs, capfd):
+    (dirs.config / "installation.env").write_text("INSTALLATION_NAME=home\nJELLYFIN_ADMIN_USER=O'Brien\n")
+    with pytest.raises(installation.commands.CommandFailed):
+        installation.load_installation()
+    assert "installation.env: line 2" in capfd.readouterr().err
 
 
 def test_an_installation_without_a_name_is_refused(installation, dirs):

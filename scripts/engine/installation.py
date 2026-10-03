@@ -3,12 +3,12 @@ import glob
 import os
 import platform
 import re
-import shlex
 import shutil
 import socket
 
 from engine import commands
 
+SHELL_OWN = {"PWD", "OLDPWD", "SHLVL", "_"}
 CHECKOUT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
@@ -48,22 +48,17 @@ def not_an_installation():
     return commands.Stop("\n".join(lines), prefixed=False)
 
 
-def env_file_values(path):
-    values = {}
-    with open(path) as env:
-        for line in env:
-            key, separator, value = line.strip().partition("=")
-            if separator and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
-                words = shlex.split(value)
-                values[key] = words[0] if words else ""
-    return values
+def sourced(path):
+    listing = commands.output(["bash", "-c", 'set -a; source "$1" >/dev/null || exit; env -0', "installation", path], env=dict(os.environ))
+    values = dict(entry.partition("=")[::2] for entry in listing.split("\0") if entry)
+    return {name: value for name, value in values.items() if name not in SHELL_OWN and os.environ.get(name) != value}
 
 
 def load_installation():
     path = os.path.join(config_dir(), "installation.env")
     if not os.path.isfile(path):
         raise not_an_installation()
-    os.environ.update(env_file_values(path))
+    os.environ.update(sourced(path))
     if not os.environ.get("INSTALLATION_NAME"):
         raise commands.Stop(f"INSTALLATION_NAME is not set in {path}")
 

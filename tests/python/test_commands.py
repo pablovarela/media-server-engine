@@ -1,4 +1,6 @@
+import io
 import subprocess
+import sys
 
 import pytest
 
@@ -59,3 +61,18 @@ def test_a_missing_program_fails_like_the_shell_does(commands_module, monkeypatc
 def test_a_stop_names_the_program_unless_it_speaks_for_itself(commands_module):
     assert commands_module.Stop("a backup is still running").text("update") == "update: a backup is still running"
     assert commands_module.Stop("The config has changes", prefixed=False).text("update") == "The config has changes"
+
+
+def test_what_the_program_printed_is_written_out_before_a_command_runs(commands_module, monkeypatch):
+    written = io.BytesIO()
+    monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(written, write_through=False))
+    seen = {}
+
+    def run(args, **options):
+        seen["before"] = written.getvalue()
+        return subprocess.CompletedProcess(args, 0)
+
+    monkeypatch.setattr(subprocess, "run", run)
+    print("healthchecks: set up home-update")
+    commands_module.run(["check-stack.sh"])
+    assert seen["before"] == b"healthchecks: set up home-update\n"

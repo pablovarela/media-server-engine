@@ -3,6 +3,8 @@ import sys
 
 from engine import installation
 
+sys.stdout.reconfigure(line_buffering=True)
+
 installation.export_directories()
 
 # The engine modules read the directories when they are imported.

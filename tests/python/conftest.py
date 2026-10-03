@@ -135,8 +135,13 @@ def matches(words, args):
     return position == len(words)
 
 
+def real():
+    return SimpleNamespace(real=True, then=None)
+
+
 class Commands:
-    def __init__(self):
+    def __init__(self, run):
+        self.run = run
         self.answers = []
         self.ran = []
 
@@ -150,6 +155,8 @@ class Commands:
         if outcomes is None:
             raise AssertionError(f"unexpected command: {' '.join(args)}")
         outcome = outcomes.pop(0) if len(outcomes) > 1 else outcomes[0]
+        if getattr(outcome, "real", False):
+            return self.run(args, **options)
         if outcome.then:
             outcome.then()
         return completed(args, outcome, options)
@@ -183,7 +190,7 @@ def completed(args, outcome, options):
 
 @pytest.fixture
 def commands(monkeypatch):
-    mock_commands = Commands()
+    mock_commands = Commands(subprocess.run)
     monkeypatch.setattr(subprocess, "run", mock_commands)
     return mock_commands
 
