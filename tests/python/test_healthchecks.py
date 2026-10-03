@@ -1,4 +1,6 @@
 import http.client
+import subprocess
+from unittest import mock
 
 import pytest
 
@@ -123,25 +125,56 @@ def test_an_unreachable_healthchecks_is_reported_without_the_key(healthchecks, d
     assert "hc-manage" not in output.err + output.out
 
 
-def installation(monkeypatch, localtime):
+def installation(monkeypatch, localtime, timedatectl):
     monkeypatch.setenv("INSTALLATION_NAME", "home")
     monkeypatch.setenv("TZ", "Europe/London")
     monkeypatch.setenv("RESTIC_REPOSITORY", "/mnt/backup/home")
     monkeypatch.setenv("HEALTHCHECKS_SSH", "me@media.example")
     monkeypatch.setenv("HEALTHCHECKS_DIRECTORY", "~/home")
     monkeypatch.setenv("HEALTHCHECKS_LOCALTIME", str(localtime))
+    run = mock.Mock(side_effect=timedatectl)
+    monkeypatch.setattr(subprocess, "run", run)
+    return run
 
 
-def test_the_checks_use_the_time_zone_the_machines_timers_run_in(dirs, tmp_path, monkeypatch):
+def answers(zone):
+    return lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, stdout=f"{zone}\n", stderr="")
+
+
+def no_timedatectl(*args, **kwargs):
+    raise FileNotFoundError("timedatectl")
+
+
+def timedated_unreachable(*args, **kwargs):
+    raise subprocess.CalledProcessError(1, args[0], stderr="Failed to connect to bus")
+
+
+def linked_to(tmp_path, target):
     localtime = tmp_path / "localtime"
-    localtime.symlink_to("/usr/share/zoneinfo/America/New_York")
-    installation(monkeypatch, localtime)
+    localtime.symlink_to(target)
+    return localtime
+
+
+def test_the_checks_use_the_time_zone_systemd_runs_the_timers_in(dirs, tmp_path, monkeypatch):
+    run = installation(monkeypatch, linked_to(tmp_path, "/usr/share/zoneinfo/Europe/London"), answers("America/New_York"))
     healthchecks = fresh_import("healthchecks")
     assert healthchecks.facts_from_env() == healthchecks.Facts("home", "America/New_York", "/mnt/backup/home", "me@media.example", "~/home")
+    assert run.call_args.args[0] == ["timedatectl", "show", "-p", "Timezone", "--value"]
+
+
+@pytest.mark.parametrize("timedatectl", [no_timedatectl, timedated_unreachable, answers("")])
+def test_without_an_answer_from_systemd_the_zone_comes_from_the_localtime_link(dirs, tmp_path, monkeypatch, timedatectl):
+    installation(monkeypatch, linked_to(tmp_path, "../usr/share/zoneinfo/America/New_York"), timedatectl)
+    assert fresh_import("healthchecks").facts_from_env().tz == "America/New_York"
+
+
+def test_a_localtime_link_outside_zoneinfo_is_not_sent_as_a_zone(dirs, tmp_path, monkeypatch):
+    installation(monkeypatch, linked_to(tmp_path, "/etc/writable/localtime"), no_timedatectl)
+    assert fresh_import("healthchecks").facts_from_env().tz == "Etc/UTC"
 
 
 def test_a_machine_without_a_time_zone_runs_its_timers_in_utc(dirs, tmp_path, monkeypatch):
-    installation(monkeypatch, tmp_path / "missing")
+    installation(monkeypatch, tmp_path / "missing", no_timedatectl)
     assert fresh_import("healthchecks").facts_from_env().tz == "Etc/UTC"
 
 

@@ -2,6 +2,7 @@
 import http.client
 import json
 import os
+import subprocess
 import sys
 import urllib.error
 import urllib.request
@@ -120,10 +121,21 @@ def sync(checks, facts):
 
 def timers_time_zone():
     try:
-        zone = os.readlink(LOCALTIME)
+        zone = subprocess.run(
+            ["timedatectl", "show", "-p", "Timezone", "--value"], capture_output=True, text=True, check=True, timeout=10
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        zone = ""
+    return zone or linked_time_zone()
+
+
+def linked_time_zone():
+    try:
+        link = os.readlink(LOCALTIME)
     except OSError:
         return "Etc/UTC"
-    return zone.split("zoneinfo/", 1)[-1]
+    _, found, zone = link.partition("zoneinfo/")
+    return zone if found else "Etc/UTC"
 
 
 def facts_from_env():
