@@ -44,4 +44,12 @@ With a healthchecks.io ping key in `secrets/healthchecks.sops.env`, backups, che
 | `<name>-update` | the scheduled update on the main |
 | `<name>-update-<host>` | the scheduled update on other machines |
 
-New checks get healthchecks.io's default schedule (daily, one hour of grace); set `<name>-verify` to weekly in healthchecks.io.
+With a read-write API key of the same project as `HEALTHCHECKS_MANAGE_KEY`, every `make update` also sets up the checks this machine pings: the main its backup, verify and update checks, any other machine its own update check. Each gets its schedule, grace, the installation's time zone (`TZ`), its job's name as a tag and a description saying what runs and what to do when it fails; a description edited in healthchecks.io is replaced.
+
+| Check | Schedule | Grace |
+|---|---|---|
+| `<name>-backup` | `30 4 * * *` | 2 hours |
+| `<name>-verify` | `30 5 * * 0` | 4 hours |
+| `<name>-update`, `<name>-update-<host>` | `0 5 * * *` | 2 hours |
+
+Without that key, checks get healthchecks.io's default schedule (daily, one hour of grace) and are set up by hand.
