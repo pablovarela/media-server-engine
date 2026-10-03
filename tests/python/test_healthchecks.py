@@ -1,10 +1,8 @@
 import http.client
-import subprocess
-from unittest import mock
 
 import pytest
 
-from conftest import REPO, fresh_engine, http_error
+from conftest import REPO, done, fresh_engine, http_error
 
 API = "https://healthchecks.io/api/v3/checks/"
 MAIN = [("backup", "home-backup"), ("verify", "home-verify"), ("update", "home-update")]
@@ -125,24 +123,10 @@ def test_an_unreachable_healthchecks_is_reported_without_the_key(healthchecks, d
     assert "hc-manage" not in output.err + output.out
 
 
-def machine(monkeypatch, localtime, timedatectl):
+def machine(monkeypatch, commands, localtime, timedatectl):
     monkeypatch.setenv("TZ", "Europe/London")
     monkeypatch.setenv("HEALTHCHECKS_LOCALTIME", str(localtime))
-    run = mock.Mock(side_effect=timedatectl)
-    monkeypatch.setattr(subprocess, "run", run)
-    return run
-
-
-def answers(zone):
-    return lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, stdout=f"{zone}\n", stderr="")
-
-
-def no_timedatectl(*args, **kwargs):
-    raise FileNotFoundError("timedatectl")
-
-
-def timedated_unreachable(*args, **kwargs):
-    raise subprocess.CalledProcessError(1, args[0], stderr="Failed to connect to bus")
+    commands.on(["timedatectl", "show", "-p", "Timezone", "--value"], timedatectl)
 
 
 def linked_to(tmp_path, target):
@@ -151,25 +135,28 @@ def linked_to(tmp_path, target):
     return localtime
 
 
-def test_the_checks_use_the_time_zone_systemd_runs_the_timers_in(dirs, tmp_path, monkeypatch):
-    run = machine(monkeypatch, linked_to(tmp_path, "/usr/share/zoneinfo/Europe/London"), answers("America/New_York"))
-    assert fresh_engine("engine.healthchecks").timers_time_zone() == "America/New_York"
-    assert run.call_args.args[0] == ["timedatectl", "show", "-p", "Timezone", "--value"]
-
-
-@pytest.mark.parametrize("timedatectl", [no_timedatectl, timedated_unreachable, answers("")])
-def test_without_an_answer_from_systemd_the_zone_comes_from_the_localtime_link(dirs, tmp_path, monkeypatch, timedatectl):
-    machine(monkeypatch, linked_to(tmp_path, "../usr/share/zoneinfo/America/New_York"), timedatectl)
+def test_the_checks_use_the_time_zone_systemd_runs_the_timers_in(dirs, tmp_path, monkeypatch, commands):
+    machine(monkeypatch, commands, linked_to(tmp_path, "/usr/share/zoneinfo/Europe/London"), done(stdout="America/New_York\n"))
     assert fresh_engine("engine.healthchecks").timers_time_zone() == "America/New_York"
 
 
-def test_a_localtime_link_outside_zoneinfo_is_not_sent_as_a_zone(dirs, tmp_path, monkeypatch):
-    machine(monkeypatch, linked_to(tmp_path, "/etc/writable/localtime"), no_timedatectl)
+@pytest.mark.parametrize(
+    "timedatectl",
+    [done(returncode=127), done(stderr="Failed to connect to bus\n", returncode=1), done(stdout="\n")],
+    ids=["no timedatectl", "timedated unreachable", "no answer"],
+)
+def test_without_an_answer_from_systemd_the_zone_comes_from_the_localtime_link(dirs, tmp_path, monkeypatch, commands, timedatectl):
+    machine(monkeypatch, commands, linked_to(tmp_path, "../usr/share/zoneinfo/America/New_York"), timedatectl)
+    assert fresh_engine("engine.healthchecks").timers_time_zone() == "America/New_York"
+
+
+def test_a_localtime_link_outside_zoneinfo_is_not_sent_as_a_zone(dirs, tmp_path, monkeypatch, commands):
+    machine(monkeypatch, commands, linked_to(tmp_path, "/etc/writable/localtime"), done(returncode=127))
     assert fresh_engine("engine.healthchecks").timers_time_zone() == "Etc/UTC"
 
 
-def test_a_machine_without_a_time_zone_runs_its_timers_in_utc(dirs, tmp_path, monkeypatch):
-    machine(monkeypatch, tmp_path / "missing", no_timedatectl)
+def test_a_machine_without_a_time_zone_runs_its_timers_in_utc(dirs, tmp_path, monkeypatch, commands):
+    machine(monkeypatch, commands, tmp_path / "missing", done(returncode=127))
     assert fresh_engine("engine.healthchecks").timers_time_zone() == "Etc/UTC"
 
 

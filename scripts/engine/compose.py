@@ -9,9 +9,9 @@ def optional_services_pinned():
     try:
         with open(os.path.join(installation.config_dir(), "images.yml")) as images:
             services = (yaml.safe_load(images) or {}).get("services") or {}
+        return ",".join(name for name in ("homepage",) if (services.get(name) or {}).get("image"))
     except (OSError, yaml.YAMLError, AttributeError):
         return ""
-    return ",".join(name for name in ("homepage",) if (services.get(name) or {}).get("image"))
 
 
 def profiles(requested):
@@ -37,9 +37,9 @@ def run(*args, wiring=False, check=True):
     return commands.run(argv, env=env, check=check)
 
 
-def output(*args, wiring=False):
+def output(*args, wiring=False, check=True):
     argv, env = stack(args, wiring)
-    return commands.output(argv, env=env)
+    return commands.output(argv, env=env, check=check)
 
 
 def combined(*args, wiring=False):

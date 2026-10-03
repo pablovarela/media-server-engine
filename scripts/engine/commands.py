@@ -21,11 +21,14 @@ def completed(args, **options):
     sys.stdout.flush()
     sys.stderr.flush()
     try:
-        return subprocess.run(args, text=True, **options)
+        result = subprocess.run(args, text=True, **options)
     except FileNotFoundError:
         if options.get("stderr") is not subprocess.DEVNULL:
             print(f"{args[0]}: command not found", file=sys.stderr)
         return subprocess.CompletedProcess(args, 127, "" if options.get("stdout") == subprocess.PIPE else None)
+    if result.returncode < 0:
+        result.returncode = 128 - result.returncode
+    return result
 
 
 def checked(result, check):

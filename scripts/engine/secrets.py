@@ -7,16 +7,18 @@ from engine import commands, installation
 
 
 def write_private(path, text):
-    staged = path + ".new"
-    descriptor = os.open(staged, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    os.fchmod(descriptor, 0o600)
     with os.fdopen(descriptor, "w") as file:
         file.write(text)
-    os.chmod(staged, 0o600)
-    os.replace(staged, path)
 
 
 def private_directory(path):
-    os.makedirs(path, mode=0o700, exist_ok=True)
+    previous = os.umask(0o077)
+    try:
+        os.makedirs(path, exist_ok=True)
+    finally:
+        os.umask(previous)
 
 
 def decrypted(name):

@@ -7,10 +7,8 @@ import urllib.request
 
 import yaml
 
-ENGINE_DIR = os.environ["ENGINE_DIR"]
-CONFIG_DIR = os.environ["CONFIG_DIR"]
-DATA_DIR = os.environ["DATA_DIR"]
-DEFAULTS = os.path.join(ENGINE_DIR, "homepage")
+from engine import installation
+
 
 
 def read(path):
@@ -31,7 +29,7 @@ def dotenv(path):
 
 
 def healthchecks_api_key():
-    return dotenv(os.path.join(ENGINE_DIR, ".secrets", "healthchecks.env")).get("HEALTHCHECKS_API_KEY", "")
+    return dotenv(os.path.join(installation.engine_dir(), ".secrets", "healthchecks.env")).get("HEALTHCHECKS_API_KEY", "")
 
 
 def placeholders(text):
@@ -46,8 +44,8 @@ def placeholders(text):
 
 
 def page_file(name):
-    declared = os.path.join(CONFIG_DIR, "homepage", name)
-    source = declared if os.path.exists(declared) else os.path.join(DEFAULTS, name)
+    declared = os.path.join(installation.config_dir(), "homepage", name)
+    source = declared if os.path.exists(declared) else os.path.join(installation.engine_dir(), "homepage", name)
     return placeholders(read(source))
 
 
@@ -148,7 +146,7 @@ def copy_images(out):
             shutil.rmtree(path)
         else:
             os.remove(path)
-    declared = os.path.join(CONFIG_DIR, "homepage", "images")
+    declared = os.path.join(installation.config_dir(), "homepage", "images")
     if os.path.isdir(declared):
         shutil.copytree(declared, images, dirs_exist_ok=True)
 
@@ -163,22 +161,22 @@ def render(out):
 
 def seerr_key():
     try:
-        return json.loads(read(os.path.join(DATA_DIR, "volumes", "seerr", "config", "settings.json")))["main"]["apiKey"]
+        return json.loads(read(os.path.join(installation.data_dir(), "volumes", "seerr", "config", "settings.json")))["main"]["apiKey"]
     except (ValueError, KeyError):
         return ""
 
 
 def bazarr_key():
-    config = yaml.safe_load(read(os.path.join(DATA_DIR, "volumes", "bazarr", "config", "config", "config.yaml"))) or {}
+    config = yaml.safe_load(read(os.path.join(installation.data_dir(), "volumes", "bazarr", "config", "config", "config.yaml"))) or {}
     return (config.get("auth") or {}).get("apikey", "")
 
 
 def wiring_state(name):
-    return read(os.path.join(DATA_DIR, "volumes", ".wiring", name)).strip()
+    return read(os.path.join(installation.data_dir(), "volumes", ".wiring", name)).strip()
 
 
 def env_text():
-    apps = dotenv(os.path.join(ENGINE_DIR, ".secrets", "apps.env"))
+    apps = dotenv(os.path.join(installation.engine_dir(), ".secrets", "apps.env"))
     return "".join(
         f"HOMEPAGE_VAR_{name}={value}\n"
         for name, value in (

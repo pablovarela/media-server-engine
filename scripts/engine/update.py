@@ -1,5 +1,6 @@
 import contextlib
 import hashlib
+import http.client
 import json
 import os
 import platform
@@ -173,7 +174,7 @@ def render_landing_page():
         revalidate = urllib.request.Request(f"http://localhost:{installation.homepage_port()}/api/revalidate")
         with urllib.request.urlopen(revalidate, timeout=10):
             pass
-    except OSError:
+    except (OSError, http.client.HTTPException):
         pass
 
 
@@ -221,8 +222,8 @@ def set_up_healthchecks():
             directory=installation_directory_as_typed(),
         )
         healthchecks.sync(checks_this_machine_sets_up(), facts)
-    except Exception:
-        print("could not set up the healthchecks.io checks; carrying on", file=sys.stderr)
+    except Exception as error:
+        print(f"could not set up the healthchecks.io checks ({error}); carrying on", file=sys.stderr)
 
 
 def create_bind_mount_directories():
@@ -254,7 +255,7 @@ def pull_images():
 
 
 def detached_gluetun_dependents():
-    gluetun = compose.output("ps", "-q", "gluetun").strip()
+    gluetun = compose.output("ps", "-q", "gluetun", check=False).strip()
     return [
         dependent
         for dependent in GLUETUN_DEPENDENTS
@@ -307,4 +308,9 @@ def main(argv):
         return 1
     except commands.CommandFailed as failed:
         return failed.returncode
+    except (OSError, ValueError) as error:
+        print(f"update: {error}", file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        return 130
     return 0

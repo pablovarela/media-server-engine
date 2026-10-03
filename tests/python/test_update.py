@@ -1,8 +1,10 @@
+import http.client
 import json
 import os
 import pwd
 import shutil
 import time
+import urllib.request
 from types import SimpleNamespace
 from unittest import mock
 
@@ -474,7 +476,7 @@ def test_failing_to_set_up_the_checks_does_not_stop_the_update(update, commands,
 
     update.module.healthchecks.sync = broken
     assert update.run() == 0
-    assert "could not set up the healthchecks.io checks; carrying on" in capsys.readouterr().err
+    assert "could not set up the healthchecks.io checks (boom); carrying on" in capsys.readouterr().err
     assert commands.did("prune-stack-images.sh")
 
 
@@ -489,3 +491,45 @@ def test_a_running_landing_page_that_does_not_answer_the_reload_does_not_stop_th
     commands.on(["docker", "inspect", "homepage"], done(stdout="true\n"))
     assert update.run() == 0
     assert commands.did("prune-stack-images.sh")
+
+
+def test_a_missing_engine_pin_stops_the_update_with_one_line(update, dirs, capsys):
+    (dirs.config / "engine.env").unlink()
+    assert update.run() == 1
+    err = capsys.readouterr().err
+    assert err.startswith("update: ") and "engine.env" in err
+    assert err.count("\n") == 1
+
+
+def test_an_interrupted_update_ends_with_the_status_the_shell_gives(update, commands):
+    def interrupt():
+        raise KeyboardInterrupt
+
+    commands.on(["check-stack.sh"], done(then=interrupt))
+    assert update.run() == 130
+
+
+def test_when_compose_cannot_say_which_gluetun_runs_every_dependent_is_reattached(update, commands):
+    commands.on(["docker", "compose", "ps", "-q", "gluetun"], done(returncode=1))
+    assert update.run() == 0
+    assert commands.did("--force-recreate", "--no-deps", "prowlarr", "flaresolverr", "deluge")
+
+
+def test_a_data_directory_set_in_the_installation_is_where_the_landing_page_finds_its_keys(update, dirs, tmp_path):
+    elsewhere = tmp_path / "elsewhere"
+    (elsewhere / "volumes" / ".wiring").mkdir(parents=True)
+    (elsewhere / "volumes" / ".wiring" / "jellyfin.key").write_text("elsewhere-key\n")
+    with open(dirs.config / "installation.env", "a") as installation:
+        installation.write(f"DATA_DIR={elsewhere}\n")
+    assert update.run() == 0
+    assert "HOMEPAGE_VAR_JELLYFIN_KEY=elsewhere-key" in (dirs.engine / ".secrets" / "homepage.env").read_text().splitlines()
+
+
+def test_a_garbled_answer_to_the_reload_does_not_stop_the_update(update, commands, monkeypatch):
+    commands.on(["docker", "inspect", "homepage"], done(stdout="true\n"))
+
+    def garbled(request, timeout=None):
+        raise http.client.BadStatusLine("garbage")
+
+    monkeypatch.setattr(urllib.request, "urlopen", garbled)
+    assert update.run() == 0

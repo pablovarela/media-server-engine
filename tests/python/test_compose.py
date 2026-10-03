@@ -51,3 +51,9 @@ def test_without_optional_services_no_profile_is_set(compose, dirs, commands):
 def test_an_unreadable_images_file_pins_no_optional_service(compose, dirs):
     (dirs.config / "images.yml").write_text("services: [\n")
     assert compose.optional_services_pinned() == ""
+
+
+@pytest.mark.parametrize("images", ["services:\n  - homepage\n", "services:\n  homepage: latest\n"])
+def test_an_images_file_shaped_unexpectedly_pins_no_optional_service(compose, dirs, images):
+    (dirs.config / "images.yml").write_text(images)
+    assert compose.optional_services_pinned() == ""

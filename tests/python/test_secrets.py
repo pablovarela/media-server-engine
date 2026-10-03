@@ -102,3 +102,16 @@ def test_a_failed_decryption_stops_with_the_status_of_sops(secrets, commands):
     with pytest.raises(secrets.commands.CommandFailed) as failed:
         secrets.decrypt_all()
     assert failed.value.returncode == 128
+
+
+def test_the_folders_made_for_the_gluetun_key_are_the_owners_alone(secrets, dirs):
+    secrets.decrypt_all()
+    assert mode(dirs.data / "volumes") == 0o700
+    assert mode(dirs.data / "volumes" / ".wiring") == 0o700
+
+
+def test_secret_files_are_rewritten_in_place_so_a_running_container_sees_the_new_content(secrets, dirs):
+    secrets.decrypt_all()
+    inode = os.stat(dirs.engine / ".secrets" / "portainer_admin").st_ino
+    secrets.decrypt_all()
+    assert os.stat(dirs.engine / ".secrets" / "portainer_admin").st_ino == inode
