@@ -168,6 +168,8 @@ class Commands:
 
 
 def completed(args, outcome, options):
+    if options.pop("capture_output", False):
+        options.update(stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     captured = options.get("stdout") == subprocess.PIPE
     merged = options.get("stderr") == subprocess.STDOUT
     if not captured and options.get("stdout") != subprocess.DEVNULL:
