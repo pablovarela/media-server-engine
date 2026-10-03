@@ -7,7 +7,7 @@ SCRIPTS_DIR="$(dirname "$SCRIPT_PATH")"
 
 CHECK_STACK_COMMAND=${CHECK_STACK_COMMAND:-$SCRIPTS_DIR/check-stack.sh}
 WIRE_COMMAND=${WIRE_COMMAND:-$SCRIPTS_DIR/wire/wire_apps.py}
-HEALTHCHECKS_COMMAND=${HEALTHCHECKS_COMMAND:-$SCRIPTS_DIR/healthchecks.py}
+HEALTHCHECKS_COMMAND=${HEALTHCHECKS_COMMAND:-$SCRIPTS_DIR/engine/healthchecks.py}
 PRUNE_COMMAND=${PRUNE_COMMAND:-$SCRIPTS_DIR/prune-stack-images.sh}
 PINNED_TOOLS_COMMAND=${PINNED_TOOLS_COMMAND:-$SCRIPTS_DIR/bootstrap.sh}
 readonly GLUETUN_DEPENDENTS="prowlarr flaresolverr deluge"
@@ -148,7 +148,7 @@ write_compose_env() {
 
 homepage_env_changed() {
   local env="$ENGINE_DIR/.secrets/homepage.env"
-  ( umask 077; python3 "$SCRIPTS_DIR/homepage.py" env > "$env.new" )
+  ( umask 077; PYTHONPATH="$SCRIPTS_DIR" python3 -m engine.homepage env > "$env.new" )
   if cmp -s "$env.new" "$env"; then
     rm -f "$env.new"
     return 1

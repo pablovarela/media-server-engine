@@ -4,7 +4,7 @@ from unittest import mock
 
 import pytest
 
-from conftest import REPO, fresh_import, http_error
+from conftest import REPO, fresh_engine, http_error
 
 API = "https://healthchecks.io/api/v3/checks/"
 MAIN = [("backup", "home-backup"), ("verify", "home-verify"), ("update", "home-update")]
@@ -15,7 +15,7 @@ WEEKDAY_NUMBERS = {"Sun": "0", "Mon": "1", "Tue": "2", "Wed": "3", "Thu": "4", "
 def healthchecks(dirs, monkeypatch):
     monkeypatch.delenv("HEALTHCHECKS_API_URL", raising=False)
     (dirs.engine / ".secrets").mkdir()
-    return fresh_import("healthchecks")
+    return fresh_engine("engine.healthchecks")
 
 
 def facts(healthchecks, repository="b2:bucket:home", tz="Europe/London"):
@@ -157,7 +157,7 @@ def linked_to(tmp_path, target):
 
 def test_the_checks_use_the_time_zone_systemd_runs_the_timers_in(dirs, tmp_path, monkeypatch):
     run = installation(monkeypatch, linked_to(tmp_path, "/usr/share/zoneinfo/Europe/London"), answers("America/New_York"))
-    healthchecks = fresh_import("healthchecks")
+    healthchecks = fresh_engine("engine.healthchecks")
     assert healthchecks.facts_from_env() == healthchecks.Facts("home", "America/New_York", "/mnt/backup/home", "me@media.example", "~/home")
     assert run.call_args.args[0] == ["timedatectl", "show", "-p", "Timezone", "--value"]
 
@@ -165,17 +165,17 @@ def test_the_checks_use_the_time_zone_systemd_runs_the_timers_in(dirs, tmp_path,
 @pytest.mark.parametrize("timedatectl", [no_timedatectl, timedated_unreachable, answers("")])
 def test_without_an_answer_from_systemd_the_zone_comes_from_the_localtime_link(dirs, tmp_path, monkeypatch, timedatectl):
     installation(monkeypatch, linked_to(tmp_path, "../usr/share/zoneinfo/America/New_York"), timedatectl)
-    assert fresh_import("healthchecks").facts_from_env().tz == "America/New_York"
+    assert fresh_engine("engine.healthchecks").facts_from_env().tz == "America/New_York"
 
 
 def test_a_localtime_link_outside_zoneinfo_is_not_sent_as_a_zone(dirs, tmp_path, monkeypatch):
     installation(monkeypatch, linked_to(tmp_path, "/etc/writable/localtime"), no_timedatectl)
-    assert fresh_import("healthchecks").facts_from_env().tz == "Etc/UTC"
+    assert fresh_engine("engine.healthchecks").facts_from_env().tz == "Etc/UTC"
 
 
 def test_a_machine_without_a_time_zone_runs_its_timers_in_utc(dirs, tmp_path, monkeypatch):
     installation(monkeypatch, tmp_path / "missing", no_timedatectl)
-    assert fresh_import("healthchecks").facts_from_env().tz == "Etc/UTC"
+    assert fresh_engine("engine.healthchecks").facts_from_env().tz == "Etc/UTC"
 
 
 def test_an_error_page_that_is_not_healthchecks_json_is_reported_by_its_status(healthchecks, dirs, http, capsys):

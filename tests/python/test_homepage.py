@@ -6,7 +6,7 @@ import shutil
 import pytest
 import yaml
 
-from conftest import REPO, answer, fresh_import
+from conftest import REPO, answer, fresh_engine
 
 ENGINE_PAGE = REPO / "homepage"
 
@@ -69,7 +69,7 @@ def page(dirs, monkeypatch):
     monkeypatch.setenv("INSTALLATION_NAME", "testinst")
     monkeypatch.setenv("HOMEPAGE_HOST", "media.local")
     monkeypatch.setenv("HOMEPAGE_ENGINE_VERSION", "v9.9.9")
-    return Page(dirs, fresh_import("homepage"))
+    return Page(dirs, fresh_engine("engine.homepage"))
 
 
 @pytest.fixture

@@ -177,20 +177,26 @@ def wiring_state(name):
     return read(os.path.join(DATA_DIR, "volumes", ".wiring", name)).strip()
 
 
-def env():
+def env_text():
     apps = dotenv(os.path.join(ENGINE_DIR, ".secrets", "apps.env"))
-    for name, value in (
-        ("SONARR_KEY", apps.get("SONARR_API_KEY", "")),
-        ("RADARR_KEY", apps.get("RADARR_API_KEY", "")),
-        ("PROWLARR_KEY", apps.get("PROWLARR_API_KEY", "")),
-        ("DELUGE_PASSWORD", apps.get("DELUGE_WEB_PASSWORD", "")),
-        ("JELLYFIN_KEY", wiring_state("jellyfin.key")),
-        ("SEERR_KEY", seerr_key()),
-        ("BAZARR_KEY", bazarr_key()),
-        ("GLUETUN_KEY", wiring_state("gluetun-control.key")),
-        ("HEALTHCHECKS_KEY", healthchecks_api_key()),
-    ):
-        print(f"HOMEPAGE_VAR_{name}={value}")
+    return "".join(
+        f"HOMEPAGE_VAR_{name}={value}\n"
+        for name, value in (
+            ("SONARR_KEY", apps.get("SONARR_API_KEY", "")),
+            ("RADARR_KEY", apps.get("RADARR_API_KEY", "")),
+            ("PROWLARR_KEY", apps.get("PROWLARR_API_KEY", "")),
+            ("DELUGE_PASSWORD", apps.get("DELUGE_WEB_PASSWORD", "")),
+            ("JELLYFIN_KEY", wiring_state("jellyfin.key")),
+            ("SEERR_KEY", seerr_key()),
+            ("BAZARR_KEY", bazarr_key()),
+            ("GLUETUN_KEY", wiring_state("gluetun-control.key")),
+            ("HEALTHCHECKS_KEY", healthchecks_api_key()),
+        )
+    )
+
+
+def env():
+    print(env_text(), end="")
 
 
 if __name__ == "__main__":

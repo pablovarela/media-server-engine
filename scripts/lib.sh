@@ -118,7 +118,7 @@ render_homepage() {
   HOMEPAGE_HOST=$(network_name) HOMEPAGE_ENGINE_VERSION=$(engine_version) HOMEPAGE_ENGINE_URL=$(engine_page_url) \
     HOMEPAGE_HEALTHCHECK_BACKUP=$(healthcheck_slug backup) HOMEPAGE_HEALTHCHECK_VERIFY=$(healthcheck_slug verify) \
     HOMEPAGE_HEALTHCHECK_UPDATE=$(MACHINE_ROLE=$role healthcheck_slug update) \
-    python3 "$(dirname "${BASH_SOURCE[0]}")/homepage.py" render "$ENGINE_DIR/.homepage"
+    PYTHONPATH="$(dirname "${BASH_SOURCE[0]}")" python3 -m engine.homepage render "$ENGINE_DIR/.homepage"
   homepage_running || return 0
   if [ "$(homepage_images_signature)" != "$images_before" ]; then
     docker restart homepage >/dev/null
