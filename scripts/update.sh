@@ -223,7 +223,7 @@ pull_images() {
 
 checks_this_machine_sets_up() {
   local job
-  if [ "$(machine_role)" = main ]; then
+  if [ "${MACHINE_ROLE:-$(machine_role)}" = main ]; then
     for job in backup verify update; do echo "$job=$(healthcheck_slug "$job")"; done
   else
     echo "update=$(MACHINE_ROLE=secondary healthcheck_slug update)"

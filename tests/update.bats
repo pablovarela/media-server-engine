@@ -410,3 +410,9 @@ pin_homepage() {
   [[ $output == *"could not set up the healthchecks.io checks"* ]]
   grep -q "^fake-prune" "$STUB_LOG"
 }
+
+@test "an update run as the main sets up the main's checks before the machine is claimed" {
+  MACHINE_ROLE=main run update
+  [ "$status" -eq 0 ]
+  grep -qx "fake-healthchecks backup=testinst-backup verify=testinst-verify update=testinst-update" "$STUB_LOG"
+}

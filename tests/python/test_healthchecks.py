@@ -79,6 +79,7 @@ def test_a_check_is_matched_by_its_slug_and_gets_its_schedule_grace_time_zone_an
         "schedule": "30 5 * * 0",
         "tz": "Europe/London",
         "grace": 14400,
+        "channels": "*",
         "unique": ["slug"],
     }
 
@@ -120,10 +121,23 @@ def test_an_unreachable_healthchecks_is_reported_without_the_key(healthchecks, d
     assert "hc-manage" not in output.err + output.out
 
 
-def test_the_facts_come_from_the_installation_and_utc_is_the_default_time_zone(healthchecks, monkeypatch):
+def installation(monkeypatch, localtime):
     monkeypatch.setenv("INSTALLATION_NAME", "home")
-    monkeypatch.delenv("TZ", raising=False)
+    monkeypatch.setenv("TZ", "Europe/London")
     monkeypatch.setenv("RESTIC_REPOSITORY", "/mnt/backup/home")
     monkeypatch.setenv("HEALTHCHECKS_SSH", "me@media.example")
     monkeypatch.setenv("HEALTHCHECKS_DIRECTORY", "~/home")
-    assert healthchecks.facts_from_env() == healthchecks.Facts("home", "Etc/UTC", "/mnt/backup/home", "me@media.example", "~/home")
+    monkeypatch.setenv("HEALTHCHECKS_LOCALTIME", str(localtime))
+
+
+def test_the_checks_use_the_time_zone_the_machines_timers_run_in(dirs, tmp_path, monkeypatch):
+    localtime = tmp_path / "localtime"
+    localtime.symlink_to("/usr/share/zoneinfo/America/New_York")
+    installation(monkeypatch, localtime)
+    healthchecks = fresh_import("healthchecks")
+    assert healthchecks.facts_from_env() == healthchecks.Facts("home", "America/New_York", "/mnt/backup/home", "me@media.example", "~/home")
+
+
+def test_a_machine_without_a_time_zone_runs_its_timers_in_utc(dirs, tmp_path, monkeypatch):
+    installation(monkeypatch, tmp_path / "missing")
+    assert fresh_import("healthchecks").facts_from_env().tz == "Etc/UTC"

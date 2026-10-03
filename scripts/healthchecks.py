@@ -8,6 +8,7 @@ from collections import namedtuple
 
 ENGINE_DIR = os.environ["ENGINE_DIR"]
 API_URL = os.environ.get("HEALTHCHECKS_API_URL", "https://healthchecks.io/api/v3/checks/")
+LOCALTIME = os.environ.get("HEALTHCHECKS_LOCALTIME", "/etc/localtime")
 HOUR = 3600
 WEEKDAYS = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"]
 
@@ -68,6 +69,7 @@ def payload(job, slug, facts):
         "schedule": check.schedule,
         "tz": facts.tz,
         "grace": check.grace,
+        "channels": "*",
         "unique": ["slug"],
     }
 
@@ -107,10 +109,18 @@ def sync(checks, facts):
         print(f"healthchecks: set up {', '.join(set_up_slugs)}")
 
 
+def timers_time_zone():
+    try:
+        zone = os.readlink(LOCALTIME)
+    except OSError:
+        return "Etc/UTC"
+    return zone.split("zoneinfo/", 1)[-1]
+
+
 def facts_from_env():
     return Facts(
         name=os.environ["INSTALLATION_NAME"],
-        tz=os.environ.get("TZ") or "Etc/UTC",
+        tz=timers_time_zone(),
         repository=os.environ.get("RESTIC_REPOSITORY", ""),
         ssh=os.environ["HEALTHCHECKS_SSH"],
         directory=os.environ["HEALTHCHECKS_DIRECTORY"],
