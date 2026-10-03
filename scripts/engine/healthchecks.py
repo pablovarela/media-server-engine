@@ -136,17 +136,3 @@ def linked_time_zone():
         return "Etc/UTC"
     _, found, zone = link.partition("zoneinfo/")
     return zone if found else "Etc/UTC"
-
-
-def facts_from_env():
-    return Facts(
-        name=os.environ["INSTALLATION_NAME"],
-        tz=timers_time_zone(),
-        repository=os.environ.get("RESTIC_REPOSITORY", ""),
-        ssh=os.environ["HEALTHCHECKS_SSH"],
-        directory=os.environ["HEALTHCHECKS_DIRECTORY"],
-    )
-
-
-if __name__ == "__main__":
-    sync([argument.split("=", 1) for argument in sys.argv[1:]], facts_from_env())

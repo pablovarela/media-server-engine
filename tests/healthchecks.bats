@@ -50,21 +50,3 @@ teardown() {
   [ "$status" -eq 0 ]
   echo "$output" | grep -q still-running
 }
-
-@test "the checks script does nothing without a manage key" {
-  mkdir -p "$ENGINE_DIR/.secrets" && echo "HEALTHCHECKS_PING_KEY=ping" > "$ENGINE_DIR/.secrets/healthchecks.env"
-  HEALTHCHECKS_SSH=me@media.example HEALTHCHECKS_DIRECTORY="~/testinst" \
-    run "$BATS_TEST_DIRNAME/../scripts/engine/healthchecks.py" update=testinst-update
-  [ "$status" -eq 0 ]
-  [ -z "$output" ]
-}
-
-@test "the checks script warns per check and succeeds when healthchecks.io cannot be reached" {
-  mkdir -p "$ENGINE_DIR/.secrets" && echo "HEALTHCHECKS_MANAGE_KEY=hc-manage" > "$ENGINE_DIR/.secrets/healthchecks.env"
-  RESTIC_REPOSITORY=/backup HEALTHCHECKS_SSH=me@media.example HEALTHCHECKS_DIRECTORY="~/testinst" \
-    run "$BATS_TEST_DIRNAME/../scripts/engine/healthchecks.py" backup=testinst-backup update=testinst-update
-  [ "$status" -eq 0 ]
-  [[ $output == *"could not set up testinst-backup"* ]]
-  [[ $output == *"could not set up testinst-update"* ]]
-  [[ $output != *hc-manage* ]]
-}

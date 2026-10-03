@@ -19,6 +19,7 @@
 - Every service that writes app state runs as uid and gid 1000; a test enforces it.
 - The engine's Python runs on Python 3.9 and later, the Python of Raspberry Pi OS bullseye.
 - Python is tested with pytest, in `tests/python/`, by calling its functions, with HTTP calls mocked at `urllib.request.urlopen`. Shell scripts are tested with bats, in `tests/`, and so is the way they call the Python. `make test-python` prints which lines and branches of the Python no test reaches; the command-line entry points are left to the bats tests.
+- The engine's programs are written in the `engine` package, `scripts/engine/`. Every command they run goes through `engine.commands`, and tests answer those commands with the `commands` fixture, as the `http` fixture answers requests.
 - New logic that is mostly API calls or YAML is written in Python, not shell.
 - Follow-ups and ideas for later are GitHub issues in this repository.
 

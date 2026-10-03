@@ -37,18 +37,6 @@ die_not_an_installation() {
   exit 1
 }
 
-installation_root() {
-  local root
-  root=$(cd "$ENGINE_DIR/.." && pwd -P)
-  [ "$(basename "$ENGINE_DIR")" = engine ] && [ "$(cd "$CONFIG_DIR" 2>/dev/null && pwd -P)" = "$root/config" ] && echo "$root"
-}
-
-write_installation_makefile() {
-  local root
-  root=$(installation_root) || return 0
-  cmp -s "$ENGINE_DIR/installation/Makefile" "$root/Makefile" || cp "$ENGINE_DIR/installation/Makefile" "$root/Makefile"
-}
-
 require_installation() {
   [ -f "$CONFIG_DIR/installation.env" ] || die_not_an_installation
 }

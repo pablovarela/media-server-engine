@@ -8,7 +8,7 @@ setup() {
 }
 
 @test "engine sources are not ignored" {
-  ! git check-ignore -q scripts/update.sh || false
+  ! git check-ignore -q scripts/update.py || false
   ! git check-ignore -q docker-compose.yml || false
 }
 

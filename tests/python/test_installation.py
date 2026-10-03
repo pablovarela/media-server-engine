@@ -142,3 +142,11 @@ def test_an_engine_checkout_outside_an_installation_gets_no_makefile(installatio
     monkeypatch.setitem(os.environ, "ENGINE_DIR", str(tmp_path / "checkout"))
     installation.write_installation_makefile()
     assert not (tmp_path / "Makefile").exists()
+
+
+def test_an_outdated_installation_makefile_is_replaced(installation, dirs):
+    (dirs.engine / "installation").mkdir()
+    shutil.copy(REPO / "installation" / "Makefile", dirs.engine / "installation" / "Makefile")
+    (dirs.engine.parent / "Makefile").write_text("old\n")
+    installation.write_installation_makefile()
+    assert (dirs.engine.parent / "Makefile").read_text() == (REPO / "installation" / "Makefile").read_text()

@@ -31,7 +31,7 @@ restore: installation check-tools ## restore volumes/ from the latest backup (AR
 	@sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" "scripts/restore.sh $(ARGS)"
 
 update: installation pinned-tools check-tools ## pull the config repo, switch to its engine version, bring the stack up and wire the apps
-	@scripts/update.sh
+	@scripts/update.py
 
 install-update-timer: installation check-tools ## schedule make update daily at 05:00, after the backup (systemd)
 	@scripts/install-timers.sh media-update
