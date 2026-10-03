@@ -42,7 +42,11 @@ if [ -n "${RESTORE_FROM_BACKUP:-}" ] && has_backups; then
 fi
 become_main=""
 if wants_to_be_main; then become_main=1; fi
-"$UPDATE_COMMAND"
+if [ -n "$become_main" ]; then
+  MACHINE_ROLE=main "$UPDATE_COMMAND"
+else
+  "$UPDATE_COMMAND"
+fi
 if systemd_running; then
   "$INSTALL_TIMERS_COMMAND" media-update media-download-cleanup
   if [ -n "$become_main" ]; then

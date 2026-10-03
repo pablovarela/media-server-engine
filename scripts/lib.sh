@@ -4,6 +4,9 @@ CONFIG_DIR=${CONFIG_DIR:-$(dirname "$ENGINE_DIR")/config}
 DATA_DIR=${DATA_DIR:-$(dirname "$ENGINE_DIR")/data}
 export ENGINE_DIR CONFIG_DIR DATA_DIR
 
+# The healthchecks.io API keys are read from the decrypted secrets file; only the ping key belongs in the environment.
+unset HEALTHCHECKS_API_KEY HEALTHCHECKS_MANAGE_KEY
+
 export SNAPSHOT_VOLUMES_PATH=/volumes
 
 die() {

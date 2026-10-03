@@ -7,6 +7,7 @@ setup() {
   make_stub restic 'echo "[{\"id\":\"s1\"}]"'
   make_stub systemctl ''
   for step in check-tools restore update install-timers claim; do make_stub "fake-$step" ''; done
+  make_stub fake-update 'echo "update role=${MACHINE_ROLE:-}" >> "$STUB_LOG"'
   make_stub fake-role '[ "$1" = is-main ]'
   make_stub fake-apps 'echo "Jellyfin     http://homeserver.local:8096"'
   export APPS_COMMAND=fake-apps
@@ -103,4 +104,16 @@ setup_machine() {
   summary=$(echo "$output" | sed -n '/testinst is ready/,$p')
   echo "$summary" | grep -q "run make from it"
   [ "$(echo "$output" | tail -1)" = "  cd $(cd "$(dirname "$ENGINE_DIR")" && pwd)" ]
+}
+
+@test "a machine becoming the main runs its first update as the main, before it is claimed" {
+  run setup_machine < <(echo y)
+  [ "$status" -eq 0 ]
+  grep -qx "update role=main" "$STUB_LOG"
+}
+
+@test "a machine that stays secondary runs its first update with its own role" {
+  run setup_machine < <(echo n)
+  [ "$status" -eq 0 ]
+  grep -qx "update role=" "$STUB_LOG"
 }

@@ -47,6 +47,7 @@ vpn-password
 Ireland
 hc-ping-key-12345
 hc-read-only-api-key
+hc-read-write-api-key
 jellyfin-pass
 deluge-pass
 portainer-pass-long
@@ -55,7 +56,7 @@ EOF
 }
 
 enter_on_every_prompt() {
-  for _ in $(seq 22); do echo; done
+  for _ in $(seq 23); do echo; done
 }
 
 configure() {
@@ -443,6 +444,12 @@ Europe/London#")
   run configure < <(answers_for_new_installation)
   [ "$status" -eq 0 ]
   grep -qx "ENC:HEALTHCHECKS_API_KEY=hc-read-only-api-key" "$CONFIG_DIR/secrets/healthchecks.sops.env"
+}
+
+@test "a read-write healthchecks.io api key can be given to set up the checks" {
+  run configure < <(answers_for_new_installation)
+  [ "$status" -eq 0 ]
+  grep -qx "ENC:HEALTHCHECKS_MANAGE_KEY=hc-read-write-api-key" "$CONFIG_DIR/secrets/healthchecks.sops.env"
 }
 
 
