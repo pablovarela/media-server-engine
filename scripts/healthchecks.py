@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
+import json
 import os
+import sys
+import urllib.error
+import urllib.request
 from collections import namedtuple
 
 ENGINE_DIR = os.environ["ENGINE_DIR"]
@@ -66,3 +70,52 @@ def payload(job, slug, facts):
         "grace": check.grace,
         "unique": ["slug"],
     }
+
+
+def manage_key():
+    with open(os.path.join(ENGINE_DIR, ".secrets", "healthchecks.env")) as env:
+        lines = env.read().splitlines()
+    return dict(line.partition("=")[::2] for line in lines if line).get("HEALTHCHECKS_MANAGE_KEY", "")
+
+
+def set_up(key, body):
+    request = urllib.request.Request(API_URL, data=json.dumps(body).encode(), method="POST")
+    request.add_header("X-Api-Key", key)
+    request.add_header("Content-Type", "application/json")
+    with urllib.request.urlopen(request, timeout=30):
+        pass
+
+
+def warn(slug, reason):
+    print(f"healthchecks: could not set up {slug}: {reason}", file=sys.stderr)
+
+
+def sync(checks, facts):
+    key = manage_key()
+    if not key:
+        return
+    set_up_slugs = []
+    for job, slug in checks:
+        try:
+            set_up(key, payload(job, slug, facts))
+            set_up_slugs.append(slug)
+        except urllib.error.HTTPError as error:
+            warn(slug, f"healthchecks.io answered {error.code}")
+        except OSError as error:
+            warn(slug, getattr(error, "reason", error))
+    if set_up_slugs:
+        print(f"healthchecks: set up {', '.join(set_up_slugs)}")
+
+
+def facts_from_env():
+    return Facts(
+        name=os.environ["INSTALLATION_NAME"],
+        tz=os.environ.get("TZ") or "Etc/UTC",
+        repository=os.environ.get("RESTIC_REPOSITORY", ""),
+        ssh=os.environ["HEALTHCHECKS_SSH"],
+        directory=os.environ["HEALTHCHECKS_DIRECTORY"],
+    )
+
+
+if __name__ == "__main__":
+    sync([argument.split("=", 1) for argument in sys.argv[1:]], facts_from_env())

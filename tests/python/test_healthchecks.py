@@ -1,7 +1,9 @@
 import pytest
 
-from conftest import REPO, fresh_import
+from conftest import REPO, fresh_import, http_error
 
+API = "https://healthchecks.io/api/v3/checks/"
+MAIN = [("backup", "home-backup"), ("verify", "home-verify"), ("update", "home-update")]
 WEEKDAY_NUMBERS = {"Sun": "0", "Mon": "1", "Tue": "2", "Wed": "3", "Thu": "4", "Fri": "5", "Sat": "6"}
 
 
@@ -79,3 +81,49 @@ def test_a_check_is_matched_by_its_slug_and_gets_its_schedule_grace_time_zone_an
         "grace": 14400,
         "unique": ["slug"],
     }
+
+
+def with_manage_key(dirs):
+    (dirs.engine / ".secrets" / "healthchecks.env").write_text("HEALTHCHECKS_PING_KEY=ping\nHEALTHCHECKS_MANAGE_KEY=hc-manage\n")
+
+
+def test_the_main_sets_up_its_three_checks_with_the_manage_key(healthchecks, dirs, http, capsys):
+    with_manage_key(dirs)
+    http.on("POST", API, {})
+    healthchecks.sync(MAIN, facts(healthchecks))
+    assert [r.body for r in http.requests] == [healthchecks.payload(job, slug, facts(healthchecks)) for job, slug in MAIN]
+    assert {r.headers["X-api-key"] for r in http.requests} == {"hc-manage"}
+    assert capsys.readouterr().out == "healthchecks: set up home-backup, home-verify, home-update\n"
+
+
+def test_without_a_manage_key_nothing_is_sent_or_said(healthchecks, dirs, http, capsys):
+    (dirs.engine / ".secrets" / "healthchecks.env").write_text("HEALTHCHECKS_PING_KEY=ping\n")
+    healthchecks.sync(MAIN, facts(healthchecks))
+    assert http.requests == []
+    assert capsys.readouterr() == ("", "")
+
+
+def test_a_check_healthchecks_refuses_is_reported_and_the_others_are_still_set_up(healthchecks, dirs, http, capsys):
+    with_manage_key(dirs)
+    http.on("POST", API, http_error(401, '{"error": "wrong api key"}'), {}, {})
+    healthchecks.sync(MAIN, facts(healthchecks))
+    output = capsys.readouterr()
+    assert output.err == "healthchecks: could not set up home-backup: healthchecks.io answered 401\n"
+    assert output.out == "healthchecks: set up home-verify, home-update\n"
+
+
+def test_an_unreachable_healthchecks_is_reported_without_the_key(healthchecks, dirs, urlopen, capsys):
+    with_manage_key(dirs)
+    healthchecks.sync([("update", "home-update")], facts(healthchecks))
+    output = capsys.readouterr()
+    assert output.err == "healthchecks: could not set up home-update: no answer was set up for this request\n"
+    assert "hc-manage" not in output.err + output.out
+
+
+def test_the_facts_come_from_the_installation_and_utc_is_the_default_time_zone(healthchecks, monkeypatch):
+    monkeypatch.setenv("INSTALLATION_NAME", "home")
+    monkeypatch.delenv("TZ", raising=False)
+    monkeypatch.setenv("RESTIC_REPOSITORY", "/mnt/backup/home")
+    monkeypatch.setenv("HEALTHCHECKS_SSH", "me@media.example")
+    monkeypatch.setenv("HEALTHCHECKS_DIRECTORY", "~/home")
+    assert healthchecks.facts_from_env() == healthchecks.Facts("home", "Etc/UTC", "/mnt/backup/home", "me@media.example", "~/home")
