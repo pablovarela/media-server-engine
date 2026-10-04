@@ -65,6 +65,7 @@ func TestOperations(t *testing.T) {
 		service.EXPECT().Ps(ctx, "media-server", api.PsOptions{Project: project, All: true}).Return([]api.ContainerSummary{
 			{Name: "jellyfin", State: container.StateRunning, Health: container.Healthy, Publishers: api.PortPublishers{
 				{URL: "0.0.0.0", TargetPort: 8096, PublishedPort: 8096, Protocol: "tcp"},
+				{URL: "0.0.0.0", TargetPort: 1900, PublishedPort: 1900, Protocol: "udp"},
 				{URL: "::", TargetPort: 8096, PublishedPort: 8096, Protocol: "tcp"},
 				{TargetPort: 7359, Protocol: "udp"},
 			}},
@@ -76,7 +77,7 @@ func TestOperations(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []Container{
 			{Name: "configarr", State: "exited"},
-			{Name: "jellyfin", State: "running", Health: "healthy", Ports: []string{"8096->8096/tcp"}},
+			{Name: "jellyfin", State: "running", Health: "healthy", Ports: []string{"1900->1900/udp", "8096->8096/tcp"}},
 		}, containers)
 	})
 

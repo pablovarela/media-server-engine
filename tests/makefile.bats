@@ -62,11 +62,11 @@ setup() {
   dir=$(mktemp -d)
   mkdir -p "$dir/config"
   echo INSTALLATION_NAME=trial > "$dir/config/installation.env"
-  echo ENGINE_VERSION=v0.9.0 > "$dir/config/engine.env"
+  echo ENGINE_VERSION=v99.0.0 > "$dir/config/engine.env"
   run make -s -C "$REPO" version CONFIG_DIR="$dir/config"
   [ "$status" -eq 0 ]
   echo "$output" | grep -q "^engine: $(git -C "$REPO" describe --tags --always)"
-  echo "$output" | grep -q "^config pins: v0.9.0"
+  echo "$output" | grep -q "^config pins: v99.0.0"
   echo "$output" | grep -q "make update"
   rm -rf "$dir"
 }

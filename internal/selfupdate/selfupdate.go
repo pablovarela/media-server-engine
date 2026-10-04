@@ -30,6 +30,11 @@ type versionReader interface {
 
 var ErrDevBuild = errors.New("dev builds don't update themselves; install a release with install.sh")
 
+type Progress interface {
+	Checking(current string, force bool)
+	Updating(target string)
+}
+
 type Result struct {
 	From       string
 	To         string
@@ -50,10 +55,11 @@ func ArchiveName() string {
 	return fmt.Sprintf("mse_%s_%s.tar.gz", runtime.GOOS, runtime.GOARCH)
 }
 
-func (u *Updater) Update(ctx context.Context, current version.Build, force bool) (Result, error) {
+func (u *Updater) Update(ctx context.Context, current version.Build, force bool, progress Progress) (Result, error) {
 	if !semver.IsValid(current.Version) {
 		return Result{}, ErrDevBuild
 	}
+	progress.Checking(current.Version, force)
 	releases, err := u.source.Releases(ctx)
 	if err != nil {
 		return Result{}, err
@@ -63,6 +69,7 @@ func (u *Updater) Update(ctx context.Context, current version.Build, force bool)
 	if target == nil {
 		return result, nil
 	}
+	progress.Updating(target.Tag)
 	if err := u.install(ctx, *target); err != nil {
 		return Result{}, err
 	}
