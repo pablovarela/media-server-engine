@@ -103,3 +103,8 @@ file_mode() {
 without_systemd() {
   rm -rf "$SYSTEMD_RUNTIME_DIR" "$STUB_DIR/systemctl"
 }
+
+make_engine_run_stub() {
+  make_stub fake-engine-run 'command="fake-$1"; shift; exec "$command" "$@"'
+  export ENGINE_RUN=fake-engine-run
+}

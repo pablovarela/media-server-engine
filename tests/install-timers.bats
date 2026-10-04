@@ -8,8 +8,8 @@ setup() {
   mkdir -p "$UNIT_DIR"
   make_stub systemctl ''
   echo INSTALLATION_NAME=testinst > "$CONFIG_DIR/installation.env"
-  make_stub fake-role '[ "$1" = is-main ] && [ -z "${FAKE_SECONDARY:-}" ]'
-  export BACKUP_ROLE_COMMAND=fake-role
+  make_stub fake-backup-role '[ "$1" = is-main ] && [ -z "${FAKE_SECONDARY:-}" ]'
+  make_engine_run_stub
   make_stub sudo '"$@"'
 }
 
@@ -23,7 +23,7 @@ teardown() {
   grep -q "^WorkingDirectory=$ENGINE_DIR$" "$UNIT_DIR/media-backup.service"
   grep -q "^Environment=CONFIG_DIR=$(cd "$CONFIG_DIR" && pwd)$" "$UNIT_DIR/media-backup.service"
   grep -q "^Environment=DATA_DIR=$(cd "$DATA_DIR" && pwd)$" "$UNIT_DIR/media-backup.service"
-  grep -q "exec-env $(cd "$CONFIG_DIR" && pwd)/secrets/healthchecks.sops.env '.* exec-env $(cd "$CONFIG_DIR" && pwd)/secrets/backup.sops.env scripts/backup.py'$" "$UNIT_DIR/media-backup.service"
+  grep -q "exec-env $(cd "$CONFIG_DIR" && pwd)/secrets/healthchecks.sops.env '.* exec-env $(cd "$CONFIG_DIR" && pwd)/secrets/backup.sops.env scripts/engine-run backup'$" "$UNIT_DIR/media-backup.service"
   grep -q "^User=$(id -un)$" "$UNIT_DIR/media-backup.service"
   grep -q "^Environment=SOPS_AGE_KEY_FILE=$HOME/.config/sops/age/keys.txt$" "$UNIT_DIR/media-verify.service"
   ! grep -q "@" "$UNIT_DIR"/media-* || false
@@ -47,7 +47,7 @@ teardown() {
   run "$BATS_TEST_DIRNAME/../scripts/install-timers.sh" media-download-cleanup
   [ "$status" -eq 0 ]
   [ "$(ls "$UNIT_DIR" | tr '\n' ' ')" = "media-download-cleanup.service media-download-cleanup.timer " ]
-  grep -q "^ExecStart=$ENGINE_DIR/scripts/remove-executable-downloads.sh$" "$UNIT_DIR/media-download-cleanup.service"
+  grep -q "^ExecStart=$ENGINE_DIR/scripts/engine-run remove-executable-downloads$" "$UNIT_DIR/media-download-cleanup.service"
   grep -q "systemctl enable --now media-download-cleanup.timer$" "$STUB_LOG"
 }
 

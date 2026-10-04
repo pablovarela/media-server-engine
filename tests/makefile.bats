@@ -8,19 +8,19 @@ setup() {
     [ "$status" -eq 0 ]
     ! echo "$output" | grep -q systemctl || false
   done
-  make -s -n -C "$REPO" backup-now | grep -q "scripts/backup.py"
-  make -s -n -C "$REPO" verify-backup-now | grep -q "scripts/verify-backup.py"
+  make -s -n -C "$REPO" backup-now | grep -q "scripts/engine-run backup"
+  make -s -n -C "$REPO" verify-backup-now | grep -q "scripts/engine-run verify-backup"
 }
 
 @test "the timers run the same commands as the make targets" {
-  grep -q "scripts/backup.py" "$REPO/systemd/media-backup.service"
-  grep -q "scripts/verify-backup.py" "$REPO/systemd/media-verify.service"
+  grep -q "scripts/engine-run backup" "$REPO/systemd/media-backup.service"
+  grep -q "scripts/engine-run verify-backup" "$REPO/systemd/media-verify.service"
 }
 
 @test "the backup targets run the Python programs" {
-  make -s -n -C "$REPO" claim-backup-main | grep -q "scripts/claim-backup-main.py"
-  make -s -n -C "$REPO" unlock-backup | grep -q "scripts/unlock-backup.py"
-  make -s -n -C "$REPO" restore | grep -q "scripts/restore.py"
+  make -s -n -C "$REPO" claim-backup-main | grep -q "scripts/engine-run claim-backup-main"
+  make -s -n -C "$REPO" unlock-backup | grep -q "scripts/engine-run unlock-backup"
+  make -s -n -C "$REPO" restore | grep -q "scripts/engine-run restore"
 }
 
 @test "targets that need an installation say where installations are, run outside one" {
@@ -49,8 +49,8 @@ setup() {
 }
 
 @test "unlock-backup runs the unlock script with the backup secrets, and passes ALL" {
-  make -s -n -C "$REPO" unlock-backup | grep -q "backup.sops.env.*scripts/unlock-backup.py"
-  make -s -n -C "$REPO" unlock-backup ALL=1 | grep -q "scripts/unlock-backup.py --remove-all"
+  make -s -n -C "$REPO" unlock-backup | grep -q "backup.sops.env.*scripts/engine-run unlock-backup"
+  make -s -n -C "$REPO" unlock-backup ALL=1 | grep -q "scripts/engine-run unlock-backup --remove-all"
 }
 
 @test "make update installs the pinned tools before checking them" {
@@ -79,9 +79,16 @@ setup() {
 
 @test "make homepage re-renders the landing page, and nothing else" {
   make -s -n -C "$REPO" homepage | grep -q "scripts/homepage-render.sh"
-  ! make -s -n -C "$REPO" homepage | grep -qE "update\.(sh|py)|compose" || false
+  ! make -s -n -C "$REPO" homepage | grep -qE "engine-run update|compose" || false
 }
 
 @test "make update runs the Python update" {
-  make -s -n -C "$REPO" update | grep -q "scripts/update.py"
+  make -s -n -C "$REPO" update | grep -q "scripts/engine-run update"
+}
+
+@test "the app, version and image targets run engine-run" {
+  make -s -n -C "$REPO" urls | grep -q "scripts/engine-run urls"
+  make -s -n -C "$REPO" logins | grep -q "scripts/engine-run logins"
+  make -s -n -C "$REPO" version | grep -q "scripts/engine-run version"
+  make -s -n -C "$REPO" monitoring-start | grep -q "scripts/engine-run prune-stack-images"
 }

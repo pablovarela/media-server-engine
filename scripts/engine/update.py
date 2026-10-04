@@ -10,10 +10,10 @@ import sys
 import time
 import urllib.request
 
-from engine import backups, commands, compose, healthchecks, homepage, installation, program, secrets
+from engine import backups, commands, compose, healthchecks, homepage, images, installation, program, secrets, stack
 
 SCRIPTS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-UPDATE_PROGRAM = os.path.join(SCRIPTS_DIR, "update.py")
+ENGINE_RUN = os.path.join(SCRIPTS_DIR, "engine-run")
 GLUETUN_DEPENDENTS = ["prowlarr", "flaresolverr", "deluge"]
 
 
@@ -62,14 +62,9 @@ def wait_for_running_backup():
         time.sleep(seconds("UPDATE_BACKUP_POLL_SECONDS", 10))
 
 
-def pinned_engine_version():
-    with open(os.path.join(installation.config_dir(), "engine.env")) as pins:
-        return next((line.strip()[len("ENGINE_VERSION="):] for line in pins if line.startswith("ENGINE_VERSION=")), "")
-
-
 def switch_engine_and_restart_if_needed(argv):
     engine = installation.engine_dir()
-    wanted = pinned_engine_version()
+    wanted = installation.pinned_engine_version()
     if not wanted or wanted == "local":
         return
     current = commands.output(git(engine, "describe", "--tags", "--exact-match"), check=False, discard_errors=True).strip()
@@ -80,7 +75,7 @@ def switch_engine_and_restart_if_needed(argv):
         raise commands.Stop(f"engine version {wanted} not found; staying on {current or 'the current checkout'}")
     commands.run(git(engine, "checkout", "-q", "--detach", wanted))
     os.environ["MEDIA_SERVER_PULLED"] = "1"
-    os.execv(UPDATE_PROGRAM, [UPDATE_PROGRAM, *argv])
+    os.execv(ENGINE_RUN, [ENGINE_RUN, "update", *argv])
 
 
 def docker_socket_gid():
@@ -272,7 +267,7 @@ def update(argv):
     render_landing_page()
     homepage_env_changed()
     set_up_healthchecks()
-    commands.run([os.path.join(SCRIPTS_DIR, "check-stack.sh")])
+    stack.check()
     create_bind_mount_directories()
     pull_images()
     up = compose.run("up", "-d", "--remove-orphans", check=False)
@@ -283,7 +278,7 @@ def update(argv):
     refresh_homepage()
     if wired:
         raise commands.CommandFailed(wired)
-    commands.run([os.path.join(SCRIPTS_DIR, "prune-stack-images.sh")])
+    images.prune()
 
 
 def main(argv):

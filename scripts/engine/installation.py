@@ -122,3 +122,8 @@ def engine_page_url():
     if re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", version):
         return f"https://github.com/{found.group(1)}/releases/tag/{version}"
     return f"https://github.com/{found.group(1)}/commit/{engine_git('rev-parse', 'HEAD')}"
+
+
+def pinned_engine_version():
+    with open(os.path.join(config_dir(), "engine.env")) as pins:
+        return next((line.strip()[len("ENGINE_VERSION="):] for line in pins if line.startswith("ENGINE_VERSION=")), "")

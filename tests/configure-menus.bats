@@ -14,7 +14,7 @@ esac'
   make_stub gh '[ "$1 $2" != "auth status" ]'
   make_stub restic 'exit "${FAKE_RESTIC_STATUS:-10}"'
   make_stub fake-port-in-use 'false'
-  export PORT_IN_USE_COMMAND=fake-port-in-use
+  make_engine_run_stub
   WHIPTAIL_ANSWERS="$STUB_DIR/whiptail-answers"
   : > "$WHIPTAIL_ANSWERS"
   make_stub whiptail '

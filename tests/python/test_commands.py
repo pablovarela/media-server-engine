@@ -29,9 +29,9 @@ def test_a_command_runs_with_its_output_shown_and_its_status_returned(commands_m
 
 
 def test_a_failing_command_stops_the_program_with_its_status(commands_module, commands):
-    commands.on(["check-stack.sh"], done(returncode=3))
+    commands.on(["bootstrap.sh"], done(returncode=3))
     with pytest.raises(commands_module.CommandFailed) as failed:
-        commands_module.run(["/engine/scripts/check-stack.sh"])
+        commands_module.run(["/engine/scripts/bootstrap.sh"])
     assert failed.value.returncode == 3
 
 
@@ -84,7 +84,7 @@ def test_what_the_program_printed_is_written_out_before_a_command_runs(commands_
 
     monkeypatch.setattr(subprocess, "Popen", start)
     print("healthchecks: set up home-update")
-    commands_module.run(["check-stack.sh"])
+    commands_module.run(["bootstrap.sh"])
     assert seen["before"] == b"healthchecks: set up home-update\n"
 
 

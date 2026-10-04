@@ -20,7 +20,7 @@ esac'
   make_stub restic 'exit "${FAKE_RESTIC_STATUS:-10}"'
   make_stub fake-port-in-use '[[ " ${FAKE_PORTS_IN_USE:-} " == *" $1 "* ]]'
   make_stub git 'if [ "$1" = push ]; then echo PUSHED >> "$STUB_LOG"; [ -z "${FAKE_PUSH_FAILS:-}" ]; exit; fi; exec /usr/bin/git "$@"'
-  export PORT_IN_USE_COMMAND=fake-port-in-use
+  make_engine_run_stub
   export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.com GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.com
   printf 'creation_rules:\n  - path_regex: secrets/\n    age: age1test\n' > "$CONFIG_DIR/.sops.yaml"
 }
@@ -176,9 +176,9 @@ commits() {
 }
 
 @test "configure finds its port check when run by a relative path" {
-  unset PORT_IN_USE_COMMAND
+  unset ENGINE_RUN
   run bash -c "cd '$ENGINE_DIR' && NAME=testinst scripts/configure.sh" < <(answers_for_new_installation)
-  ! echo "$output" | grep -q "port-in-use.sh: No such file" || false
+  ! echo "$output" | grep -q "engine-run: No such file" || false
 }
 
 @test "configure refuses a config directory without .sops.yaml" {
