@@ -6,3 +6,4 @@ pkgname: "{{.SrcPackageName}}"
 structname: "mock{{.InterfaceName | firstUpper}}"
 packages:
   github.com/pablovarela/media-server-engine/internal/selfupdate: {}
+  github.com/pablovarela/media-server-engine/cmd: {}
