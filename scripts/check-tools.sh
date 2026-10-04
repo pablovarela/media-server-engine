@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -uo pipefail
-# shellcheck source=scripts/lib.sh
-source "$(dirname "$0")/lib.sh"
+ENGINE_DIR=${ENGINE_DIR:-$(cd "$(dirname "$0")/.." && pwd)}
+CONFIG_DIR=${CONFIG_DIR:-$(dirname "$ENGINE_DIR")/config}
 # shellcheck source=scripts/tool-versions.env
 source "$(dirname "$0")/tool-versions.env"
 # shellcheck source=scripts/tool-pins.sh

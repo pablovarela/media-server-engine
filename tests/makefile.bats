@@ -110,3 +110,14 @@ setup() {
 @test "the update timer runs the Python scheduled update with the ping key" {
   grep -q "^ExecStart=@SOPS@ exec-env @CONFIG_DIR@/secrets/healthchecks.sops.env scripts/engine-run scheduled-update$" "$REPO/systemd/media-update.service"
 }
+
+@test "the stack and installation targets run engine-run, with no lib.sh left" {
+  make -s -n -C "$REPO" media-start | grep -q "scripts/engine-run require-installation"
+  make -s -n -C "$REPO" media-start | grep -q "scripts/engine-run stack up -d$"
+  make -s -n -C "$REPO" media-stop | grep -q "scripts/engine-run stack down$"
+  make -s -n -C "$REPO" media-status | grep -q "scripts/engine-run stack ps$"
+  make -s -n -C "$REPO" monitoring-start | grep -q "scripts/engine-run monitoring up -d$"
+  make -s -n -C "$REPO" monitoring-stop | grep -q "scripts/engine-run monitoring down$"
+  make -s -n -C "$REPO" monitoring-status | grep -q "scripts/engine-run monitoring ps$"
+  ! grep -rqwF "lib.sh" "$REPO/Makefile" "$REPO/scripts" "$REPO/systemd" || false
+}
