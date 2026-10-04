@@ -3,6 +3,10 @@ package version
 import (
 	"fmt"
 	"runtime/debug"
+	"strconv"
+	"strings"
+
+	"golang.org/x/mod/semver"
 )
 
 var (
@@ -57,4 +61,15 @@ func (b Build) String() string {
 	default:
 		return "mse " + b.Version
 	}
+}
+
+func (b Build) Major() int {
+	if !semver.IsValid(b.Version) {
+		return 0
+	}
+	major, err := strconv.Atoi(strings.TrimPrefix(semver.Major(b.Version), "v"))
+	if err != nil {
+		return 0
+	}
+	return major
 }

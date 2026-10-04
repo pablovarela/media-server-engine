@@ -60,3 +60,18 @@ func withVCS(revision, modified string) *debug.BuildInfo {
 		{Key: "vcs.modified", Value: modified},
 	}}
 }
+func TestMajor(t *testing.T) {
+	tests := map[string]struct {
+		Given struct{ version string }
+		Then  struct{ major int }
+	}{
+		"release 0.x": {Given: struct{ version string }{"v0.8.0"}, Then: struct{ major int }{0}},
+		"release 1.x": {Given: struct{ version string }{"v1.2.3"}, Then: struct{ major int }{1}},
+		"dev build":   {Given: struct{ version string }{"dev"}, Then: struct{ major int }{0}},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tt.Then.major, Build{Version: tt.Given.version}.Major())
+		})
+	}
+}
