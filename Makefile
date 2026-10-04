@@ -1,4 +1,4 @@
-.PHONY: help installation test-scripts lint go-build go-test go-lint release-snapshot urls logins create-installation join-installation setup-machine bootstrap pinned-tools configure update install-update-timer claim-backup-main check-tools test restore backup-now verify-backup-now unlock-backup version homepage install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
+.PHONY: help installation test-scripts lint go-build go-test go-lint go-mocks release-snapshot urls logins create-installation join-installation setup-machine bootstrap pinned-tools configure update install-update-timer claim-backup-main check-tools test restore backup-now verify-backup-now unlock-backup version homepage install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
 
 SHELL := /bin/bash
 CONFIG_DIR ?= $(abspath $(CURDIR)/../config)
@@ -80,6 +80,10 @@ go-test: ## run the Go tests with coverage into coverage.out (GO_TEST_FLAGS pass
 go-lint: ## lint the Go code with golangci-lint (GOLANGCI_LINT runs another golangci-lint binary)
 	@command -v go >/dev/null || { echo "go missing: brew install go" >&2; exit 1; }
 	@$(GOLANGCI_LINT) run
+
+go-mocks: ## regenerate the Go test mocks from .mockery.yml
+	@command -v go >/dev/null || { echo "go missing: brew install go" >&2; exit 1; }
+	@$(GO_TOOL) mockery
 
 release-snapshot: ## build every release archive into dist/ without publishing (GORELEASER runs another goreleaser binary)
 	@command -v go >/dev/null || { echo "go missing: brew install go" >&2; exit 1; }
