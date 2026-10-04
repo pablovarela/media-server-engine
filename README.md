@@ -64,7 +64,7 @@ Elsewhere, such as a Raspberry Pi without gh, export a token (a fine-grained tok
     curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
       https://raw.githubusercontent.com/pablovarela/media-server-engine/main/install.sh | sh
 
-`install.sh` takes the token from `GITHUB_TOKEN`, or from `gh auth token` when gh is installed. It installs the latest release into `~/.local/bin`. Settings for `install.sh` go on its side of the pipe: `… | MSE_VERSION=v0.7.0 sh` picks a release, and `MSE_INSTALL_DIR` another directory. It checks the archive against the release's `checksums.txt` before installing, and leaves the installed `mse` in place when anything fails.
+`install.sh` takes the token from `GITHUB_TOKEN`, or from `gh auth token` when gh is installed. It installs the latest release into `~/.local/bin`. Settings for `install.sh` go on its side of the pipe: `… | MSE_VERSION=v0.7.0 sh` picks a release, and `MSE_INSTALL_DIR` another directory. It checks the archive against the release's `checksums.txt` before installing, and leaves the installed `mse` in place when the download or the check fails.
 
 From a clone, `make go-build` builds `dist/mse` for the machine it runs on.
 
