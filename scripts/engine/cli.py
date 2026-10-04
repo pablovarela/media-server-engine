@@ -1,6 +1,6 @@
 import sys
 
-from engine import apps, backups, claim, downloads, images, ports, restore, role, unlock, update, verify, version
+from engine import apps, backups, claim, downloads, images, ports, restore, role, timers, unlock, update, verify, version
 
 COMMANDS = {
     "update": update.main,
@@ -16,6 +16,7 @@ COMMANDS = {
     "version": version.main,
     "remove-executable-downloads": downloads.main,
     "port-in-use": ports.main,
+    "install-timers": timers.main,
 }
 
 
