@@ -1,6 +1,8 @@
 import subprocess
 import sys
 
+TIMED_OUT = 124
+
 
 class Stop(Exception):
     def __init__(self, message, prefixed=True):
@@ -30,10 +32,15 @@ def forward(signum):
     return True
 
 
-def finished(args, child, input=None):
+def finished(args, child, input=None, timeout=None):
     RUNNING.append(child)
     try:
-        stdout, stderr = child.communicate(input)
+        stdout, stderr = child.communicate(input, timeout=timeout)
+        returncode = child.returncode
+    except subprocess.TimeoutExpired:
+        child.kill()
+        stdout, stderr = child.communicate()
+        returncode = TIMED_OUT
     except KeyboardInterrupt:
         child.wait()
         raise
@@ -41,10 +48,10 @@ def finished(args, child, input=None):
         RUNNING.remove(child)
     if STOP_ONCE_FINISHED:
         raise SystemExit(STOP_ONCE_FINISHED.pop())
-    return subprocess.CompletedProcess(args, child.returncode, stdout, stderr)
+    return subprocess.CompletedProcess(args, returncode, stdout, stderr)
 
 
-def completed(args, input=None, **options):
+def completed(args, input=None, timeout=None, **options):
     if PASSED_TO_CHILDREN:
         options["pass_fds"] = tuple(sorted(PASSED_TO_CHILDREN))
     sys.stdout.flush()
@@ -52,7 +59,7 @@ def completed(args, input=None, **options):
     try:
         if input is not None:
             options["stdin"] = subprocess.PIPE
-        result = finished(args, subprocess.Popen(args, text=True, **options), input)
+        result = finished(args, subprocess.Popen(args, text=True, **options), input, timeout)
     except FileNotFoundError:
         if options.get("stderr") is not subprocess.DEVNULL:
             print(f"{args[0]}: command not found", file=sys.stderr)
@@ -85,9 +92,14 @@ def combined(args, env=None):
     return result.returncode, result.stdout
 
 
-def captured(args, env=None, input=None):
-    result = completed(args, input=input, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+def captured(args, env=None, input=None, timeout=None):
+    result = completed(args, input=input, timeout=timeout, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return result.returncode, result.stdout, result.stderr
+
+
+def dialog(args):
+    result = completed(args, stderr=subprocess.PIPE)
+    return result.returncode, result.stderr
 
 
 def quiet(args):

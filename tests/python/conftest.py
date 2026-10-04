@@ -140,6 +140,34 @@ def real():
     return SimpleNamespace(real=True, then=None)
 
 
+def replied(reply):
+    return SimpleNamespace(reply=reply, then=None)
+
+
+def timed_out(stdout="", stderr=""):
+    return SimpleNamespace(stdout=stdout, stderr=stderr, returncode=-9, then=None, timed_out=True)
+
+
+def whiptail(commands, *answers):
+    def more_than_scripted():
+        raise AssertionError("whiptail was asked more than scripted")
+
+    scripted = [done(stderr=answer.partition("|")[2], returncode=int(answer.partition("|")[0])) for answer in answers]
+    commands.on(["whiptail"], *scripted, done(then=more_than_scripted))
+    commands.on(["whiptail", "--msgbox"])
+
+
+def whiptail_screens(commands):
+    return [" ".join(command.args) for command in commands.ran if command.args[0] == "whiptail"]
+
+
+def guided_answers(folder):
+    return [
+        "0|Europe", "0|London", "0|local", "0|admin", "0|local", f"0|{folder}", "0|restic-typed", "0|protonvpn", "0|vpn-user", "0|vpn-password",
+        "0|Ireland", "0|", "0|", "0|", "0|jelly-typed", "0|", "0|portainer-pass-long", "0|en", "0|",
+    ]
+
+
 class Process:
     def __init__(self, args, outcome, options):
         self.args = args
@@ -148,17 +176,24 @@ class Process:
         self.returncode = None
         self.signals = []
         self.input = None
+        self.killed = False
 
-    def communicate(self, input=None):
+    def communicate(self, input=None, timeout=None):
         self.input = input
+        if getattr(self.outcome, "timed_out", False) and timeout is not None and not self.killed:
+            raise subprocess.TimeoutExpired(self.args, timeout)
         if self.outcome.then:
             self.outcome.then()
-        result = completed(self.args, self.outcome, self.options)
+        outcome = done(stdout=self.outcome.reply(self.args, input)) if hasattr(self.outcome, "reply") else self.outcome
+        result = completed(self.args, outcome, self.options)
         self.returncode = result.returncode
         return result.stdout, result.stderr
 
     def wait(self):
         return self.returncode
+
+    def kill(self):
+        self.killed = True
 
     def send_signal(self, signum):
         self.signals.append(signum)

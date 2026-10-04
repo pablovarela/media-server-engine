@@ -37,7 +37,7 @@ install-update-timer: installation check-tools ## schedule make update daily at 
 	@scripts/engine-run install-timers media-update
 
 configure: ## set or change this installation's settings and secrets interactively (ROTATE=sonarr regenerates one internal key)
-	@scripts/configure.sh $(if $(ROTATE),--rotate $(ROTATE))
+	@scripts/engine-run configure $(if $(ROTATE),--rotate $(ROTATE))
 
 pinned-tools: ## install the pinned sops, age and restic where the installed version differs (Linux; Homebrew manages them on macOS)
 	@scripts/bootstrap.sh --pinned-tools

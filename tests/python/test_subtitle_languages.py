@@ -1,7 +1,12 @@
 import pytest
 import yaml
 
-import subtitle_languages
+from conftest import fresh_engine
+
+
+@pytest.fixture
+def subtitle_languages():
+    return fresh_engine("engine.subtitle_languages")
 
 
 @pytest.fixture
@@ -9,49 +14,49 @@ def apps(tmp_path):
     return tmp_path / "apps.yml"
 
 
-def set_languages(apps, wanted):
-    subtitle_languages.main(str(apps), wanted)
+def set_languages(subtitle_languages, apps, wanted):
+    subtitle_languages.write(str(apps), wanted)
 
 
 def languages_read_back(apps):
     return yaml.safe_load(apps.read_text())["bazarr"]["languages"]
 
 
-def test_changing_the_languages_changes_only_that_line_keeping_its_comment_and_the_rest(apps):
+def test_changing_the_languages_changes_only_that_line_keeping_its_comment_and_the_rest(subtitle_languages, apps):
     before = "# deluge stays seeding for two days\ndeluge:\n  seed: 48\nbazarr:\n  languages: [en]  # what bazarr fetches\n"
     apps.write_text(before)
-    set_languages(apps, "en, es")
+    set_languages(subtitle_languages, apps, "en, es")
     assert apps.read_text() == before.replace("languages: [en]  #", "languages: [en, es]  #")
 
 
-def test_languages_written_as_a_block_list_are_replaced_in_place(apps):
+def test_languages_written_as_a_block_list_are_replaced_in_place(subtitle_languages, apps):
     apps.write_text("bazarr:\n  languages:\n    - en\n    - fr\n  providers: [x]\nmaintainerr: {}\n")
-    set_languages(apps, "es")
+    set_languages(subtitle_languages, apps, "es")
     assert apps.read_text() == "bazarr:\n  languages: [es]\n  providers: [x]\nmaintainerr: {}\n"
 
 
-def test_a_bazarr_section_without_languages_gets_the_line_at_its_indentation(apps):
+def test_a_bazarr_section_without_languages_gets_the_line_at_its_indentation(subtitle_languages, apps):
     apps.write_text("bazarr:\n    providers: [x]\n")
-    set_languages(apps, "en")
+    set_languages(subtitle_languages, apps, "en")
     assert apps.read_text() == "bazarr:\n    languages: [en]\n    providers: [x]\n"
 
 
-def test_a_file_without_a_bazarr_section_gets_one(apps):
+def test_a_file_without_a_bazarr_section_gets_one(subtitle_languages, apps):
     apps.write_text("seerr:\n  libraries: [Shows]\n")
-    set_languages(apps, "en, es")
+    set_languages(subtitle_languages, apps, "en, es")
     assert apps.read_text() == "seerr:\n  libraries: [Shows]\nbazarr:\n  languages: [en, es]\n"
 
 
-def test_languages_already_as_wanted_leave_the_file_untouched(apps):
+def test_languages_already_as_wanted_leave_the_file_untouched(subtitle_languages, apps):
     before = "bazarr:\n  languages:   [en]   # spaced by hand\n"
     apps.write_text(before)
-    set_languages(apps, "en")
+    set_languages(subtitle_languages, apps, "en")
     assert apps.read_text() == before
 
 
-def test_a_code_yaml_would_read_as_something_other_than_text_is_quoted_so_it_stays_a_language(apps):
+def test_a_code_yaml_would_read_as_something_other_than_text_is_quoted_so_it_stays_a_language(subtitle_languages, apps):
     apps.write_text("bazarr:\n  languages: [en]\n")
-    set_languages(apps, "en, no")
+    set_languages(subtitle_languages, apps, "en, no")
     assert languages_read_back(apps) == ["en", "no"]
     assert "  languages: [en, 'no']\n" in apps.read_text()
 
@@ -63,9 +68,9 @@ def test_a_code_yaml_would_read_as_something_other_than_text_is_quoted_so_it_sta
         pytest.param("bazarr:\n  languages: [en,\n    fr]\n", id="languages spread over several lines"),
     ],
 )
-def test_a_layout_it_cannot_edit_line_by_line_is_left_alone_with_a_hint(apps, layout):
+def test_a_layout_it_cannot_edit_line_by_line_is_left_alone_with_a_hint(subtitle_languages, apps, layout):
     apps.write_text(layout)
-    with pytest.raises(SystemExit) as stopped:
-        set_languages(apps, "en, es")
+    with pytest.raises(subtitle_languages.commands.Stop) as stopped:
+        set_languages(subtitle_languages, apps, "en, es")
     assert "set bazarr.languages to [en, es] by hand" in str(stopped.value)
     assert apps.read_text() == layout

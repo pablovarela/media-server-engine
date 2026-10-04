@@ -1,7 +1,8 @@
 import re
-import sys
 
 import yaml
+
+from engine import commands
 
 
 def as_yaml_text(code):
@@ -61,7 +62,7 @@ def languages_in(text):
         return None
 
 
-def main(path, wanted):
+def write(path, wanted):
     codes = [code.strip() for code in wanted.split(",") if code.strip()]
     text = open(path).read()
     current = languages_in(text)
@@ -69,10 +70,7 @@ def main(path, wanted):
         return
     updated = with_languages(text, codes)
     if updated is None or languages_in(updated) != codes:
-        sys.exit(f"could not set the subtitle languages in {path}; set bazarr.languages to {plain(codes)} by hand")
+        raise commands.Stop(f"could not set the subtitle languages in {path}; set bazarr.languages to {plain(codes)} by hand")
     with open(path, "w") as out:
         out.write(updated)
 
-
-if __name__ == "__main__":
-    main(*sys.argv[1:3])

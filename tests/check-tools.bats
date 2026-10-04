@@ -109,10 +109,8 @@ teardown() {
   echo "$output" | grep -q "docker is not running"
 }
 
-@test "check-tools checks perl and openssl, which configure and the backups use" {
-  run "$BATS_TEST_DIRNAME/../scripts/check-tools.sh"
-  echo "$output" | grep -q "OK .*perl$"
-  echo "$output" | grep -q "OK .*openssl$"
+@test "perl and openssl are not needed" {
+  ! grep -E "^for tool in " "$BATS_TEST_DIRNAME/../scripts/check-tools.sh" | grep -qwE "perl|openssl" || false
 }
 
 @test "the sqlite3 command is not needed" {

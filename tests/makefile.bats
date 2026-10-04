@@ -101,3 +101,8 @@ setup() {
   make -s -n -C "$REPO" install-backup-timers | grep -q "scripts/engine-run install-timers media-backup media-verify"
   make -s -n -C "$REPO" install-download-cleanup-timer | grep -q "scripts/engine-run install-timers media-download-cleanup"
 }
+
+@test "make configure runs the Python configure, passing ROTATE on" {
+  make -s -n -C "$REPO" configure | grep -qE "scripts/engine-run configure *$"
+  make -s -n -C "$REPO" configure ROTATE=sonarr | grep -q "scripts/engine-run configure --rotate sonarr$"
+}
