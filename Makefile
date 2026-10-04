@@ -66,6 +66,8 @@ test-python: ## run the Python tests with pytest through uv (PYTHON=3.9 runs the
 	@uv run --frozen $(if $(PYTHON),--python $(PYTHON)) pytest $(PYTEST_FLAGS)
 
 GO_TOOL = go tool -modfile=tools/go.mod
+GOLANGCI_LINT ?= $(GO_TOOL) golangci-lint
+GORELEASER ?= $(GO_TOOL) goreleaser
 
 go-build: ## build mse for this machine into dist/mse
 	@command -v go >/dev/null || { echo "go missing: brew install go" >&2; exit 1; }
@@ -75,14 +77,14 @@ go-test: ## run the Go tests with coverage into coverage.out (GO_TEST_FLAGS pass
 	@command -v go >/dev/null || { echo "go missing: brew install go" >&2; exit 1; }
 	@$(GO_TOOL) gotestsum $(GO_TEST_FLAGS) -- -coverprofile=coverage.out ./...
 
-go-lint: ## lint the Go code with golangci-lint
+go-lint: ## lint the Go code with golangci-lint (GOLANGCI_LINT runs another golangci-lint binary)
 	@command -v go >/dev/null || { echo "go missing: brew install go" >&2; exit 1; }
-	@$(GO_TOOL) golangci-lint run
+	@$(GOLANGCI_LINT) run
 
-release-snapshot: ## build every release archive into dist/ without publishing
+release-snapshot: ## build every release archive into dist/ without publishing (GORELEASER runs another goreleaser binary)
 	@command -v go >/dev/null || { echo "go missing: brew install go" >&2; exit 1; }
-	@$(GO_TOOL) goreleaser check
-	@$(GO_TOOL) goreleaser release --snapshot --clean
+	@$(GORELEASER) check
+	@$(GORELEASER) release --snapshot --clean
 
 lint: ## shellcheck every script and lint the Go code, reporting both before failing
 	@command -v shellcheck >/dev/null || { echo "shellcheck missing: brew install shellcheck" >&2; exit 1; }

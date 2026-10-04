@@ -23,7 +23,7 @@
 - New logic that is mostly API calls or YAML is written in Python, not shell.
 - `mse`, the Go engine, lives in `main.go`, `cmd/` (Cobra commands and their flags) and `internal/` (everything else). Commands write to the command's `OutOrStdout()` and `ErrOrStderr()`, and errors reach the user once, as `mse: <error>`.
 - Go tests are table-driven, with `Given`, `When` and `Then` structs (`When` left out when every case runs the same action), and use testify. `make go-test` writes `coverage.out`.
-- Go's dev tools are pinned in `tools/go.mod` and run as `go tool -modfile=tools/go.mod <tool>`, so the engine's `go.mod` holds only what `mse` uses.
+- Go's dev tools are pinned in `tools/go.mod` and run as `go tool -modfile=tools/go.mod <tool>`, so the engine's `go.mod` holds only what `mse` uses. CI reads golangci-lint's and GoReleaser's versions from that file and runs the same Makefile targets with their prebuilt binaries, rather than compiling them on every run.
 - Follow-ups and ideas for later are GitHub issues in this repository.
 
 ## Renovate
