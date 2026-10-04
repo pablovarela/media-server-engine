@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"testing"
 
@@ -81,7 +82,7 @@ func TestUpdateCommand(t *testing.T) {
 			root.SetOut(&stdout)
 			root.SetErr(&stderr)
 
-			code := run(root, tt.When.args)
+			code := run(context.Background(), root, tt.When.args)
 
 			assert.Equal(t, tt.Then.code, code)
 			assert.Equal(t, tt.Then.stdout, stdout.String())
