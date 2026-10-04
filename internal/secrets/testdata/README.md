@@ -1,0 +1,1 @@
+`age.key` is a throwaway key made for these tests and used nowhere else. `apps.sops.env` is encrypted for it; to change it, decrypt with `SOPS_AGE_KEY_FILE=age.key sops decrypt apps.sops.env`, edit, and encrypt again with `sops encrypt --age "$(age-keygen -y age.key)" --input-type dotenv --output-type dotenv`.
