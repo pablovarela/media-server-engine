@@ -6,13 +6,12 @@ setup() {
   make_stub sops 'if [ "$1" = exec-env ]; then shift 2; eval "$*"; fi'
   make_stub restic 'echo "[{\"id\":\"s1\"}]"'
   make_stub systemctl ''
-  for step in check-tools restore update install-timers claim; do make_stub "fake-$step" ''; done
+  for step in check-tools restore update install-timers claim-backup-main; do make_stub "fake-$step" ''; done
   make_stub fake-update 'echo "update role=${MACHINE_ROLE:-}" >> "$STUB_LOG"'
-  make_stub fake-role '[ "$1" = is-main ]'
-  make_stub fake-apps 'echo "Jellyfin     http://homeserver.local:8096"'
-  export APPS_COMMAND=fake-apps
-  export CHECK_TOOLS_COMMAND=fake-check-tools RESTORE_COMMAND=fake-restore UPDATE_COMMAND=fake-update \
-    INSTALL_TIMERS_COMMAND=fake-install-timers CLAIM_COMMAND=fake-claim BACKUP_ROLE_COMMAND=fake-role
+  make_stub fake-backup-role '[ "$1" = is-main ]'
+  make_stub fake-urls 'echo "Jellyfin     http://homeserver.local:8096"'
+  export CHECK_TOOLS_COMMAND=fake-check-tools INSTALL_TIMERS_COMMAND=fake-install-timers
+  make_engine_run_stub
 }
 
 teardown() {
@@ -38,7 +37,7 @@ setup_machine() {
   without_systemd
   PATH="$STUB_DIR:/usr/bin:/bin" run setup_machine < <(echo y)
   [ "$status" -eq 0 ]
-  grep -q "^fake-claim" "$STUB_LOG"
+  grep -q "^fake-claim-backup-main" "$STUB_LOG"
   ! grep -q "^fake-install-timers" "$STUB_LOG" || false
 }
 
@@ -91,8 +90,8 @@ setup_machine() {
 }
 
 @test "the main question names the current main, and a yes is not asked again by the claim" {
-  make_stub fake-role 'case $1 in is-main) exit 1 ;; describe-main) echo "pi, last backup 2026-09-30 04:30" ;; esac'
-  make_stub fake-claim 'echo "confirmed=${CLAIM_CONFIRMED:-}" >> "$STUB_LOG"'
+  make_stub fake-backup-role 'case $1 in is-main) exit 1 ;; describe-main) echo "pi, last backup 2026-09-30 04:30" ;; esac'
+  make_stub fake-claim-backup-main 'echo "confirmed=${CLAIM_CONFIRMED:-}" >> "$STUB_LOG"'
   run setup_machine < <(echo y)
   [ "$status" -eq 0 ]
   echo "$output" | grep -q "pi, last backup 2026-09-30 04:30"

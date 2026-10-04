@@ -40,10 +40,10 @@ except FileNotFoundError:
 print(", ".join(languages or ["en"]))'
 }
 
-PORT_IN_USE_COMMAND=${PORT_IN_USE_COMMAND:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/port-in-use.sh}
+ENGINE_RUN=${ENGINE_RUN:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/engine-run}
 
 port_in_use() {
-  "$PORT_IN_USE_COMMAND" "$1"
+  "$ENGINE_RUN" port-in-use "$1"
 }
 
 first_free_landing_page_port() {

@@ -23,13 +23,14 @@ esac'
   make_stub restic 'if [ "$1" = snapshots ]; then if [ -n "${FAKE_NO_SNAPSHOTS:-}" ]; then echo "[]"; else echo "[{\"id\":\"s1\"}]"; fi; fi'
   make_stub systemctl ''
   make_stub age-keygen 'if [ "$1" = -y ]; then case "$(cat)" in AGE-SECRET-KEY-*) echo age1public ;; *) echo "error at line 1: unknown identity type" >&2; exit 1 ;; esac; fi'
-  for step in bootstrap deploy-keys check-tools restore update install-timers claim; do
+  for step in bootstrap deploy-keys check-tools restore update install-timers claim-backup-main; do
     make_stub "fake-$step" ''
   done
-  make_stub fake-role '[ "$1" = is-main ] && [ -z "${FAKE_OTHER_MAIN:-}" ]'
+  make_stub fake-urls ''
+  make_stub fake-backup-role '[ "$1" = is-main ] && [ -z "${FAKE_OTHER_MAIN:-}" ]'
   export BOOTSTRAP_COMMAND=fake-bootstrap DEPLOY_KEYS_COMMAND=fake-deploy-keys CHECK_TOOLS_COMMAND=fake-check-tools \
-    RESTORE_COMMAND=fake-restore UPDATE_COMMAND=fake-update INSTALL_TIMERS_COMMAND=fake-install-timers \
-    CLAIM_COMMAND=fake-claim BACKUP_ROLE_COMMAND=fake-role
+    INSTALL_TIMERS_COMMAND=fake-install-timers
+  make_engine_run_stub
   rmdir "$CONFIG_DIR"
 }
 
@@ -96,19 +97,19 @@ line_of() {
 
 @test "answering yes makes the machine the main with backup timers" {
   run join testinst < <(printf 'AGE-SECRET-KEY-GOOD\ny\n')
-  grep -q "^fake-claim" "$STUB_LOG"
+  grep -q "^fake-claim-backup-main" "$STUB_LOG"
   grep -q "^fake-install-timers media-backup media-verify$" "$STUB_LOG"
 }
 
 @test "answering no leaves backups to the main" {
   run join testinst < <(printf 'AGE-SECRET-KEY-GOOD\nn\n')
-  ! grep -q "^fake-claim" "$STUB_LOG" || false
+  ! grep -q "^fake-claim-backup-main" "$STUB_LOG" || false
   ! grep -q "media-backup" "$STUB_LOG" || false
 }
 
 @test "the main question defaults to no when another machine is the main" {
   FAKE_OTHER_MAIN=1 run join testinst < <(printf 'AGE-SECRET-KEY-GOOD\n\n')
-  ! grep -q "^fake-claim" "$STUB_LOG" || false
+  ! grep -q "^fake-claim-backup-main" "$STUB_LOG" || false
   echo "$output" | grep -q "another machine"
 }
 

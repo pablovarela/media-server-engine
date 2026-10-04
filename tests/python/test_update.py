@@ -129,11 +129,11 @@ def test_a_local_only_config_is_used_as_it_is_without_pulling(update, commands, 
 
 
 def test_local_changes_in_the_engine_stop_the_update_before_pulling(update, commands, dirs, capsys):
-    commands.on(["git", "-C", str(dirs.engine), "status"], done(stdout=" M scripts/update.py\n"))
+    commands.on(["git", "-C", str(dirs.engine), "status"], done(stdout=" M scripts/engine/update.py\n"))
     assert update.run() == 1
     err = capsys.readouterr().err
     assert err == (
-        " M scripts/update.py\n"
+        " M scripts/engine/update.py\n"
         f"update: uncommitted changes in the engine at {dirs.engine}; an installation's engine is not edited, change the engine repository instead\n"
     )
     assert commands.ran[0].args == ["git", "-C", str(dirs.engine), "status", "--porcelain", "--untracked-files=no"]

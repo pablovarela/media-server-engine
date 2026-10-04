@@ -9,7 +9,8 @@ setup() {
   make_stub fake-check-tools 'if [ -n "${FAKE_TOOLS_BROKEN:-}" ]; then exit 1; fi'
   make_stub fake-update 'echo "update-env api=${HEALTHCHECKS_API_KEY:-} manage=${HEALTHCHECKS_MANAGE_KEY:-}" >> "$STUB_LOG"; if [ -n "${FAKE_UPDATE_FAILS:-}" ]; then exit 1; fi'
   make_stub fake-pinned-tools ''
-  export CHECK_TOOLS_COMMAND=fake-check-tools UPDATE_COMMAND=fake-update PINNED_TOOLS_COMMAND=fake-pinned-tools
+  export CHECK_TOOLS_COMMAND=fake-check-tools PINNED_TOOLS_COMMAND=fake-pinned-tools
+  make_engine_run_stub
 }
 
 teardown() {

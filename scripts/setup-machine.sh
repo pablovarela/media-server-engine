@@ -5,12 +5,8 @@ source "$(dirname "$0")/lib.sh"
 SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 CHECK_TOOLS_COMMAND=${CHECK_TOOLS_COMMAND:-$SCRIPTS_DIR/check-tools.sh}
-RESTORE_COMMAND=${RESTORE_COMMAND:-$SCRIPTS_DIR/restore.py}
-UPDATE_COMMAND=${UPDATE_COMMAND:-$SCRIPTS_DIR/update.py}
+ENGINE_RUN=${ENGINE_RUN:-$SCRIPTS_DIR/engine-run}
 INSTALL_TIMERS_COMMAND=${INSTALL_TIMERS_COMMAND:-$SCRIPTS_DIR/install-timers.sh}
-CLAIM_COMMAND=${CLAIM_COMMAND:-$SCRIPTS_DIR/claim-backup-main.py}
-BACKUP_ROLE_COMMAND=${BACKUP_ROLE_COMMAND:-$SCRIPTS_DIR/backup-role.py}
-APPS_COMMAND=${APPS_COMMAND:-$SCRIPTS_DIR/apps.sh}
 export SOPS_AGE_KEY_FILE=${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}
 
 load_installation
@@ -28,8 +24,8 @@ has_backups() {
 
 wants_to_be_main() {
   local default=y answer
-  if ! with_backup_secrets "$BACKUP_ROLE_COMMAND" is-main; then
-    echo "another machine is $INSTALLATION_NAME's main ($(with_backup_secrets "$BACKUP_ROLE_COMMAND" describe-main)); say yes only to take over from it" >&2
+  if ! with_backup_secrets "$ENGINE_RUN" backup-role is-main; then
+    echo "another machine is $INSTALLATION_NAME's main ($(with_backup_secrets "$ENGINE_RUN" backup-role describe-main)); say yes only to take over from it" >&2
     default=n
   fi
   ask answer "Make this machine $INSTALLATION_NAME's main, the one that backs up? (y/n)" "$default"
@@ -38,24 +34,24 @@ wants_to_be_main() {
 
 "$CHECK_TOOLS_COMMAND"
 if [ -n "${RESTORE_FROM_BACKUP:-}" ] && has_backups; then
-  with_backup_secrets "$RESTORE_COMMAND"
+  with_backup_secrets "$ENGINE_RUN" restore
 fi
 become_main=""
 if wants_to_be_main; then become_main=1; fi
 if [ -n "$become_main" ]; then
-  MACHINE_ROLE=main "$UPDATE_COMMAND"
+  MACHINE_ROLE=main "$ENGINE_RUN" update
 else
-  "$UPDATE_COMMAND"
+  "$ENGINE_RUN" update
 fi
 if systemd_running; then
   "$INSTALL_TIMERS_COMMAND" media-update media-download-cleanup
   if [ -n "$become_main" ]; then
-    CLAIM_CONFIRMED=1 sops exec-env "$CONFIG_DIR/secrets/healthchecks.sops.env" "sops exec-env '$CONFIG_DIR/secrets/backup.sops.env' '$CLAIM_COMMAND'"
+    CLAIM_CONFIRMED=1 sops exec-env "$CONFIG_DIR/secrets/healthchecks.sops.env" "sops exec-env '$CONFIG_DIR/secrets/backup.sops.env' '$ENGINE_RUN' claim-backup-main"
     with_backup_secrets "$INSTALL_TIMERS_COMMAND" media-backup media-verify
   fi
 else
   if [ -n "$become_main" ]; then
-    CLAIM_CONFIRMED=1 sops exec-env "$CONFIG_DIR/secrets/healthchecks.sops.env" "sops exec-env '$CONFIG_DIR/secrets/backup.sops.env' '$CLAIM_COMMAND'"
+    CLAIM_CONFIRMED=1 sops exec-env "$CONFIG_DIR/secrets/healthchecks.sops.env" "sops exec-env '$CONFIG_DIR/secrets/backup.sops.env' '$ENGINE_RUN' claim-backup-main"
   fi
 fi
 print_summary() {
@@ -69,7 +65,7 @@ print_summary() {
   echo "It lives in $installation; run make from there."
   echo
   echo "Apps (make urls lists them again):"
-  "$APPS_COMMAND" urls | sed 's/^/  /'
+  "$ENGINE_RUN" urls | sed 's/^/  /'
   echo "Their logins: make logins (shows the passwords on this terminal)."
   echo
   echo "Everyday commands:"
