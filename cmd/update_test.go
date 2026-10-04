@@ -77,7 +77,7 @@ func TestUpdateCommand(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			update := newMockUpdater(t)
 			update.EXPECT().Update(mock.Anything, build, tt.When.force).Return(tt.Given.result, tt.Given.err)
-			root := NewRootCommand(build, update)
+			root := NewRootCommand(Dependencies{Build: build, Update: update})
 			var stdout, stderr bytes.Buffer
 			root.SetOut(&stdout)
 			root.SetErr(&stderr)

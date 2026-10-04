@@ -1,0 +1,24 @@
+services:
+  jellyfin:
+    image: placeholder
+    environment:
+      TZ: ${TZ:-Etc/UTC}
+    volumes:
+      - ${DATA_DIR}/volumes/jellyfin:/config
+    env_file: .secrets/apps.env
+  configarr:
+    image: placeholder
+    profiles: [wiring]
+    volumes:
+      - ${CONFIG_DIR}/configarr:/app/config:ro
+  homepage:
+    image: placeholder
+    profiles: [homepage]
+    ports:
+      - ${HOMEPAGE_PORT:-80}:3000
+    environment:
+      HOMEPAGE_ALLOWED_HOSTS: ${HOMEPAGE_ALLOWED_HOSTS:?HOMEPAGE_ALLOWED_HOSTS is required}
+  portainer:
+    image: placeholder
+    group_add:
+      - ${DOCKER_GID:?DOCKER_GID is required}

@@ -45,7 +45,7 @@ func TestRun(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			root := NewRootCommand(build, newMockUpdater(t))
+			root := NewRootCommand(Dependencies{Build: build, Update: newMockUpdater(t)})
 			var stdout, stderr bytes.Buffer
 			root.SetOut(&stdout)
 			root.SetErr(&stderr)
