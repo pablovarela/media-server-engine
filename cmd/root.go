@@ -29,7 +29,7 @@ func Execute() int {
 func run(root *cobra.Command, args []string) int {
 	root.SetArgs(args)
 	if err := root.Execute(); err != nil {
-		fmt.Fprintf(root.ErrOrStderr(), "mse: %v\n", err)
+		_, _ = fmt.Fprintf(root.ErrOrStderr(), "mse: %v\n", err)
 		return 1
 	}
 	return 0

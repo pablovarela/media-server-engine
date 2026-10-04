@@ -1,0 +1,41 @@
+version: "2"
+linters:
+  enable:
+    - bodyclose
+    - goconst
+    - gocritic
+    - gocyclo
+    - gosec
+    - misspell
+    - noctx
+    - reassign
+    - revive
+    - whitespace
+  settings:
+    gocyclo:
+      min-complexity: 10
+    revive:
+      rules:
+        - name: package-comments
+          disabled: true
+        - name: exported
+          disabled: true
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - goconst
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  enable:
+    - gci
+    - gofmt
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/pablovarela/media-server-engine)
+      custom-order: true
