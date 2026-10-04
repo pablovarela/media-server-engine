@@ -1,6 +1,6 @@
 module github.com/pablovarela/media-server-engine/tools
 
-go 1.27
+go 1.27.1
 
 tool (
 	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
