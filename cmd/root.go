@@ -3,6 +3,8 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"os/signal"
@@ -11,30 +13,68 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/pablovarela/media-server-engine/internal/compose"
 	"github.com/pablovarela/media-server-engine/internal/github"
+	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/secrets"
 	"github.com/pablovarela/media-server-engine/internal/selfupdate"
 	"github.com/pablovarela/media-server-engine/internal/version"
 )
 
-func NewRootCommand(build version.Build, update updater) *cobra.Command {
+type Dependencies struct {
+	Build       version.Build
+	Update      updater
+	Engine      fs.FS
+	Environment func(string) string
+	Home        string
+	Host        installation.Host
+	Decrypt     secrets.Decrypter
+	Compose     func(out, errOut io.Writer) (composeRunner, error)
+}
+
+func NewRootCommand(deps Dependencies) *cobra.Command {
 	root := &cobra.Command{
 		Use:           "mse",
 		Short:         "Run a media-server installation",
-		Version:       build.String(),
+		Version:       deps.Build.String(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
 	root.SetVersionTemplate("{{.Version}}\n")
-	root.AddCommand(newVersionCommand(build), newUpdateCommand(build, update))
+	root.PersistentFlags().String("installation", "", "the installation to use, when there are several (or MSE_INSTALLATION)")
+	root.AddCommand(
+		newVersionCommand(deps.Build),
+		newUpdateCommand(deps.Build, deps.Update),
+		newURLsCommand(deps),
+		newLoginsCommand(deps),
+		newProjectCommand(deps, "stack", "Run the media server's containers", compose.Stack),
+		newProjectCommand(deps, "monitoring", "Run the monitoring containers", compose.Monitoring),
+	)
 	return root
 }
 
-func Execute() int {
+func Execute(engine fs.FS) int {
 	ctx, stop := interruptible()
 	defer stop()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "mse: %v\n", err)
+		return 1
+	}
 	client := github.NewClient(github.SystemTokenSource(), &http.Client{Timeout: 5 * time.Minute})
-	update := selfupdate.New(client, os.Executable, selfupdate.SystemVersionReader{})
-	return run(ctx, NewRootCommand(version.Current(), update), os.Args[1:])
+	deps := Dependencies{
+		Build:       version.Current(),
+		Update:      selfupdate.New(client, os.Executable, selfupdate.SystemVersionReader{}),
+		Engine:      engine,
+		Environment: os.Getenv,
+		Home:        home,
+		Host:        installation.SystemHost(),
+		Decrypt:     secrets.Sops,
+		Compose: func(out, errOut io.Writer) (composeRunner, error) {
+			return compose.NewRunner(out, errOut)
+		},
+	}
+	return run(ctx, NewRootCommand(deps), os.Args[1:])
 }
 
 func interruptible() (context.Context, context.CancelFunc) {
