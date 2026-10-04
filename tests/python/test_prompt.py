@@ -49,3 +49,17 @@ def test_a_secret_from_a_pipe_is_read_as_a_line(prompt, monkeypatch, capsys):
     typed(monkeypatch, "AGE-SECRET-KEY-1\n")
     assert prompt.secret("Paste the secrets key: ") == "AGE-SECRET-KEY-1"
     assert capsys.readouterr().err == "Paste the secrets key: \n"
+
+
+
+def test_an_answer_read_from_a_pipe_leaves_the_next_lines_for_the_programs_started_after(prompt, monkeypatch):
+    read_end, write_end = os.pipe()
+    os.write(write_end, b"n\nnext answer\n")
+    os.close(write_end)
+    stdin = os.fdopen(read_end)
+    monkeypatch.setattr(sys, "stdin", stdin)
+    try:
+        assert prompt.ask("Make this machine the main? (y/n)", "y") == "n"
+        assert os.read(read_end, 100) == b"next answer\n"
+    finally:
+        stdin.close()

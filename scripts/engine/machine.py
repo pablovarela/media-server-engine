@@ -13,13 +13,13 @@ def secrets(name):
     return os.path.join(installation.config_dir(), "secrets", name)
 
 
-def with_backup_secrets(*words, check=True, capture=False):
+def with_backup_secrets(*words, check=True, capture=False, quiet=False):
     argv = ["sops", "exec-env", secrets("backup.sops.env"), shlex.join(words)]
-    return commands.output(argv, check=check) if capture else commands.run(argv, check=check)
+    return commands.output(argv, check=check, discard_errors=quiet) if capture else commands.run(argv, check=check)
 
 
 def has_backups():
-    listing = with_backup_secrets("restic", "snapshots", "--no-lock", "--latest", "1", "--json", check=False, capture=True)
+    listing = with_backup_secrets("restic", "snapshots", "--no-lock", "--latest", "1", "--json", check=False, capture=True, quiet=True)
     try:
         return len(json.loads(listing) or []) > 0
     except ValueError:

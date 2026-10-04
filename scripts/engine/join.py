@@ -26,10 +26,7 @@ def ensure_secrets_key(name, config_repository):
     if os.path.isfile(keys_file()):
         with open(keys_file()) as keys:
             previous = keys.read()
-    descriptor = os.open(keys_file(), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
-    with os.fdopen(descriptor, "a") as keys:
-        keys.write(key + "\n")
-    os.chmod(keys_file(), 0o600)
+    create.add_secret_key(key)
     if not secrets_key_works():
         if previous is None:
             os.remove(keys_file())

@@ -218,3 +218,24 @@ def test_run_from_an_engine_elsewhere_creating_moves_into_the_installation_first
     monkeypatch.setattr(create.installation, "move_into", lambda name, command: moved.append((name, command)))
     create.main(["testinst"])
     assert moved == [("testinst", "create-installation")]
+
+
+
+def test_stopping_at_the_save_it_prompt_removes_the_new_key(create, commands, monkeypatch, tmp_path, capsys):
+    existing_keys(tmp_path)
+    commands.on(["age-keygen", "-y"], done(stdout="age1existing\n"), done(stdout="age1newpublic\n"))
+
+    def interrupted():
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(create.prompt, "line", interrupted)
+    assert create.main(["testinst"]) == 130
+    assert keys_file(tmp_path).read_text() == "AGE-SECRET-KEY-EXISTING\n"
+    assert "was removed and is no longer needed" in capsys.readouterr().err
+
+
+def test_a_keys_file_without_a_last_newline_keeps_its_key_whole(create, tmp_path):
+    keys_file(tmp_path).parent.mkdir(parents=True)
+    keys_file(tmp_path).write_text("AGE-SECRET-KEY-EXISTING")
+    assert create.main(["testinst"]) == 0
+    assert keys_file(tmp_path).read_text() == "AGE-SECRET-KEY-EXISTING\nAGE-SECRET-KEY-NEW\n"

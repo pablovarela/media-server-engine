@@ -4,7 +4,7 @@ import shutil
 import sys
 import tempfile
 
-from engine import commands, installation, program
+from engine import commands, installation, program, prompt
 
 SOPS_CONFIG = "creation_rules:\n  - path_regex: (^|/)secrets/[^/]+\\.sops\\.env$\n    age: {}\n"
 SCRIPTS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -19,7 +19,26 @@ def keys_file():
     return os.environ["SOPS_AGE_KEY_FILE"]
 
 
-def new_secrets_key(name):
+def ends_mid_line(path):
+    if not os.path.isfile(path) or os.path.getsize(path) == 0:
+        return False
+    with open(path, "rb") as file:
+        file.seek(-1, os.SEEK_END)
+        return file.read(1) != b"\n"
+
+
+def add_secret_key(secret):
+    folder = os.path.dirname(keys_file())
+    os.makedirs(folder, exist_ok=True)
+    os.chmod(folder, 0o700)
+    separator = b"\n" if ends_mid_line(keys_file()) else b""
+    descriptor = os.open(keys_file(), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+    with os.fdopen(descriptor, "ab") as keys:
+        keys.write(separator + secret.encode() + b"\n")
+    os.chmod(keys_file(), 0o600)
+
+
+def new_secrets_key():
     with tempfile.TemporaryDirectory() as scratch:
         generated = os.path.join(scratch, "key")
         if commands.quiet(["age-keygen", "-o", generated]) != 0:
@@ -28,20 +47,17 @@ def new_secrets_key(name):
             lines = key.read().splitlines()
     public = next(line[len("# public key: "):] for line in lines if line.startswith("# public key: "))
     secret = next(line for line in lines if line.startswith("AGE-SECRET-KEY-"))
-    folder = os.path.dirname(keys_file())
-    os.makedirs(folder, exist_ok=True)
-    os.chmod(folder, 0o700)
-    descriptor = os.open(keys_file(), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
-    with os.fdopen(descriptor, "a") as keys:
-        keys.write(secret + "\n")
-    os.chmod(keys_file(), 0o600)
+    add_secret_key(secret)
+    return public, secret
+
+
+def show_secrets_key(name, secret):
     print(
         f"The secrets key for {name}. Save this line in your password manager now; without it nothing in {name}'s config can be decrypted:\n\n"
         f"{secret}\n\nPress Enter once it is saved. ",
         end="", file=sys.stderr, flush=True,
     )
-    sys.stdin.readline()
-    return public
+    prompt.line()
 
 
 def remove_secrets_key(public):
@@ -115,7 +131,8 @@ def create(argv):
         commands.run([os.path.join(SCRIPTS_DIR, "bootstrap.sh")])
         os.makedirs(config, exist_ok=True)
         os.makedirs(data, exist_ok=True)
-        public = new_secrets_key(name)
+        public, secret = new_secrets_key()
+        show_secrets_key(name, secret)
         fill_template(repository)
         pin_engine_version()
         with open(os.path.join(config, ".sops.yaml"), "w") as sops:

@@ -161,3 +161,12 @@ def test_a_repository_that_cannot_be_read_counts_as_having_no_backups_to_restore
     answering(monkeypatch, "n\n")
     assert machine.main([]) == 0
     assert not any(args[-1] == "restore" for args in inner(commands))
+
+
+
+def test_looking_for_backups_keeps_restics_complaints_out_of_the_setup(machine, commands, monkeypatch, capsys):
+    os.environ["RESTORE_FROM_BACKUP"] = "1"
+    commands.on(["sops", "exec-env", "backup.sops.env", "restic snapshots --no-lock --latest 1 --json"], done(stderr="Fatal: unable to open config file\n", returncode=1))
+    answering(monkeypatch, "n\n")
+    machine.main([])
+    assert "Fatal" not in capsys.readouterr().err

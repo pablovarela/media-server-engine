@@ -152,3 +152,11 @@ def test_secrets_key_works_asks_sops_to_decrypt_the_vpn_secrets(dirs, commands, 
     commands.on(["sops", "decrypt", f"{dirs.config}/secrets/vpn.sops.env"], done(returncode=1), done())
     assert module.secrets_key_works() is False
     assert module.secrets_key_works() is True
+
+
+
+def test_a_keys_file_without_a_last_newline_keeps_its_key_whole_when_a_key_is_added(join, monkeypatch, tmp_path):
+    existing_keys(tmp_path, "AGE-SECRET-KEY-OTHER-INSTALLATION")
+    answering(monkeypatch, GOOD + "\n")
+    assert join.main(["testinst"]) == 0
+    assert keys_file(tmp_path).read_text() == "AGE-SECRET-KEY-OTHER-INSTALLATION\n" + GOOD + "\n"
