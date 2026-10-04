@@ -27,9 +27,10 @@ type Release struct {
 }
 
 type Client struct {
-	tokens TokenSource
-	token  string
-	http   *http.Client
+	tokens      TokenSource
+	token       string
+	tokenSource string
+	http        *http.Client
 }
 
 func NewClient(tokens TokenSource, httpClient *http.Client) *Client {
@@ -66,11 +67,11 @@ func (c *Client) Download(ctx context.Context, assetID int64, w io.Writer) error
 
 func (c *Client) get(ctx context.Context, url, accept string, read func(io.Reader) error) error {
 	if c.token == "" {
-		token, err := c.tokens.Token(ctx)
+		token, source, err := c.tokens.Token(ctx)
 		if err != nil {
 			return err
 		}
-		c.token = token
+		c.token, c.tokenSource = token, source
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -83,8 +84,12 @@ func (c *Client) get(ctx context.Context, url, accept string, read func(io.Reade
 		return err
 	}
 	defer func() { _ = response.Body.Close() }()
-	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("GitHub answered %s: check the token can read %s", response.Status, repository)
+	switch response.StatusCode {
+	case http.StatusOK:
+		return read(response.Body)
+	case http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound:
+		return fmt.Errorf("GitHub answered %s: check the token from %s can read %s", response.Status, c.tokenSource, repository)
+	default:
+		return fmt.Errorf("GitHub answered %s", response.Status)
 	}
-	return read(response.Body)
 }

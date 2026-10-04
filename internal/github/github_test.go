@@ -81,11 +81,15 @@ func TestReleases(t *testing.T) {
 		},
 		"token without access": {
 			Given: Given{status: http.StatusNotFound, body: `{"message": "Not Found"}`},
-			Then:  Then{err: "list the releases of pablovarela/media-server-engine: GitHub answered 404 Not Found: check the token can read pablovarela/media-server-engine"},
+			Then:  Then{err: "list the releases of pablovarela/media-server-engine: GitHub answered 404 Not Found: check the token from GITHUB_TOKEN can read pablovarela/media-server-engine"},
+		},
+		"GitHub failing": {
+			Given: Given{status: http.StatusInternalServerError, body: `{"message": "Server Error"}`},
+			Then:  Then{err: "list the releases of pablovarela/media-server-engine: GitHub answered 500 Internal Server Error"},
 		},
 		"expired token": {
 			Given: Given{status: http.StatusUnauthorized, body: `{"message": "Bad credentials"}`},
-			Then:  Then{err: "list the releases of pablovarela/media-server-engine: GitHub answered 401 Unauthorized: check the token can read pablovarela/media-server-engine"},
+			Then:  Then{err: "list the releases of pablovarela/media-server-engine: GitHub answered 401 Unauthorized: check the token from GITHUB_TOKEN can read pablovarela/media-server-engine"},
 		},
 	}
 	for name, tt := range tests {
@@ -137,7 +141,7 @@ func TestDownload(t *testing.T) {
 			Given: Given{exchanges: []exchange{
 				{url: assetURL, authorization: "Bearer test-token", accept: "application/octet-stream", status: http.StatusNotFound},
 			}},
-			Then: Then{err: "download asset 101: GitHub answered 404 Not Found: check the token can read pablovarela/media-server-engine"},
+			Then: Then{err: "download asset 101: GitHub answered 404 Not Found: check the token from GITHUB_TOKEN can read pablovarela/media-server-engine"},
 		},
 	}
 	for name, tt := range tests {

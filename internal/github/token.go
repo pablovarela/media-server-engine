@@ -22,14 +22,14 @@ func SystemTokenSource() TokenSource {
 	}
 }
 
-func (s TokenSource) Token(ctx context.Context) (string, error) {
+func (s TokenSource) Token(ctx context.Context) (token, source string, err error) {
 	if token := s.Getenv("GITHUB_TOKEN"); token != "" {
-		return token, nil
+		return token, "GITHUB_TOKEN", nil
 	}
 	if out, err := s.GHToken(ctx); err == nil {
 		if token := strings.TrimSpace(string(out)); token != "" {
-			return token, nil
+			return token, "gh auth token", nil
 		}
 	}
-	return "", errors.New("set GITHUB_TOKEN to a token that can read " + repository + ", or log in with gh auth login")
+	return "", "", errors.New("set GITHUB_TOKEN to a token that can read " + repository + ", or log in with gh auth login")
 }

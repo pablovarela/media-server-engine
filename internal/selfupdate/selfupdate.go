@@ -125,7 +125,7 @@ func (u *Updater) replace(ctx context.Context, path string, binary []byte, tag s
 		return fmt.Errorf("cannot write to %s: %w", dir, err)
 	}
 	if err := os.Chmod(staged.Name(), 0o755); err != nil { //nolint:gosec // mse must stay executable
-		return err
+		return fmt.Errorf("cannot write to %s: %w", dir, err)
 	}
 	out, err := u.versions.Version(ctx, staged.Name())
 	if err != nil {

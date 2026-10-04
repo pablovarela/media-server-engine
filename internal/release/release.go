@@ -16,8 +16,6 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/github"
 )
 
-const maxBinarySize = 256 << 20
-
 func Choose(current string, releases []github.Release, force bool) (target, newerMajor *github.Release) {
 	for i := range releases {
 		candidate := &releases[i]
@@ -72,7 +70,7 @@ func ExtractBinary(archive []byte) ([]byte, error) {
 			return nil, fmt.Errorf("read the archive: %w", err)
 		}
 		if header.Name == "mse" && header.Typeflag == tar.TypeReg {
-			return io.ReadAll(io.LimitReader(files, maxBinarySize))
+			return io.ReadAll(files)
 		}
 	}
 }

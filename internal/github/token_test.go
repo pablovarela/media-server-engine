@@ -15,8 +15,9 @@ func TestToken(t *testing.T) {
 		ghError error
 	}
 	type Then struct {
-		token string
-		err   string
+		token  string
+		source string
+		err    string
 	}
 	noToken := "set GITHUB_TOKEN to a token that can read pablovarela/media-server-engine, or log in with gh auth login"
 	tests := map[string]struct {
@@ -25,11 +26,11 @@ func TestToken(t *testing.T) {
 	}{
 		"from GITHUB_TOKEN": {
 			Given: Given{env: "env-token", gh: "gh-token\n"},
-			Then:  Then{token: "env-token"},
+			Then:  Then{token: "env-token", source: "GITHUB_TOKEN"},
 		},
 		"from gh when GITHUB_TOKEN is empty": {
 			Given: Given{gh: "gh-token\n"},
-			Then:  Then{token: "gh-token"},
+			Then:  Then{token: "gh-token", source: "gh auth token"},
 		},
 		"gh missing or logged out": {
 			Given: Given{ghError: errors.New("exec: \"gh\": executable file not found in $PATH")},
@@ -42,7 +43,7 @@ func TestToken(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			source := TokenSource{
+			tokens := TokenSource{
 				Getenv: func(key string) string {
 					assert.Equal(t, "GITHUB_TOKEN", key)
 					return tt.Given.env
@@ -50,9 +51,10 @@ func TestToken(t *testing.T) {
 				GHToken: func(context.Context) ([]byte, error) { return []byte(tt.Given.gh), tt.Given.ghError },
 			}
 
-			token, err := source.Token(context.Background())
+			token, source, err := tokens.Token(context.Background())
 
 			assert.Equal(t, tt.Then.token, token)
+			assert.Equal(t, tt.Then.source, source)
 			if tt.Then.err == "" {
 				assert.NoError(t, err)
 			} else {
