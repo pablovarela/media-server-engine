@@ -1,0 +1,9 @@
+all: true
+template: testify
+dir: "{{.InterfaceDir}}"
+filename: mocks_test.go
+pkgname: "{{.SrcPackageName}}"
+structname: "mock{{.InterfaceName | firstUpper}}"
+packages:
+  github.com/pablovarela/media-server-engine/internal/selfupdate: {}
+  github.com/pablovarela/media-server-engine/cmd: {}

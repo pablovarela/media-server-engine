@@ -41,7 +41,8 @@ jobs:
           make go-test GO_TEST_FLAGS="--junitfile reports/go.xml"
           go=$?
           if [ -f coverage.out ]; then
-            { echo '### Go test coverage'; echo '```'; go tool cover -func=coverage.out | tail -n 1; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            go tool cover -func=coverage.out | scripts/go-coverage-report.sh > reports/go-coverage.md
+            cat reports/go-coverage.md >> "$GITHUB_STEP_SUMMARY"
           fi
           echo "status=$((scripts || python || go))" >> "$GITHUB_OUTPUT"
       - name: Report the Python test coverage
@@ -52,6 +53,12 @@ jobs:
           pytest-coverage-path: reports/pytest-coverage.txt
           junitxml-path: reports/pytest.xml
           hide-comment: ${{ github.event_name != 'pull_request' }}
+      - name: Report the Go test coverage
+        if: always() && github.event_name == 'pull_request' && hashFiles('reports/go-coverage.md') != ''
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          header: go-coverage
+          path: reports/go-coverage.md
       - name: Report the test results
         if: always()
         uses: EnricoMi/publish-unit-test-result-action@d0a4676d0e0b938bc201470d88276b7c74c712b3 # v2.24.0
