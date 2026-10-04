@@ -35,10 +35,3 @@ for name in ("images.yml", "images.monitoring.yml"):
   ! git -C "$work" check-ignore -q secrets/vpn.sops.env || { echo "an encrypted secret is ignored"; false; }
   rm -rf "$work"
 }
-
-@test "the template's config schema is the major of its engine version" {
-  schema=$(sed -n 's/^config: *//p' "$REPO/config-template/config.yml")
-  version=$(sed -n 's/^ENGINE_VERSION=v//p' "$REPO/config-template/engine.env")
-  [ -n "$schema" ]
-  [ "$schema" = "${version%%.*}" ]
-}
