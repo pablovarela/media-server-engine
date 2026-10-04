@@ -53,7 +53,7 @@ From then on, run make from the installation, `cd ~/<name>` (its Makefile passes
 
 ## Installing mse
 
-`mse` is the engine's Go binary; `mse version` is its only command so far. It is built for Linux and macOS on amd64 and arm64, and installed from a GitHub release. The repository is private, so installing needs a token that can read it. Where gh is logged in:
+`mse` is the engine's Go binary; `mse version` prints its version and `mse update` updates it. It is built for Linux and macOS on amd64 and arm64, and installed from a GitHub release. The repository is private, so installing needs a token that can read it. Where gh is logged in:
 
     curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
       https://raw.githubusercontent.com/pablovarela/media-server-engine/main/install.sh | sh
@@ -65,6 +65,8 @@ Elsewhere, such as a Raspberry Pi without gh, export a token (a fine-grained tok
       https://raw.githubusercontent.com/pablovarela/media-server-engine/main/install.sh | sh
 
 `install.sh` takes the token from `GITHUB_TOKEN`, or from `gh auth token` when gh is installed. It installs the latest release into `~/.local/bin`. Settings for `install.sh` go on its side of the pipe: `… | MSE_VERSION=v0.7.0 sh` picks a release, and `MSE_INSTALL_DIR` another directory. It checks the archive against the release's `checksums.txt` before installing, and leaves the installed `mse` in place when the download or the check fails.
+
+`mse update` replaces the installed `mse` with the newest release of its major version, after checking it against `checksums.txt` and running it once; it takes the token the same way as `install.sh`. A newer major version can need config changes, so `mse update` only says it is available; `mse update --force` installs it.
 
 From a clone, `make go-build` builds `dist/mse` for the machine it runs on.
 

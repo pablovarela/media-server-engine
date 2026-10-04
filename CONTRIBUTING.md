@@ -22,7 +22,8 @@
 - The engine's programs are written in the `engine` package, `scripts/engine/`, and started as `scripts/engine-run <command>`. Every command they run goes through `engine.commands`, and tests answer those commands with the `commands` fixture, as the `http` fixture answers requests.
 - New logic that is mostly API calls or YAML is written in Python, not shell.
 - `mse`, the Go engine, lives in `main.go`, `cmd/` (Cobra commands and their flags) and `internal/` (everything else). Commands write to the command's `OutOrStdout()` and `ErrOrStderr()`, and errors reach the user once, as `mse: <error>`.
-- Go tests are table-driven, with `Given`, `When` and `Then` structs (`When` left out when every case runs the same action), and use testify. `make go-test` writes `coverage.out`.
+- Go tests are table-driven, with `Given`, `When` and `Then` structs (`When` left out when every case runs the same action), and use testify. `make go-test` writes `coverage.out` for `cmd/` and `internal/`; pull requests get it as a comment listing the functions not fully covered, read as questions, not a target.
+- Interfaces a Go test mocks are narrow and declared where they are used; Mockery generates their mocks (`make go-mocks`, configured in `.mockery.yml`) into `mocks_test.go` files, which are committed. HTTP is mocked with an `http.RoundTripper` that states each expected request and its answer.
 - Go's dev tools are pinned in `tools/go.mod` and run as `go tool -modfile=tools/go.mod <tool>`, so the engine's `go.mod` holds only what `mse` uses. CI reads golangci-lint's and GoReleaser's versions from that file and runs the same Makefile targets with their prebuilt binaries, rather than compiling them on every run.
 - Follow-ups and ideas for later are GitHub issues in this repository.
 
@@ -34,7 +35,7 @@ A pull request for sops, age or restic fails `tool-pins` until the SHA256 next t
 
 ## Releases
 
-Releases are tags on `main`, `vMAJOR.MINOR.PATCH`. Until 1.0.0 a minor release may change the config format; its release notes say what an installation has to change.
+Releases are tags on `main`, `vMAJOR.MINOR.PATCH`. The major version is also the version of the config format: the template's `config-template/config.yml` holds it as `config:`, and a release that bumps the major bumps that too (a test checks they match). `mse update` installs any newer release of the same major, so from 1.0.0 a minor or patch release must not need config changes. Until then every 0.x release is the same major: a 0.x release may still change the config, and its notes say what to change.
 
 1. In a pull request, set `config-template/engine.env` to the new version.
 2. Once it is merged and CI passes on `main`, tag that commit and push the tag: `git tag -a v0.7.0 -m v0.7.0 && git push origin v0.7.0`.
