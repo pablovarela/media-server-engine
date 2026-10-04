@@ -1,8 +1,10 @@
 import http.client
+import time
+from unittest import mock
 
 import pytest
 
-from conftest import REPO, done, fresh_engine, http_error
+from conftest import REPO, done, fresh_engine, http_error, refused
 
 API = "https://healthchecks.io/api/v3/checks/"
 MAIN = [("backup", "home-backup"), ("verify", "home-verify"), ("update", "home-update")]
@@ -181,3 +183,58 @@ def test_a_hanging_healthchecks_holds_the_update_no_longer_than_a_ping_would(hea
     with_manage_key(dirs)
     healthchecks.sync([("update", "home-update")], facts(healthchecks))
     assert urlopen.call_args.kwargs["timeout"] == 10
+
+
+PINGS = "https://hc-ping.com/pk"
+
+
+@pytest.fixture
+def pinging(dirs, monkeypatch):
+    monkeypatch.setenv("INSTALLATION_NAME", "testinst")
+    monkeypatch.setenv("HEALTHCHECKS_PING_KEY", "pk")
+    monkeypatch.setattr(time, "sleep", mock.Mock())
+    return fresh_engine("engine.healthchecks")
+
+
+def test_a_check_is_named_after_the_installation_and_a_secondarys_update_after_its_host(pinging, monkeypatch):
+    monkeypatch.setattr(pinging.installation, "short_hostname", lambda: "laptop")
+    assert pinging.slug("backup") == "testinst-backup"
+    assert pinging.slug("update", "main") == "testinst-update"
+    assert pinging.slug("update", "secondary") == "testinst-update-laptop"
+    assert pinging.slug("backup", "secondary") == "testinst-backup"
+
+
+def test_a_ping_creates_the_check_on_first_use_and_puts_the_suffix_before_the_query(pinging, http):
+    http.on("GET", f"{PINGS}/testinst-backup/fail?create=1", {})
+    pinging.ping("backup", "/fail")
+    assert [r.path for r in http.requests] == ["/pk/testinst-backup/fail?create=1"]
+
+
+def test_a_refused_ping_is_tried_again(pinging, http):
+    http.on("GET", f"{PINGS}/testinst-verify?create=1", refused(), {})
+    pinging.ping("verify")
+    assert len(http.requests) == 2
+    time.sleep.assert_called_once_with(1)
+
+
+def test_a_ping_that_never_gets_through_warns_without_the_key_and_carries_on(pinging, urlopen, capsys):
+    pinging.ping("backup", "/start")
+    assert urlopen.call_count == 4
+    assert [call.args[0] for call in time.sleep.call_args_list] == [1, 2, 4]
+    err = capsys.readouterr().err
+    assert err == "healthchecks: could not report testinst-backup/start: no answer was set up for this request\n"
+    assert "pk" not in err
+
+
+def test_a_ping_healthchecks_refuses_is_not_tried_again(pinging, http, capsys):
+    http.on("GET", f"{PINGS}/testinst-backup?create=1", http_error(404))
+    pinging.ping("backup")
+    assert len(http.requests) == 1
+    assert capsys.readouterr().err == "healthchecks: could not report testinst-backup: healthchecks.io answered 404\n"
+
+
+def test_without_a_ping_key_nothing_is_sent_and_a_warning_is_logged(pinging, monkeypatch, urlopen, capsys):
+    monkeypatch.delenv("HEALTHCHECKS_PING_KEY")
+    pinging.ping("backup", "/fail")
+    urlopen.assert_not_called()
+    assert capsys.readouterr().err == "no healthchecks ping key configured; not reporting backup/fail\n"

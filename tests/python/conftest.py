@@ -1,6 +1,7 @@
 import importlib
 import io
 import json
+import os
 import subprocess
 import sys
 import urllib.error
@@ -199,3 +200,12 @@ def fresh_engine(name):
     for module in [module for module in sys.modules if module == "engine" or module.startswith("engine.")]:
         sys.modules.pop(module)
     return importlib.import_module(name)
+
+
+@pytest.fixture
+def installed(dirs, commands, monkeypatch):
+    monkeypatch.setattr(os, "environ", dict(os.environ))
+    (dirs.config / "installation.env").write_text("INSTALLATION_NAME=testinst\n")
+    os.environ.update(INSTALLATION_NAME="testinst", HEALTHCHECKS_PING_KEY="pk")
+    commands.on(["bash", "-c"], real())
+    return dirs

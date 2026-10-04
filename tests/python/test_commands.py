@@ -81,3 +81,14 @@ def test_what_the_program_printed_is_written_out_before_a_command_runs(commands_
 def test_a_command_killed_by_a_signal_fails_with_the_status_the_shell_gives(commands_module, monkeypatch):
     monkeypatch.setattr(subprocess, "run", lambda args, **options: subprocess.CompletedProcess(args, -9))
     assert commands_module.run(["docker", "compose", "up"], check=False) == 137
+
+
+def test_captured_keeps_output_and_errors_apart(commands_module, commands):
+    commands.on(["restic", "snapshots"], done(stdout="[]\n", stderr="Fatal: wrong password\n", returncode=12))
+    assert commands_module.captured(["restic", "snapshots"]) == (12, "[]\n", "Fatal: wrong password\n")
+
+
+def test_quiet_returns_the_status_and_shows_nothing(commands_module, commands, capsys):
+    commands.on(["restic", "cat", "config"], done(stdout="{}\n", stderr="Fatal: repository does not exist\n", returncode=10))
+    assert commands_module.quiet(["restic", "cat", "config"]) == 10
+    assert capsys.readouterr() == ("", "")

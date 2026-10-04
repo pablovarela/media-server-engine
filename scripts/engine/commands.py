@@ -25,7 +25,9 @@ def completed(args, **options):
     except FileNotFoundError:
         if options.get("stderr") is not subprocess.DEVNULL:
             print(f"{args[0]}: command not found", file=sys.stderr)
-        return subprocess.CompletedProcess(args, 127, "" if options.get("stdout") == subprocess.PIPE else None)
+        captured_stdout = "" if options.get("stdout") == subprocess.PIPE else None
+        captured_stderr = "" if options.get("stderr") == subprocess.PIPE else None
+        return subprocess.CompletedProcess(args, 127, captured_stdout, captured_stderr)
     if result.returncode < 0:
         result.returncode = 128 - result.returncode
     return result
@@ -52,5 +54,14 @@ def combined(args, env=None):
     return result.returncode, result.stdout
 
 
+def captured(args, env=None):
+    result = completed(args, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return result.returncode, result.stdout, result.stderr
+
+
+def quiet(args):
+    return completed(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode
+
+
 def succeeds(args):
-    return completed(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+    return quiet(args) == 0

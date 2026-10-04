@@ -10,7 +10,7 @@ import sys
 import time
 import urllib.request
 
-from engine import backups, commands, compose, healthchecks, homepage, installation, secrets
+from engine import backups, commands, compose, healthchecks, homepage, installation, program, secrets
 
 SCRIPTS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UPDATE_PROGRAM = os.path.join(SCRIPTS_DIR, "update.py")
@@ -116,11 +116,6 @@ def machine_role():
     return os.environ.get("MACHINE_ROLE") or installation.machine_role()
 
 
-def check_slug(job, role):
-    name = os.environ["INSTALLATION_NAME"]
-    if job == "update" and role == "secondary":
-        return f"{name}-{job}-{installation.short_hostname()}"
-    return f"{name}-{job}"
 
 
 @contextlib.contextmanager
@@ -160,9 +155,9 @@ def render_landing_page():
         HOMEPAGE_HOST=installation.network_name(),
         HOMEPAGE_ENGINE_VERSION=installation.engine_version(),
         HOMEPAGE_ENGINE_URL=installation.engine_page_url(),
-        HOMEPAGE_HEALTHCHECK_BACKUP=check_slug("backup", role),
-        HOMEPAGE_HEALTHCHECK_VERIFY=check_slug("verify", role),
-        HOMEPAGE_HEALTHCHECK_UPDATE=check_slug("update", role),
+        HOMEPAGE_HEALTHCHECK_BACKUP=healthchecks.slug("backup", role),
+        HOMEPAGE_HEALTHCHECK_VERIFY=healthchecks.slug("verify", role),
+        HOMEPAGE_HEALTHCHECK_UPDATE=healthchecks.slug("update", role),
     ):
         homepage.render(os.path.join(installation.engine_dir(), ".homepage"))
     if not homepage_running():
@@ -198,8 +193,8 @@ def refresh_homepage():
 
 def checks_this_machine_sets_up():
     if machine_role() == "main":
-        return [(job, check_slug(job, "main")) for job in ("backup", "verify", "update")]
-    return [("update", check_slug("update", "secondary"))]
+        return [(job, healthchecks.slug(job, "main")) for job in ("backup", "verify", "update")]
+    return [("update", healthchecks.slug("update", "secondary"))]
 
 
 def installation_directory_as_typed():
@@ -301,16 +296,4 @@ def update(argv):
 
 
 def main(argv):
-    try:
-        update(argv)
-    except commands.Stop as stop:
-        print(stop.text("update"), file=sys.stderr)
-        return 1
-    except commands.CommandFailed as failed:
-        return failed.returncode
-    except (OSError, ValueError) as error:
-        print(f"update: {error}", file=sys.stderr)
-        return 1
-    except KeyboardInterrupt:
-        return 130
-    return 0
+    return program.run("update", update, argv)

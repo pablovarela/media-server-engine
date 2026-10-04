@@ -3,6 +3,7 @@ import http.client
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from collections import namedtuple
@@ -131,3 +132,36 @@ def linked_time_zone():
         return "Etc/UTC"
     _, found, zone = link.partition("zoneinfo/")
     return zone if found else "Etc/UTC"
+
+
+PING_RETRY_SECONDS = [1, 2, 4]
+
+
+def slug(job, role="main"):
+    name = os.environ["INSTALLATION_NAME"]
+    if job == "update" and role == "secondary":
+        return f"{name}-{job}-{installation.short_hostname()}"
+    return f"{name}-{job}"
+
+
+def worth_retrying(error):
+    return not isinstance(error, urllib.error.HTTPError) or error.code in (408, 429) or error.code >= 500
+
+
+def ping(job, suffix=""):
+    key = os.environ.get("HEALTHCHECKS_PING_KEY", "")
+    if not key:
+        print(f"no healthchecks ping key configured; not reporting {job}{suffix}", file=sys.stderr)
+        return
+    check = slug(job, os.environ.get("MACHINE_ROLE") or "main")
+    request = urllib.request.Request(f"https://hc-ping.com/{key}/{check}{suffix}?create=1")
+    for wait in [*PING_RETRY_SECONDS, None]:
+        try:
+            with urllib.request.urlopen(request, timeout=10):
+                return
+        except (OSError, http.client.HTTPException) as error:
+            if wait is None or not worth_retrying(error):
+                reason = f"healthchecks.io answered {error.code}" if isinstance(error, urllib.error.HTTPError) else getattr(error, "reason", error)
+                print(f"healthchecks: could not report {check}{suffix}: {reason}", file=sys.stderr)
+                return
+        time.sleep(wait)
