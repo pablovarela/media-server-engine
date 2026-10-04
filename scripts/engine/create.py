@@ -60,16 +60,20 @@ def show_secrets_key(name, secret):
     prompt.line()
 
 
+def is_key_of(line, public):
+    key = line.strip()
+    if not key.startswith(b"AGE-SECRET-KEY-"):
+        return False
+    return commands.output(["age-keygen", "-y"], input=key.decode() + "\n", check=False, discard_errors=True).strip() == public
+
+
 def remove_secrets_key(public):
-    with open(keys_file()) as keys:
-        lines = keys.read().splitlines()
-    kept = [
-        line for line in lines
-        if not (line.startswith("AGE-SECRET-KEY-") and commands.output(["age-keygen", "-y"], input=line + "\n", check=False, discard_errors=True).strip() == public)
-    ]
-    descriptor, staged = tempfile.mkstemp(prefix="keys.txt.", dir=os.path.dirname(keys_file()))
-    with os.fdopen(descriptor, "w") as file:
-        file.write("".join(line + "\n" for line in kept))
+    with open(keys_file(), "rb") as keys:
+        lines = keys.read().splitlines(keepends=True)
+    kept = b"".join(line for line in lines if not is_key_of(line, public))
+    descriptor, staged = tempfile.mkstemp(prefix=os.path.basename(keys_file()) + ".", dir=os.path.dirname(keys_file()))
+    with os.fdopen(descriptor, "wb") as file:
+        file.write(kept)
     os.chmod(staged, 0o600)
     os.replace(staged, keys_file())
 
@@ -141,13 +145,18 @@ def create(argv):
         commands.run([os.path.join(SCRIPTS_DIR, "configure.sh")], env=dict(os.environ, NAME=name, CONFIGURE_FROM_CREATE="1"))
         saved = True
         commands.run([installation.engine_run(), "setup-machine"])
-    except BaseException:
+    except BaseException as error:
+        stopped = isinstance(error, (commands.Stop, OSError, ValueError))
+        if stopped:
+            print(error.text("create-installation") if isinstance(error, commands.Stop) else f"create-installation: {error}", file=sys.stderr)
         with program.finishing():
             if saved:
                 place = os.path.dirname(os.path.abspath(installation.engine_dir()))
                 print(f"{name}'s settings are saved in {config}. Finish setting up this machine with: cd {place} && make setup-machine", file=sys.stderr)
             else:
                 undo(name, public, created_data_dir)
+        if stopped:
+            raise commands.CommandFailed(1) from None
         raise
 
 

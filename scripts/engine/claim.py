@@ -4,8 +4,6 @@ import sys
 from engine import backups, commands, installation, program, prompt, restic, role
 
 
-
-
 def create_repository_if_missing():
     if commands.quiet(["restic", "cat", "config"]) == restic.NO_REPOSITORY:
         print(f"Creating the backup repository {os.environ.get('RESTIC_REPOSITORY', '')}")

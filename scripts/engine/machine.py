@@ -44,9 +44,10 @@ def claim():
 def print_summary(main):
     name = os.environ["INSTALLATION_NAME"]
     place = os.path.dirname(os.path.abspath(installation.engine_dir()))
+    header = ["", RULE, f"{name} is ready on {installation.network_name()}.", "", f"It lives in {place}; run make from there.", "", "Apps (make urls lists them again):"]
+    print("\n".join(header), flush=True)
     urls = commands.output([installation.engine_run(), "urls"])
-    lines = ["", RULE, f"{name} is ready on {installation.network_name()}.", "", f"It lives in {place}; run make from there.", "", "Apps (make urls lists them again):"]
-    lines += [f"  {line}" for line in urls.splitlines()]
+    lines = [f"  {line}" for line in urls.splitlines()]
     lines += [
         "Their logins: make logins (shows the passwords on this terminal).", "", "Everyday commands:",
         "  make configure    change settings and secrets, then make update applies them",

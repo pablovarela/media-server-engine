@@ -5,10 +5,6 @@ from engine import commands, create, deploy_keys, installation, program, prompt
 SCRIPTS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def keys_file():
-    return os.environ["SOPS_AGE_KEY_FILE"]
-
-
 def secrets_key_works():
     return commands.quiet(["sops", "decrypt", os.path.join(installation.config_dir(), "secrets", "vpn.sops.env")]) == 0
 
@@ -19,19 +15,19 @@ def ensure_secrets_key(name, config_repository):
     key = "".join(prompt.secret(f"Paste the secrets key for {name} (the AGE-SECRET-KEY-... line): ").split())
     if commands.captured(["age-keygen", "-y"], input=key + "\n")[0] != 0:
         raise commands.Stop("that is not an age secrets key (the line starts with AGE-SECRET-KEY-); nothing was changed")
-    folder = os.path.dirname(keys_file())
+    folder = os.path.dirname(create.keys_file())
     os.makedirs(folder, exist_ok=True)
     os.chmod(folder, 0o700)
     previous = None
-    if os.path.isfile(keys_file()):
-        with open(keys_file()) as keys:
+    if os.path.isfile(create.keys_file()):
+        with open(create.keys_file(), "rb") as keys:
             previous = keys.read()
     create.add_secret_key(key)
     if not secrets_key_works():
         if previous is None:
-            os.remove(keys_file())
+            os.remove(create.keys_file())
         else:
-            with open(keys_file(), "w") as keys:
+            with open(create.keys_file(), "wb") as keys:
                 keys.write(previous)
         raise commands.Stop(f"that key cannot decrypt {config_repository}; check the password manager entry; the keys file is unchanged")
 
@@ -49,7 +45,7 @@ def join(argv):
     config = installation.config_dir()
     commands.run([os.path.join(SCRIPTS_DIR, "bootstrap.sh")])
     deploy_keys.deploy(repository, f"{config_repository}:write")
-    commands.run(["git", "-C", installation.engine_dir(), "remote", "set-url", "origin", f"github-{repository.split('/', 1)[1]}:{repository}.git"])
+    commands.run(["git", "-C", installation.engine_dir(), "remote", "set-url", "origin", f"github-{repository.rsplit('/', 1)[-1]}:{repository}.git"])
     if not os.path.isdir(os.path.join(config, ".git")):
         commands.run(["git", "clone", f"github-media-server-config-{name}:{config_repository}.git", config])
     installation.load_installation()

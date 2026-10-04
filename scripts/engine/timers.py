@@ -33,6 +33,7 @@ def install(names):
         raise commands.Stop("usage: install-timers UNIT_NAME..., for example media-backup")
     if not installation.systemd_running():
         raise commands.Stop("timers need systemd, and systemd is not running on this machine")
+    os.chdir(installation.engine_dir())
     backup = any(name in BACKUP_TIMERS for name in names)
     if backup:
         installation.load_installation()

@@ -170,3 +170,11 @@ def test_looking_for_backups_keeps_restics_complaints_out_of_the_setup(machine, 
     answering(monkeypatch, "n\n")
     machine.main([])
     assert "Fatal" not in capsys.readouterr().err
+
+
+
+def test_the_summary_starts_even_when_the_app_list_cannot_be_shown(machine, commands, monkeypatch, capsys):
+    commands.on(["engine-run", "urls"], done(returncode=1))
+    answering(monkeypatch, "n\n")
+    assert machine.main([]) == 1
+    assert "testinst is ready on homeserver.local.\n" in capsys.readouterr().out

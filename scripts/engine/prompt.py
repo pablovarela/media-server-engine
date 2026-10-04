@@ -20,7 +20,11 @@ def line():
 
 def read(secret=False):
     if secret and sys.stdin.isatty():
-        return getpass.getpass(prompt="", stream=sys.stderr)
+        try:
+            return getpass.getpass(prompt="", stream=sys.stderr)
+        except EOFError:
+            os.environ["PROMPT_INPUT_ENDED"] = "1"
+            return ""
     typed = line()
     if not typed:
         os.environ["PROMPT_INPUT_ENDED"] = "1"

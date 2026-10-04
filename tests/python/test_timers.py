@@ -15,6 +15,7 @@ def timers(installed, commands, tmp_path, monkeypatch):
         shutil.copy(unit, installed.engine / "systemd" / unit.name)
     os.environ.update(UNIT_DIR=str(tmp_path / "units"), SYSTEMD_RUNTIME_DIR=str(tmp_path), HOME="/home/me")
     monkeypatch.setattr(shutil, "which", lambda name: f"/usr/local/bin/{name}")
+    monkeypatch.chdir(tmp_path)
     commands.on(["sudo", "tee"])
     commands.on(["sudo", "systemctl"])
     module = fresh_engine("engine.timers")
@@ -100,3 +101,13 @@ def test_other_timers_install_on_any_machine(timers, installed, monkeypatch):
     monkeypatch.setattr(timers.role, "is_main", lambda: 1)
     assert timers.main(["media-update", "media-download-cleanup"]) == 0
     assert not (installed.data / ".backup-main").exists()
+
+
+
+def test_relative_config_and_data_folders_are_taken_from_the_engine(timers, commands, installed, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    os.environ.update(CONFIG_DIR="../config", DATA_DIR="../data")
+    assert timers.main(["media-backup"]) == 0
+    service = written(commands, tmp_path, "media-backup.service")
+    assert f"Environment=CONFIG_DIR={installed.config}\n" in service
+    assert f"Environment=DATA_DIR={installed.data}\n" in service

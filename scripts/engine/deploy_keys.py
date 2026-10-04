@@ -42,7 +42,7 @@ def add(owner_repo, repo, key, write):
         print(f"  https://github.com/{owner_repo}/settings/keys/new")
     print(f"Waiting for GitHub to accept the key for {repo} (Ctrl-C to stop)...")
     while not accepted(repo):
-        time.sleep(int(os.environ.get("DEPLOY_KEY_POLL_SECONDS") or 5))
+        time.sleep(float(os.environ.get("DEPLOY_KEY_POLL_SECONDS") or 5))
     print(f"GitHub accepts the key for {repo}.")
 
 

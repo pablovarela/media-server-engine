@@ -106,3 +106,11 @@ def test_it_waits_until_github_accepts_the_key(keys, commands):
     keys.deploy("someone/media-server-engine")
     assert commands.count("ssh", "-T", "-o", "BatchMode=yes", "github-media-server-engine") == 4
     assert [call.args[0] for call in time.sleep.call_args_list] == [0, 0]
+
+
+
+def test_the_wait_between_checks_can_be_a_fraction_of_a_second(keys, commands):
+    os.environ["DEPLOY_KEY_POLL_SECONDS"] = "0.5"
+    commands.on(["ssh", "-T"], REFUSED, REFUSED, ACCEPTED)
+    keys.deploy("someone/media-server-engine")
+    time.sleep.assert_called_once_with(0.5)

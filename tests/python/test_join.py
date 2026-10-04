@@ -160,3 +160,19 @@ def test_a_keys_file_without_a_last_newline_keeps_its_key_whole_when_a_key_is_ad
     answering(monkeypatch, GOOD + "\n")
     assert join.main(["testinst"]) == 0
     assert keys_file(tmp_path).read_text() == "AGE-SECRET-KEY-OTHER-INSTALLATION\n" + GOOD + "\n"
+
+
+
+def test_a_wrong_key_leaves_a_keys_file_with_other_line_endings_byte_for_byte(join, monkeypatch, tmp_path):
+    keys_file(tmp_path).parent.mkdir(parents=True)
+    keys_file(tmp_path).write_bytes(b"AGE-SECRET-KEY-OTHER\r\n")
+    answering(monkeypatch, "AGE-SECRET-KEY-WRONG\n")
+    assert join.main(["testinst"]) == 1
+    assert keys_file(tmp_path).read_bytes() == b"AGE-SECRET-KEY-OTHER\r\n"
+
+
+def test_the_engines_alias_is_named_after_the_last_part_of_its_repository(join, commands, dirs, monkeypatch):
+    commands.on(["git", "-C", str(dirs.engine), "remote", "get-url", "origin"], done(stdout="git@github.com:org/team/media-server-engine.git\n"))
+    answering(monkeypatch, GOOD + "\n")
+    join.main(["testinst"])
+    assert commands.did("git", "-C", str(dirs.engine), "remote", "set-url", "origin", "github-media-server-engine:org/team/media-server-engine.git")

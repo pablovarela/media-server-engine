@@ -239,3 +239,21 @@ def test_a_keys_file_without_a_last_newline_keeps_its_key_whole(create, tmp_path
     keys_file(tmp_path).write_text("AGE-SECRET-KEY-EXISTING")
     assert create.main(["testinst"]) == 0
     assert keys_file(tmp_path).read_text() == "AGE-SECRET-KEY-EXISTING\nAGE-SECRET-KEY-NEW\n"
+
+
+
+def test_an_error_inside_create_is_shown_before_the_undo_messages(create, commands, dirs, capsys):
+    shutil.rmtree(dirs.engine / "config-template")
+    commands.on(["age-keygen", "-y"], done(stdout="age1newpublic\n"))
+    assert create.main(["testinst"]) == 1
+    err = capsys.readouterr().err
+    assert err.index("create-installation: [Errno 2]") < err.index("Stopped before testinst's settings were saved")
+
+
+def test_undoing_keeps_the_other_keys_byte_for_byte(create, commands, tmp_path):
+    keys_file(tmp_path).parent.mkdir(parents=True)
+    keys_file(tmp_path).write_bytes(b"AGE-SECRET-KEY-EXISTING\r\n")
+    commands.on(["age-keygen", "-y"], done(stdout="age1existing\n"), done(stdout="age1newpublic\n"))
+    commands.on(["configure.sh"], done(returncode=1))
+    create.main(["testinst"])
+    assert keys_file(tmp_path).read_bytes() == b"AGE-SECRET-KEY-EXISTING\r\n"

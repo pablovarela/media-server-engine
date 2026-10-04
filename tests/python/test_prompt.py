@@ -63,3 +63,15 @@ def test_an_answer_read_from_a_pipe_leaves_the_next_lines_for_the_programs_start
         assert os.read(read_end, 100) == b"next answer\n"
     finally:
         stdin.close()
+
+
+
+def test_ctrl_d_at_a_hidden_prompt_is_an_empty_answer(prompt, monkeypatch):
+    typed(monkeypatch, "", terminal=True)
+
+    def ended(prompt="", stream=None):
+        raise EOFError
+
+    monkeypatch.setattr(getpass, "getpass", ended)
+    assert prompt.secret("Paste the secrets key: ") == ""
+    assert os.environ["PROMPT_INPUT_ENDED"] == "1"
