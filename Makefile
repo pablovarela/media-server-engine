@@ -75,7 +75,7 @@ go-build: ## build mse for this machine into dist/mse
 
 go-test: ## run the Go tests with coverage into coverage.out (GO_TEST_FLAGS passes options to gotestsum)
 	@command -v go >/dev/null || { echo "go missing: brew install go" >&2; exit 1; }
-	@$(GO_TOOL) gotestsum $(GO_TEST_FLAGS) -- -coverprofile=coverage.out ./...
+	@$(GO_TOOL) gotestsum $(GO_TEST_FLAGS) -- -coverprofile=coverage.out ./cmd/... ./internal/...
 
 go-lint: ## lint the Go code with golangci-lint (GOLANGCI_LINT runs another golangci-lint binary)
 	@command -v go >/dev/null || { echo "go missing: brew install go" >&2; exit 1; }
