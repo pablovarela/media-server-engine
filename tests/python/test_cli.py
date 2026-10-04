@@ -10,8 +10,8 @@ def cli(dirs):
 
 def test_every_command_runs_a_programs_main(cli):
     assert sorted(cli.COMMANDS) == [
-        "backup", "backup-role", "claim-backup-main", "configure", "create-installation", "homepage", "install-timers", "join-installation", "logins", "port-in-use", "prune-stack-images",
-        "remove-executable-downloads", "restore", "scheduled-update", "setup-machine", "unlock-backup", "update", "urls", "verify-backup", "version",
+        "backup", "backup-role", "claim-backup-main", "configure", "create-installation", "homepage", "install-timers", "join-installation", "logins", "monitoring", "port-in-use", "prune-stack-images",
+        "remove-executable-downloads", "require-installation", "restore", "scheduled-update", "setup-machine", "stack", "unlock-backup", "update", "urls", "verify-backup", "version",
     ]
     assert all(callable(main) for main in cli.COMMANDS.values())
 
@@ -28,3 +28,11 @@ def test_a_missing_or_unknown_command_lists_the_commands(cli, capsys, argv):
     assert cli.main(argv) == 1
     err = capsys.readouterr().err
     assert err.startswith("usage: engine-run <command> [arguments]\ncommands: backup, backup-role, claim-backup-main, ")
+
+
+def test_requiring_an_installation_passes_inside_one_and_says_where_they_are_outside(cli, dirs, monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    assert cli.main(["require-installation"]) == 1
+    assert "is not an installation: there is no config next to it." in capsys.readouterr().err
+    (dirs.config / "installation.env").write_text("INSTALLATION_NAME=testinst\n")
+    assert cli.main(["require-installation"]) == 0

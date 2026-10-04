@@ -55,10 +55,14 @@ def sourced(path):
     return {name: value for name, value in values.items() if name not in SHELL_OWN and os.environ.get(name) != value}
 
 
-def load_installation():
-    path = os.path.join(config_dir(), "installation.env")
-    if not os.path.isfile(path):
+def require():
+    if not os.path.isfile(os.path.join(config_dir(), "installation.env")):
         raise not_an_installation()
+
+
+def load_installation():
+    require()
+    path = os.path.join(config_dir(), "installation.env")
     os.environ.update(sourced(path))
     if not os.environ.get("INSTALLATION_NAME"):
         raise commands.Stop(f"INSTALLATION_NAME is not set in {path}")
