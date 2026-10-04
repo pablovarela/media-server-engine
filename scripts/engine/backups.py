@@ -77,13 +77,14 @@ def backup(claim=False):
         healthchecks.ping("backup")
         succeeded = True
     finally:
-        try:
-            start(stopped)
-        except commands.CommandFailed:
-            succeeded = False
-        held.close()
-        if not succeeded:
-            healthchecks.ping("backup", "/fail")
+        with program.finishing():
+            try:
+                start(stopped)
+            except commands.CommandFailed:
+                succeeded = False
+            held.close()
+            if not succeeded:
+                healthchecks.ping("backup", "/fail")
 
 
 def run_backup(argv):

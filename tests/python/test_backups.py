@@ -206,3 +206,33 @@ def test_a_ping_that_cannot_get_through_does_not_fail_the_backup(backup, command
         http.on("GET", f"{PINGS}{suffix}?create=1", refused())
     assert backup.main([]) == 0
     assert commands.did("restic", "forget")
+
+
+
+def test_a_hung_up_backup_starts_the_services_releases_the_lock_and_pings_fail(backup, commands, http):
+    previous = signal.signal(signal.SIGHUP, backup.program.stop_on_terminate)
+    try:
+        commands.on(["restic", "backup"], done(then=lambda: os.kill(os.getpid(), signal.SIGHUP)))
+        with pytest.raises(SystemExit) as ended:
+            backup.main([])
+    finally:
+        signal.signal(signal.SIGHUP, previous)
+    assert ended.value.code == 129
+    assert commands.did("docker", "compose", "start", "jellyfin", "sonarr")
+    assert backup.running_backup_pid() == ""
+    assert pings(http)[-1] == "/fail?create=1"
+
+
+def test_a_second_signal_while_restarting_the_services_does_not_stop_the_restart(backup, commands, http):
+    previous = signal.signal(signal.SIGTERM, backup.program.stop_on_terminate)
+    restarted = []
+    try:
+        commands.on(["restic", "backup"], done(then=lambda: os.kill(os.getpid(), signal.SIGTERM)))
+        commands.on(["docker", "compose", "start"], done(then=lambda: (os.kill(os.getpid(), signal.SIGTERM), restarted.append(True))))
+        with pytest.raises(SystemExit):
+            backup.main([])
+        assert signal.getsignal(signal.SIGTERM) is backup.program.stop_on_terminate
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+    assert restarted == [True]
+    assert pings(http)[-1] == "/fail?create=1"

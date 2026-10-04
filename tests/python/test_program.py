@@ -55,11 +55,14 @@ def test_the_arguments_reach_the_program(program):
 
 def test_starting_keeps_the_api_keys_from_the_commands_it_runs(program):
     os.environ.update(HEALTHCHECKS_PING_KEY="pk", HEALTHCHECKS_API_KEY="read", HEALTHCHECKS_MANAGE_KEY="write")
-    previous = signal.getsignal(signal.SIGTERM)
+    previous = {signum: signal.getsignal(signum) for signum in (signal.SIGTERM, signal.SIGHUP)}
     try:
         program.start()
+        handlers = {signum: signal.getsignal(signum) for signum in previous}
     finally:
-        signal.signal(signal.SIGTERM, previous)
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+    assert set(handlers.values()) == {program.stop_on_terminate}
     assert os.environ["HEALTHCHECKS_PING_KEY"] == "pk"
     assert "HEALTHCHECKS_API_KEY" not in os.environ
     assert "HEALTHCHECKS_MANAGE_KEY" not in os.environ

@@ -62,9 +62,10 @@ def verify():
         healthchecks.ping("verify")
         succeeded = True
     finally:
-        shutil.rmtree(directory, ignore_errors=True)
-        if not succeeded:
-            healthchecks.ping("verify", "/fail")
+        with program.finishing():
+            shutil.rmtree(directory, ignore_errors=True)
+            if not succeeded:
+                healthchecks.ping("verify", "/fail")
 
 
 def run_verify(argv):
