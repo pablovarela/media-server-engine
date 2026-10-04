@@ -184,8 +184,9 @@ def test_update_switches_the_engine_to_the_version_the_config_pins_then_runs_fro
     commands.on(["git", "-C", str(dirs.engine), "checkout", "-q", "--detach", "v1.0.0"], done())
     with pytest.raises(Restarted):
         update.run("--verbose")
-    program = update.module.UPDATE_PROGRAM
-    update.execv.assert_called_once_with(program, [program, "--verbose"])
+    program = str(REPO / "scripts" / "engine-run")
+    update.execv.assert_called_once_with(program, [program, "update", "--verbose"])
+    assert os.access(program, os.X_OK)
     assert os.environ["MEDIA_SERVER_PULLED"] == "1"
     assert commands.count("pull", "--ff-only") == 1
 

@@ -50,7 +50,7 @@ def remove_executable_downloads(app, port, config):
         return
     try:
         found = flagged_downloads(port, key)
-    except (OSError, http.client.HTTPException, ValueError):
+    except (OSError, http.client.HTTPException, ValueError, KeyError, TypeError, AttributeError):
         print(f"{app}: queue not reachable, skipped")
         return
     removed = set()

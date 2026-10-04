@@ -86,3 +86,13 @@ def test_a_removal_that_fails_is_reported_and_the_others_carry_on(cleanup, http,
     output = capsys.readouterr()
     assert output.out == "sonarr: removed and blocklisted B.exe\n"
     assert output.err.startswith("sonarr: could not remove A.exe: ")
+
+
+
+@pytest.mark.parametrize("answer", [[], {"records": [{"title": "no id", "statusMessages": [EXE]}]}, {"records": [{"id": 5, "statusMessages": None}]}])
+def test_a_queue_answer_shaped_unexpectedly_skips_that_app_and_the_other_is_still_cleaned(cleanup, http, capsys, answer):
+    http.on("GET", queue(8989), answer)
+    http.on("GET", queue(7878), {"records": [flagged(51, "Movie.exe")]})
+    http.on("DELETE", removal(7878, 51), None)
+    assert cleanup.main([]) == 0
+    assert capsys.readouterr().out == "sonarr: queue not reachable, skipped\nradarr: removed and blocklisted Movie.exe\n"

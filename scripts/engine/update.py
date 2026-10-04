@@ -13,7 +13,7 @@ import urllib.request
 from engine import backups, commands, compose, healthchecks, homepage, images, installation, program, secrets, stack
 
 SCRIPTS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-UPDATE_PROGRAM = os.path.join(SCRIPTS_DIR, "update.py")
+ENGINE_RUN = os.path.join(SCRIPTS_DIR, "engine-run")
 GLUETUN_DEPENDENTS = ["prowlarr", "flaresolverr", "deluge"]
 
 
@@ -62,8 +62,6 @@ def wait_for_running_backup():
         time.sleep(seconds("UPDATE_BACKUP_POLL_SECONDS", 10))
 
 
-
-
 def switch_engine_and_restart_if_needed(argv):
     engine = installation.engine_dir()
     wanted = installation.pinned_engine_version()
@@ -77,7 +75,7 @@ def switch_engine_and_restart_if_needed(argv):
         raise commands.Stop(f"engine version {wanted} not found; staying on {current or 'the current checkout'}")
     commands.run(git(engine, "checkout", "-q", "--detach", wanted))
     os.environ["MEDIA_SERVER_PULLED"] = "1"
-    os.execv(UPDATE_PROGRAM, [UPDATE_PROGRAM, *argv])
+    os.execv(ENGINE_RUN, [ENGINE_RUN, "update", *argv])
 
 
 def docker_socket_gid():
