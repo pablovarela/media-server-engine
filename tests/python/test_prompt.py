@@ -114,3 +114,7 @@ def test_generated_passwords_differ(prompt):
 
 def test_a_mask_shows_only_the_last_three_characters(prompt):
     assert (prompt.mask("abcdefgh"), prompt.mask("")) == ("set, ends …fgh", "not set")
+
+
+def test_a_secret_of_three_characters_or_fewer_is_only_said_to_be_set(prompt):
+    assert (prompt.mask("ab"), prompt.mask("abc"), prompt.mask("abcd")) == ("set", "set", "set, ends …bcd")

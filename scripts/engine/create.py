@@ -4,7 +4,7 @@ import shutil
 import sys
 import tempfile
 
-from engine import commands, configure, installation, program, prompt
+from engine import commands, configure, configure_menus, installation, program, prompt
 
 SOPS_CONFIG = "creation_rules:\n  - path_regex: (^|/)secrets/[^/]+\\.sops\\.env$\n    age: {}\n"
 SCRIPTS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -142,12 +142,12 @@ def create(argv):
         with open(os.path.join(config, ".sops.yaml"), "w") as sops:
             sops.write(SOPS_CONFIG.format(public))
         commands.run(["git", "-C", config, "init", "-q", "-b", "main"])
-        configure.configure(name, from_create=True)
+        configure.configure(name, from_create=True, github_owner=owner)
         saved = True
         commands.run([installation.engine_run(), "setup-machine"])
     except BaseException as error:
         stopped = isinstance(error, (commands.Stop, OSError, ValueError))
-        if stopped:
+        if stopped and not isinstance(error, configure_menus.StoppedBeforeSaving):
             print(error.text("create-installation") if isinstance(error, commands.Stop) else f"create-installation: {error}", file=sys.stderr)
         with program.finishing():
             if saved:

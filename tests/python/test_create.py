@@ -71,7 +71,7 @@ def test_creating_needs_an_installation_name(create, capsys):
 def test_the_name_can_come_from_the_environment(create, configured):
     os.environ["NAME"] = "testinst"
     assert create.main([]) == 0
-    configured.assert_called_once_with("testinst", from_create=True)
+    configured.assert_called_once_with("testinst", from_create=True, github_owner="someone")
 
 
 def test_an_installation_name_that_is_not_letters_digits_and_dashes_is_refused_before_anything_is_made(create, commands, capsys):
@@ -97,7 +97,7 @@ def test_creating_refuses_a_config_folder_that_is_not_empty(create, dirs, comman
 def test_creating_works_without_the_github_cli_for_a_local_only_config(create, commands, configured):
     commands.on(["gh", "auth", "status"], done(returncode=1))
     assert create.main(["testinst"]) == 0
-    configured.assert_called_once_with("testinst", from_create=True)
+    configured.assert_called_once_with("testinst", from_create=True, github_owner="someone")
 
 
 def test_a_new_secrets_key_is_added_next_to_existing_ones_and_shown_once(create, tmp_path, capsys):
@@ -145,7 +145,7 @@ def test_creating_configures_then_sets_up_this_machine_as_a_new_installation(cre
     commands_before_configure = []
     configured.side_effect = lambda *args, **kwargs: commands_before_configure.append(len(commands.ran))
     assert create.main(["testinst"]) == 0
-    configured.assert_called_once_with("testinst", from_create=True)
+    configured.assert_called_once_with("testinst", from_create=True, github_owner="someone")
     assert commands.index("bootstrap.sh") < commands.index("age-keygen", "-o") < commands.index("git", "init") < commands_before_configure[0] <= commands.index("engine-run", "setup-machine")
     assert not commands.did("gh", "repo", "create")
 
@@ -265,3 +265,10 @@ def test_undoing_keeps_the_other_keys_byte_for_byte(create, configured, commands
     configured.side_effect = create.commands.CommandFailed(1)
     create.main(["testinst"])
     assert keys_file(tmp_path).read_bytes() == b"AGE-SECRET-KEY-EXISTING\r\n"
+
+
+def test_stopping_in_the_menus_while_creating_says_so_once(create, commands, configured, capsys):
+    commands.on(["age-keygen", "-y"], done(stdout="age1newpublic\n"))
+    configured.side_effect = create.configure.configure_menus.StoppedBeforeSaving("stopped before testinst's settings were saved")
+    assert create.main(["testinst"]) == 1
+    assert capsys.readouterr().err.lower().count("stopped before testinst's settings were saved") == 1

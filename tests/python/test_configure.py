@@ -535,3 +535,32 @@ def test_rotating_in_the_menus_says_what_it_rotates_in_a_box(configure, commands
     assert run(configure, monkeypatch, "", "--rotate", "radarr") == 0
     assert any("--msgbox Rotating Radarr's API key" in screen for screen in whiptail_screens(commands))
     assert "Run make update" in said(capsys)
+
+
+def test_configuring_from_create_leaves_the_working_directory_as_it_was(configure, tmp_path, monkeypatch):
+    monkeypatch.setattr(sys, "stdin", io.StringIO(answers(*LOCAL_ONLY)))
+    configure.configure("testinst", from_create=True)
+    assert os.path.realpath(os.getcwd()) == os.path.realpath(tmp_path)
+
+
+def test_the_github_owner_create_checked_is_the_one_offered(configure, commands, dirs, monkeypatch):
+    monkeypatch.setattr(sys, "stdin", io.StringIO(answers(*NEW_INSTALLATION[:2], "", *NEW_INSTALLATION[3:])))
+    configure.configure("testinst", from_create=True, github_owner="org")
+    assert commands.did("gh", "repo", "create", "org/media-server-config-testinst")
+    assert "GITHUB_OWNER=org" in lines_of(dirs.config / "installation.env")
+
+
+def test_an_answer_that_is_not_a_choice_is_asked_again_offering_the_saved_one(configure, commands, dirs, monkeypatch, capsys):
+    run(configure, monkeypatch, answers(*NEW_INSTALLATION))
+    capsys.readouterr()
+    assert run(configure, monkeypatch, answers("", "GitHub", *[""] * 22)) == 0
+    assert "Where to keep this config (local/github) [github]: \nChoose one of: local github.\nWhere to keep this config (local/github) [github]: " in said(capsys)
+    assert "CONFIG_LOCATION=github" in lines_of(dirs.config / "installation.env")
+    assert git(commands, dirs.config, "remote", "get-url", "origin") == "git@github.com:someone/media-server-config-testinst.git"
+
+
+def test_a_saved_landing_page_port_now_in_use_is_asked_again_offering_a_free_one(configure, dirs, ports_in_use, monkeypatch):
+    run(configure, monkeypatch, answers(*NEW_INSTALLATION))
+    ports_in_use.add(80)
+    assert run(configure, monkeypatch, enter_on_every_prompt()) == 0
+    assert "HOMEPAGE_PORT=8080" in lines_of(dirs.config / "installation.env")

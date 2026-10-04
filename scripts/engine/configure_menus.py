@@ -9,6 +9,10 @@ ESCAPE = 255
 TIME_ZONE_REGIONS = ["Africa", "America", "Antarctica", "Arctic", "Asia", "Atlantic", "Australia", "Europe", "Indian", "Pacific"]
 
 
+class StoppedBeforeSaving(commands.Stop):
+    pass
+
+
 class Edit(enum.Enum):
     DONE = "done"
     BACK = "back"
@@ -203,7 +207,7 @@ def main_menu(values):
 
 
 def stopped(values):
-    return commands.Stop(f"stopped before {values['INSTALLATION_NAME']}'s settings were saved")
+    return StoppedBeforeSaving(f"stopped before {values['INSTALLATION_NAME']}'s settings were saved")
 
 
 def fill(values, new):

@@ -16,6 +16,11 @@ def answer(field, label, values):
     return prompt.ask(label, settings.default(field.name, values))
 
 
+def forget_unusable_saved_value(field, values):
+    if settings.problem(field.name, values.get(field.name, "")):
+        values[field.name] = ""
+
+
 def ask_field(field, values):
     help_text = settings.help_text(field.name, values)
     if help_text:
@@ -35,7 +40,7 @@ def ask_field(field, values):
         print(problem, file=sys.stderr)
         if input_ended():
             raise commands.Stop(f"the answers ran out while {label} was not valid")
-        values[field.name] = ""
+        forget_unusable_saved_value(field, values)
 
 
 def ask_section(section, values):

@@ -45,7 +45,9 @@ def secret(text):
 
 
 def mask(value):
-    return f"set, ends …{value[-3:]}" if value else "not set"
+    if not value:
+        return "not set"
+    return f"set, ends …{value[-3:]}" if len(value) > 3 else "set"
 
 
 def generated_password():

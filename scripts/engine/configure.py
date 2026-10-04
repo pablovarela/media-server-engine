@@ -199,14 +199,22 @@ def apply_location(values, committed, from_create):
         print(f"This config is now local only. The repository at {remote} is kept; delete it there if you no longer need it.")
 
 
-def configure(name=None, rotate=None, from_create=False):
+def configure(name=None, rotate=None, from_create=False, github_owner=""):
     rotated = rotated_credential(rotate)
     config = installation.config_dir()
     if not os.path.isfile(os.path.join(config, ".sops.yaml")):
         raise installation.not_an_installation()
     if not git_identity_known():
         raise commands.Stop(IDENTITY_MISSING.format(config=config))
+    previous = os.getcwd()
     os.chdir(config)
+    try:
+        configure_here(name, rotate, rotated, from_create, github_owner)
+    finally:
+        os.chdir(previous)
+
+
+def configure_here(name, rotate, rotated, from_create, github_owner):
     if not os.path.isfile("images.yml"):
         shutil.copytree(os.path.join(installation.engine_dir(), "config-template"), ".", dirs_exist_ok=True)
     new = not os.path.isfile("installation.env")
@@ -215,6 +223,8 @@ def configure(name=None, rotate=None, from_create=False):
     values["INSTALLATION_NAME"] = values.get("INSTALLATION_NAME") or name or ""
     if not values["INSTALLATION_NAME"]:
         raise commands.Stop("this config has no installation name; create one with make create-installation NAME=<name>")
+    if github_owner:
+        values.setdefault("GITHUB_OWNER", github_owner)
     menus = use_menus()
     if rotated:
         announce_rotation(values, rotate, menus)
