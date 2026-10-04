@@ -147,8 +147,10 @@ class Process:
         self.options = options
         self.returncode = None
         self.signals = []
+        self.input = None
 
-    def communicate(self):
+    def communicate(self, input=None):
+        self.input = input
         if self.outcome.then:
             self.outcome.then()
         result = completed(self.args, self.outcome, self.options)
@@ -193,6 +195,9 @@ class Commands:
 
     def env_of(self, *words):
         return next(command.env for command in self.ran if matches(words, command.args))
+
+    def input_to(self, *words):
+        return [command.process.input for command in self.ran if matches(words, command.args)]
 
     def signals_to(self, *words):
         return [signum for command in self.ran if matches(words, command.args) for signum in command.process.signals]

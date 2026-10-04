@@ -13,7 +13,7 @@ class Finished:
     def __init__(self, returncode):
         self.returncode = returncode
 
-    def communicate(self):
+    def communicate(self, input=None):
         return None, None
 
 
@@ -126,7 +126,7 @@ def test_ctrl_c_waits_for_the_command_it_interrupted(commands_module, monkeypatc
     class Interrupted:
         returncode = None
 
-        def communicate(self):
+        def communicate(self, input=None):
             raise KeyboardInterrupt
 
         def wait(self):
@@ -138,3 +138,13 @@ def test_ctrl_c_waits_for_the_command_it_interrupted(commands_module, monkeypatc
     with pytest.raises(KeyboardInterrupt):
         commands_module.run(["restic", "backup"])
     assert waited == [True]
+
+
+def test_text_can_be_given_to_a_command(commands_module, commands):
+    commands.on(["sudo", "tee"])
+    commands.on(["age-keygen", "-y"], done(stdout="age1public\n"))
+    commands_module.run(["sudo", "tee", "/etc/systemd/system/x.timer"], input="[Timer]\n", discard_output=True)
+    assert commands_module.output(["age-keygen", "-y"], input="AGE-SECRET-KEY-1\n") == "age1public\n"
+    assert commands_module.captured(["age-keygen", "-y"], input="AGE-SECRET-KEY-2\n")[0] == 0
+    assert commands.input_to("sudo", "tee") == ["[Timer]\n"]
+    assert commands.input_to("age-keygen") == ["AGE-SECRET-KEY-1\n", "AGE-SECRET-KEY-2\n"]

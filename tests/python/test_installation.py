@@ -2,6 +2,10 @@ import os
 import platform
 import shutil
 import socket
+import sys
+
+from types import SimpleNamespace
+from unittest import mock
 
 import pytest
 
@@ -173,3 +177,86 @@ def test_an_outdated_installation_makefile_is_replaced(installation, dirs):
     (dirs.engine.parent / "Makefile").write_text("old\n")
     installation.write_installation_makefile()
     assert (dirs.engine.parent / "Makefile").read_text() == (REPO / "installation" / "Makefile").read_text()
+
+
+@pytest.mark.parametrize("name", ["home", "media-1", "a" * 40])
+def test_installation_names_are_lowercase_letters_digits_and_dashes(installation, name):
+    installation.require_valid_name(name)
+
+
+@pytest.mark.parametrize("name", ["Bad Name", "trialpub=age1x", "-dash", "a" * 41, ""])
+def test_other_installation_names_are_refused(installation, name):
+    with pytest.raises(installation.commands.Stop) as stop:
+        installation.require_valid_name(name)
+    assert str(stop.value) == (
+        "installation names are lowercase letters, digits and dashes, up to 40 characters, "
+        f"starting with a letter or digit; got '{name}'"
+    )
+
+
+class Restarted(Exception):
+    pass
+
+
+@pytest.fixture
+def moving(installation, commands, tmp_path, monkeypatch):
+    source = tmp_path / "checkout" / "media-server-engine"
+    source.mkdir(parents=True)
+    monkeypatch.setitem(os.environ, "ENGINE_DIR", str(source))
+    monkeypatch.setitem(os.environ, "HOME", str(tmp_path / "home"))
+    os.environ.pop("INSTALL_DIR", None)
+    commands.on(["git", "clone", "-q"])
+    commands.on(["git", "-C", str(source), "symbolic-ref", "-q", "HEAD"])
+    commands.on(["git", "-C", str(source), "remote", "get-url", "origin"], done(stdout="git@github.com:someone/media-server-engine.git\n"))
+    commands.on(["git", "-C", str(source), "rev-parse", "HEAD"], done(stdout="abc123\n"))
+    commands.on(["remote", "set-url"])
+    commands.on(["checkout", "-q"])
+    monkeypatch.setattr(os, "execv", mock.Mock(side_effect=Restarted))
+    return SimpleNamespace(source=source, home=tmp_path / "home")
+
+
+def test_an_engine_elsewhere_is_copied_into_the_installation_and_takes_over(installation, moving, commands, capsys):
+    with pytest.raises(Restarted):
+        installation.move_into("newinst", "create-installation")
+    target = moving.home / "newinst"
+    assert commands.did("git", "clone", "-q", str(moving.source), str(target / "engine"))
+    assert commands.did("git", "-C", str(target / "engine"), "remote", "set-url", "origin", "git@github.com:someone/media-server-engine.git")
+    assert not commands.did("checkout", "-q")
+    program = str(target / "engine" / "scripts" / "engine-run")
+    os.execv.assert_called_once_with(program, [program, "create-installation", "newinst"])
+    assert (os.environ["ENGINE_DIR"], os.environ["CONFIG_DIR"], os.environ["DATA_DIR"], os.environ["INSTALL_DIR"], os.environ["CREATED_INSTALL_DIR"]) == (
+        str(target / "engine"), str(target / "config"), str(target / "data"), str(target), str(target),
+    )
+    assert capsys.readouterr().err == f"Installing newinst in {target}: engine, config and data side by side.\n"
+
+
+def test_an_engine_copied_from_a_detached_release_checks_out_that_commit(installation, moving, commands):
+    commands.on(["git", "-C", str(moving.source), "symbolic-ref", "-q", "HEAD"], done(returncode=1))
+    with pytest.raises(Restarted):
+        installation.move_into("newinst", "join-installation")
+    assert commands.did("git", "-C", str(moving.home / "newinst" / "engine"), "checkout", "-q", "abc123")
+
+
+def test_an_existing_installation_folder_is_not_marked_as_made_by_this_run(installation, moving, tmp_path):
+    os.environ["INSTALL_DIR"] = str(tmp_path / "existing")
+    (tmp_path / "existing").mkdir()
+    with pytest.raises(Restarted):
+        installation.move_into("newinst", "create-installation")
+    assert os.environ["CREATED_INSTALL_DIR"] == ""
+
+
+def test_an_installation_folder_that_already_has_an_engine_is_not_overwritten(installation, moving, commands):
+    (moving.home / "newinst" / "engine").mkdir(parents=True)
+    with pytest.raises(installation.commands.Stop) as stop:
+        installation.move_into("newinst", "create-installation")
+    engine = moving.home / "newinst" / "engine"
+    assert str(stop.value) == f"{engine} already exists; run make from {engine} instead"
+    assert not commands.did("git", "clone")
+
+
+def test_an_engine_already_in_its_installation_stays(installation, moving, commands, monkeypatch):
+    engine = moving.home / "newinst" / "engine"
+    engine.mkdir(parents=True)
+    monkeypatch.setitem(os.environ, "ENGINE_DIR", str(engine))
+    installation.move_into("newinst", "create-installation")
+    assert commands.ran == []

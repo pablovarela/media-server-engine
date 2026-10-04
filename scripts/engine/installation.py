@@ -5,6 +5,7 @@ import platform
 import re
 import shutil
 import socket
+import sys
 
 from engine import commands
 
@@ -127,3 +128,38 @@ def engine_page_url():
 def pinned_engine_version():
     with open(os.path.join(config_dir(), "engine.env")) as pins:
         return next((line.strip()[len("ENGINE_VERSION="):] for line in pins if line.startswith("ENGINE_VERSION=")), "")
+
+
+def require_valid_name(name):
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,39}", name or ""):
+        raise commands.Stop(
+            "installation names are lowercase letters, digits and dashes, up to 40 characters, "
+            f"starting with a letter or digit; got '{name}'"
+        )
+
+
+def engine_run():
+    return os.path.join(engine_dir(), "scripts", "engine-run")
+
+
+def move_into(name, command):
+    install_dir = os.environ.get("INSTALL_DIR") or os.path.join(os.environ["HOME"], name)
+    engine = os.path.join(install_dir, "engine")
+    if os.path.isdir(engine) and os.path.realpath(engine) == os.path.realpath(engine_dir()):
+        return
+    if os.path.exists(engine):
+        raise commands.Stop(f"{engine} already exists; run make from {engine} instead")
+    created = "" if os.path.exists(install_dir) else install_dir
+    os.makedirs(install_dir, exist_ok=True)
+    source = engine_dir()
+    commands.run(["git", "clone", "-q", source, engine])
+    if commands.quiet(["git", "-C", source, "symbolic-ref", "-q", "HEAD"]) != 0:
+        commands.run(["git", "-C", engine, "checkout", "-q", commands.output(["git", "-C", source, "rev-parse", "HEAD"]).strip()])
+    commands.run(["git", "-C", engine, "remote", "set-url", "origin", commands.output(["git", "-C", source, "remote", "get-url", "origin"]).strip()])
+    print(f"Installing {name} in {install_dir}: engine, config and data side by side.", file=sys.stderr)
+    os.environ.update(
+        ENGINE_DIR=engine, CONFIG_DIR=os.path.join(install_dir, "config"), DATA_DIR=os.path.join(install_dir, "data"),
+        INSTALL_DIR=install_dir, CREATED_INSTALL_DIR=created,
+    )
+    program = os.path.join(engine, "scripts", "engine-run")
+    os.execv(program, [program, command, name])
