@@ -12,6 +12,7 @@ import (
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/cli/cli/flags"
+	"github.com/docker/compose/v5/cmd/display"
 	"github.com/docker/compose/v5/pkg/api"
 	sdk "github.com/docker/compose/v5/pkg/compose"
 
@@ -52,7 +53,7 @@ func NewRunner(out, errOut io.Writer) (*Runner, error) {
 	if err := dockerCLI.Initialize(&flags.ClientOptions{}); err != nil {
 		return nil, err
 	}
-	composeService, err := sdk.NewComposeService(dockerCLI)
+	composeService, err := sdk.NewComposeService(dockerCLI, sdk.WithEventProcessor(display.Plain(errOut)))
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +79,7 @@ func (r *Runner) Load(ctx context.Context, i *installation.Installation, kind Ki
 
 func (r *Runner) Up(ctx context.Context, project *types.Project, services []string) error {
 	return r.service.Up(ctx, project, api.UpOptions{
-		Create: api.CreateOptions{Services: services, RemoveOrphans: true},
+		Create: api.CreateOptions{Services: services, RemoveOrphans: true, Inherit: true},
 		Start:  api.StartOptions{Project: project, Services: services},
 	})
 }

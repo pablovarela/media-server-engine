@@ -33,6 +33,10 @@ func TestParseEnv(t *testing.T) {
 			Given: Given{text: "A=x=y\nB=$HOME\n"},
 			Then:  Then{settings: map[string]string{"A": "x=y", "B": "$HOME"}},
 		},
+		"a comment after a value is dropped, as bash drops it": {
+			Given: Given{text: "A=1 # set by hand\nB=\"x # y\"\nC=a#b\n"},
+			Then:  Then{settings: map[string]string{"A": "1", "B": "x # y", "C": "a#b"}},
+		},
 		"lines without = are ignored": {
 			Given: Given{text: "not a setting\nA=1\n"},
 			Then:  Then{settings: map[string]string{"A": "1"}},

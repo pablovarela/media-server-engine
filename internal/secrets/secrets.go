@@ -120,7 +120,7 @@ func secretFiles(decrypted sources, gluetunKey string, configarr []byte) map[str
 }
 
 func createIfMissing(path string) error {
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600) //nolint:gosec // creates the state directory's own homepage.env
 	if errors.Is(err, os.ErrExist) {
 		return nil
 	}
@@ -132,7 +132,7 @@ func createIfMissing(path string) error {
 
 func gluetunControlKey(i *installation.Installation, randomKey func() (string, error)) (string, error) {
 	path := filepath.Join(i.Data, "volumes", ".wiring", "gluetun-control.key")
-	if text, err := os.ReadFile(path); err == nil && strings.TrimSpace(string(text)) != "" {
+	if text, err := os.ReadFile(path); err == nil && strings.TrimSpace(string(text)) != "" { //nolint:gosec // reads the installation's own gluetun control key
 		return strings.TrimSpace(string(text)), nil
 	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", err
@@ -148,7 +148,7 @@ func gluetunControlKey(i *installation.Installation, randomKey func() (string, e
 }
 
 func configarrSecrets(i *installation.Installation, apps []byte) ([]byte, error) {
-	config, err := os.ReadFile(filepath.Join(i.Config, "configarr", "config.yml"))
+	config, err := os.ReadFile(filepath.Join(i.Config, "configarr", "config.yml")) //nolint:gosec // reads the installation's own configarr config
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
@@ -186,11 +186,11 @@ func privateDirectory(path string) error {
 }
 
 func writePrivate(path string, content []byte) error {
-	if current, err := os.ReadFile(path); err == nil && bytes.Equal(current, content) {
+	if current, err := os.ReadFile(path); err == nil && bytes.Equal(current, content) { //nolint:gosec // reads the state directory's own secret files
 		return os.Chmod(path, 0o600)
 	}
-	if err := os.WriteFile(path, content, 0o600); err != nil {
+	if err := os.Chmod(path, 0o600); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	return os.Chmod(path, 0o600)
+	return os.WriteFile(path, content, 0o600)
 }

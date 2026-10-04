@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"path/filepath"
 	"testing"
 	"testing/fstest"
 
@@ -108,6 +109,9 @@ func TestStackCommands(t *testing.T) {
 			code := run(context.Background(), root, tt.When.args)
 
 			assert.Equal(t, 0, code, stderr.String())
+			state := filepath.Join(home, ".local", "state", "mse", "gorgon")
+			assert.FileExists(t, filepath.Join(state, ".secrets", "vpn.env"))
+			assert.FileExists(t, filepath.Join(state, "docker-compose.yml"))
 			assert.Equal(t, tt.Then.stdout, stdout.String())
 		})
 	}

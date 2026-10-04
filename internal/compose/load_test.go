@@ -71,10 +71,11 @@ func TestLoad(t *testing.T) {
 			}},
 		},
 		"the shell's variables do not leak in": {
-			Given: Given{shell: map[string]string{"DATA_DIR": "/elsewhere", "COMPOSE_PROFILES": "wiring"}},
+			Given: Given{shell: map[string]string{"DATA_DIR": "/elsewhere", "CONFIG_DIR": "/elsewhere", "COMPOSE_PROFILES": "wiring"}},
 			When:  When{kind: Stack},
 			Then: Then{services: []string{"jellyfin", "portainer"}, check: func(t *testing.T, i *installation.Installation, p projectView) {
 				assert.Equal(t, filepath.Join(i.Data, "volumes", "jellyfin"), p.volumeSources["jellyfin"][0])
+				assert.NotContains(t, p.services, "configarr")
 			}},
 		},
 		"monitoring": {
@@ -87,6 +88,7 @@ func TestLoad(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
+			t.Setenv("DOCKER_CONFIG", t.TempDir())
 			for key, value := range tt.Given.shell {
 				t.Setenv(key, value)
 			}
@@ -137,4 +139,34 @@ func viewOf(project *types.Project) projectView {
 	}
 	sort.Strings(view.services)
 	return view
+}
+
+func TestTheEngineComposeFilesLoad(t *testing.T) {
+	t.Setenv("DOCKER_CONFIG", t.TempDir())
+	root := t.TempDir()
+	i := &installation.Installation{Name: "gorgon", Config: filepath.Join(root, "config"), Data: filepath.Join(root, "data"), State: filepath.Join(root, "state"), Settings: map[string]string{}}
+	require.NoError(t, os.MkdirAll(i.Config, 0o755))
+	for _, images := range []string{"images.yml", "images.monitoring.yml"} {
+		content, err := os.ReadFile(filepath.Join("..", "..", "config-template", images))
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(filepath.Join(i.Config, images), content, 0o644))
+	}
+	require.NoError(t, Prepare(os.DirFS(filepath.Join("..", "..")), i.State))
+	require.NoError(t, os.MkdirAll(filepath.Join(i.State, ".secrets"), 0o700))
+	for _, secret := range []string{"vpn.env", "gluetun.env", "sonarr.env", "radarr.env", "prowlarr.env", "homepage.env", "apps.env"} {
+		require.NoError(t, os.WriteFile(filepath.Join(i.State, ".secrets", secret), nil, 0o600))
+	}
+	runner, err := NewRunner(os.Stdout, os.Stderr)
+	require.NoError(t, err)
+	variables := Variables(i, "gorgon.local", 998)
+
+	for _, kind := range []Kind{Stack, Monitoring} {
+		profiles := []string{"wiring"}
+		if kind.Name == Monitoring.Name {
+			profiles = nil
+		}
+		project, err := runner.Load(context.Background(), i, kind, variables, append(profiles, "homepage"))
+		require.NoError(t, err, kind.Name)
+		assert.NotEmpty(t, project.Services, kind.Name)
+	}
 }

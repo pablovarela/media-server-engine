@@ -11,9 +11,9 @@ import (
 
 func (i *Installation) CheckSchema(engineMajor int) error {
 	path := filepath.Join(i.Config, "config.yml")
-	text, err := os.ReadFile(path)
+	text, err := os.ReadFile(path) //nolint:gosec // reads the installation's own config.yml
 	if errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("%s is missing: add it with config: 0", path)
+		return fmt.Errorf("%s is missing: add it with config: %d", path, engineMajor)
 	}
 	if err != nil {
 		return err

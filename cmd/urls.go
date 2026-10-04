@@ -31,12 +31,12 @@ func newURLsCommand(deps Dependencies) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			pinned, err := compose.Profiles(i, compose.Stack, false)
+			pinned, err := compose.HomepagePinned(i)
 			if err != nil {
 				return err
 			}
 			var out strings.Builder
-			if len(pinned) > 0 {
+			if pinned {
 				port := ""
 				if p := i.HomepagePort(); p != "80" {
 					port = ":" + p

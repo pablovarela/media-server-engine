@@ -33,6 +33,25 @@ func TestPrepare(t *testing.T) {
 	}
 	assert.NoFileExists(t, filepath.Join(state, "README.md"))
 
+	t.Run("the homepage folders exist and belong to the user", func(t *testing.T) {
+		for _, dir := range []string{".homepage", ".homepage-images"} {
+			info, err := os.Stat(filepath.Join(state, dir))
+			require.NoError(t, err, dir)
+			assert.True(t, info.IsDir(), dir)
+		}
+	})
+
+	t.Run("files that left the engine are removed", func(t *testing.T) {
+		stale := filepath.Join(state, "grafana", "dashboards", "old.json")
+		require.NoError(t, os.MkdirAll(filepath.Dir(stale), 0o755))
+		require.NoError(t, os.WriteFile(stale, []byte("{}"), 0o644))
+
+		require.NoError(t, Prepare(engineFiles, state))
+
+		assert.NoFileExists(t, stale)
+		assert.FileExists(t, filepath.Join(state, "grafana", "datasources", "a.yml"))
+	})
+
 	t.Run("unchanged files are left alone", func(t *testing.T) {
 		path := filepath.Join(state, "prometheus", "prometheus.yml")
 		past := time.Now().Add(-time.Hour)

@@ -48,7 +48,7 @@ func Load(bases Bases, requested string) (*Installation, error) {
 		return nil, err
 	}
 	path := filepath.Join(root, name, "installation.env")
-	text, err := os.ReadFile(path)
+	text, err := os.ReadFile(path) //nolint:gosec // reads the installation's own installation.env
 	if err != nil {
 		return nil, err
 	}

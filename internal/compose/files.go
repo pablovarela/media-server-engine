@@ -27,29 +27,71 @@ var (
 	Monitoring = Kind{Name: "monitoring", EngineFile: "docker-compose.monitoring.yml", ImagesFile: "images.monitoring.yml"}
 )
 
-var engineEntries = []string{"docker-compose.yml", "docker-compose.monitoring.yml", "grafana", "prometheus"}
+var (
+	composeFiles  = []string{"docker-compose.yml", "docker-compose.monitoring.yml"}
+	engineFolders = []string{"grafana", "prometheus"}
+	mountedEmpty  = []string{".homepage", ".homepage-images"}
+)
 
 func Prepare(engine fs.FS, state string) error {
-	for _, entry := range engineEntries {
-		err := fs.WalkDir(engine, entry, func(path string, d fs.DirEntry, err error) error {
-			if err != nil || d.IsDir() {
-				return err
-			}
-			content, err := fs.ReadFile(engine, path)
-			if err != nil {
-				return err
-			}
-			return writeIfChanged(filepath.Join(state, filepath.FromSlash(path)), content)
-		})
-		if err != nil {
+	for _, dir := range mountedEmpty {
+		if err := os.MkdirAll(filepath.Join(state, dir), 0o755); err != nil { //nolint:gosec // containers running as other users read these folders
+			return err
+		}
+	}
+	for _, file := range composeFiles {
+		if err := copyEngineFile(engine, file, state); err != nil {
+			return err
+		}
+	}
+	for _, folder := range engineFolders {
+		if err := copyEngineFolder(engine, folder, state); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
+func copyEngineFile(engine fs.FS, path, state string) error {
+	content, err := fs.ReadFile(engine, path)
+	if err != nil {
+		return err
+	}
+	return writeIfChanged(filepath.Join(state, filepath.FromSlash(path)), content)
+}
+
+func copyEngineFolder(engine fs.FS, folder, state string) error {
+	wanted := map[string]bool{}
+	err := fs.WalkDir(engine, folder, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		relative, _ := strings.CutPrefix(path, folder+"/")
+		wanted[relative] = true
+		return copyEngineFile(engine, path, state)
+	})
+	if err != nil {
+		return err
+	}
+	return removeUnwanted(filepath.Join(state, folder), wanted)
+}
+
+func removeUnwanted(dir string, wanted map[string]bool) error {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = root.Close() }()
+	return fs.WalkDir(root.FS(), ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || wanted[path] {
+			return err
+		}
+		return root.Remove(path)
+	})
+}
+
 func writeIfChanged(path string, content []byte) error {
-	if current, err := os.ReadFile(path); err == nil && bytes.Equal(current, content) {
+	if current, err := os.ReadFile(path); err == nil && bytes.Equal(current, content) { //nolint:gosec // reads the state directory's own files
 		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // containers running as other users read these folders
@@ -91,7 +133,7 @@ func DockerGID() int {
 func Profiles(i *installation.Installation, kind Kind, wiring bool) ([]string, error) {
 	var profiles []string
 	if kind.Name == Stack.Name {
-		pinned, err := homepagePinned(filepath.Join(i.Config, kind.ImagesFile))
+		pinned, err := HomepagePinned(i)
 		if err != nil {
 			return nil, err
 		}
@@ -105,8 +147,8 @@ func Profiles(i *installation.Installation, kind Kind, wiring bool) ([]string, e
 	return profiles, nil
 }
 
-func homepagePinned(path string) (bool, error) {
-	text, err := os.ReadFile(path)
+func HomepagePinned(i *installation.Installation) (bool, error) {
+	text, err := os.ReadFile(filepath.Join(i.Config, Stack.ImagesFile))
 	if err != nil {
 		return false, err
 	}

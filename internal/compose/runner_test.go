@@ -20,7 +20,7 @@ func TestOperations(t *testing.T) {
 	t.Run("up starts the named services and waits for nothing", func(t *testing.T) {
 		service := newMockService(t)
 		service.EXPECT().Up(ctx, project, mock.MatchedBy(func(o api.UpOptions) bool {
-			return assert.ObjectsAreEqual([]string{"jellyfin"}, o.Create.Services) && assert.ObjectsAreEqual([]string{"jellyfin"}, o.Start.Services) && o.Start.Project == project && o.Create.RemoveOrphans
+			return assert.ObjectsAreEqual([]string{"jellyfin"}, o.Create.Services) && assert.ObjectsAreEqual([]string{"jellyfin"}, o.Start.Services) && o.Start.Project == project && o.Create.RemoveOrphans && o.Create.Inherit
 		})).Return(nil)
 
 		require.NoError(t, (&Runner{service: service}).Up(ctx, project, []string{"jellyfin"}))

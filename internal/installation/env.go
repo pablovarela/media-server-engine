@@ -1,6 +1,9 @@
 package installation
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
 
 func ParseEnv(text string) map[string]string {
 	settings := map[string]string{}
@@ -18,9 +21,11 @@ func ParseEnv(text string) map[string]string {
 	return settings
 }
 
+var trailingComment = regexp.MustCompile(`\s+#.*$`)
+
 func unquoted(value string) string {
 	if len(value) >= 2 && (value[0] == '"' || value[0] == '\'') && value[len(value)-1] == value[0] {
 		return value[1 : len(value)-1]
 	}
-	return value
+	return trailingComment.ReplaceAllString(value, "")
 }

@@ -14,9 +14,6 @@ linters:
   settings:
     gocyclo:
       min-complexity: 10
-    gosec:
-      excludes:
-        - G304
     revive:
       rules:
         - name: package-comments

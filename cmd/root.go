@@ -69,7 +69,7 @@ func Execute(engine fs.FS) int {
 		Environment: os.Getenv,
 		Home:        home,
 		Host:        installation.SystemHost(),
-		Decrypt:     secrets.Sops,
+		Decrypt:     secrets.Sops(installation.BasesFrom(os.Getenv, home).Config),
 		Compose: func(out, errOut io.Writer) (composeRunner, error) {
 			return compose.NewRunner(out, errOut)
 		},
@@ -78,7 +78,12 @@ func Execute(engine fs.FS) int {
 }
 
 func interruptible() (context.Context, context.CancelFunc) {
-	return signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-ctx.Done()
+		stop()
+	}()
+	return ctx, stop
 }
 
 func run(ctx context.Context, root *cobra.Command, args []string) int {
