@@ -1,6 +1,6 @@
 import sys
 
-from engine import apps, backups, claim, configure, create, downloads, homepage, images, join, machine, ports, restore, role, timers, unlock, update, verify, version
+from engine import apps, backups, claim, configure, create, downloads, homepage, images, join, machine, ports, restore, role, scheduled, timers, unlock, update, verify, version
 
 COMMANDS = {
     "update": update.main,
@@ -18,6 +18,7 @@ COMMANDS = {
     "remove-executable-downloads": downloads.main,
     "port-in-use": ports.main,
     "homepage": homepage.main,
+    "scheduled-update": scheduled.main,
     "install-timers": timers.main,
     "setup-machine": machine.main,
     "create-installation": create.main,

@@ -106,3 +106,7 @@ setup() {
   make -s -n -C "$REPO" configure | grep -qE "scripts/engine-run configure *$"
   make -s -n -C "$REPO" configure ROTATE=sonarr | grep -q "scripts/engine-run configure --rotate sonarr$"
 }
+
+@test "the update timer runs the Python scheduled update with the ping key" {
+  grep -q "^ExecStart=@SOPS@ exec-env @CONFIG_DIR@/secrets/healthchecks.sops.env scripts/engine-run scheduled-update$" "$REPO/systemd/media-update.service"
+}
