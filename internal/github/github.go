@@ -2,35 +2,36 @@ package github
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+
+	gh "github.com/google/go-github/v92/github"
 )
 
 const (
-	repository = "pablovarela/media-server-engine"
-	apiURL     = "https://api.github.com/repos/" + repository
+	owner      = "pablovarela"
+	name       = "media-server-engine"
+	repository = owner + "/" + name
 )
 
 type Asset struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
+	ID   int64
+	Name string
 }
 
 type Release struct {
-	Tag        string  `json:"tag_name"`
-	URL        string  `json:"html_url"`
-	Draft      bool    `json:"draft"`
-	Prerelease bool    `json:"prerelease"`
-	Assets     []Asset `json:"assets"`
+	Tag    string
+	URL    string
+	Assets []Asset
 }
 
 type Client struct {
 	tokens      TokenSource
-	token       string
 	tokenSource string
 	http        *http.Client
+	api         *gh.Client
 }
 
 func NewClient(tokens TokenSource, httpClient *http.Client) *Client {
@@ -38,58 +39,72 @@ func NewClient(tokens TokenSource, httpClient *http.Client) *Client {
 }
 
 func (c *Client) Releases(ctx context.Context) ([]Release, error) {
-	var all []Release
-	err := c.get(ctx, apiURL+"/releases?per_page=100", "application/vnd.github+json", func(body io.Reader) error {
-		return json.NewDecoder(body).Decode(&all)
-	})
+	api, err := c.authenticated(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("list the releases of %s: %w", repository, err)
+		return nil, err
+	}
+	all, _, err := api.Repositories.ListReleases(ctx, owner, name, &gh.ListOptions{PerPage: 100})
+	if err != nil {
+		return nil, fmt.Errorf("list the releases of %s: %w", repository, c.explain(err))
 	}
 	var published []Release
 	for _, release := range all {
-		if !release.Draft && !release.Prerelease {
-			published = append(published, release)
+		if !release.GetDraft() && !release.GetPrerelease() {
+			published = append(published, releaseOf(release))
 		}
 	}
 	return published, nil
 }
 
 func (c *Client) Download(ctx context.Context, assetID int64, w io.Writer) error {
-	err := c.get(ctx, fmt.Sprintf("%s/releases/assets/%d", apiURL, assetID), "application/octet-stream", func(body io.Reader) error {
-		_, err := io.Copy(w, body)
-		return err
-	})
+	api, err := c.authenticated(ctx)
 	if err != nil {
+		return err
+	}
+	body, _, err := api.Repositories.DownloadReleaseAsset(ctx, owner, name, assetID, c.http)
+	if err != nil {
+		return fmt.Errorf("download asset %d: %w", assetID, c.explain(err))
+	}
+	defer func() { _ = body.Close() }()
+	if _, err := io.Copy(w, body); err != nil {
 		return fmt.Errorf("download asset %d: %w", assetID, err)
 	}
 	return nil
 }
 
-func (c *Client) get(ctx context.Context, url, accept string, read func(io.Reader) error) error {
-	if c.token == "" {
-		token, source, err := c.tokens.Token(ctx)
-		if err != nil {
-			return err
-		}
-		c.token, c.tokenSource = token, source
+func (c *Client) authenticated(ctx context.Context) (*gh.Client, error) {
+	if c.api != nil {
+		return c.api, nil
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	token, source, err := c.tokens.Token(ctx)
 	if err != nil {
+		return nil, err
+	}
+	api, err := gh.NewClient(gh.WithHTTPClient(c.http), gh.WithAuthToken(token))
+	if err != nil {
+		return nil, err
+	}
+	c.api, c.tokenSource = api, source
+	return api, nil
+}
+
+func (c *Client) explain(err error) error {
+	var answer *gh.ErrorResponse
+	if !errors.As(err, &answer) || answer.Response == nil {
 		return err
 	}
-	request.Header.Set("Authorization", "Bearer "+c.token)
-	request.Header.Set("Accept", accept)
-	response, err := c.http.Do(request)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = response.Body.Close() }()
-	switch response.StatusCode {
-	case http.StatusOK:
-		return read(response.Body)
+	switch answer.Response.StatusCode {
 	case http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound:
-		return fmt.Errorf("GitHub answered %s: check the token from %s can read %s", response.Status, c.tokenSource, repository)
+		return fmt.Errorf("GitHub answered %s: check the token from %s can read %s", answer.Response.Status, c.tokenSource, repository)
 	default:
-		return fmt.Errorf("GitHub answered %s", response.Status)
+		return fmt.Errorf("GitHub answered %s", answer.Response.Status)
 	}
+}
+
+func releaseOf(release *gh.RepositoryRelease) Release {
+	converted := Release{Tag: release.GetTagName(), URL: release.GetHTMLURL()}
+	for _, asset := range release.Assets {
+		converted.Assets = append(converted.Assets, Asset{ID: asset.GetID(), Name: asset.GetName()})
+	}
+	return converted
 }

@@ -95,7 +95,7 @@ func TestReleases(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			client := clientAnswering(t, exchange{
-				url: releasesURL, authorization: "Bearer test-token", accept: "application/vnd.github+json",
+				url: releasesURL, authorization: "Bearer test-token", accept: "application/vnd.github.v3+json",
 				status: tt.Given.status, body: tt.Given.body,
 			})
 
