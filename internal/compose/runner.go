@@ -78,6 +78,13 @@ func (r *Runner) Load(ctx context.Context, i *installation.Installation, kind Ki
 }
 
 func (r *Runner) Up(ctx context.Context, project *types.Project, services []string) error {
+	if len(services) > 0 {
+		selected, err := project.WithSelectedServices(services)
+		if err != nil {
+			return err
+		}
+		project = selected
+	}
 	return r.service.Up(ctx, project, api.UpOptions{
 		Create: api.CreateOptions{Services: services, RemoveOrphans: true, Inherit: true},
 		Start:  api.StartOptions{Project: project, Services: services},

@@ -17,13 +17,31 @@ func TestOperations(t *testing.T) {
 	project := &types.Project{Name: "media-server"}
 	ctx := context.Background()
 
-	t.Run("up starts the named services and waits for nothing", func(t *testing.T) {
+	t.Run("up with services touches only those services", func(t *testing.T) {
+		full := &types.Project{Name: "media-server", Services: types.Services{
+			"jellyfin": {Name: "jellyfin", Image: "j"},
+			"sonarr":   {Name: "sonarr", Image: "s"},
+		}}
 		service := newMockService(t)
-		service.EXPECT().Up(ctx, project, mock.MatchedBy(func(o api.UpOptions) bool {
-			return assert.ObjectsAreEqual([]string{"jellyfin"}, o.Create.Services) && assert.ObjectsAreEqual([]string{"jellyfin"}, o.Start.Services) && o.Start.Project == project && o.Create.RemoveOrphans && o.Create.Inherit
+		service.EXPECT().Up(ctx, mock.MatchedBy(func(p *types.Project) bool {
+			return assert.ObjectsAreEqual([]string{"jellyfin"}, p.ServiceNames())
+		}), mock.MatchedBy(func(o api.UpOptions) bool {
+			return o.Start.Project != nil && assert.ObjectsAreEqual([]string{"jellyfin"}, o.Start.Project.ServiceNames()) &&
+				o.Create.RemoveOrphans && o.Create.Inherit
 		})).Return(nil)
 
-		require.NoError(t, (&Runner{service: service}).Up(ctx, project, []string{"jellyfin"}))
+		require.NoError(t, (&Runner{service: service}).Up(ctx, full, []string{"jellyfin"}))
+	})
+
+	t.Run("up without services starts every service", func(t *testing.T) {
+		full := &types.Project{Name: "media-server", Services: types.Services{
+			"jellyfin": {Name: "jellyfin", Image: "j"},
+			"sonarr":   {Name: "sonarr", Image: "s"},
+		}}
+		service := newMockService(t)
+		service.EXPECT().Up(ctx, full, mock.MatchedBy(func(o api.UpOptions) bool { return o.Start.Project == full })).Return(nil)
+
+		require.NoError(t, (&Runner{service: service}).Up(ctx, full, nil))
 	})
 
 	t.Run("down removes orphans", func(t *testing.T) {
