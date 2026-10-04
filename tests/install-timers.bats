@@ -23,7 +23,7 @@ teardown() {
   grep -q "^WorkingDirectory=$ENGINE_DIR$" "$UNIT_DIR/media-backup.service"
   grep -q "^Environment=CONFIG_DIR=$(cd "$CONFIG_DIR" && pwd)$" "$UNIT_DIR/media-backup.service"
   grep -q "^Environment=DATA_DIR=$(cd "$DATA_DIR" && pwd)$" "$UNIT_DIR/media-backup.service"
-  grep -q "exec-env $(cd "$CONFIG_DIR" && pwd)/secrets/healthchecks.sops.env '.* exec-env $(cd "$CONFIG_DIR" && pwd)/secrets/backup.sops.env scripts/backup.sh'$" "$UNIT_DIR/media-backup.service"
+  grep -q "exec-env $(cd "$CONFIG_DIR" && pwd)/secrets/healthchecks.sops.env '.* exec-env $(cd "$CONFIG_DIR" && pwd)/secrets/backup.sops.env scripts/backup.py'$" "$UNIT_DIR/media-backup.service"
   grep -q "^User=$(id -un)$" "$UNIT_DIR/media-backup.service"
   grep -q "^Environment=SOPS_AGE_KEY_FILE=$HOME/.config/sops/age/keys.txt$" "$UNIT_DIR/media-verify.service"
   ! grep -q "@" "$UNIT_DIR"/media-* || false

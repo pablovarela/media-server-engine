@@ -3,7 +3,7 @@ load helpers
 setup() {
   setup_stubs
   source "$BATS_TEST_DIRNAME/../scripts/tool-versions.env"
-  for tool in git make curl sqlite3; do make_stub "$tool" ''; done
+  for tool in git make curl; do make_stub "$tool" ''; done
   make_stub python3 'if [ "$*" = "-c import yaml" ] && [ -n "${FAKE_NO_YAML:-}" ]; then exit 1; fi'
   make_stub docker '
 if [ "$1 $2" = "compose version" ]; then echo "Docker Compose version v5.4.0"; fi
@@ -113,4 +113,9 @@ teardown() {
   run "$BATS_TEST_DIRNAME/../scripts/check-tools.sh"
   echo "$output" | grep -q "OK .*perl$"
   echo "$output" | grep -q "OK .*openssl$"
+}
+
+@test "the sqlite3 command is not needed" {
+  ! grep -qw sqlite3 "$BATS_TEST_DIRNAME/../scripts/check-tools.sh" || false
+  ! grep -qw sqlite3 "$BATS_TEST_DIRNAME/../scripts/bootstrap.sh" || false
 }

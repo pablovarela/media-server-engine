@@ -80,7 +80,7 @@ check_secrets_key() {
   fi
 }
 
-for tool in docker git make curl sqlite3 python3 perl openssl sops age restic; do
+for tool in docker git make curl python3 perl openssl sops age restic; do
   check_command "$tool"
 done
 installed docker && check_compose_plugin

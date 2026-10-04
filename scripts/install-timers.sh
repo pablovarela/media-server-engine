@@ -34,7 +34,7 @@ installs_backup_timers() {
 systemd_running || die "timers need systemd, and systemd is not running on this machine"
 if installs_backup_timers "$@"; then
   load_installation
-  "${BACKUP_ROLE_COMMAND:-$ENGINE_DIR/scripts/backup-role.sh}" is-main ||
+  "${BACKUP_ROLE_COMMAND:-$ENGINE_DIR/scripts/backup-role.py}" is-main ||
     die "this machine is not $INSTALLATION_NAME's main; run make claim-backup-main first"
 fi
 timers=""

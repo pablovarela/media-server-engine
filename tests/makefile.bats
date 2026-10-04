@@ -8,13 +8,19 @@ setup() {
     [ "$status" -eq 0 ]
     ! echo "$output" | grep -q systemctl || false
   done
-  make -s -n -C "$REPO" backup-now | grep -q "scripts/backup.sh"
-  make -s -n -C "$REPO" verify-backup-now | grep -q "scripts/verify-backup.sh"
+  make -s -n -C "$REPO" backup-now | grep -q "scripts/backup.py"
+  make -s -n -C "$REPO" verify-backup-now | grep -q "scripts/verify-backup.py"
 }
 
 @test "the timers run the same commands as the make targets" {
-  grep -q "scripts/backup.sh" "$REPO/systemd/media-backup.service"
-  grep -q "scripts/verify-backup.sh" "$REPO/systemd/media-verify.service"
+  grep -q "scripts/backup.py" "$REPO/systemd/media-backup.service"
+  grep -q "scripts/verify-backup.py" "$REPO/systemd/media-verify.service"
+}
+
+@test "the backup targets run the Python programs" {
+  make -s -n -C "$REPO" claim-backup-main | grep -q "scripts/claim-backup-main.py"
+  make -s -n -C "$REPO" unlock-backup | grep -q "scripts/unlock-backup.py"
+  make -s -n -C "$REPO" restore | grep -q "scripts/restore.py"
 }
 
 @test "targets that need an installation say where installations are, run outside one" {
@@ -43,8 +49,8 @@ setup() {
 }
 
 @test "unlock-backup runs the unlock script with the backup secrets, and passes ALL" {
-  make -s -n -C "$REPO" unlock-backup | grep -q "backup.sops.env.*scripts/unlock-backup.sh"
-  make -s -n -C "$REPO" unlock-backup ALL=1 | grep -q "scripts/unlock-backup.sh --remove-all"
+  make -s -n -C "$REPO" unlock-backup | grep -q "backup.sops.env.*scripts/unlock-backup.py"
+  make -s -n -C "$REPO" unlock-backup ALL=1 | grep -q "scripts/unlock-backup.py --remove-all"
 }
 
 @test "make update installs the pinned tools before checking them" {
