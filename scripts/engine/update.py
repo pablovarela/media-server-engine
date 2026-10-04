@@ -109,8 +109,6 @@ def machine_role():
     return os.environ.get("MACHINE_ROLE") or installation.machine_role()
 
 
-
-
 @contextlib.contextmanager
 def environment(**values):
     saved = {name: os.environ.get(name) for name in values}

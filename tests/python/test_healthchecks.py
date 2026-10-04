@@ -1,5 +1,7 @@
 import http.client
+import threading
 import time
+import urllib.request
 from unittest import mock
 
 import pytest
@@ -238,3 +240,17 @@ def test_without_a_ping_key_nothing_is_sent_and_a_warning_is_logged(pinging, mon
     pinging.ping("backup", "/fail")
     urlopen.assert_not_called()
     assert capsys.readouterr().err == "no healthchecks ping key configured; not reporting backup/fail\n"
+
+
+
+def test_a_ping_that_hangs_even_before_connecting_gives_up_in_time(pinging, monkeypatch, capsys):
+    monkeypatch.setattr(pinging, "PING_SECONDS", 0.05)
+    never = threading.Event()
+
+    def hang(request, timeout=None):
+        never.wait(1)
+        raise ConnectionError("too late")
+
+    monkeypatch.setattr(urllib.request, "urlopen", hang)
+    pinging.ping("backup")
+    assert capsys.readouterr().err == "healthchecks: could not report testinst-backup: timed out\n"

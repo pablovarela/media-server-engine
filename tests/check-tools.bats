@@ -4,7 +4,7 @@ setup() {
   setup_stubs
   source "$BATS_TEST_DIRNAME/../scripts/tool-versions.env"
   for tool in git make curl; do make_stub "$tool" ''; done
-  make_stub python3 'if [ "$*" = "-c import yaml" ] && [ -n "${FAKE_NO_YAML:-}" ]; then exit 1; fi'
+  make_stub python3 'if [ "$*" = "-c import yaml" ] && [ -n "${FAKE_NO_YAML:-}" ]; then exit 1; fi; if [ "$*" = "-c import sqlite3" ] && [ -n "${FAKE_NO_SQLITE:-}" ]; then exit 1; fi'
   make_stub docker '
 if [ "$1 $2" = "compose version" ]; then echo "Docker Compose version v5.4.0"; fi
 if [ "$1" = info ] && [ -n "${FAKE_DOCKER_DENIED:-}" ]; then echo "permission denied while trying to connect to the docker API at unix:///var/run/docker.sock" >&2; exit 1; fi
@@ -116,6 +116,14 @@ teardown() {
 }
 
 @test "the sqlite3 command is not needed" {
-  ! grep -qw sqlite3 "$BATS_TEST_DIRNAME/../scripts/check-tools.sh" || false
-  ! grep -qw sqlite3 "$BATS_TEST_DIRNAME/../scripts/bootstrap.sh" || false
+  ! grep -E "^for tool in " "$BATS_TEST_DIRNAME/../scripts/check-tools.sh" | grep -qw sqlite3 || false
+  ! grep -E "apt-get install" "$BATS_TEST_DIRNAME/../scripts/bootstrap.sh" | grep -qw sqlite3 || false
+}
+
+@test "check-tools checks the python sqlite3 module, which the backup check needs" {
+  run "$BATS_TEST_DIRNAME/../scripts/check-tools.sh"
+  echo "$output" | grep -qE "^OK +python3 sqlite3 module$"
+  FAKE_NO_SQLITE=1 run "$BATS_TEST_DIRNAME/../scripts/check-tools.sh"
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "MISSING.*python3 sqlite3 module"
 }

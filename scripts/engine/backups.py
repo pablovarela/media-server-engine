@@ -56,6 +56,7 @@ def backup(claim=False):
     name = os.environ["INSTALLATION_NAME"]
     os.chdir(installation.data_dir())
     held = take_lock()
+    commands.PASSED_TO_CHILDREN.add(held.fileno())
     stopped = []
     succeeded = False
     try:
@@ -73,7 +74,7 @@ def backup(claim=False):
         start(stopped)
         stopped = []
         restic.run_explaining_locks("forget", "--retry-lock", "2h", "--host", name, "--prune", "--keep-daily", "7", "--keep-weekly", "4", "--keep-monthly", "6")
-        open(os.path.join(installation.data_dir(), ".backup-main"), "a").close()
+        role.mark_main()
         healthchecks.ping("backup")
         succeeded = True
     finally:
@@ -82,6 +83,7 @@ def backup(claim=False):
                 start(stopped)
             except commands.CommandFailed:
                 succeeded = False
+            commands.PASSED_TO_CHILDREN.discard(held.fileno())
             held.close()
             if not succeeded:
                 healthchecks.ping("backup", "/fail")

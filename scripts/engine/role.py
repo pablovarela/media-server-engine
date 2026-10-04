@@ -47,6 +47,13 @@ def latest_snapshot():
     return snapshots[-1] if snapshots else None
 
 
+def mark_main():
+    os.makedirs(installation.data_dir(), exist_ok=True)
+    marker = os.path.join(installation.data_dir(), ".backup-main")
+    open(marker, "a").close()
+    os.utime(marker)
+
+
 def tags(snapshot):
     return dict(tag.split(":", 1) for tag in snapshot.get("tags", []) if ":" in tag)
 

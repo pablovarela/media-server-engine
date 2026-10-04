@@ -9,18 +9,29 @@ from engine import commands, healthchecks, installation, program, restic, role
 DATABASE_SUFFIXES = (".db", ".sqlite", ".sqlite3")
 
 
+def unreadable(error):
+    raise error
+
+
+def is_plain_file(path):
+    return os.path.isfile(path) and not os.path.islink(path)
+
+
 def restored_databases(directory):
     return sorted(
         os.path.join(folder, name)
-        for folder, _, files in os.walk(directory)
+        for folder, _, files in os.walk(directory, onerror=unreadable)
         for name in files
-        if name.endswith(DATABASE_SUFFIXES) and os.path.isfile(os.path.join(folder, name))
+        if name.endswith(DATABASE_SUFFIXES) and is_plain_file(os.path.join(folder, name))
     )
 
 
 def is_sqlite_database(path):
-    with open(path, "rb") as database:
-        return database.read(15).replace(b"\x00", b"") == b"SQLite format 3"
+    try:
+        with open(path, "rb") as database:
+            return database.read(15).replace(b"\x00", b"") == b"SQLite format 3"
+    except OSError:
+        return False
 
 
 def check_database(path, name):

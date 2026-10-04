@@ -3,6 +3,7 @@ import http.client
 import json
 import os
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -135,6 +136,7 @@ def linked_time_zone():
 
 
 PING_RETRY_SECONDS = [1, 2, 4]
+PING_SECONDS = 10
 
 
 def slug(job, role="main"):
@@ -142,6 +144,25 @@ def slug(job, role="main"):
     if job == "update" and role == "secondary":
         return f"{name}-{job}-{installation.short_hostname()}"
     return f"{name}-{job}"
+
+
+def reach(request):
+    failures = []
+
+    def attempt():
+        try:
+            with urllib.request.urlopen(request, timeout=PING_SECONDS):
+                pass
+        except Exception as error:
+            failures.append(error)
+
+    worker = threading.Thread(target=attempt, daemon=True)
+    worker.start()
+    worker.join(PING_SECONDS)
+    if worker.is_alive():
+        raise TimeoutError("timed out")
+    if failures:
+        raise failures[0]
 
 
 def worth_retrying(error):
@@ -157,8 +178,8 @@ def ping(job, suffix=""):
     request = urllib.request.Request(f"https://hc-ping.com/{key}/{check}{suffix}?create=1")
     for wait in [*PING_RETRY_SECONDS, None]:
         try:
-            with urllib.request.urlopen(request, timeout=10):
-                return
+            reach(request)
+            return
         except (OSError, http.client.HTTPException) as error:
             if wait is None or not worth_retrying(error):
                 reason = f"healthchecks.io answered {error.code}" if isinstance(error, urllib.error.HTTPError) else getattr(error, "reason", error)

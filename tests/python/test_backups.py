@@ -236,3 +236,21 @@ def test_a_second_signal_while_restarting_the_services_does_not_stop_the_restart
         signal.signal(signal.SIGTERM, previous)
     assert restarted == [True]
     assert pings(http)[-1] == "/fail?create=1"
+
+
+
+def test_restic_and_docker_hold_the_backup_lock_too_so_it_outlives_a_killed_backup(backup, commands):
+    backup.main([])
+    holding = {tuple(command.args[:3]): command.pass_fds for command in commands.ran}
+    lock = holding[("restic", "backup", "--retry-lock")]
+    assert len(lock) == 1
+    assert holding[("docker", "compose", "--project-name")] == lock
+    assert holding[("restic", "forget", "--retry-lock")] == lock
+
+
+def test_a_successful_backup_refreshes_the_mains_marker_time(backup, installed):
+    marker = installed.data / ".backup-main"
+    marker.touch()
+    os.utime(marker, (0, 0))
+    assert backup.main([]) == 0
+    assert marker.stat().st_mtime > 0

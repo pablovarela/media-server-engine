@@ -7,8 +7,6 @@ export ENGINE_DIR CONFIG_DIR DATA_DIR
 # The healthchecks.io API keys are read from the decrypted secrets file; only the ping key belongs in the environment.
 unset HEALTHCHECKS_API_KEY HEALTHCHECKS_MANAGE_KEY
 
-export SNAPSHOT_VOLUMES_PATH=/volumes
-
 die() {
   echo "$(basename "$0"): $*" >&2
   exit 1

@@ -36,8 +36,7 @@ def claim(argv):
     create_repository_if_missing()
     confirm_taking_over()
     backups.backup(claim=True)
-    os.makedirs(installation.data_dir(), exist_ok=True)
-    open(os.path.join(installation.data_dir(), ".backup-main"), "a").close()
+    role.mark_main()
     print(f"This machine is now {os.environ['INSTALLATION_NAME']}'s main; backups from any other machine are refused.")
 
 

@@ -151,7 +151,7 @@ class Commands:
 
     def __call__(self, args, **options):
         args = [str(arg) for arg in args]
-        self.ran.append(SimpleNamespace(args=args, env=options.get("env")))
+        self.ran.append(SimpleNamespace(args=args, env=options.get("env"), pass_fds=options.get("pass_fds", ())))
         outcomes = next((outcomes for words, outcomes in self.answers if matches(words, args)), None)
         if outcomes is None:
             raise AssertionError(f"unexpected command: {' '.join(args)}")

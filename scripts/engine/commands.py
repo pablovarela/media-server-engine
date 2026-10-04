@@ -17,7 +17,12 @@ class CommandFailed(Exception):
         self.returncode = returncode
 
 
+PASSED_TO_CHILDREN = set()
+
+
 def completed(args, **options):
+    if PASSED_TO_CHILDREN:
+        options["pass_fds"] = tuple(sorted(PASSED_TO_CHILDREN))
     sys.stdout.flush()
     sys.stderr.flush()
     try:

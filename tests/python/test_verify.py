@@ -172,3 +172,38 @@ def test_a_database_whose_integrity_check_finds_problems_fails_the_verify_with_t
     monkeypatch.setattr(sqlite3, "connect", lambda path: Checked())
     assert verify.main([]) == 1
     assert capsys.readouterr().err == "verify-backup: integrity check failed for app/a.db: *** in database main ***\nrow 1 missing from index i\n"
+
+
+
+def test_a_database_link_is_not_followed_and_an_unreadable_database_is_skipped(verify, commands, capsys):
+    def odd_files():
+        args = commands.ran[-1].args
+        target = args[args.index("--target") + 1]
+        restored(target)
+        app = os.path.join(target, "app")
+        os.symlink(os.path.join(app, "a.db"), os.path.join(app, "link.db"))
+        with open(os.path.join(app, "locked.db"), "wb") as locked:
+            locked.write(b"SQLite format 3\x00")
+        os.chmod(os.path.join(app, "locked.db"), 0)
+
+    commands.on(["restic", "restore"], done(then=odd_files))
+    assert verify.main([]) == 0
+    assert capsys.readouterr().err == ""
+
+
+def test_a_restored_folder_that_cannot_be_read_fails_the_verify(verify, commands, capsys):
+    def locked_folder():
+        args = commands.ran[-1].args
+        target = args[args.index("--target") + 1]
+        restored(target)
+        os.makedirs(os.path.join(target, "locked"))
+        os.chmod(os.path.join(target, "locked"), 0)
+
+    commands.on(["restic", "restore"], done(then=locked_folder))
+    try:
+        assert verify.main([]) == 1
+    finally:
+        restore_dir = target(commands)
+        if os.path.exists(restore_dir):
+            os.chmod(os.path.join(restore_dir, "locked"), 0o700)
+    assert "locked" in capsys.readouterr().err
