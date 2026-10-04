@@ -46,7 +46,7 @@ version: installation ## show the engine release this installation runs and the 
 	@scripts/engine-run version
 
 homepage: installation ## redraw the landing page from the config's homepage files, without restarting anything (an open page reloads itself)
-	@scripts/homepage-render.sh
+	@scripts/engine-run homepage
 
 check-tools: ## check that every tool the scripts need is installed and the age key works
 	@scripts/check-tools.sh

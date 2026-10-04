@@ -78,7 +78,7 @@ setup() {
 }
 
 @test "make homepage re-renders the landing page, and nothing else" {
-  make -s -n -C "$REPO" homepage | grep -q "scripts/homepage-render.sh"
+  make -s -n -C "$REPO" homepage | grep -q "scripts/engine-run homepage"
   ! make -s -n -C "$REPO" homepage | grep -qE "engine-run update|compose" || false
 }
 
