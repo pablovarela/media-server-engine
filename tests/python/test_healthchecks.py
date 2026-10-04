@@ -254,3 +254,20 @@ def test_a_ping_that_hangs_even_before_connecting_gives_up_in_time(pinging, monk
     monkeypatch.setattr(urllib.request, "urlopen", hang)
     pinging.ping("backup")
     assert capsys.readouterr().err == "healthchecks: could not report testinst-backup: timed out\n"
+
+
+
+def test_a_ping_key_that_cannot_be_part_of_a_url_costs_only_the_ping(pinging, urlopen, monkeypatch, capsys):
+    monkeypatch.setenv("HEALTHCHECKS_PING_KEY", "p k")
+    urlopen.side_effect = http.client.InvalidURL("URL can't contain control characters. '/p k/testinst-backup?create=1' (found at least ' ')")
+    pinging.ping("backup", "/start")
+    err = capsys.readouterr().err
+    assert err == "healthchecks: could not report testinst-backup/start: the ping key cannot be used in a URL\n"
+    assert "p k" not in err
+
+
+def test_a_ping_key_with_characters_a_url_cannot_encode_costs_only_the_ping(pinging, urlopen, monkeypatch, capsys):
+    monkeypatch.setenv("HEALTHCHECKS_PING_KEY", "pké")
+    urlopen.side_effect = UnicodeEncodeError("ascii", "pké", 2, 3, "ordinal not in range(128)")
+    pinging.ping("backup")
+    assert capsys.readouterr().err == "healthchecks: could not report testinst-backup: the ping key cannot be used in a URL\n"

@@ -180,6 +180,9 @@ def ping(job, suffix=""):
         try:
             reach(request)
             return
+        except (ValueError, http.client.InvalidURL):
+            print(f"healthchecks: could not report {check}{suffix}: the ping key cannot be used in a URL", file=sys.stderr)
+            return
         except (OSError, http.client.HTTPException) as error:
             if wait is None or not worth_retrying(error):
                 reason = f"healthchecks.io answered {error.code}" if isinstance(error, urllib.error.HTTPError) else getattr(error, "reason", error)

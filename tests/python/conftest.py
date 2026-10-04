@@ -140,9 +140,31 @@ def real():
     return SimpleNamespace(real=True, then=None)
 
 
+class Process:
+    def __init__(self, args, outcome, options):
+        self.args = args
+        self.outcome = outcome
+        self.options = options
+        self.returncode = None
+        self.signals = []
+
+    def communicate(self):
+        if self.outcome.then:
+            self.outcome.then()
+        result = completed(self.args, self.outcome, self.options)
+        self.returncode = result.returncode
+        return result.stdout, result.stderr
+
+    def wait(self):
+        return self.returncode
+
+    def send_signal(self, signum):
+        self.signals.append(signum)
+
+
 class Commands:
-    def __init__(self, run):
-        self.run = run
+    def __init__(self, start):
+        self.start = start
         self.answers = []
         self.ran = []
 
@@ -151,16 +173,14 @@ class Commands:
 
     def __call__(self, args, **options):
         args = [str(arg) for arg in args]
-        self.ran.append(SimpleNamespace(args=args, env=options.get("env"), pass_fds=options.get("pass_fds", ())))
+        command = SimpleNamespace(args=args, env=options.get("env"), pass_fds=options.get("pass_fds", ()), process=None)
+        self.ran.append(command)
         outcomes = next((outcomes for words, outcomes in self.answers if matches(words, args)), None)
         if outcomes is None:
             raise AssertionError(f"unexpected command: {' '.join(args)}")
         outcome = outcomes.pop(0) if len(outcomes) > 1 else outcomes[0]
-        if getattr(outcome, "real", False):
-            return self.run(args, **options)
-        if outcome.then:
-            outcome.then()
-        return completed(args, outcome, options)
+        command.process = self.start(args, **options) if getattr(outcome, "real", False) else Process(args, outcome, options)
+        return command.process
 
     def did(self, *words):
         return any(matches(words, command.args) for command in self.ran)
@@ -173,6 +193,9 @@ class Commands:
 
     def env_of(self, *words):
         return next(command.env for command in self.ran if matches(words, command.args))
+
+    def signals_to(self, *words):
+        return [signum for command in self.ran if matches(words, command.args) for signum in command.process.signals]
 
 
 def completed(args, outcome, options):
@@ -191,8 +214,8 @@ def completed(args, outcome, options):
 
 @pytest.fixture
 def commands(monkeypatch):
-    mock_commands = Commands(subprocess.run)
-    monkeypatch.setattr(subprocess, "run", mock_commands)
+    mock_commands = Commands(subprocess.Popen)
+    monkeypatch.setattr(subprocess, "Popen", mock_commands)
     return mock_commands
 
 

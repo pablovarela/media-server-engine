@@ -10,7 +10,8 @@ ENDING_SIGNALS = (signal.SIGTERM, signal.SIGHUP)
 
 
 def stop_on_terminate(signum, frame):
-    raise SystemExit(128 + signum)
+    if not commands.forward(signum):
+        raise SystemExit(128 + signum)
 
 
 @contextlib.contextmanager

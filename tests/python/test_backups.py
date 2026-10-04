@@ -113,6 +113,7 @@ def test_a_terminated_backup_starts_the_services_releases_the_lock_and_pings_fai
     finally:
         signal.signal(signal.SIGTERM, previous)
     assert ended.value.code == 143
+    assert commands.signals_to("restic", "backup") == [signal.SIGTERM]
     assert commands.did("docker", "compose", "start", "jellyfin", "sonarr")
     assert backup.running_backup_pid() == ""
     assert pings(http)[-1] == "/fail?create=1"

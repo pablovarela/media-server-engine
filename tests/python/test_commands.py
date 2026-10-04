@@ -1,10 +1,20 @@
 import io
+import os
+import signal
 import subprocess
 import sys
 
 import pytest
 
 from conftest import done, fresh_engine
+
+
+class Finished:
+    def __init__(self, returncode):
+        self.returncode = returncode
+
+    def communicate(self):
+        return None, None
 
 
 @pytest.fixture
@@ -51,7 +61,7 @@ def test_a_missing_program_fails_like_the_shell_does(commands_module, monkeypatc
     def missing(args, **options):
         raise FileNotFoundError(2, "No such file or directory", args[0])
 
-    monkeypatch.setattr(subprocess, "run", missing)
+    monkeypatch.setattr(subprocess, "Popen", missing)
     with pytest.raises(commands_module.CommandFailed) as failed:
         commands_module.run(["docker", "compose", "up"])
     assert failed.value.returncode == 127
@@ -68,18 +78,18 @@ def test_what_the_program_printed_is_written_out_before_a_command_runs(commands_
     monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(written, write_through=False))
     seen = {}
 
-    def run(args, **options):
+    def start(args, **options):
         seen["before"] = written.getvalue()
-        return subprocess.CompletedProcess(args, 0)
+        return Finished(0)
 
-    monkeypatch.setattr(subprocess, "run", run)
+    monkeypatch.setattr(subprocess, "Popen", start)
     print("healthchecks: set up home-update")
     commands_module.run(["check-stack.sh"])
     assert seen["before"] == b"healthchecks: set up home-update\n"
 
 
 def test_a_command_killed_by_a_signal_fails_with_the_status_the_shell_gives(commands_module, monkeypatch):
-    monkeypatch.setattr(subprocess, "run", lambda args, **options: subprocess.CompletedProcess(args, -9))
+    monkeypatch.setattr(subprocess, "Popen", lambda args, **options: Finished(-9))
     assert commands_module.run(["docker", "compose", "up"], check=False) == 137
 
 
@@ -92,3 +102,39 @@ def test_quiet_returns_the_status_and_shows_nothing(commands_module, commands, c
     commands.on(["restic", "cat", "config"], done(stdout="{}\n", stderr="Fatal: repository does not exist\n", returncode=10))
     assert commands_module.quiet(["restic", "cat", "config"]) == 10
     assert capsys.readouterr() == ("", "")
+
+
+def test_a_signal_while_a_command_runs_reaches_the_command_and_the_program_stops_once_it_has_exited(commands_module, commands):
+    program = fresh_engine("engine.program")
+    commands_module = program.commands
+    previous = signal.signal(signal.SIGTERM, program.stop_on_terminate)
+    try:
+        commands.on(["restic", "backup"], done(then=lambda: os.kill(os.getpid(), signal.SIGTERM)))
+        with pytest.raises(SystemExit) as ended:
+            commands_module.run(["restic", "backup"])
+        assert ended.value.code == 143
+        assert commands.signals_to("restic", "backup") == [signal.SIGTERM]
+        commands.on(["restic", "forget"])
+        assert commands_module.run(["restic", "forget"]) == 0
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+
+
+def test_ctrl_c_waits_for_the_command_it_interrupted(commands_module, monkeypatch):
+    waited = []
+
+    class Interrupted:
+        returncode = None
+
+        def communicate(self):
+            raise KeyboardInterrupt
+
+        def wait(self):
+            waited.append(True)
+            self.returncode = -2
+            return self.returncode
+
+    monkeypatch.setattr(subprocess, "Popen", lambda args, **options: Interrupted())
+    with pytest.raises(KeyboardInterrupt):
+        commands_module.run(["restic", "backup"])
+    assert waited == [True]

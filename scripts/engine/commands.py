@@ -18,6 +18,30 @@ class CommandFailed(Exception):
 
 
 PASSED_TO_CHILDREN = set()
+RUNNING = []
+STOP_ONCE_FINISHED = []
+
+
+def forward(signum):
+    if not RUNNING:
+        return False
+    RUNNING[-1].send_signal(signum)
+    STOP_ONCE_FINISHED.append(128 + signum)
+    return True
+
+
+def finished(args, child):
+    RUNNING.append(child)
+    try:
+        stdout, stderr = child.communicate()
+    except KeyboardInterrupt:
+        child.wait()
+        raise
+    finally:
+        RUNNING.remove(child)
+    if STOP_ONCE_FINISHED:
+        raise SystemExit(STOP_ONCE_FINISHED.pop())
+    return subprocess.CompletedProcess(args, child.returncode, stdout, stderr)
 
 
 def completed(args, **options):
@@ -26,7 +50,7 @@ def completed(args, **options):
     sys.stdout.flush()
     sys.stderr.flush()
     try:
-        result = subprocess.run(args, text=True, **options)
+        result = finished(args, subprocess.Popen(args, text=True, **options))
     except FileNotFoundError:
         if options.get("stderr") is not subprocess.DEVNULL:
             print(f"{args[0]}: command not found", file=sys.stderr)
