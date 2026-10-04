@@ -51,6 +51,17 @@ From then on, run make from the installation, `cd ~/<name>` (its Makefile passes
 - [Upgrading](docs/UPGRADING.md): engine releases, image updates and going back.
 - Each config repository has a README and a CONFIG.md describing its files.
 
+## Installing mse
+
+`mse` is the engine's Go binary, replacing `scripts/engine-run` command by command. It is built for Linux and macOS on amd64 and arm64, and installed from a GitHub release. The repository is private, so installing needs a token that can read it:
+
+    curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
+      https://raw.githubusercontent.com/pablovarela/media-server-engine/main/install.sh | sh
+
+`install.sh` takes the token from `GITHUB_TOKEN`, or from `gh auth token` when gh is installed. It installs the latest release into `~/.local/bin`; `MSE_VERSION=v0.7.0` picks a release and `MSE_INSTALL_DIR` another directory. It checks the archive against the release's `checksums.txt` before installing, and leaves the installed `mse` in place when anything fails.
+
+From a clone, `make go-build` builds `dist/mse` for the machine it runs on.
+
 ## Developing
 
-`make test` runs the bats tests and shellcheck; GitHub Actions runs both on every push and pull request, and checks that the pinned sops, age and restic downloads match their checksums. Renovate opens pull requests for the template's images, the pinned tools, shellcheck and the actions; a tool update needs its SHA256 in `scripts/tool-versions.env` updated by hand before that check passes. See [CONTRIBUTING.md](CONTRIBUTING.md) for how changes are made and released.
+`make test` runs the bats, Python and Go tests, shellcheck and golangci-lint; GitHub Actions runs them on every push and pull request, builds every release archive with GoReleaser, and checks that the pinned sops, age and restic downloads match their checksums. Renovate opens pull requests for the template's images, the pinned tools, shellcheck and the actions; a tool update needs its SHA256 in `scripts/tool-versions.env` updated by hand before that check passes. See [CONTRIBUTING.md](CONTRIBUTING.md) for how changes are made and released.
