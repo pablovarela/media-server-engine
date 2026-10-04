@@ -10,7 +10,7 @@ import sys
 import time
 import urllib.request
 
-from engine import backups, commands, compose, healthchecks, homepage, installation, program, secrets, stack
+from engine import backups, commands, compose, healthchecks, homepage, images, installation, program, secrets, stack
 
 SCRIPTS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UPDATE_PROGRAM = os.path.join(SCRIPTS_DIR, "update.py")
@@ -280,7 +280,7 @@ def update(argv):
     refresh_homepage()
     if wired:
         raise commands.CommandFailed(wired)
-    commands.run([os.path.join(SCRIPTS_DIR, "prune-stack-images.sh")])
+    images.prune()
 
 
 def main(argv):

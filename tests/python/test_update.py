@@ -55,7 +55,6 @@ def update(dirs, commands, urlopen, monkeypatch, tmp_path):
         (["docker", "compose", "ps", "-q", "gluetun"], done(stdout="gluetun-current\n")),
         (["docker", "inspect", "{{.HostConfig.NetworkMode}}"], done(stdout="container:gluetun-current\n")),
         (["wire_apps.py"], done()),
-        (["prune-stack-images.sh"], done()),
     ):
         commands.on(words, outcome)
     monkeypatch.setattr(os, "execv", mock.Mock(side_effect=Restarted))
@@ -63,9 +62,11 @@ def update(dirs, commands, urlopen, monkeypatch, tmp_path):
     module = fresh_engine("engine.update")
     checked = []
     monkeypatch.setattr(module.stack, "check", lambda: checked.append(len(commands.ran)))
+    pruned = []
+    monkeypatch.setattr(module.images, "prune", lambda: pruned.append(len(commands.ran)))
     synced = []
     monkeypatch.setattr(module.healthchecks, "sync", lambda checks, facts: synced.append(SimpleNamespace(checks=checks, facts=facts)))
-    return SimpleNamespace(run=lambda *argv: module.main(list(argv)), module=module, synced=synced, execv=os.execv, checked=checked)
+    return SimpleNamespace(run=lambda *argv: module.main(list(argv)), module=module, synced=synced, execv=os.execv, checked=checked, pruned=pruned)
 
 
 def config_status(commands, dirs, status):
@@ -237,8 +238,8 @@ def test_update_stops_before_bringing_the_stack_up_when_the_merged_compose_is_un
 
 def test_update_wires_the_apps_after_the_stack_is_up_and_prunes_last(update, commands):
     assert update.run() == 0
-    assert commands.index("docker", "compose", "up", "--remove-orphans") < commands.index("wire_apps.py") < commands.index("prune-stack-images.sh")
-    assert commands.ran[-1].args[-1].endswith("prune-stack-images.sh")
+    assert commands.index("docker", "compose", "up", "--remove-orphans") < commands.index("wire_apps.py")
+    assert update.pruned == [len(commands.ran)]
 
 
 def test_update_recreates_gluetun_dependents_attached_to_an_old_gluetun(update, commands):
@@ -258,7 +259,7 @@ def test_when_bringing_the_stack_up_fails_dependents_are_reattached_and_nothing_
     assert update.run() == 17
     assert commands.did("--force-recreate", "--no-deps", "prowlarr", "flaresolverr", "deluge")
     assert not commands.did("wire_apps.py")
-    assert not commands.did("prune-stack-images.sh")
+    assert not update.pruned
 
 
 def test_update_waits_for_a_running_backup_and_gives_up_with_a_message(update, commands, monkeypatch, capsys):
@@ -335,7 +336,7 @@ def test_a_failed_wiring_still_refreshes_the_landing_pages_keys_then_fails_the_u
     commands.on(["wire_apps.py"], done(returncode=1, then=wire))
     assert update.run() == 1
     assert "HOMEPAGE_VAR_JELLYFIN_KEY=k2" in (dirs.engine / ".secrets" / "homepage.env").read_text().splitlines()
-    assert not commands.did("prune-stack-images.sh")
+    assert not update.pruned
 
 
 def test_the_landing_pages_variables_stay_out_of_the_wirings_environment(update, commands):
@@ -469,7 +470,7 @@ def test_failing_to_set_up_the_checks_does_not_stop_the_update(update, commands,
     update.module.healthchecks.sync = broken
     assert update.run() == 0
     assert "could not set up the healthchecks.io checks (boom); carrying on" in capsys.readouterr().err
-    assert commands.did("prune-stack-images.sh")
+    assert update.pruned
 
 
 def test_a_machine_without_systemd_timers_sets_up_no_checks(update, dirs, monkeypatch):
@@ -482,7 +483,7 @@ def test_a_machine_without_systemd_timers_sets_up_no_checks(update, dirs, monkey
 def test_a_running_landing_page_that_does_not_answer_the_reload_does_not_stop_the_update(update, commands):
     commands.on(["docker", "inspect", "homepage"], done(stdout="true\n"))
     assert update.run() == 0
-    assert commands.did("prune-stack-images.sh")
+    assert update.pruned
 
 
 def test_a_missing_engine_pin_stops_the_update_with_one_line(update, dirs, capsys):
