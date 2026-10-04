@@ -64,6 +64,10 @@ check_python_yaml() {
   if python3 -c 'import yaml' 2>/dev/null; then report OK "python3 yaml module"; else problem MISSING "python3 yaml module"; fi
 }
 
+check_python_sqlite() {
+  if python3 -c 'import sqlite3' 2>/dev/null; then report OK "python3 sqlite3 module"; else problem MISSING "python3 sqlite3 module"; fi
+}
+
 check_optional_menus() {
   if installed "${WHIPTAIL_COMMAND:-whiptail}"; then
     report OK whiptail
@@ -80,12 +84,12 @@ check_secrets_key() {
   fi
 }
 
-for tool in docker git make curl sqlite3 python3 perl openssl sops age restic; do
+for tool in docker git make curl python3 perl openssl sops age restic; do
   check_command "$tool"
 done
 installed docker && check_compose_plugin
 installed docker && check_docker_access
-installed python3 && check_python_yaml
+installed python3 && check_python_yaml && check_python_sqlite
 check_optional_menus
 check_pinned_version sops "$SOPS_VERSION" --version
 check_pinned_version age "$AGE_VERSION" --version

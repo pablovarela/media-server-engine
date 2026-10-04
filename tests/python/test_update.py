@@ -175,9 +175,7 @@ def test_update_creates_the_bind_mount_directories_under_the_data_directory(upda
     assert (dirs.data / "media" / "tvshows").is_dir()
 
 
-def test_update_switches_the_engine_to_the_version_the_config_pins_then_runs_from_it(update, commands, dirs, tmp_path, monkeypatch):
-    (tmp_path / "update.py").touch()
-    monkeypatch.setattr(update.module, "UPDATE_PROGRAM", str(tmp_path / "update.py"))
+def test_update_switches_the_engine_to_the_version_the_config_pins_then_runs_from_it(update, commands, dirs):
     commands.on(["git", "-C", str(dirs.engine), "describe", "--tags", "--exact-match"], done(stdout="v0.9.0\n"))
     commands.on(["git", "-C", str(dirs.engine), "fetch"], done())
     commands.on(["git", "-C", str(dirs.engine), "rev-parse", "-q", "--verify", "refs/tags/v1.0.0"], done(stdout="abc123\n"))
@@ -190,16 +188,6 @@ def test_update_switches_the_engine_to_the_version_the_config_pins_then_runs_fro
     assert commands.count("pull", "--ff-only") == 1
 
 
-def test_a_version_from_before_update_py_is_restarted_through_its_update_sh(update, commands, dirs, tmp_path, monkeypatch):
-    monkeypatch.setattr(update.module, "UPDATE_PROGRAM", str(tmp_path / "missing" / "update.py"))
-    commands.on(["git", "-C", str(dirs.engine), "describe", "--tags", "--exact-match"], done(stdout="v0.9.0\n"))
-    commands.on(["git", "-C", str(dirs.engine), "fetch"], done())
-    commands.on(["git", "-C", str(dirs.engine), "rev-parse"], done())
-    commands.on(["git", "-C", str(dirs.engine), "checkout"], done())
-    with pytest.raises(Restarted):
-        update.run()
-    shell = str(tmp_path / "missing" / "update.sh")
-    update.execv.assert_called_once_with(shell, [shell])
 
 
 def test_once_restarted_the_update_does_not_pull_or_switch_again(update, commands):

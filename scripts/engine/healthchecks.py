@@ -3,6 +3,8 @@ import http.client
 import json
 import os
 import sys
+import threading
+import time
 import urllib.error
 import urllib.request
 from collections import namedtuple
@@ -131,3 +133,59 @@ def linked_time_zone():
         return "Etc/UTC"
     _, found, zone = link.partition("zoneinfo/")
     return zone if found else "Etc/UTC"
+
+
+PING_RETRY_SECONDS = [1, 2, 4]
+PING_SECONDS = 10
+
+
+def slug(job, role="main"):
+    name = os.environ["INSTALLATION_NAME"]
+    if job == "update" and role == "secondary":
+        return f"{name}-{job}-{installation.short_hostname()}"
+    return f"{name}-{job}"
+
+
+def reach(request):
+    failures = []
+
+    def attempt():
+        try:
+            with urllib.request.urlopen(request, timeout=PING_SECONDS):
+                pass
+        except Exception as error:
+            failures.append(error)
+
+    worker = threading.Thread(target=attempt, daemon=True)
+    worker.start()
+    worker.join(PING_SECONDS)
+    if worker.is_alive():
+        raise TimeoutError("timed out")
+    if failures:
+        raise failures[0]
+
+
+def worth_retrying(error):
+    return not isinstance(error, urllib.error.HTTPError) or error.code in (408, 429) or error.code >= 500
+
+
+def ping(job, suffix=""):
+    key = os.environ.get("HEALTHCHECKS_PING_KEY", "")
+    if not key:
+        print(f"no healthchecks ping key configured; not reporting {job}{suffix}", file=sys.stderr)
+        return
+    check = slug(job, os.environ.get("MACHINE_ROLE") or "main")
+    request = urllib.request.Request(f"https://hc-ping.com/{key}/{check}{suffix}?create=1")
+    for wait in [*PING_RETRY_SECONDS, None]:
+        try:
+            reach(request)
+            return
+        except (ValueError, http.client.InvalidURL):
+            print(f"healthchecks: could not report {check}{suffix}: the ping key cannot be used in a URL", file=sys.stderr)
+            return
+        except (OSError, http.client.HTTPException) as error:
+            if wait is None or not worth_retrying(error):
+                reason = f"healthchecks.io answered {error.code}" if isinstance(error, urllib.error.HTTPError) else getattr(error, "reason", error)
+                print(f"healthchecks: could not report {check}{suffix}: {reason}", file=sys.stderr)
+                return
+        time.sleep(wait)

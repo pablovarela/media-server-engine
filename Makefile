@@ -28,7 +28,7 @@ bootstrap: ## install sops, age and restic (Homebrew on macOS, pinned binaries p
 	@scripts/bootstrap.sh
 
 restore: installation check-tools ## restore volumes/ from the latest backup (ARGS=--overwrite replaces existing data)
-	@sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" "scripts/restore.sh $(ARGS)"
+	@sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" "scripts/restore.py $(ARGS)"
 
 update: installation pinned-tools check-tools ## pull the config repo, switch to its engine version, bring the stack up and wire the apps
 	@scripts/update.py
@@ -71,19 +71,19 @@ lint: ## shellcheck every script
 	@shellcheck -x scripts/*.sh scripts/wire/*.sh diagnose.sh
 
 backup-now: installation ## back up now (stops the apps for a few minutes; only on the installation's main)
-	@sops exec-env "$(CONFIG_DIR)/secrets/healthchecks.sops.env" 'sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" scripts/backup.sh'
+	@sops exec-env "$(CONFIG_DIR)/secrets/healthchecks.sops.env" 'sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" scripts/backup.py'
 
 verify-backup-now: installation ## check the backups now: restic check, and a test restore of the latest snapshot
-	@sops exec-env "$(CONFIG_DIR)/secrets/healthchecks.sops.env" 'sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" scripts/verify-backup.sh'
+	@sops exec-env "$(CONFIG_DIR)/secrets/healthchecks.sops.env" 'sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" scripts/verify-backup.py'
 
 unlock-backup: installation ## remove stale locks from the backup repository and show the ones left (ALL=1 removes every lock: only when no machine is running restic)
-	@sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" 'scripts/unlock-backup.sh $(if $(ALL),--remove-all)'
+	@sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" 'scripts/unlock-backup.py $(if $(ALL),--remove-all)'
 
 install-backup-timers: installation check-tools ## schedule make backup-now daily and make verify-backup-now weekly (systemd; only on the installation's main)
 	@sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" 'scripts/install-timers.sh media-backup media-verify'
 
 claim-backup-main: installation check-tools ## make this machine the installation's main: runs one backup tagged with this machine
-	@sops exec-env "$(CONFIG_DIR)/secrets/healthchecks.sops.env" 'sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" scripts/claim-backup-main.sh'
+	@sops exec-env "$(CONFIG_DIR)/secrets/healthchecks.sops.env" 'sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" scripts/claim-backup-main.py'
 
 install-download-cleanup-timer: installation check-tools ## schedule the removal of downloads Sonarr or Radarr flag as executables, every 15 minutes (systemd)
 	@scripts/install-timers.sh media-download-cleanup
