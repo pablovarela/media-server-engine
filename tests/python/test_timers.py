@@ -6,7 +6,7 @@ import shutil
 
 import pytest
 
-from conftest import REPO, done, fresh_engine
+from conftest import REPO, done, fresh_engine, through_sops
 
 
 @pytest.fixture
@@ -37,7 +37,7 @@ def test_units_are_rendered_for_this_checkout_and_user(timers, commands, install
     assert f"Environment=DATA_DIR={installed.data}\n" in service
     assert f"User={pwd.getpwuid(os.geteuid()).pw_name}\n" in service
     assert f"Group={grp.getgrgid(os.getegid()).gr_name}\n" in service
-    assert f"ExecStart=/usr/local/bin/sops exec-env {installed.config}/secrets/healthchecks.sops.env '/usr/local/bin/sops exec-env {installed.config}/secrets/backup.sops.env scripts/engine-run backup'\n" in service
+    assert f"ExecStart=/usr/local/bin/sops exec-env {installed.config}/secrets/healthchecks.sops.env '/usr/local/bin/sops exec-env {installed.config}/secrets/backup.sops.env \"scripts/engine-run backup\"'\n" in service
     assert "Environment=SOPS_AGE_KEY_FILE=/home/me/.config/sops/age/keys.txt\n" in written(commands, tmp_path, "media-verify.service")
     assert "@" not in service
 
@@ -114,11 +114,16 @@ def test_relative_config_and_data_folders_are_taken_from_the_engine(timers, comm
     assert f"Environment=DATA_DIR={installed.data}\n" in service
 
 
-def test_every_unit_gives_sops_its_command_as_one_argument(timers, commands, tmp_path):
+def test_every_unit_runs_its_command_through_sops_as_sops_takes_it(timers, commands, installed, tmp_path):
     names = sorted({path.stem for path in (REPO / "systemd").iterdir()})
     assert timers.main(names) == 0
+    run = {}
     for name in names:
         exec_start = next(line for line in written(commands, tmp_path, f"{name}.service").splitlines() if line.startswith("ExecStart="))
-        words = shlex.split(exec_start[len("ExecStart="):])
-        if "exec-env" in words:
-            assert len(words) == words.index("exec-env") + 3, f"{name}: {exec_start}"
+        run[name] = through_sops(shlex.split(exec_start[len("ExecStart="):]))
+    assert run == {
+        "media-backup": ["scripts/engine-run", "backup"],
+        "media-download-cleanup": [f"{installed.engine}/scripts/engine-run", "remove-executable-downloads"],
+        "media-update": ["scripts/engine-run", "scheduled-update"],
+        "media-verify": ["scripts/engine-run", "verify-backup"],
+    }

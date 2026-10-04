@@ -37,7 +37,7 @@ def wants_to_be_main():
 
 
 def claim():
-    inner = shlex.join(["sops", "exec-env", secrets("backup.sops.env"), installation.engine_run(), "claim-backup-main"])
+    inner = shlex.join(["sops", "exec-env", secrets("backup.sops.env"), shlex.join([installation.engine_run(), "claim-backup-main"])])
     commands.run(["sops", "exec-env", secrets("healthchecks.sops.env"), inner], env=dict(os.environ, CLAIM_CONFIRMED="1"))
 
 

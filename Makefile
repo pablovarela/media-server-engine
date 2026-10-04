@@ -70,10 +70,10 @@ lint: ## shellcheck every script
 	@shellcheck -x scripts/*.sh scripts/wire/*.sh diagnose.sh
 
 backup-now: installation ## back up now (stops the apps for a few minutes; only on the installation's main)
-	@sops exec-env "$(CONFIG_DIR)/secrets/healthchecks.sops.env" 'sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" scripts/engine-run backup'
+	@sops exec-env "$(CONFIG_DIR)/secrets/healthchecks.sops.env" 'sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" "scripts/engine-run backup"'
 
 verify-backup-now: installation ## check the backups now: restic check, and a test restore of the latest snapshot
-	@sops exec-env "$(CONFIG_DIR)/secrets/healthchecks.sops.env" 'sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" scripts/engine-run verify-backup'
+	@sops exec-env "$(CONFIG_DIR)/secrets/healthchecks.sops.env" 'sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" "scripts/engine-run verify-backup"'
 
 unlock-backup: installation ## remove stale locks from the backup repository and show the ones left (ALL=1 removes every lock: only when no machine is running restic)
 	@sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" 'scripts/engine-run unlock-backup $(if $(ALL),--remove-all)'
@@ -82,7 +82,7 @@ install-backup-timers: installation check-tools ## schedule make backup-now dail
 	@sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" 'scripts/engine-run install-timers media-backup media-verify'
 
 claim-backup-main: installation check-tools ## make this machine the installation's main: runs one backup tagged with this machine
-	@sops exec-env "$(CONFIG_DIR)/secrets/healthchecks.sops.env" 'sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" scripts/engine-run claim-backup-main'
+	@sops exec-env "$(CONFIG_DIR)/secrets/healthchecks.sops.env" 'sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" "scripts/engine-run claim-backup-main"'
 
 install-download-cleanup-timer: installation check-tools ## schedule the removal of downloads Sonarr or Radarr flag as executables, every 15 minutes (systemd)
 	@scripts/engine-run install-timers media-download-cleanup

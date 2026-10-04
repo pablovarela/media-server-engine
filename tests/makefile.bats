@@ -121,3 +121,28 @@ setup() {
   make -s -n -C "$REPO" monitoring-status | grep -q "scripts/engine-run monitoring ps$"
   ! grep -rqwF "lib.sh" "$REPO/Makefile" "$REPO/scripts" "$REPO/systemd" || false
 }
+
+@test "the targets that run under sops give every sops one command, as sops takes it" {
+  STUB_DIR=$(mktemp -d)
+  STUB_LOG="$STUB_DIR/calls.log"
+  export STUB_LOG
+  cat > "$STUB_DIR/sops" <<'STUB'
+#!/usr/bin/env bash
+[ "$1" = exec-env ] && [ "$#" -eq 3 ] || { echo "error: missing file to decrypt" >&2; exit 1; }
+exec sh -c "$3"
+STUB
+  mkdir -p "$STUB_DIR/work/scripts"
+  printf '#!/bin/sh\necho "engine-run $*" >> "$STUB_LOG"\n' > "$STUB_DIR/work/scripts/engine-run"
+  chmod +x "$STUB_DIR/sops" "$STUB_DIR/work/scripts/engine-run"
+  for target in backup-now verify-backup-now claim-backup-main unlock-backup install-backup-timers restore; do
+    recipe=$(make -s -n -C "$REPO" "$target" CONFIG_DIR=/c | grep "sops exec-env")
+    (cd "$STUB_DIR/work" && PATH="$STUB_DIR:$PATH" bash -c "$recipe") || { echo "$target: $recipe"; false; }
+  done
+  [ "$(cat "$STUB_LOG")" = "engine-run backup
+engine-run verify-backup
+engine-run claim-backup-main
+engine-run unlock-backup
+engine-run install-timers media-backup media-verify
+engine-run restore" ]
+  rm -rf "$STUB_DIR"
+}
