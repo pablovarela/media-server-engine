@@ -184,7 +184,7 @@ def test_installation_names_are_lowercase_letters_digits_and_dashes(installation
     installation.require_valid_name(name)
 
 
-@pytest.mark.parametrize("name", ["Bad Name", "trialpub=age1x", "-dash", "a" * 41, ""])
+@pytest.mark.parametrize("name", ["Bad Name", "Trial", "trialpub=age1x", "-dash", "a/b", "a" * 41, ""])
 def test_other_installation_names_are_refused(installation, name):
     with pytest.raises(installation.commands.Stop) as stop:
         installation.require_valid_name(name)

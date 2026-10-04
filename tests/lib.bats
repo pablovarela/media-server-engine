@@ -63,14 +63,6 @@ in_lib() {
   [ -z "${SOPS_AGE_KEY_FILE:-}" ]
 }
 
-@test "installation names are lowercase letters, digits and dashes" {
-  source "$BATS_TEST_DIRNAME/../scripts/lib.sh"
-  for good in trial media-2 a; do valid_installation_name "$good"; done
-  for bad in "" Trial "trialpub=age1x" "-trial" "a b" "a/b" "$(printf 'x%.0s' $(seq 41))"; do
-    ! valid_installation_name "$bad" || { echo "accepted: $bad"; false; }
-  done
-}
-
 @test "outside an installation, load_installation names the installations on this machine" {
   rm "$HOME_DIR/config/installation.env"
   mkdir -p "$HOME/trial/engine" "$HOME/trial/config" "$HOME/other/engine"
