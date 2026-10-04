@@ -54,6 +54,19 @@ func TestStackCommands(t *testing.T) {
 				stdout: "NAME       STATE    HEALTH   PORTS\njellyfin   running  healthy  8096->8096/tcp\nconfigarr  exited\n",
 			},
 		},
+		"stack ps keeps columns aligned around empty cells": {
+			When: When{args: []string{"stack", "ps"}},
+			Then: Then{
+				expect: func(r *mockComposeRunner) {
+					r.EXPECT().Ps(mock.Anything, project).Return([]compose.Container{
+						{Name: "bazarr", State: "running", Ports: []string{"6767->6767/tcp"}},
+						{Name: "deluge", State: "running"},
+						{Name: "gluetun", State: "running", Health: "healthy", Ports: []string{"8112->8112/tcp"}},
+					}, nil)
+				},
+				stdout: "NAME     STATE    HEALTH   PORTS\nbazarr   running           6767->6767/tcp\ndeluge   running\ngluetun  running  healthy  8112->8112/tcp\n",
+			},
+		},
 		"stack logs": {
 			When: When{args: []string{"stack", "logs", "-f", "--tail", "20", "jellyfin"}},
 			Then: Then{expect: func(r *mockComposeRunner) {

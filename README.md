@@ -53,7 +53,7 @@ From then on, run make from the installation, `cd ~/<name>` (its Makefile passes
 
 ## Installing mse
 
-`mse` is the engine's Go binary; `mse version` prints its version and `mse update` updates it. It is built for Linux and macOS on amd64 and arm64, and installed from a GitHub release. The repository is private, so installing needs a token that can read it. Where gh is logged in:
+`mse` is the engine's Go binary; `mse` grows command by command into the whole engine; today it prints its version (`mse version`), updates itself (`mse update`), runs an installation's containers (`mse stack`, `mse monitoring`), and prints its addresses and logins (`mse urls`, `mse logins`). The Makefile still runs the Python engine for everything else. It is built for Linux and macOS on amd64 and arm64, and installed from a GitHub release. The repository is private, so installing needs a token that can read it. Where gh is logged in:
 
     curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
       https://raw.githubusercontent.com/pablovarela/media-server-engine/main/install.sh | sh
@@ -69,6 +69,8 @@ Elsewhere, such as a Raspberry Pi without gh, export a token (a fine-grained tok
 `mse update` replaces the installed `mse` with the newest release of its major version, after checking it against `checksums.txt` and running it once; it takes the token the same way as `install.sh`. A newer major version can need config changes, so `mse update` only says it is available; `mse update --force` installs it.
 
 From a clone, `make go-build` builds `dist/mse` for the machine it runs on.
+
+`mse` keeps an installation in the XDG base directories: its config (the clone of the config repository) in `~/.config/mse/<name>`, its data in `~/.local/share/mse/<name>`, and the files it generates, decrypted secrets included, in `~/.local/state/mse/<name>`. `XDG_CONFIG_HOME`, `XDG_DATA_HOME` and `XDG_STATE_HOME` move them. With one installation on the machine `mse` uses it; with several, `--installation <name>` or `MSE_INSTALLATION` chooses. It reads secrets with the age key sops would use, and talks to the Docker daemon directly: no `sops` or `docker compose` command is needed.
 
 ## Developing
 

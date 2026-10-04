@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -103,17 +104,22 @@ func logsCommand(open func(*cobra.Command) (composeRunner, *types.Project, error
 }
 
 func printContainers(w io.Writer, containers []compose.Container) error {
-	table := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	var aligned bytes.Buffer
+	table := tabwriter.NewWriter(&aligned, 0, 0, 2, ' ', 0)
 	_, _ = fmt.Fprintln(table, "NAME\tSTATE\tHEALTH\tPORTS")
 	for _, c := range containers {
-		_, _ = fmt.Fprintln(table, strings.Join(withoutEmptyEnd([]string{c.Name, c.State, c.Health, strings.Join(c.Ports, ", ")}), "\t"))
+		_, _ = fmt.Fprintf(table, "%s\t%s\t%s\t%s\n", c.Name, c.State, c.Health, strings.Join(c.Ports, ", "))
 	}
-	return table.Flush()
-}
-
-func withoutEmptyEnd(cells []string) []string {
-	for len(cells) > 0 && cells[len(cells)-1] == "" {
-		cells = cells[:len(cells)-1]
+	if err := table.Flush(); err != nil {
+		return err
 	}
-	return cells
+	var out strings.Builder
+	for _, line := range strings.SplitAfter(aligned.String(), "\n") {
+		out.WriteString(strings.TrimRight(line, " \n"))
+		if strings.HasSuffix(line, "\n") {
+			out.WriteString("\n")
+		}
+	}
+	_, err := fmt.Fprint(w, out.String())
+	return err
 }
