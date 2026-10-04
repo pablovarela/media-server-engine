@@ -2,7 +2,7 @@ import os
 
 import yaml
 
-from engine import commands, installation
+from engine import commands, installation, program
 
 
 def optional_services_pinned():
@@ -57,3 +57,23 @@ def monitoring(args):
 
 def monitoring_output(*args):
     return commands.output(monitoring(args))
+
+
+def run_monitoring(*args, check=True):
+    return commands.run(monitoring(args), check=check)
+
+
+def stack_command(argv):
+    return run(*argv, check=False)
+
+
+def monitoring_command(argv):
+    return run_monitoring(*argv, check=False)
+
+
+def stack_main(argv):
+    return program.run("stack", stack_command, argv)
+
+
+def monitoring_main(argv):
+    return program.run("monitoring", monitoring_command, argv)

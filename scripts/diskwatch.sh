@@ -1,6 +1,6 @@
 #!/bin/bash
-# shellcheck source=scripts/lib.sh
-source "$(dirname "$0")/lib.sh"
+ENGINE_DIR=${ENGINE_DIR:-$(cd "$(dirname "$0")/.." && pwd)}
+DATA_DIR=${DATA_DIR:-$(dirname "$ENGINE_DIR")/data}
 
 LOGDIR="$DATA_DIR/logs/diskwatch"
 INTERVAL=${DISKWATCH_INTERVAL:-5}

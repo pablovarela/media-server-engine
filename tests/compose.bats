@@ -16,15 +16,19 @@ teardown() {
 }
 
 merged() {
-  bash -c "source '$ENGINE_DIR/scripts/lib.sh' && $1 config --format json"
+  case $1 in
+    stack) "$ENGINE_DIR/scripts/engine-run" stack config --format json ;;
+    wiring) COMPOSE_PROFILES=wiring "$ENGINE_DIR/scripts/engine-run" stack config --format json ;;
+    monitoring) "$ENGINE_DIR/scripts/engine-run" monitoring config --format json ;;
+  esac
 }
 
 @test "configarr only runs as a wiring step, not with the stack" {
-  run merged stack_compose
+  run merged stack
   echo "$output" | python3 -c '
 import json, sys
 assert "configarr" not in json.load(sys.stdin)["services"]'
-  run merged stack_compose_with_wiring
+  run merged wiring
   echo "$output" | python3 -c '
 import json, sys
 assert json.load(sys.stdin)["services"]["configarr"]["profiles"] == ["wiring"]'
@@ -35,14 +39,14 @@ assert json.load(sys.stdin)["services"]["configarr"]["profiles"] == ["wiring"]'
 }
 
 @test "the config template pins every service of both stacks to a digest" {
-  run merged stack_compose_with_wiring
+  run merged wiring
   [ "$status" -eq 0 ]
   echo "$output" | python3 -c '
 import json, sys
 services = json.load(sys.stdin)["services"]
 unpinned = [n for n, s in services.items() if "@sha256:" not in s.get("image", "")]
 assert not unpinned, unpinned'
-  run merged monitoring_compose
+  run merged monitoring
   [ "$status" -eq 0 ]
   echo "$output" | python3 -c '
 import json, sys
@@ -52,7 +56,7 @@ assert not unpinned, unpinned'
 }
 
 @test "app state, media and downloads live under DATA_DIR" {
-  run merged stack_compose
+  run merged stack
   echo "$output" | python3 -c '
 import json, os, sys
 data = os.environ["DATA_DIR"]
@@ -64,7 +68,7 @@ assert not outside, outside'
 }
 
 @test "every service that writes app state runs as uid and gid 1000" {
-  run merged stack_compose
+  run merged stack
   echo "$output" | python3 -c '
 import json, os, sys
 volumes = os.environ["DATA_DIR"] + "/volumes/"
@@ -79,7 +83,7 @@ assert not bad, bad'
 }
 
 @test "configarr reads its config from the config repo, read-only" {
-  run merged stack_compose_with_wiring
+  run merged wiring
   echo "$output" | python3 -c '
 import json, os, sys
 mounts = json.load(sys.stdin)["services"]["configarr"]["volumes"]
@@ -89,7 +93,7 @@ assert config.get("read_only"), config'
 }
 
 @test "configarr waits until sonarr and radarr are healthy" {
-  run merged stack_compose_with_wiring
+  run merged wiring
   echo "$output" | python3 -c '
 import json, sys
 services = json.load(sys.stdin)["services"]
@@ -103,7 +107,7 @@ for app in ("sonarr", "radarr"):
   printf 'SONARR__AUTH__APIKEY=sk\n' > "$ENGINE_DIR/.secrets/sonarr.env"
   printf 'RADARR__AUTH__APIKEY=rk\n' > "$ENGINE_DIR/.secrets/radarr.env"
   printf 'PROWLARR__AUTH__APIKEY=pk\n' > "$ENGINE_DIR/.secrets/prowlarr.env"
-  run merged stack_compose
+  run merged stack
   [ "$status" -eq 0 ]
   echo "$output" | python3 -c '
 import json, sys
@@ -114,7 +118,7 @@ assert "SONARR__AUTH__APIKEY" not in services["radarr"]["environment"]'
 }
 
 @test "portainer creates its admin from a read-only password file" {
-  run merged stack_compose
+  run merged stack
   echo "$output" | python3 -c '
 import json, os, sys
 portainer = json.load(sys.stdin)["services"]["portainer"]
@@ -125,7 +129,7 @@ assert mount.get("read_only"), mount'
 }
 
 @test "sonarr, radarr and prowlarr skip their login on the local network, with no first-visit setup" {
-  run merged stack_compose
+  run merged stack
   echo "$output" | python3 -c '
 import json, sys
 services = json.load(sys.stdin)["services"]
@@ -137,7 +141,7 @@ for app in ("sonarr", "radarr", "prowlarr"):
 
 @test "every app runs in the installation's time zone, or UTC without one" {
   echo "TZ=Europe/London" >> "$ENGINE_DIR/.env"
-  run merged stack_compose
+  run merged stack
   echo "$output" | python3 -c '
 import json, sys
 services = json.load(sys.stdin)["services"]
@@ -145,14 +149,14 @@ wrong = {n: s["environment"].get("TZ") for n, s in services.items() if "TZ" in (
 assert not wrong, wrong
 assert "TZ" in services["jellyfin"]["environment"]'
   printf 'DOCKER_GID=0\nHOMEPAGE_ALLOWED_HOSTS=media.local\n' > "$ENGINE_DIR/.env"
-  run merged stack_compose
+  run merged stack
   echo "$output" | python3 -c '
 import json, sys
 assert json.load(sys.stdin)["services"]["jellyfin"]["environment"]["TZ"] == "Etc/UTC"'
 }
 
 service() {
-  merged stack_compose | python3 -c "import json, sys; print(json.dumps(json.load(sys.stdin)['services'].get('$1')))"
+  merged stack | python3 -c "import json, sys; print(json.dumps(json.load(sys.stdin)['services'].get('$1')))"
 }
 
 @test "the landing page runs when the config pins its image, and not otherwise" {

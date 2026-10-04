@@ -57,3 +57,19 @@ def test_an_unreadable_images_file_pins_no_optional_service(compose, dirs):
 def test_an_images_file_shaped_unexpectedly_pins_no_optional_service(compose, dirs, images):
     (dirs.config / "images.yml").write_text(images)
     assert compose.optional_services_pinned() == ""
+
+
+def test_the_stack_command_runs_compose_with_its_arguments_and_ends_with_its_status(compose, dirs, commands):
+    commands.on(["docker", "compose"], done(returncode=3))
+    assert compose.stack_main(["ps"]) == 3
+    assert commands.ran[0].args[:4] == ["docker", "compose", "--project-name", "media-server"]
+    assert commands.ran[0].args[-1] == "ps"
+
+
+def test_the_monitoring_command_runs_the_monitoring_project_with_its_images(compose, dirs, commands):
+    commands.on(["docker", "compose"])
+    assert compose.monitoring_main(["up", "-d"]) == 0
+    assert commands.ran[0].args == [
+        "docker", "compose", "--project-name", "monitoring", "--project-directory", str(dirs.engine), "--env-file", f"{dirs.engine}/.env",
+        "-f", f"{dirs.engine}/docker-compose.monitoring.yml", "-f", f"{dirs.config}/images.monitoring.yml", "up", "-d",
+    ]

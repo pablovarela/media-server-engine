@@ -78,7 +78,7 @@ setup() {
 }
 
 @test "make homepage re-renders the landing page, and nothing else" {
-  make -s -n -C "$REPO" homepage | grep -q "scripts/homepage-render.sh"
+  make -s -n -C "$REPO" homepage | grep -q "scripts/engine-run homepage"
   ! make -s -n -C "$REPO" homepage | grep -qE "engine-run update|compose" || false
 }
 
@@ -105,4 +105,19 @@ setup() {
 @test "make configure runs the Python configure, passing ROTATE on" {
   make -s -n -C "$REPO" configure | grep -qE "scripts/engine-run configure *$"
   make -s -n -C "$REPO" configure ROTATE=sonarr | grep -q "scripts/engine-run configure --rotate sonarr$"
+}
+
+@test "the update timer runs the Python scheduled update with the ping key" {
+  grep -q "^ExecStart=@SOPS@ exec-env @CONFIG_DIR@/secrets/healthchecks.sops.env scripts/engine-run scheduled-update$" "$REPO/systemd/media-update.service"
+}
+
+@test "the stack and installation targets run engine-run, with no lib.sh left" {
+  make -s -n -C "$REPO" media-start | grep -q "scripts/engine-run require-installation"
+  make -s -n -C "$REPO" media-start | grep -q "scripts/engine-run stack up -d$"
+  make -s -n -C "$REPO" media-stop | grep -q "scripts/engine-run stack down$"
+  make -s -n -C "$REPO" media-status | grep -q "scripts/engine-run stack ps$"
+  make -s -n -C "$REPO" monitoring-start | grep -q "scripts/engine-run monitoring up -d$"
+  make -s -n -C "$REPO" monitoring-stop | grep -q "scripts/engine-run monitoring down$"
+  make -s -n -C "$REPO" monitoring-status | grep -q "scripts/engine-run monitoring ps$"
+  ! grep -rqwF "lib.sh" "$REPO/Makefile" "$REPO/scripts" "$REPO/systemd" || false
 }

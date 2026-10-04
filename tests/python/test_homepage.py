@@ -6,7 +6,7 @@ import shutil
 import pytest
 import yaml
 
-from conftest import REPO, answer, fresh_engine
+from conftest import REPO, answer, done, fresh_engine, real
 
 ENGINE_PAGE = REPO / "homepage"
 
@@ -358,3 +358,39 @@ def test_folders_in_the_configs_images_are_served_and_old_ones_removed(page):
     page.render()
     assert (page.images / "icons" / "router.svg").read_text() == "<svg/>\n"
     assert not (page.images / "old-folder").exists()
+
+
+def redraw_answers(commands):
+    commands.on(["git"], done(returncode=1))
+    commands.on(["docker", "inspect"], done(returncode=1))
+
+
+@pytest.mark.parametrize("role, update_check", [("main", "testinst-update"), ("secondary", "testinst-update-laptop")])
+def test_a_redraw_shows_the_update_check_this_machine_pings(page, checks, commands, monkeypatch, role, update_check):
+    monkeypatch.setenv("MEDIA_SERVER_HOST", "media.local")
+    monkeypatch.setattr(page.homepage.installation, "short_hostname", lambda: "laptop")
+    redraw_answers(commands)
+    checks("testinst-backup", "testinst-update", "testinst-update-laptop")
+    page.homepage.redraw(role)
+    assert page.health_tiles() == [("Backup", "testinst-backup", "checks.0.status"), ("Update", update_check, "checks.0.status")]
+
+
+def test_the_homepage_command_redraws_the_page_from_the_installations_settings(page, dirs, commands, monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(os, "environ", dict(os.environ))
+    os.environ["HOME"] = str(tmp_path / "home")
+    (dirs.config / "installation.env").write_text("INSTALLATION_NAME=testinst\nMEDIA_SERVER_HOST=media.local\n")
+    redraw_answers(commands)
+    commands.on(["bash", "-c"], real())
+    commands.on(["git", "-C", str(dirs.engine), "describe", "--tags", "--always"], done(stdout="v1.2.3\n"))
+    commands.on(["git", "-C", str(dirs.engine), "remote", "get-url", "origin"], done(stdout="git@github.com:someone/media-server-engine.git\n"))
+    assert page.homepage.main([]) == 0
+    assert "href: https://github.com/someone/media-server-engine/releases/tag/v1.2.3" in page.file("widgets.yaml")
+    assert "href: http://media.local:8989" in page.file("services.yaml")
+    assert capsys.readouterr().out == "The landing page is redrawn; an open page reloads itself in a few seconds.\n"
+    assert not commands.did("docker", "restart")
+
+
+def test_the_homepage_command_outside_an_installation_says_where_installations_are(page, monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    assert page.homepage.main([]) == 1
+    assert "is not an installation: there is no config next to it." in capsys.readouterr().err

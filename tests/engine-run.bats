@@ -23,3 +23,8 @@ teardown() {
   [[ $output == *"usage: engine-run <command> [arguments]"* ]]
   [[ $output == *"remove-executable-downloads"* ]]
 }
+
+@test "tests run with a throwaway home and no real key file" {
+  [ "$HOME" = "$STUB_DIR/home" ]
+  [ -z "${SOPS_AGE_KEY_FILE:-}" ]
+}

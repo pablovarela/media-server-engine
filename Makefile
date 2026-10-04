@@ -3,7 +3,6 @@
 SHELL := /bin/bash
 CONFIG_DIR ?= $(abspath $(CURDIR)/../config)
 export CONFIG_DIR
-WITH_LIB = export CONFIG_DIR="$(CONFIG_DIR)"; source scripts/lib.sh &&
 export SOPS_AGE_KEY_FILE ?= $(HOME)/.config/sops/age/keys.txt
 
 EVERYDAY = update configure version urls logins backup-now verify-backup-now media-start media-stop media-status
@@ -46,13 +45,13 @@ version: installation ## show the engine release this installation runs and the 
 	@scripts/engine-run version
 
 homepage: installation ## redraw the landing page from the config's homepage files, without restarting anything (an open page reloads itself)
-	@scripts/homepage-render.sh
+	@scripts/engine-run homepage
 
 check-tools: ## check that every tool the scripts need is installed and the age key works
 	@scripts/check-tools.sh
 
 installation:
-	@$(WITH_LIB) require_installation
+	@scripts/engine-run require-installation
 
 test: test-scripts test-python lint ## run the script tests, the Python tests and shellcheck (needs bats-core, uv and shellcheck)
 
@@ -90,11 +89,11 @@ install-download-cleanup-timer: installation check-tools ## schedule the removal
 
 media-start: installation ## start the media server stack
 	@echo "==> starting media server stack..."
-	@$(WITH_LIB) stack_compose up -d
+	@scripts/engine-run stack up -d
 
 media-stop: installation ## stop the media server stack
 	@echo "==> stopping media server stack..."
-	@$(WITH_LIB) stack_compose down
+	@scripts/engine-run stack down
 
 urls: installation ## list the address of every app of this installation
 	@scripts/engine-run urls
@@ -103,18 +102,18 @@ logins: installation ## show the app logins, passwords included, on this termina
 	@scripts/engine-run logins
 
 media-status: installation ## show status of the media server stack
-	@$(WITH_LIB) stack_compose ps
+	@scripts/engine-run stack ps
 
 monitoring-start: installation ## start the monitoring stack (prometheus, grafana, cadvisor, node-exporter)
 	@echo "==> starting monitoring stack..."
 	@docker volume create media-server_prometheus >/dev/null
 	@docker volume create media-server_grafana >/dev/null
-	@$(WITH_LIB) monitoring_compose up -d
+	@scripts/engine-run monitoring up -d
 	@scripts/engine-run prune-stack-images
 
 monitoring-stop: installation ## stop the monitoring stack
 	@echo "==> stopping monitoring stack..."
-	@$(WITH_LIB) monitoring_compose down
+	@scripts/engine-run monitoring down
 
 monitoring-status: installation ## show status of the monitoring stack
-	@$(WITH_LIB) monitoring_compose ps
+	@scripts/engine-run monitoring ps

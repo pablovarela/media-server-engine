@@ -1,6 +1,3 @@
-import contextlib
-import hashlib
-import http.client
 import json
 import os
 import platform
@@ -8,7 +5,6 @@ import pwd
 import stat
 import sys
 import time
-import urllib.request
 
 from engine import backups, commands, compose, healthchecks, homepage, images, installation, program, secrets, stack
 
@@ -102,61 +98,6 @@ def write_compose_env():
 
 def machine_role():
     return os.environ.get("MACHINE_ROLE") or installation.machine_role()
-
-
-@contextlib.contextmanager
-def environment(**values):
-    saved = {name: os.environ.get(name) for name in values}
-    os.environ.update(values)
-    try:
-        yield
-    finally:
-        for name, value in saved.items():
-            if value is None:
-                os.environ.pop(name, None)
-            else:
-                os.environ[name] = value
-
-
-def images_signature():
-    images = os.path.join(installation.engine_dir(), ".homepage-images")
-    signature = []
-    for directory, _, files in os.walk(images):
-        for name in files:
-            path = os.path.join(directory, name)
-            with open(path, "rb") as image:
-                signature.append((os.path.relpath(path, images), hashlib.sha256(image.read()).hexdigest()))
-    return sorted(signature)
-
-
-def homepage_running():
-    running = commands.output(["docker", "inspect", "-f", "{{.State.Running}}", "homepage"], check=False, discard_errors=True)
-    return running.strip() == "true"
-
-
-def render_landing_page():
-    before = images_signature()
-    role = machine_role()
-    with environment(
-        HOMEPAGE_HOST=installation.network_name(),
-        HOMEPAGE_ENGINE_VERSION=installation.engine_version(),
-        HOMEPAGE_ENGINE_URL=installation.engine_page_url(),
-        HOMEPAGE_HEALTHCHECK_BACKUP=healthchecks.slug("backup", role),
-        HOMEPAGE_HEALTHCHECK_VERIFY=healthchecks.slug("verify", role),
-        HOMEPAGE_HEALTHCHECK_UPDATE=healthchecks.slug("update", role),
-    ):
-        homepage.render(os.path.join(installation.engine_dir(), ".homepage"))
-    if not homepage_running():
-        return
-    if images_signature() != before:
-        commands.run(["docker", "restart", "homepage"], discard_output=True)
-        return
-    try:
-        revalidate = urllib.request.Request(f"http://localhost:{installation.homepage_port()}/api/revalidate")
-        with urllib.request.urlopen(revalidate, timeout=10):
-            pass
-    except (OSError, http.client.HTTPException):
-        pass
 
 
 def homepage_env_changed():
@@ -264,7 +205,7 @@ def update(argv):
     installation.write_installation_makefile()
     secrets.decrypt_all()
     write_compose_env()
-    render_landing_page()
+    homepage.redraw(machine_role())
     homepage_env_changed()
     set_up_healthchecks()
     stack.check()
