@@ -1,15 +1,6 @@
 import sys
 
-from engine import apps, backups, claim, compose, configure, create, downloads, homepage, images, installation, join, machine, ports, program, restore, role, scheduled, timers, unlock, update, verify, version
-
-
-def installation_required(argv):
-    installation.require()
-
-
-def require_installation(argv):
-    return program.run("require-installation", installation_required, argv)
-
+from engine import apps, backups, claim, compose, configure, create, downloads, homepage, images, join, machine, ports, require, restore, role, scheduled, timers, unlock, update, verify, version
 
 COMMANDS = {
     "update": update.main,
@@ -28,7 +19,7 @@ COMMANDS = {
     "port-in-use": ports.main,
     "homepage": homepage.main,
     "scheduled-update": scheduled.main,
-    "require-installation": require_installation,
+    "require-installation": require.main,
     "stack": compose.stack_main,
     "monitoring": compose.monitoring_main,
     "install-timers": timers.main,

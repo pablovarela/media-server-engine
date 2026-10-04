@@ -74,3 +74,26 @@ def test_outside_an_installation_nothing_runs_and_nothing_is_pinged(scheduled, i
     assert "is not an installation" in capsys.readouterr().err
     assert pings(http) == []
     assert not commands.did("bootstrap.sh")
+
+
+def test_a_stop_during_the_start_ping_still_pings_fail(scheduled, http):
+    previous = signal.signal(signal.SIGTERM, scheduled.program.stop_on_terminate)
+
+    def terminated_while_pinging():
+        os.kill(os.getpid(), signal.SIGTERM)
+        return ConnectionResetError("connection reset by peer")
+
+    http.on("GET", f"{PINGED}/testinst-update-laptop/start?create=1", terminated_while_pinging)
+    try:
+        with pytest.raises(SystemExit) as ended:
+            scheduled.main([])
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+    assert ended.value.code == 143
+    assert pings(http)[-1] == "/pk/testinst-update-laptop/fail?create=1"
+
+
+def test_the_update_is_started_from_the_same_engine_as_the_tools(scheduled, commands):
+    assert scheduled.main([]) == 0
+    update = commands.ran[commands.index("engine-run", "update")]
+    assert update.args[0] == os.path.join(scheduled.SCRIPTS_DIR, "engine-run")

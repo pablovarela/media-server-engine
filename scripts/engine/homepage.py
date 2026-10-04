@@ -13,7 +13,6 @@ import yaml
 from engine import commands, healthchecks, installation, program
 
 
-
 def read(path):
     try:
         with open(path) as source:
@@ -198,7 +197,6 @@ def env_text():
 
 def env():
     print(env_text(), end="")
-
 
 
 @contextlib.contextmanager
