@@ -67,12 +67,6 @@ def pinned_engine_version():
         return next((line.strip()[len("ENGINE_VERSION="):] for line in pins if line.startswith("ENGINE_VERSION=")), "")
 
 
-def restart_program():
-    if os.path.exists(UPDATE_PROGRAM):
-        return UPDATE_PROGRAM
-    return os.path.join(os.path.dirname(UPDATE_PROGRAM), "update.sh")
-
-
 def switch_engine_and_restart_if_needed(argv):
     engine = installation.engine_dir()
     wanted = pinned_engine_version()
@@ -86,8 +80,7 @@ def switch_engine_and_restart_if_needed(argv):
         raise commands.Stop(f"engine version {wanted} not found; staying on {current or 'the current checkout'}")
     commands.run(git(engine, "checkout", "-q", "--detach", wanted))
     os.environ["MEDIA_SERVER_PULLED"] = "1"
-    program = restart_program()
-    os.execv(program, [program, *argv])
+    os.execv(UPDATE_PROGRAM, [UPDATE_PROGRAM, *argv])
 
 
 def docker_socket_gid():

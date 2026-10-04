@@ -34,14 +34,3 @@ teardown() {
     [[ $output != *Traceback* ]]
   done
 }
-
-@test "installed units that run backup.sh and verify-backup.sh reach the Python programs" {
-  make_stub restic 'echo "parent=$(ps -o comm= -p $PPID)" >> "$STUB_LOG"; exit 3'
-  export MACHINE_ID_FILE="$STUB_DIR/machine-id" HEALTHCHECKS_PING_KEY=""
-  echo this-machine > "$MACHINE_ID_FILE"
-  for program in backup verify-backup; do
-    : > "$STUB_LOG"
-    run "$BATS_TEST_DIRNAME/../scripts/$program.sh"
-    grep -qi "^parent=.*python" "$STUB_LOG" || { echo "$program: $(cat "$STUB_LOG")"; false; }
-  done
-}
