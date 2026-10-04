@@ -1,6 +1,7 @@
 import getpass
 import io
 import os
+import re
 import sys
 
 import pytest
@@ -75,3 +76,41 @@ def test_ctrl_d_at_a_hidden_prompt_is_an_empty_answer(prompt, monkeypatch):
     monkeypatch.setattr(getpass, "getpass", ended)
     assert prompt.secret("Paste the secrets key: ") == ""
     assert os.environ["PROMPT_INPUT_ENDED"] == "1"
+
+
+def test_a_secret_question_shows_only_the_end_of_the_current_value_and_enter_keeps_it(prompt, monkeypatch, capsys):
+    typed(monkeypatch, "\n")
+    assert prompt.ask_secret("B2 application key", "K005supersecretvalueXYZ") == "K005supersecretvalueXYZ"
+    assert capsys.readouterr().err == "B2 application key [set, ends …XYZ]: \n"
+
+
+def test_a_secret_question_says_when_nothing_is_set_and_takes_a_typed_value(prompt, monkeypatch, capsys):
+    typed(monkeypatch, "new\n")
+    assert prompt.ask_secret("B2 application key", "") == "new"
+    assert "B2 application key [not set]: " in capsys.readouterr().err
+
+
+def test_a_password_question_generates_one_on_enter_when_none_is_set(prompt, monkeypatch, capsys):
+    typed(monkeypatch, "\n")
+    password = prompt.ask_password("Jellyfin admin password", "")
+    assert re.fullmatch(r"[A-Za-z0-9_-]{32}", password)
+    assert capsys.readouterr().err == "Jellyfin admin password [Enter generates one]: \n"
+
+
+def test_a_password_question_keeps_the_current_password_on_enter(prompt, monkeypatch, capsys):
+    typed(monkeypatch, "\n")
+    assert prompt.ask_password("Jellyfin admin password", "current-one") == "current-one"
+    assert capsys.readouterr().err == "Jellyfin admin password [set, ends …one]: \n"
+
+
+def test_a_typed_password_wins(prompt, monkeypatch):
+    typed(monkeypatch, "typed-one\n")
+    assert prompt.ask_password("Jellyfin admin password", "current-one") == "typed-one"
+
+
+def test_generated_passwords_differ(prompt):
+    assert prompt.generated_password() != prompt.generated_password()
+
+
+def test_a_mask_shows_only_the_last_three_characters(prompt):
+    assert (prompt.mask("abcdefgh"), prompt.mask("")) == ("set, ends …fgh", "not set")

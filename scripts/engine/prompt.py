@@ -2,6 +2,7 @@ import getpass
 import io
 import os
 import sys
+from secrets import token_urlsafe
 
 
 def line():
@@ -41,3 +42,22 @@ def ask(question, default=""):
 def secret(text):
     print(text, end="", file=sys.stderr, flush=True)
     return read(secret=True)
+
+
+def mask(value):
+    return f"set, ends …{value[-3:]}" if value else "not set"
+
+
+def generated_password():
+    return token_urlsafe(24)
+
+
+def ask_secret(label, current=""):
+    print(f"{label} [{mask(current)}]: ", end="", file=sys.stderr, flush=True)
+    return read(secret=True) or current
+
+
+def ask_password(label, current=""):
+    shown = mask(current) if current else "Enter generates one"
+    print(f"{label} [{shown}]: ", end="", file=sys.stderr, flush=True)
+    return read(secret=True) or current or generated_password()
