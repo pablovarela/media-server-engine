@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -136,7 +137,7 @@ func TestUpdate(t *testing.T) {
 			}
 			updater := New(source, func() (string, error) { return executable, nil }, versions)
 
-			result, err := updater.Update(context.Background(), version.Build{Version: tt.Given.running}, tt.When.force)
+			result, err := updater.Update(context.Background(), version.Build{Version: tt.Given.running}, tt.When.force, &progressLog{})
 
 			if tt.Then.err != "" {
 				require.Error(t, err)
@@ -175,7 +176,7 @@ func TestUpdateFollowsSymlink(t *testing.T) {
 	versions.EXPECT().Version(mock.Anything, mock.Anything).Return("mse v0.8.1 (commit 1a2b3c4, built 2026-10-05)\n", nil)
 
 	_, err := New(source, func() (string, error) { return link, nil }, versions).
-		Update(context.Background(), version.Build{Version: "v0.8.0"}, false)
+		Update(context.Background(), version.Build{Version: "v0.8.0"}, false, &progressLog{})
 
 	require.NoError(t, err)
 	binary, err := os.ReadFile(target)
@@ -209,4 +210,61 @@ func tarGz(t *testing.T, binary string) []byte {
 	require.NoError(t, tw.Close())
 	require.NoError(t, gz.Close())
 	return buf.Bytes()
+}
+
+type progressLog []string
+
+func (p *progressLog) Checking(current string, force bool) {
+	*p = append(*p, fmt.Sprintf("checking from %s, force %t", current, force))
+}
+
+func (p *progressLog) Updating(target string) { *p = append(*p, "updating to "+target) }
+
+func TestUpdateReportsProgress(t *testing.T) {
+	archive := tarGz(t, "new binary")
+	sum := sha256.Sum256(archive)
+	checksums := hex.EncodeToString(sum[:]) + "  " + ArchiveName() + "\n"
+	type Given struct {
+		running    string
+		releases   []github.Release
+		downloaded string
+	}
+	type When struct {
+		force bool
+	}
+	type Then struct {
+		progress progressLog
+	}
+	tests := map[string]struct {
+		Given Given
+		When  When
+		Then  Then
+	}{
+		"an update":  {Given: Given{running: "v0.8.0", releases: []github.Release{releaseOf("v0.8.1")}, downloaded: "v0.8.1"}, Then: Then{progress: progressLog{"checking from v0.8.0, force false", "updating to v0.8.1"}}},
+		"up to date": {Given: Given{running: "v0.8.1", releases: []github.Release{releaseOf("v0.8.1")}}, Then: Then{progress: progressLog{"checking from v0.8.1, force false"}}},
+		"forced":     {Given: Given{running: "v0.8.0", releases: []github.Release{releaseOf("v1.0.0")}, downloaded: "v1.0.0"}, When: When{force: true}, Then: Then{progress: progressLog{"checking from v0.8.0, force true", "updating to v1.0.0"}}},
+		"dev build":  {Given: Given{running: "dev"}},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			dir, err := filepath.EvalSymlinks(t.TempDir())
+			require.NoError(t, err)
+			executable := filepath.Join(dir, "mse")
+			require.NoError(t, os.WriteFile(executable, []byte("old binary"), 0o755))
+			source := newMockReleaseSource(t)
+			source.EXPECT().Releases(mock.Anything).Return(tt.Given.releases, nil).Maybe()
+			source.EXPECT().Download(mock.Anything, int64(archiveID), mock.Anything).RunAndReturn(writing(archive)).Maybe()
+			source.EXPECT().Download(mock.Anything, int64(checksumsID), mock.Anything).RunAndReturn(writing([]byte(checksums))).Maybe()
+			versions := newMockVersionReader(t)
+			versions.EXPECT().Version(mock.Anything, mock.Anything).RunAndReturn(func(context.Context, string) (string, error) {
+				return "mse " + tt.Given.downloaded + " (commit 1a2b3c4, built 2026-10-05)\n", nil
+			}).Maybe()
+			var progress progressLog
+
+			_, _ = New(source, func() (string, error) { return executable, nil }, versions).
+				Update(context.Background(), version.Build{Version: tt.Given.running}, tt.When.force, &progress)
+
+			assert.Equal(t, tt.Then.progress, progress)
+		})
+	}
 }

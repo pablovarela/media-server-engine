@@ -495,8 +495,8 @@ func (_m *mockUpdater) EXPECT() *mockUpdater_Expecter {
 }
 
 // Update provides a mock function for the type mockUpdater
-func (_mock *mockUpdater) Update(ctx context.Context, current version.Build, force bool) (selfupdate.Result, error) {
-	ret := _mock.Called(ctx, current, force)
+func (_mock *mockUpdater) Update(ctx context.Context, current version.Build, force bool, progress selfupdate.Progress) (selfupdate.Result, error) {
+	ret := _mock.Called(ctx, current, force, progress)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Update")
@@ -504,16 +504,16 @@ func (_mock *mockUpdater) Update(ctx context.Context, current version.Build, for
 
 	var r0 selfupdate.Result
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, version.Build, bool) (selfupdate.Result, error)); ok {
-		return returnFunc(ctx, current, force)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, version.Build, bool, selfupdate.Progress) (selfupdate.Result, error)); ok {
+		return returnFunc(ctx, current, force, progress)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, version.Build, bool) selfupdate.Result); ok {
-		r0 = returnFunc(ctx, current, force)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, version.Build, bool, selfupdate.Progress) selfupdate.Result); ok {
+		r0 = returnFunc(ctx, current, force, progress)
 	} else {
 		r0 = ret.Get(0).(selfupdate.Result)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, version.Build, bool) error); ok {
-		r1 = returnFunc(ctx, current, force)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, version.Build, bool, selfupdate.Progress) error); ok {
+		r1 = returnFunc(ctx, current, force, progress)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -529,11 +529,12 @@ type mockUpdater_Update_Call struct {
 //   - ctx context.Context
 //   - current version.Build
 //   - force bool
-func (_e *mockUpdater_Expecter) Update(ctx any, current any, force any) *mockUpdater_Update_Call {
-	return &mockUpdater_Update_Call{Call: _e.mock.On("Update", ctx, current, force)}
+//   - progress selfupdate.Progress
+func (_e *mockUpdater_Expecter) Update(ctx any, current any, force any, progress any) *mockUpdater_Update_Call {
+	return &mockUpdater_Update_Call{Call: _e.mock.On("Update", ctx, current, force, progress)}
 }
 
-func (_c *mockUpdater_Update_Call) Run(run func(ctx context.Context, current version.Build, force bool)) *mockUpdater_Update_Call {
+func (_c *mockUpdater_Update_Call) Run(run func(ctx context.Context, current version.Build, force bool, progress selfupdate.Progress)) *mockUpdater_Update_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -547,10 +548,15 @@ func (_c *mockUpdater_Update_Call) Run(run func(ctx context.Context, current ver
 		if args[2] != nil {
 			arg2 = args[2].(bool)
 		}
+		var arg3 selfupdate.Progress
+		if args[3] != nil {
+			arg3 = args[3].(selfupdate.Progress)
+		}
 		run(
 			arg0,
 			arg1,
 			arg2,
+			arg3,
 		)
 	})
 	return _c
@@ -561,7 +567,7 @@ func (_c *mockUpdater_Update_Call) Return(result selfupdate.Result, err error) *
 	return _c
 }
 
-func (_c *mockUpdater_Update_Call) RunAndReturn(run func(ctx context.Context, current version.Build, force bool) (selfupdate.Result, error)) *mockUpdater_Update_Call {
+func (_c *mockUpdater_Update_Call) RunAndReturn(run func(ctx context.Context, current version.Build, force bool, progress selfupdate.Progress) (selfupdate.Result, error)) *mockUpdater_Update_Call {
 	_c.Call.Return(run)
 	return _c
 }

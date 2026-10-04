@@ -6,6 +6,8 @@ import (
 	"io"
 	"path/filepath"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/compose-spec/compose-go/v2/cli"
@@ -150,5 +152,19 @@ func publishedPorts(publishers api.PortPublishers) []string {
 			ports = append(ports, port)
 		}
 	}
+	sort.Slice(ports, func(a, b int) bool { return portBefore(ports[a], ports[b]) })
 	return ports
+}
+
+func portBefore(a, b string) bool {
+	if portNumber(a) != portNumber(b) {
+		return portNumber(a) < portNumber(b)
+	}
+	return a < b
+}
+
+func portNumber(port string) int {
+	published, _, _ := strings.Cut(port, "->")
+	number, _ := strconv.Atoi(published)
+	return number
 }
