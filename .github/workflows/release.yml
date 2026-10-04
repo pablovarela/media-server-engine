@@ -27,6 +27,8 @@ jobs:
             ~/.cache/golangci-lint
           key: go-release-${{ runner.os }}-${{ hashFiles('go.sum', 'tools/go.sum') }}
           restore-keys: go-release-check-${{ runner.os }}-
+      - name: Check the tag's major is the template's config schema
+        run: scripts/check-release-schema.sh "$GITHUB_REF_NAME" config-template/config.yml
       - name: Read the GoReleaser version from tools/go.mod
         id: tools
         run: echo "goreleaser=$(go list -modfile=tools/go.mod -m -f '{{.Version}}' github.com/goreleaser/goreleaser/v2)" >> "$GITHUB_OUTPUT"

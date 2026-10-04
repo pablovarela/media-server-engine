@@ -36,11 +36,10 @@ A pull request for sops, age or restic fails `tool-pins` until the SHA256 next t
 
 ## Releases
 
-Releases are tags on `main`, `vMAJOR.MINOR.PATCH`. The major version is also the version of the config format: the template's `config-template/config.yml` holds it as `config:`, and a release that bumps the major bumps that too (a test checks they match). `mse update` installs any newer release of the same major, so from 1.0.0 a minor or patch release must not need config changes. Until then every 0.x release is the same major: a 0.x release may still change the config, and its notes say what to change.
+Releases are tags on `main`, `vMAJOR.MINOR.PATCH`. The major version is also the version of the config format: the template's `config-template/config.yml` holds it as `config:`, and a release that bumps the major bumps that too (the release workflow refuses a tag whose major differs). `mse update` installs any newer release of the same major, so from 1.0.0 a minor or patch release must not need config changes. Until then every 0.x release is the same major: a 0.x release may still change the config, and its notes say what to change.
 
-1. In a pull request, set `config-template/engine.env` to the new version.
-2. Once it is merged and CI passes on `main`, tag that commit and push the tag: `git tag -a v0.7.0 -m v0.7.0 && git push origin v0.7.0`.
-3. The `release` workflow builds `mse` with GoReleaser and publishes the GitHub release with the archives, `checksums.txt` and `install.sh`.
-4. Replace the release's body with notes that say what changes for an installation and whether its config needs anything: `gh release edit v0.7.0 --notes-file notes.md`.
+1. Once CI passes on `main`, tag the commit to release and push the tag: `git tag -a v0.9.0 -m v0.9.0 && git push origin v0.9.0`.
+2. The `release` workflow checks that the tag's major is the `config:` in `config-template/config.yml`, then builds `mse` with GoReleaser and publishes the GitHub release with the archives, `checksums.txt` and `install.sh`.
+3. Replace the release's body with notes that say what changes for an installation and whether its config needs anything: `gh release edit v0.9.0 --notes-file notes.md`.
 
 Each installation's config gets a Renovate pull request for the new `ENGINE_VERSION`; merging it is the upgrade (see [docs/UPGRADING.md](docs/UPGRADING.md)).
