@@ -6,14 +6,14 @@ import sys
 
 import pytest
 
-from conftest import done, fresh_engine
+from conftest import done, fresh_engine, timed_out
 
 
 class Finished:
     def __init__(self, returncode):
         self.returncode = returncode
 
-    def communicate(self, input=None):
+    def communicate(self, input=None, timeout=None):
         return None, None
 
 
@@ -126,7 +126,7 @@ def test_ctrl_c_waits_for_the_command_it_interrupted(commands_module, monkeypatc
     class Interrupted:
         returncode = None
 
-        def communicate(self, input=None):
+        def communicate(self, input=None, timeout=None):
             raise KeyboardInterrupt
 
         def wait(self):
@@ -148,3 +148,26 @@ def test_text_can_be_given_to_a_command(commands_module, commands):
     assert commands_module.captured(["age-keygen", "-y"], input="AGE-SECRET-KEY-2\n")[0] == 0
     assert commands.input_to("sudo", "tee") == ["[Timer]\n"]
     assert commands.input_to("age-keygen") == ["AGE-SECRET-KEY-1\n", "AGE-SECRET-KEY-2\n"]
+
+
+def test_a_dialog_draws_on_the_terminal_and_returns_the_answer_it_writes_to_stderr(commands_module, commands, capsys):
+    commands.on(["whiptail", "--menu"], done(stdout="drawn\n", stderr="Europe", returncode=0))
+    assert commands_module.dialog(["whiptail", "--menu", "Choose a region."]) == (0, "Europe")
+    assert capsys.readouterr().out == "drawn\n"
+
+
+def test_a_dialog_that_is_escaped_returns_its_code_and_no_answer(commands_module, commands):
+    commands.on(["whiptail"], done(returncode=255))
+    assert commands_module.dialog(["whiptail", "--inputbox", "Jellyfin admin user"]) == (255, "")
+
+
+def test_a_command_that_runs_past_its_timeout_is_killed_and_reported_as_timed_out(commands_module, commands):
+    commands.on(["restic", "cat", "config"], timed_out(stderr="Load(<config/0000000000>) returned error, retrying\n"))
+    code, _, errors = commands_module.captured(["restic", "-r", "b2:bucket", "cat", "config"], timeout=45)
+    assert (code, errors) == (commands_module.TIMED_OUT, "Load(<config/0000000000>) returned error, retrying\n")
+    assert commands.ran[-1].process.killed
+
+
+def test_a_command_within_its_timeout_returns_as_usual(commands_module, commands):
+    commands.on(["restic", "cat", "config"], done(stderr="Fatal: wrong password\n", returncode=12))
+    assert commands_module.captured(["restic", "cat", "config"], timeout=45) == (12, "", "Fatal: wrong password\n")
