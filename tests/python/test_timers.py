@@ -1,6 +1,7 @@
 import grp
 import os
 import pwd
+import shlex
 import shutil
 
 import pytest
@@ -111,3 +112,13 @@ def test_relative_config_and_data_folders_are_taken_from_the_engine(timers, comm
     service = written(commands, tmp_path, "media-backup.service")
     assert f"Environment=CONFIG_DIR={installed.config}\n" in service
     assert f"Environment=DATA_DIR={installed.data}\n" in service
+
+
+def test_every_unit_gives_sops_its_command_as_one_argument(timers, commands, tmp_path):
+    names = sorted({path.stem for path in (REPO / "systemd").iterdir()})
+    assert timers.main(names) == 0
+    for name in names:
+        exec_start = next(line for line in written(commands, tmp_path, f"{name}.service").splitlines() if line.startswith("ExecStart="))
+        words = shlex.split(exec_start[len("ExecStart="):])
+        if "exec-env" in words:
+            assert len(words) == words.index("exec-env") + 3, f"{name}: {exec_start}"
