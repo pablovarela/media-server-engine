@@ -44,3 +44,10 @@ def test_a_port_held_by_this_installations_own_landing_page_counts_as_free(ports
 def test_the_landing_page_on_another_port_does_not_free_this_one(ports, commands, listening):
     commands.on(["docker", "port", "homepage", "3000"], done(stdout=f"0.0.0.0:{listening + 1}\n"))
     assert ports.port_in_use(listening) is True
+
+
+
+@pytest.mark.parametrize("argv", [[], ["80", "443"], ["http"]])
+def test_the_port_check_needs_one_port_number(ports, capsys, argv):
+    assert ports.main(argv) == 1
+    assert capsys.readouterr().err == "port-in-use: usage: engine-run port-in-use PORT\n"

@@ -43,17 +43,18 @@ def flagged_downloads(port, key):
         page += 1
 
 
-def remove_executable_downloads(app, port, config):
+def cleaned(app, port, config):
     key = api_key(os.path.join(installation.data_dir(), config))
     if not key:
         print(f"{app}: queue not reachable, skipped")
-        return
+        return True
     try:
         found = flagged_downloads(port, key)
     except (OSError, http.client.HTTPException, ValueError, KeyError, TypeError, AttributeError):
         print(f"{app}: queue not reachable, skipped")
-        return
+        return True
     removed = set()
+    all_removed = True
     for record_id, download_id, title in found:
         if download_id in removed:
             continue
@@ -62,13 +63,14 @@ def remove_executable_downloads(app, port, config):
             call("DELETE", port, key, f"/api/v3/queue/{record_id}?removeFromClient=true&blocklist=true&skipRedownload=false")
         except (OSError, http.client.HTTPException) as error:
             print(f"{app}: could not remove {title}: {getattr(error, 'reason', error)}", file=sys.stderr)
+            all_removed = False
             continue
         print(f"{app}: removed and blocklisted {title}")
+    return all_removed
 
 
 def clean(argv):
-    for app in APPS:
-        remove_executable_downloads(*app)
+    return 0 if all([cleaned(*app) for app in APPS]) else 1
 
 
 def main(argv):

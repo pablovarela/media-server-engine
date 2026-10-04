@@ -82,7 +82,7 @@ def test_a_removal_that_fails_is_reported_and_the_others_carry_on(cleanup, http,
     http.on("GET", queue(8989), {"records": [flagged(41, "A.exe", "A"), flagged(42, "B.exe", "B")]})
     http.on("DELETE", removal(8989, 41), refused())
     http.on("DELETE", removal(8989, 42), None)
-    assert cleanup.main([]) == 0
+    assert cleanup.main([]) == 1
     output = capsys.readouterr()
     assert output.out == "sonarr: removed and blocklisted B.exe\n"
     assert output.err.startswith("sonarr: could not remove A.exe: ")

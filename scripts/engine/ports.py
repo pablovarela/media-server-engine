@@ -18,5 +18,11 @@ def port_in_use(port):
     return something_listens(port) and not this_landing_page_listens(port)
 
 
+def check(argv):
+    if len(argv) != 1 or not argv[0].isdigit():
+        raise commands.Stop("usage: engine-run port-in-use PORT")
+    return 0 if port_in_use(int(argv[0])) else 1
+
+
 def main(argv):
-    return program.run("port-in-use", lambda argv: 0 if port_in_use(int(argv[0])) else 1, argv)
+    return program.run("port-in-use", check, argv)
