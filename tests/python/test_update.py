@@ -49,7 +49,6 @@ def update(dirs, commands, urlopen, monkeypatch, tmp_path):
         (["sops", "decrypt", "apps.sops.env"], done(stdout="SONARR_API_KEY=s1\nRADARR_API_KEY=r1\nPROWLARR_API_KEY=p1\nPORTAINER_ADMIN_PASSWORD=pw 1\n")),
         (["timedatectl"], done(stdout="Europe/London\n")),
         (["docker", "inspect", "homepage"], done(stdout="false\n")),
-        (["check-stack.sh"], done()),
         (["docker", "compose", "config", "--format", "json"], done(stdout=json.dumps(mounts))),
         (["docker", "compose", "pull"], done()),
         (["docker", "compose", "up"], done()),
@@ -62,9 +61,11 @@ def update(dirs, commands, urlopen, monkeypatch, tmp_path):
     monkeypatch.setattr(os, "execv", mock.Mock(side_effect=Restarted))
     monkeypatch.setattr(time, "sleep", mock.Mock())
     module = fresh_engine("engine.update")
+    checked = []
+    monkeypatch.setattr(module.stack, "check", lambda: checked.append(len(commands.ran)))
     synced = []
     monkeypatch.setattr(module.healthchecks, "sync", lambda checks, facts: synced.append(SimpleNamespace(checks=checks, facts=facts)))
-    return SimpleNamespace(run=lambda *argv: module.main(list(argv)), module=module, synced=synced, execv=os.execv)
+    return SimpleNamespace(run=lambda *argv: module.main(list(argv)), module=module, synced=synced, execv=os.execv, checked=checked)
 
 
 def config_status(commands, dirs, status):
@@ -225,8 +226,11 @@ def test_update_installs_the_tools_the_engine_pins_before_bringing_the_stack_up(
     assert commands.index("bootstrap.sh", "--pinned-tools") < commands.index("docker", "compose", "pull")
 
 
-def test_update_stops_before_bringing_the_stack_up_when_the_merged_compose_is_unsafe(update, commands):
-    commands.on(["check-stack.sh"], done(returncode=1))
+def test_update_stops_before_bringing_the_stack_up_when_the_merged_compose_is_unsafe(update, commands, monkeypatch):
+    def unsafe():
+        raise update.module.commands.Stop("the merged compose files are not safe to deploy")
+
+    monkeypatch.setattr(update.module.stack, "check", unsafe)
     assert update.run() == 1
     assert not commands.did("docker", "compose", "up")
 
@@ -489,11 +493,11 @@ def test_a_missing_engine_pin_stops_the_update_with_one_line(update, dirs, capsy
     assert err.count("\n") == 1
 
 
-def test_an_interrupted_update_ends_with_the_status_the_shell_gives(update, commands):
+def test_an_interrupted_update_ends_with_the_status_the_shell_gives(update, monkeypatch):
     def interrupt():
         raise KeyboardInterrupt
 
-    commands.on(["check-stack.sh"], done(then=interrupt))
+    monkeypatch.setattr(update.module.stack, "check", interrupt)
     assert update.run() == 130
 
 
@@ -521,3 +525,8 @@ def test_a_garbled_answer_to_the_reload_does_not_stop_the_update(update, command
 
     monkeypatch.setattr(urllib.request, "urlopen", garbled)
     assert update.run() == 0
+
+
+def test_the_stack_is_checked_before_images_are_pulled(update, commands):
+    assert update.run() == 0
+    assert update.checked and update.checked[0] <= commands.index("docker", "compose", "pull")

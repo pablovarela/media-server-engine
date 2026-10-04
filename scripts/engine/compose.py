@@ -45,3 +45,15 @@ def output(*args, wiring=False, check=True):
 def combined(*args, wiring=False):
     argv, env = stack(args, wiring)
     return commands.combined(argv, env=env)
+
+
+def monitoring(args):
+    engine, config = installation.engine_dir(), installation.config_dir()
+    return [
+        "docker", "compose", "--project-name", "monitoring", "--project-directory", engine, "--env-file", os.path.join(engine, ".env"),
+        "-f", os.path.join(engine, "docker-compose.monitoring.yml"), "-f", os.path.join(config, "images.monitoring.yml"), *args,
+    ]
+
+
+def monitoring_output(*args):
+    return commands.output(monitoring(args))
