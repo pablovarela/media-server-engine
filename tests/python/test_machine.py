@@ -6,7 +6,7 @@ import sys
 
 import pytest
 
-from conftest import done, fresh_engine
+from conftest import done, fresh_engine, through_sops
 
 
 @pytest.fixture
@@ -29,7 +29,7 @@ def answering(monkeypatch, text):
 
 
 def inner(commands):
-    return [shlex.split(command.args[3]) for command in commands.ran if command.args[:2] == ["sops", "exec-env"]]
+    return [through_sops(command.args) for command in commands.ran if command.args[:2] == ["sops", "exec-env"]]
 
 
 def engine_runs(commands):
@@ -72,7 +72,8 @@ def test_the_main_runs_its_first_update_as_the_main_installs_timers_and_claims_b
     assert engine_runs(commands)[0:2] == [["update"], ["install-timers", "media-update", "media-download-cleanup"]]
     claim = next(command for command in commands.ran if command.args[:3] == ["sops", "exec-env", f"{installed.config}/secrets/healthchecks.sops.env"])
     assert claim.env["CLAIM_CONFIRMED"] == "1"
-    assert shlex.split(claim.args[3]) == ["sops", "exec-env", f"{installed.config}/secrets/backup.sops.env", f"{installed.engine}/scripts/engine-run", "claim-backup-main"]
+    assert shlex.split(claim.args[3])[:3] == ["sops", "exec-env", f"{installed.config}/secrets/backup.sops.env"]
+    assert through_sops(claim.args) == [f"{installed.engine}/scripts/engine-run", "claim-backup-main"]
     assert inner(commands)[-1] == [f"{installed.engine}/scripts/engine-run", "install-timers", "media-backup", "media-verify"]
 
 

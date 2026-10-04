@@ -2,6 +2,7 @@ import importlib
 import io
 import json
 import os
+import shlex
 import subprocess
 import sys
 import urllib.error
@@ -134,6 +135,13 @@ def matches(words, args):
         if position < len(words) and (arg == words[position] or arg.endswith("/" + words[position])):
             position += 1
     return position == len(words)
+
+
+def through_sops(words):
+    while len(words) > 1 and words[0].endswith("sops") and words[1] == "exec-env":
+        assert len(words) == 4, f"sops exec-env takes one command after its file: {words}"
+        words = shlex.split(words[3])
+    return words
 
 
 def real():
