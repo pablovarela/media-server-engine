@@ -1,6 +1,6 @@
 import sys
 
-from engine import backups, claim, images, restore, role, unlock, update, verify
+from engine import apps, backups, claim, images, restore, role, unlock, update, verify, version
 
 COMMANDS = {
     "update": update.main,
@@ -11,6 +11,9 @@ COMMANDS = {
     "unlock-backup": unlock.main,
     "restore": restore.main,
     "prune-stack-images": images.main,
+    "urls": apps.urls_main,
+    "logins": apps.logins_main,
+    "version": version.main,
 }
 
 

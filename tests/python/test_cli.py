@@ -9,7 +9,7 @@ def cli(dirs):
 
 
 def test_every_command_runs_a_programs_main(cli):
-    assert sorted(cli.COMMANDS) == ["backup", "backup-role", "claim-backup-main", "prune-stack-images", "restore", "unlock-backup", "update", "verify-backup"]
+    assert sorted(cli.COMMANDS) == ["backup", "backup-role", "claim-backup-main", "logins", "prune-stack-images", "restore", "unlock-backup", "update", "urls", "verify-backup", "version"]
     assert all(callable(main) for main in cli.COMMANDS.values())
 
 
