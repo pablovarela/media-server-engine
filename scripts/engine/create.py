@@ -4,7 +4,7 @@ import shutil
 import sys
 import tempfile
 
-from engine import commands, installation, program, prompt
+from engine import commands, configure, installation, program, prompt
 
 SOPS_CONFIG = "creation_rules:\n  - path_regex: (^|/)secrets/[^/]+\\.sops\\.env$\n    age: {}\n"
 SCRIPTS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -142,7 +142,7 @@ def create(argv):
         with open(os.path.join(config, ".sops.yaml"), "w") as sops:
             sops.write(SOPS_CONFIG.format(public))
         commands.run(["git", "-C", config, "init", "-q", "-b", "main"])
-        commands.run([os.path.join(SCRIPTS_DIR, "configure.sh")], env=dict(os.environ, NAME=name, CONFIGURE_FROM_CREATE="1"))
+        configure.configure(name, from_create=True)
         saved = True
         commands.run([installation.engine_run(), "setup-machine"])
     except BaseException as error:

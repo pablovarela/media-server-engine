@@ -4,6 +4,7 @@ import shutil
 import signal
 import stat
 import sys
+from unittest import mock
 
 import pytest
 
@@ -13,7 +14,12 @@ KEYGEN = "# created: now\n# public key: age1newpublic\nAGE-SECRET-KEY-NEW\n"
 
 
 @pytest.fixture
-def create(dirs, commands, tmp_path, monkeypatch):
+def configured():
+    return mock.Mock()
+
+
+@pytest.fixture
+def create(dirs, commands, configured, tmp_path, monkeypatch):
     monkeypatch.setattr(os, "environ", dict(os.environ))
     install = dirs.engine.parent
     os.environ.update(HOME=str(tmp_path / "home"), INSTALL_DIR=str(install))
@@ -37,10 +43,11 @@ def create(dirs, commands, tmp_path, monkeypatch):
     commands.on(["age-keygen", "-o"], done(then=keygen))
     commands.on(["age-keygen", "-y"], done(stdout="age1other\n"))
     commands.on(["bootstrap.sh"])
-    commands.on(["configure.sh"])
     commands.on(["engine-run", "setup-machine"])
     monkeypatch.setattr(sys, "stdin", io.StringIO("\n"))
-    return fresh_engine("engine.create")
+    module = fresh_engine("engine.create")
+    monkeypatch.setattr(module.configure, "configure", configured)
+    return module
 
 
 def keys_file(tmp_path):
@@ -61,10 +68,10 @@ def test_creating_needs_an_installation_name(create, capsys):
     assert capsys.readouterr().err == "create-installation: usage: make create-installation NAME=<installation name>\n"
 
 
-def test_the_name_can_come_from_the_environment(create, commands):
+def test_the_name_can_come_from_the_environment(create, configured):
     os.environ["NAME"] = "testinst"
     assert create.main([]) == 0
-    assert commands.did("configure.sh")
+    configured.assert_called_once_with("testinst", from_create=True)
 
 
 def test_an_installation_name_that_is_not_letters_digits_and_dashes_is_refused_before_anything_is_made(create, commands, capsys):
@@ -87,10 +94,10 @@ def test_creating_refuses_a_config_folder_that_is_not_empty(create, dirs, comman
     assert capsys.readouterr().err == f"create-installation: {dirs.config} is not empty\n"
 
 
-def test_creating_works_without_the_github_cli_for_a_local_only_config(create, commands):
+def test_creating_works_without_the_github_cli_for_a_local_only_config(create, commands, configured):
     commands.on(["gh", "auth", "status"], done(returncode=1))
     assert create.main(["testinst"]) == 0
-    assert commands.did("configure.sh")
+    configured.assert_called_once_with("testinst", from_create=True)
 
 
 def test_a_new_secrets_key_is_added_next_to_existing_ones_and_shown_once(create, tmp_path, capsys):
@@ -134,11 +141,12 @@ def test_an_engine_on_a_release_pins_that_release(create, dirs, commands):
     assert (dirs.config / "engine.env").read_text() == "ENGINE_VERSION=v1.2.0\n"
 
 
-def test_creating_configures_then_sets_up_this_machine_as_a_new_installation(create, commands):
+def test_creating_configures_then_sets_up_this_machine_as_a_new_installation(create, commands, configured):
+    commands_before_configure = []
+    configured.side_effect = lambda *args, **kwargs: commands_before_configure.append(len(commands.ran))
     assert create.main(["testinst"]) == 0
-    configure = next(command for command in commands.ran if command.args[0].endswith("configure.sh"))
-    assert (configure.env["NAME"], configure.env["CONFIGURE_FROM_CREATE"]) == ("testinst", "1")
-    assert commands.index("bootstrap.sh") < commands.index("age-keygen", "-o") < commands.index("git", "init") < commands.index("configure.sh") < commands.index("engine-run", "setup-machine")
+    configured.assert_called_once_with("testinst", from_create=True)
+    assert commands.index("bootstrap.sh") < commands.index("age-keygen", "-o") < commands.index("git", "init") < commands_before_configure[0] <= commands.index("engine-run", "setup-machine")
     assert not commands.did("gh", "repo", "create")
 
 
@@ -146,11 +154,11 @@ def undo_answers(commands):
     commands.on(["age-keygen", "-y"], done(stdout="age1existing\n"), done(stdout="age1newpublic\n"))
 
 
-def test_a_create_stopped_before_the_settings_are_saved_leaves_nothing_behind(create, commands, dirs, tmp_path, capsys):
+def test_a_create_stopped_before_the_settings_are_saved_leaves_nothing_behind(create, configured, commands, dirs, tmp_path, capsys):
     existing_keys(tmp_path)
     undo_answers(commands)
     inode = os.stat(keys_file(tmp_path)).st_ino
-    commands.on(["configure.sh"], done(returncode=1))
+    configured.side_effect = create.commands.CommandFailed(1)
     assert create.main(["testinst"]) == 1
     assert not dirs.config.exists() and not dirs.data.exists()
     assert keys_file(tmp_path).read_text() == "AGE-SECRET-KEY-EXISTING\n"
@@ -162,25 +170,25 @@ def test_a_create_stopped_before_the_settings_are_saved_leaves_nothing_behind(cr
     assert err.endswith("Stopped before testinst's settings were saved, so nothing was kept. Run make create-installation NAME=testinst again.\n")
 
 
-def test_a_data_folder_that_was_already_there_is_kept_when_create_stops(create, commands, dirs):
+def test_a_data_folder_that_was_already_there_is_kept_when_create_stops(create, configured, commands, dirs):
     dirs.data.mkdir()
     (dirs.data / "volumes").mkdir()
     commands.on(["age-keygen", "-y"], done(stdout="age1newpublic\n"))
-    commands.on(["configure.sh"], done(returncode=1))
+    configured.side_effect = create.commands.CommandFailed(1)
     create.main(["testinst"])
     assert (dirs.data / "volumes").is_dir()
 
 
-def test_a_stopped_create_that_copied_the_engine_removes_the_copy_too(create, commands, dirs, tmp_path):
+def test_a_stopped_create_that_copied_the_engine_removes_the_copy_too(create, configured, commands, dirs, tmp_path):
     os.environ["CREATED_INSTALL_DIR"] = str(dirs.engine.parent)
     commands.on(["age-keygen", "-y"], done(stdout="age1newpublic\n"))
-    commands.on(["configure.sh"], done(returncode=1))
+    configured.side_effect = create.commands.CommandFailed(1)
     create.main(["testinst"])
     assert not dirs.engine.parent.exists()
 
 
 @pytest.mark.parametrize("stop", ["interrupt", "terminate"])
-def test_stopping_create_during_the_questions_also_leaves_nothing_behind(create, commands, dirs, tmp_path, stop):
+def test_stopping_create_during_the_questions_also_leaves_nothing_behind(create, configured, commands, dirs, tmp_path, stop):
     previous = signal.signal(signal.SIGTERM, create.program.stop_on_terminate)
     commands.on(["age-keygen", "-y"], done(stdout="age1newpublic\n"))
 
@@ -189,7 +197,7 @@ def test_stopping_create_during_the_questions_also_leaves_nothing_behind(create,
             raise KeyboardInterrupt
         os.kill(os.getpid(), signal.SIGTERM)
 
-    commands.on(["configure.sh"], done(then=stopping))
+    configured.side_effect = lambda *args, **kwargs: stopping()
     try:
         if stop == "interrupt":
             assert create.main(["testinst"]) == 130
@@ -250,10 +258,10 @@ def test_an_error_inside_create_is_shown_before_the_undo_messages(create, comman
     assert err.index("create-installation: [Errno 2]") < err.index("Stopped before testinst's settings were saved")
 
 
-def test_undoing_keeps_the_other_keys_byte_for_byte(create, commands, tmp_path):
+def test_undoing_keeps_the_other_keys_byte_for_byte(create, configured, commands, tmp_path):
     keys_file(tmp_path).parent.mkdir(parents=True)
     keys_file(tmp_path).write_bytes(b"AGE-SECRET-KEY-EXISTING\r\n")
     commands.on(["age-keygen", "-y"], done(stdout="age1existing\n"), done(stdout="age1newpublic\n"))
-    commands.on(["configure.sh"], done(returncode=1))
+    configured.side_effect = create.commands.CommandFailed(1)
     create.main(["testinst"])
     assert keys_file(tmp_path).read_bytes() == b"AGE-SECRET-KEY-EXISTING\r\n"

@@ -1,6 +1,6 @@
 import sys
 
-from engine import apps, backups, claim, create, downloads, images, join, machine, ports, restore, role, timers, unlock, update, verify, version
+from engine import apps, backups, claim, configure, create, downloads, images, join, machine, ports, restore, role, timers, unlock, update, verify, version
 
 COMMANDS = {
     "update": update.main,
@@ -8,6 +8,7 @@ COMMANDS = {
     "verify-backup": verify.main,
     "backup-role": role.main,
     "claim-backup-main": claim.main,
+    "configure": configure.main,
     "unlock-backup": unlock.main,
     "restore": restore.main,
     "prune-stack-images": images.main,

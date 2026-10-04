@@ -163,56 +163,6 @@ ping_healthcheck() {
   curl -fsS -m 10 --retry 3 -o /dev/null "$url${2:-}?create=1" || true
 }
 
-generate_secret() {
-  openssl rand -base64 "$1" | tr '+/' '-_' | tr -d '=\n'
-}
-
-mask() {
-  if [ -n "$1" ]; then printf 'set, ends …%s' "${1: -3}"; else printf 'not set'; fi
-}
-
-read_answer() {
-  local _prompt_typed=""
-  if [ -t 0 ] && [ "${2:-}" = secret ]; then
-    IFS= read -rs _prompt_typed
-  elif ! IFS= read -r _prompt_typed && [ -z "$_prompt_typed" ]; then
-    export PROMPT_INPUT_ENDED=1
-  fi
-  [ -t 0 ] && [ "${2:-}" != secret ] || echo >&2
-  printf -v "$1" '%s' "$_prompt_typed"
-}
-
-ask() {
-  local _prompt_answer
-  printf '%s [%s]: ' "$2" "${3:-}" >&2
-  read_answer _prompt_answer
-  printf -v "$1" '%s' "${_prompt_answer:-${3:-}}"
-}
-
-ask_secret() {
-  local _prompt_answer
-  printf '%s [%s]: ' "$2" "$(mask "${3:-}")" >&2
-  read_answer _prompt_answer secret
-  printf -v "$1" '%s' "${_prompt_answer:-${3:-}}"
-}
-
-ask_password() {
-  local _prompt_answer
-  if [ -n "${3:-}" ]; then
-    printf '%s [%s]: ' "$2" "$(mask "$3")" >&2
-  else
-    printf '%s [Enter generates one]: ' "$2" >&2
-  fi
-  read_answer _prompt_answer secret
-  if [ -n "$_prompt_answer" ]; then
-    printf -v "$1" '%s' "$_prompt_answer"
-  elif [ -n "${3:-}" ]; then
-    printf -v "$1" '%s' "$3"
-  else
-    printf -v "$1" '%s' "$(generate_secret 24)"
-  fi
-}
-
 network_name() {
   if [ -n "${MEDIA_SERVER_HOST:-}" ]; then
     echo "$MEDIA_SERVER_HOST"
