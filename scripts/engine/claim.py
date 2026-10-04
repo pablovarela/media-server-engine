@@ -1,15 +1,7 @@
 import os
 import sys
 
-from engine import backups, commands, installation, program, restic, role
-
-
-def ask(question, default):
-    print(f"{question} [{default}]: ", end="", file=sys.stderr, flush=True)
-    answer = sys.stdin.readline().rstrip("\n")
-    if not sys.stdin.isatty():
-        print(file=sys.stderr)
-    return answer or default
+from engine import backups, commands, installation, program, prompt, restic, role
 
 
 def create_repository_if_missing():
@@ -27,7 +19,7 @@ def confirm_taking_over():
     if os.environ.get("CLAIM_CONFIRMED"):
         return
     print(f"{os.environ['INSTALLATION_NAME']}'s main is {role.describe_main()}. Taking over makes it refuse to back up.", file=sys.stderr)
-    if ask("Make this machine the main instead? (y/n)", "n") not in ("y", "Y"):
+    if prompt.ask("Make this machine the main instead? (y/n)", "n") not in ("y", "Y"):
         raise commands.Stop("nothing was claimed")
 
 

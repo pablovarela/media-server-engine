@@ -92,3 +92,12 @@ setup() {
   make -s -n -C "$REPO" version | grep -q "scripts/engine-run version"
   make -s -n -C "$REPO" monitoring-start | grep -q "scripts/engine-run prune-stack-images"
 }
+
+@test "the lifecycle targets run engine-run" {
+  make -s -n -C "$REPO" create-installation NAME=home | grep -q "scripts/engine-run create-installation home"
+  make -s -n -C "$REPO" join-installation NAME=home | grep -q "scripts/engine-run join-installation home"
+  make -s -n -C "$REPO" setup-machine | grep -q "scripts/engine-run setup-machine"
+  make -s -n -C "$REPO" install-update-timer | grep -q "scripts/engine-run install-timers media-update"
+  make -s -n -C "$REPO" install-backup-timers | grep -q "scripts/engine-run install-timers media-backup media-verify"
+  make -s -n -C "$REPO" install-download-cleanup-timer | grep -q "scripts/engine-run install-timers media-download-cleanup"
+}

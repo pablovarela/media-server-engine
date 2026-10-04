@@ -16,13 +16,13 @@ help:
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep -v $(foreach target,$(EVERYDAY),-e '^$(target):') | sort | $(SHOW_TARGETS)
 
 create-installation: ## create a new installation in ~/NAME (engine, config, data), asking for its settings, and set up this machine: NAME=<name>
-	@scripts/create-installation.sh $(NAME)
+	@scripts/engine-run create-installation $(NAME)
 
 join-installation: ## add this machine to an installation whose config is on GitHub, in ~/NAME: NAME=<installation name>
-	@scripts/join-installation.sh $(NAME)
+	@scripts/engine-run join-installation $(NAME)
 
 setup-machine: installation ## finish setting up this machine for its installation (checks, main question, update, timers)
-	@scripts/setup-machine.sh
+	@scripts/engine-run setup-machine
 
 bootstrap: ## install sops, age and restic (Homebrew on macOS, pinned binaries plus Docker on Debian)
 	@scripts/bootstrap.sh
@@ -34,7 +34,7 @@ update: installation pinned-tools check-tools ## pull the config repo, switch to
 	@scripts/engine-run update
 
 install-update-timer: installation check-tools ## schedule make update daily at 05:00, after the backup (systemd)
-	@scripts/install-timers.sh media-update
+	@scripts/engine-run install-timers media-update
 
 configure: ## set or change this installation's settings and secrets interactively (ROTATE=sonarr regenerates one internal key)
 	@scripts/configure.sh $(if $(ROTATE),--rotate $(ROTATE))
@@ -80,13 +80,13 @@ unlock-backup: installation ## remove stale locks from the backup repository and
 	@sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" 'scripts/engine-run unlock-backup $(if $(ALL),--remove-all)'
 
 install-backup-timers: installation check-tools ## schedule make backup-now daily and make verify-backup-now weekly (systemd; only on the installation's main)
-	@sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" 'scripts/install-timers.sh media-backup media-verify'
+	@sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" 'scripts/engine-run install-timers media-backup media-verify'
 
 claim-backup-main: installation check-tools ## make this machine the installation's main: runs one backup tagged with this machine
 	@sops exec-env "$(CONFIG_DIR)/secrets/healthchecks.sops.env" 'sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" scripts/engine-run claim-backup-main'
 
 install-download-cleanup-timer: installation check-tools ## schedule the removal of downloads Sonarr or Radarr flag as executables, every 15 minutes (systemd)
-	@scripts/install-timers.sh media-download-cleanup
+	@scripts/engine-run install-timers media-download-cleanup
 
 media-start: installation ## start the media server stack
 	@echo "==> starting media server stack..."

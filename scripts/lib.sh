@@ -213,36 +213,6 @@ ask_password() {
   fi
 }
 
-run_from_installation_directory() {
-  local name=$1 script=$2 install_dir engine
-  install_dir=${INSTALL_DIR:-$HOME/$name}
-  engine="$install_dir/engine"
-  if [ -d "$engine" ] && [ "$(cd "$engine" && pwd -P)" = "$(cd "$ENGINE_DIR" && pwd -P)" ]; then
-    return 0
-  fi
-  [ ! -e "$engine" ] || die "$engine already exists; run make from $engine instead"
-  local created_install_dir=""
-  [ -e "$install_dir" ] || created_install_dir=$install_dir
-  mkdir -p "$install_dir"
-  git clone -q "$ENGINE_DIR" "$engine"
-  if ! git -C "$ENGINE_DIR" symbolic-ref -q HEAD >/dev/null; then
-    git -C "$engine" checkout -q "$(git -C "$ENGINE_DIR" rev-parse HEAD)"
-  fi
-  git -C "$engine" remote set-url origin "$(git -C "$ENGINE_DIR" remote get-url origin)"
-  echo "Installing $name in $install_dir: engine, config and data side by side." >&2
-  ENGINE_DIR=$engine CONFIG_DIR=$install_dir/config DATA_DIR=$install_dir/data INSTALL_DIR=$install_dir \
-    CREATED_INSTALL_DIR=$created_install_dir exec "$engine/scripts/$(basename "$script")" "$name"
-}
-
-valid_installation_name() {
-  [[ $1 =~ ^[a-z0-9][a-z0-9-]{0,39}$ ]]
-}
-
-require_valid_installation_name() {
-  valid_installation_name "$1" ||
-    die "installation names are lowercase letters, digits and dashes, up to 40 characters, starting with a letter or digit; got '$1'"
-}
-
 network_name() {
   if [ -n "${MEDIA_SERVER_HOST:-}" ]; then
     echo "$MEDIA_SERVER_HOST"

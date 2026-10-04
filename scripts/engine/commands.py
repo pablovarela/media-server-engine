@@ -30,10 +30,10 @@ def forward(signum):
     return True
 
 
-def finished(args, child):
+def finished(args, child, input=None):
     RUNNING.append(child)
     try:
-        stdout, stderr = child.communicate()
+        stdout, stderr = child.communicate(input)
     except KeyboardInterrupt:
         child.wait()
         raise
@@ -44,13 +44,15 @@ def finished(args, child):
     return subprocess.CompletedProcess(args, child.returncode, stdout, stderr)
 
 
-def completed(args, **options):
+def completed(args, input=None, **options):
     if PASSED_TO_CHILDREN:
         options["pass_fds"] = tuple(sorted(PASSED_TO_CHILDREN))
     sys.stdout.flush()
     sys.stderr.flush()
     try:
-        result = finished(args, subprocess.Popen(args, text=True, **options))
+        if input is not None:
+            options["stdin"] = subprocess.PIPE
+        result = finished(args, subprocess.Popen(args, text=True, **options), input)
     except FileNotFoundError:
         if options.get("stderr") is not subprocess.DEVNULL:
             print(f"{args[0]}: command not found", file=sys.stderr)
@@ -68,13 +70,13 @@ def checked(result, check):
     return result
 
 
-def run(args, env=None, check=True, discard_output=False):
-    result = completed(args, env=env, stdout=subprocess.DEVNULL if discard_output else None)
+def run(args, env=None, check=True, discard_output=False, input=None):
+    result = completed(args, input=input, env=env, stdout=subprocess.DEVNULL if discard_output else None)
     return checked(result, check).returncode
 
 
-def output(args, env=None, check=True, discard_errors=False):
-    result = completed(args, env=env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL if discard_errors else None)
+def output(args, env=None, check=True, discard_errors=False, input=None):
+    result = completed(args, input=input, env=env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL if discard_errors else None)
     return checked(result, check).stdout
 
 
@@ -83,8 +85,8 @@ def combined(args, env=None):
     return result.returncode, result.stdout
 
 
-def captured(args, env=None):
-    result = completed(args, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+def captured(args, env=None, input=None):
+    result = completed(args, input=input, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return result.returncode, result.stdout, result.stderr
 
 
