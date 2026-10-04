@@ -1,6 +1,6 @@
 import sys
 
-from engine import apps, backups, claim, create, downloads, images, machine, ports, restore, role, timers, unlock, update, verify, version
+from engine import apps, backups, claim, create, downloads, images, join, machine, ports, restore, role, timers, unlock, update, verify, version
 
 COMMANDS = {
     "update": update.main,
@@ -19,6 +19,7 @@ COMMANDS = {
     "install-timers": timers.main,
     "setup-machine": machine.main,
     "create-installation": create.main,
+    "join-installation": join.main,
 }
 
 
