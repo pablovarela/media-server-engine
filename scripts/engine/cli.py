@@ -1,6 +1,6 @@
 import sys
 
-from engine import apps, backups, claim, images, restore, role, unlock, update, verify, version
+from engine import apps, backups, claim, downloads, images, ports, restore, role, unlock, update, verify, version
 
 COMMANDS = {
     "update": update.main,
@@ -14,6 +14,8 @@ COMMANDS = {
     "urls": apps.urls_main,
     "logins": apps.logins_main,
     "version": version.main,
+    "remove-executable-downloads": downloads.main,
+    "port-in-use": ports.main,
 }
 
 
