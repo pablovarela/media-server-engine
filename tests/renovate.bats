@@ -57,3 +57,7 @@ for dep, file in expected.items():
 assert found["restic/restic"][1][0].isdigit()
 '
 }
+
+@test "renovate tidies the go modules it updates" {
+  renovate 'assert "gomodTidy" in config.get("postUpdateOptions", []), config.get("postUpdateOptions")'
+}

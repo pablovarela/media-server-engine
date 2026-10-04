@@ -51,6 +51,23 @@ From then on, run make from the installation, `cd ~/<name>` (its Makefile passes
 - [Upgrading](docs/UPGRADING.md): engine releases, image updates and going back.
 - Each config repository has a README and a CONFIG.md describing its files.
 
+## Installing mse
+
+`mse` is the engine's Go binary; `mse version` is its only command so far. It is built for Linux and macOS on amd64 and arm64, and installed from a GitHub release. The repository is private, so installing needs a token that can read it. Where gh is logged in:
+
+    curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
+      https://raw.githubusercontent.com/pablovarela/media-server-engine/main/install.sh | sh
+
+Elsewhere, such as a Raspberry Pi without gh, export a token (a fine-grained token with read access to the repository's contents is enough):
+
+    export GITHUB_TOKEN=<token>
+    curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+      https://raw.githubusercontent.com/pablovarela/media-server-engine/main/install.sh | sh
+
+`install.sh` takes the token from `GITHUB_TOKEN`, or from `gh auth token` when gh is installed. It installs the latest release into `~/.local/bin`. Settings for `install.sh` go on its side of the pipe: `… | MSE_VERSION=v0.7.0 sh` picks a release, and `MSE_INSTALL_DIR` another directory. It checks the archive against the release's `checksums.txt` before installing, and leaves the installed `mse` in place when the download or the check fails.
+
+From a clone, `make go-build` builds `dist/mse` for the machine it runs on.
+
 ## Developing
 
-`make test` runs the bats tests and shellcheck; GitHub Actions runs both on every push and pull request, and checks that the pinned sops, age and restic downloads match their checksums. Renovate opens pull requests for the template's images, the pinned tools, shellcheck and the actions; a tool update needs its SHA256 in `scripts/tool-versions.env` updated by hand before that check passes. See [CONTRIBUTING.md](CONTRIBUTING.md) for how changes are made and released.
+`make test` runs the bats, Python and Go tests, shellcheck and golangci-lint; GitHub Actions runs them on every push and pull request, builds every release archive with GoReleaser, and checks that the pinned sops, age and restic downloads match their checksums. Renovate opens pull requests for the template's images, the pinned tools, shellcheck and the actions; a tool update needs its SHA256 in `scripts/tool-versions.env` updated by hand before that check passes. See [CONTRIBUTING.md](CONTRIBUTING.md) for how changes are made and released.

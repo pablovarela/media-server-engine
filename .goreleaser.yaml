@@ -1,0 +1,41 @@
+version: 2
+
+project_name: mse
+
+builds:
+  - id: mse
+    main: .
+    binary: mse
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/pablovarela/media-server-engine/internal/version.Version=v{{ .Version }}
+      - -X github.com/pablovarela/media-server-engine/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/pablovarela/media-server-engine/internal/version.Date={{ .Now.Format "2006-01-02" }}
+
+archives:
+  - formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - none*
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  disable: true
+
+release:
+  extra_files:
+    - glob: install.sh

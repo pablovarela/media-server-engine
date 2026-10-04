@@ -1,4 +1,4 @@
-.PHONY: help installation test-scripts lint urls logins create-installation join-installation setup-machine bootstrap pinned-tools configure update install-update-timer claim-backup-main check-tools test restore backup-now verify-backup-now unlock-backup version homepage install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
+.PHONY: help installation test-scripts lint go-build go-test go-lint release-snapshot urls logins create-installation join-installation setup-machine bootstrap pinned-tools configure update install-update-timer claim-backup-main check-tools test restore backup-now verify-backup-now unlock-backup version homepage install-backup-timers install-download-cleanup-timer media-start media-stop media-status monitoring-start monitoring-stop monitoring-status
 
 SHELL := /bin/bash
 CONFIG_DIR ?= $(abspath $(CURDIR)/../config)
@@ -53,7 +53,7 @@ check-tools: ## check that every tool the scripts need is installed and the age 
 installation:
 	@scripts/engine-run require-installation
 
-test: test-scripts test-python lint ## run the script tests, the Python tests and shellcheck (needs bats-core, uv and shellcheck)
+test: test-scripts test-python go-test lint ## run the script tests, the Python tests, the Go tests and the linters (needs bats-core, uv, go and shellcheck)
 
 TEST_JOBS ?= $(shell command -v parallel >/dev/null && getconf _NPROCESSORS_ONLN)
 
@@ -65,9 +65,33 @@ test-python: ## run the Python tests with pytest through uv (PYTHON=3.9 runs the
 	@command -v uv >/dev/null || { echo "uv missing: brew install uv" >&2; exit 1; }
 	@uv run --frozen $(if $(PYTHON),--python $(PYTHON)) pytest $(PYTEST_FLAGS)
 
-lint: ## shellcheck every script
+GO_TOOL = go tool -modfile=tools/go.mod
+GOLANGCI_LINT ?= $(GO_TOOL) golangci-lint
+GORELEASER ?= $(GO_TOOL) goreleaser
+
+go-build: ## build mse for this machine into dist/mse
+	@command -v go >/dev/null || { echo "go missing: brew install go" >&2; exit 1; }
+	@go build -o dist/mse .
+
+go-test: ## run the Go tests with coverage into coverage.out (GO_TEST_FLAGS passes options to gotestsum)
+	@command -v go >/dev/null || { echo "go missing: brew install go" >&2; exit 1; }
+	@$(GO_TOOL) gotestsum $(GO_TEST_FLAGS) -- -coverprofile=coverage.out ./...
+
+go-lint: ## lint the Go code with golangci-lint (GOLANGCI_LINT runs another golangci-lint binary)
+	@command -v go >/dev/null || { echo "go missing: brew install go" >&2; exit 1; }
+	@$(GOLANGCI_LINT) run
+
+release-snapshot: ## build every release archive into dist/ without publishing (GORELEASER runs another goreleaser binary)
+	@command -v go >/dev/null || { echo "go missing: brew install go" >&2; exit 1; }
+	@$(GORELEASER) check
+	@$(GORELEASER) release --snapshot --clean
+
+lint: ## shellcheck every script and lint the Go code, reporting both before failing
 	@command -v shellcheck >/dev/null || { echo "shellcheck missing: brew install shellcheck" >&2; exit 1; }
-	@shellcheck -x scripts/*.sh scripts/wire/*.sh diagnose.sh
+	@status=0; \
+	shellcheck -x scripts/*.sh scripts/wire/*.sh diagnose.sh install.sh || status=1; \
+	$(MAKE) --no-print-directory go-lint || status=1; \
+	exit $$status
 
 backup-now: installation ## back up now (stops the apps for a few minutes; only on the installation's main)
 	@sops exec-env "$(CONFIG_DIR)/secrets/healthchecks.sops.env" 'sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" "scripts/engine-run backup"'
