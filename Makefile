@@ -84,9 +84,12 @@ release-snapshot: ## build every release archive into dist/ without publishing
 	@$(GO_TOOL) goreleaser check
 	@$(GO_TOOL) goreleaser release --snapshot --clean
 
-lint: go-lint ## shellcheck every script and lint the Go code
+lint: ## shellcheck every script and lint the Go code, reporting both before failing
 	@command -v shellcheck >/dev/null || { echo "shellcheck missing: brew install shellcheck" >&2; exit 1; }
-	@shellcheck -x scripts/*.sh scripts/wire/*.sh diagnose.sh install.sh
+	@status=0; \
+	shellcheck -x scripts/*.sh scripts/wire/*.sh diagnose.sh install.sh || status=1; \
+	$(MAKE) --no-print-directory go-lint || status=1; \
+	exit $$status
 
 backup-now: installation ## back up now (stops the apps for a few minutes; only on the installation's main)
 	@sops exec-env "$(CONFIG_DIR)/secrets/healthchecks.sops.env" 'sops exec-env "$(CONFIG_DIR)/secrets/backup.sops.env" "scripts/engine-run backup"'

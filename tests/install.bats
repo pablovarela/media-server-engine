@@ -47,7 +47,7 @@ setup() {
 output="" url=""
 while [ $# -gt 0 ]; do
   case $1 in
-    -H) shift 2 ;;
+    -H) case $2 in @*) cat "${2#@}" >> "$STUB_LOG.headers" ;; esac; shift 2 ;;
     -o) output=$2; shift 2 ;;
     -*) shift ;;
     *) url=$1; shift ;;
@@ -55,6 +55,7 @@ while [ $# -gt 0 ]; do
 done
 file="$FIXTURES/${url#https://api.github.com/repos/pablovarela/media-server-engine/}"
 [ -f "$file" ] || exit 22
+case $url in *"${CURL_HANG_ON:-none}") touch "$STUB_LOG.hanging"; sleep 2 ;; esac
 if [ -n "$output" ]; then cp "$file" "$output"; else cat "$file"; fi'
   make_stub uname '
 case $1 in
@@ -83,7 +84,8 @@ teardown() {
   [[ "$output" == *"mse v0.7.0 (fake)"* ]]
   [ -x "$MSE_INSTALL_DIR/mse" ]
   [ "$("$MSE_INSTALL_DIR/mse")" = "mse v0.7.0 (fake)" ]
-  grep -q "Authorization: Bearer test-token" "$STUB_LOG"
+  grep -q "Authorization: Bearer test-token" "$STUB_LOG.headers"
+  ! grep -q "test-token" "$STUB_LOG" || false
   grep -q "releases/latest" "$STUB_LOG"
   grep -q "Accept: application/octet-stream" "$STUB_LOG"
 }
@@ -110,7 +112,7 @@ teardown() {
   run sh "$REPO/install.sh"
 
   [ "$status" -eq 0 ]
-  grep -q "Authorization: Bearer gh-token" "$STUB_LOG"
+  grep -q "Authorization: Bearer gh-token" "$STUB_LOG.headers"
 }
 
 @test "stops without a token" {
@@ -137,7 +139,7 @@ teardown() {
   MSE_VERSION=v9.9.9 run sh "$REPO/install.sh"
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"no release v9.9.9"* ]]
+  [[ "$output" == *"no release v9.9.9 in pablovarela/media-server-engine, or the token cannot read it"* ]]
 }
 
 @test "picks the archive for the machine" {
@@ -182,4 +184,19 @@ teardown() {
 
   PATH="$MSE_INSTALL_DIR:$PATH" run sh "$REPO/install.sh"
   [[ "$output" != *"is not on PATH"* ]]
+}
+
+@test "removes its temporary files when stopped" {
+  export TMPDIR="$STUB_DIR/tmp"
+  mkdir -p "$TMPDIR"
+  export CURL_HANG_ON=releases/assets/101
+
+  dash "$REPO/install.sh" > "$STUB_DIR/out" 2>&1 3>&- &
+  pid=$!
+  for _ in $(seq 50); do [ -e "$STUB_LOG.hanging" ] && break; sleep 0.1; done
+  [ -e "$STUB_LOG.hanging" ]
+  kill -TERM "$pid"
+  wait "$pid" || true
+
+  [ -z "$(ls -A "$TMPDIR")" ]
 }

@@ -40,7 +40,9 @@ jobs:
           cat reports/pytest-coverage.txt
           make go-test GO_TEST_FLAGS="--junitfile reports/go.xml"
           go=$?
-          { echo '### Go test coverage'; echo '```'; go tool cover -func=coverage.out | tail -n 1; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          if [ -f coverage.out ]; then
+            { echo '### Go test coverage'; echo '```'; go tool cover -func=coverage.out | tail -n 1; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
           echo "status=$((scripts || python || go))" >> "$GITHUB_OUTPUT"
       - name: Report the Python test coverage
         if: always()

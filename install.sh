@@ -34,11 +34,11 @@ platform() {
 }
 
 api() {
-	curl -fsSL -H "Authorization: Bearer $token" -H "Accept: application/vnd.github+json" "$API/$1"
+	curl -fsSL -H "@$workdir/authorization" -H "Accept: application/vnd.github+json" "$API/$1"
 }
 
 download_asset() {
-	curl -fsSL -H "Authorization: Bearer $token" -H "Accept: application/octet-stream" -o "$2" "$API/releases/assets/$1"
+	curl -fsSL -H "@$workdir/authorization" -H "Accept: application/octet-stream" -o "$2" "$API/releases/assets/$1"
 }
 
 asset_id() {
@@ -64,8 +64,14 @@ sha256() {
 token=$(github_token)
 archive="mse_$(platform).tar.gz"
 
+workdir=$(mktemp -d "${TMPDIR:-/tmp}/mse-install.XXXXXX")
+staged=""
+trap 'rm -rf "$workdir"; [ -z "$staged" ] || rm -f "$staged"' EXIT
+trap 'exit 1' HUP INT TERM
+printf 'Authorization: Bearer %s\n' "$token" > "$workdir/authorization"
+
 if [ -n "${MSE_VERSION:-}" ]; then
-	release=$(api "releases/tags/$MSE_VERSION") || fail "no release $MSE_VERSION in $REPOSITORY"
+	release=$(api "releases/tags/$MSE_VERSION") || fail "no release $MSE_VERSION in $REPOSITORY, or the token cannot read it"
 else
 	release=$(api releases/latest) || fail "could not read the latest release of $REPOSITORY: check the token can read the repository"
 fi
@@ -77,9 +83,6 @@ checksums_id=$(printf '%s\n' "$release" | asset_id checksums.txt)
 [ -n "$checksums_id" ] || fail "release $tag has no checksums.txt"
 
 install_dir=${MSE_INSTALL_DIR:-$HOME/.local/bin}
-workdir=$(mktemp -d)
-staged=""
-trap 'rm -rf "$workdir"; [ -z "$staged" ] || rm -f "$staged"' EXIT
 
 download_asset "$archive_id" "$workdir/$archive" || fail "could not download $archive from release $tag"
 download_asset "$checksums_id" "$workdir/checksums.txt" || fail "could not download checksums.txt from release $tag"

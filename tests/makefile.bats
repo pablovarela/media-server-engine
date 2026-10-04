@@ -146,3 +146,16 @@ engine-run install-timers media-backup media-verify
 engine-run restore" ]
   rm -rf "$STUB_DIR"
 }
+
+@test "lint runs shellcheck even when the Go lint fails" {
+  stubs=$(mktemp -d)
+  printf '#!/bin/sh\nexit 1\n' > "$stubs/go"
+  printf '#!/bin/sh\necho shellcheck ran >> "%s/calls"\n' "$stubs" > "$stubs/shellcheck"
+  chmod +x "$stubs/go" "$stubs/shellcheck"
+
+  run env PATH="$stubs:$PATH" make -s -C "$REPO" lint
+
+  [ "$status" -ne 0 ]
+  grep -q "shellcheck ran" "$stubs/calls"
+  rm -rf "$stubs"
+}
