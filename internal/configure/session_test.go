@@ -202,3 +202,23 @@ func TestAStoppedSessionReturnsTheContextError(t *testing.T) {
 
 	require.ErrorIs(t, err, context.Canceled)
 }
+
+func TestAB2RepositoryWithoutKeysReopensTheBackupsSection(t *testing.T) {
+	p := newMockPrompter(t)
+	current := complete().With(PlainFile, "RESTIC_REPOSITORY", "/mnt/backup").
+		With(backupFile, "B2_ACCOUNT_ID", "").With(backupFile, "B2_ACCOUNT_KEY", "")
+	toB2 := currentOf(current, sectionNamed("Backups"))
+	toB2["RESTIC_REPOSITORY"] = "b2:bucket:gorgon"
+	toB2["RESTIC_PASSWORD"] = ""
+	withKeys := map[string]string{"RESTIC_REPOSITORY": "b2:bucket:gorgon", "RESTIC_PASSWORD": "", "B2_ACCOUNT_ID": "id", "B2_ACCOUNT_KEY": "key"}
+	expectMenu(p, "Backups", "save")
+	p.EXPECT().Section("Backups", mock.Anything, mock.Anything, "").Return(toB2, nil).Once()
+	p.EXPECT().Section("Backups", mock.Anything, mock.Anything, "B2_ACCOUNT_ID: needed for a b2: repository").Return(withKeys, nil).Once()
+	p.EXPECT().Confirm("Save, commit and push these?", mock.Anything).Return(true, nil).Once()
+
+	outcome, err := Session(context.Background(), p, "gorgon", current, fixedKey)
+
+	require.NoError(t, err)
+	assert.Equal(t, "id", outcome.Values.Get(backupFile, "B2_ACCOUNT_ID"))
+	assert.Equal(t, "current-RESTIC_PASSWORD", outcome.Values.Get(backupFile, "RESTIC_PASSWORD"))
+}

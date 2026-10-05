@@ -111,10 +111,12 @@ func (s *session) merged(section Section, answer map[string]string) (Values, err
 		if f.Masked && value == "" {
 			value = s.values.Get(f.File, f.Key)
 		}
-		if err := f.Validate(value); err != nil {
+		updated = updated.With(f.File, f.Key, value)
+	}
+	for _, f := range section.Fields {
+		if err := f.ValidateIn(updated); err != nil {
 			return nil, err
 		}
-		updated = updated.With(f.File, f.Key, value)
 	}
 	return updated, nil
 }

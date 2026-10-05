@@ -81,7 +81,7 @@ func Missing(v Values) []Section {
 	var missing []Section
 	for _, section := range Sections() {
 		for _, f := range section.Fields {
-			if !f.Optional && v.Get(f.File, f.Key) == "" {
+			if v.Get(f.File, f.Key) == "" && f.ValidateIn(v) != nil {
 				missing = append(missing, section)
 				break
 			}

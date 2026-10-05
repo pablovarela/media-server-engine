@@ -67,7 +67,7 @@ func TestMissing(t *testing.T) {
 	assert.Empty(t, Missing(full))
 
 	var vpn []string
-	for _, section := range Missing(full.With("secrets/vpn.sops.env", "OPENVPN_USER", "")) {
+	for _, section := range Missing(full.With("secrets/vpn.sops.env", "VPN_SERVICE_PROVIDER", "")) {
 		vpn = append(vpn, section.Name)
 	}
 	assert.Equal(t, []string{"VPN"}, vpn)
@@ -80,4 +80,20 @@ func TestRotate(t *testing.T) {
 	assert.Equal(t, "0123456789abcdef0123456789abcdef", rotated.Get(AppsFile, "SONARR_API_KEY"))
 	assert.Equal(t, "old-RADARR_API_KEY", rotated.Get(AppsFile, "RADARR_API_KEY"))
 	assert.Equal(t, "0123456789abcdef0123456789abcdef", rotated.Get(AppsFile, "PROWLARR_API_KEY"))
+}
+
+func TestB2KeysAreNeededOnlyForAB2Repository(t *testing.T) {
+	local := complete().With(PlainFile, "RESTIC_REPOSITORY", "/mnt/backup").
+		With(backupFile, "B2_ACCOUNT_ID", "").With(backupFile, "B2_ACCOUNT_KEY", "")
+	assert.Empty(t, Missing(local))
+
+	var missing []string
+	for _, section := range Missing(local.With(PlainFile, "RESTIC_REPOSITORY", "b2:bucket:gorgon")) {
+		missing = append(missing, section.Name)
+	}
+	assert.Equal(t, []string{"Backups"}, missing)
+}
+
+func TestAVPNWithoutOpenVPNCredentialsIsComplete(t *testing.T) {
+	assert.Empty(t, Missing(complete().With(vpnFile, "OPENVPN_USER", "").With(vpnFile, "OPENVPN_PASSWORD", "")))
 }

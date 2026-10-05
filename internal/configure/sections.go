@@ -23,6 +23,7 @@ type Field struct {
 	Masked     bool
 	Optional   bool
 	check      func(string) error
+	neededWhen func(Values) bool
 }
 
 type Section struct {
@@ -46,13 +47,13 @@ func Sections() []Section {
 		{Name: "Backups", Summary: "restic repository, password, B2 keys", Fields: []Field{
 			{Key: "RESTIC_REPOSITORY", Title: "restic repository", File: PlainFile},
 			{Key: "RESTIC_PASSWORD", Title: "restic password", File: backupFile, Masked: true},
-			{Key: "B2_ACCOUNT_ID", Title: "B2 account ID", File: backupFile, Masked: true},
-			{Key: "B2_ACCOUNT_KEY", Title: "B2 account key", File: backupFile, Masked: true},
+			{Key: "B2_ACCOUNT_ID", Title: "B2 account ID (for a b2: repository)", File: backupFile, Masked: true, Optional: true, neededWhen: b2Repository},
+			{Key: "B2_ACCOUNT_KEY", Title: "B2 account key (for a b2: repository)", File: backupFile, Masked: true, Optional: true, neededWhen: b2Repository},
 		}},
 		{Name: "VPN", Summary: "provider, user, password, countries", Fields: []Field{
 			{Key: "VPN_SERVICE_PROVIDER", Title: "VPN provider (as gluetun names it)", File: vpnFile},
-			{Key: "OPENVPN_USER", Title: "OpenVPN user", File: vpnFile, Masked: true},
-			{Key: "OPENVPN_PASSWORD", Title: "OpenVPN password", File: vpnFile, Masked: true},
+			{Key: "OPENVPN_USER", Title: "OpenVPN user (empty for WireGuard)", File: vpnFile, Masked: true, Optional: true},
+			{Key: "OPENVPN_PASSWORD", Title: "OpenVPN password (empty for WireGuard)", File: vpnFile, Masked: true, Optional: true},
 			{Key: "SERVER_COUNTRIES", Title: "Server countries, comma-separated", File: vpnFile, Optional: true},
 		}},
 		{Name: "Healthchecks", Summary: "ping, API and manage keys", Fields: []Field{
@@ -84,6 +85,18 @@ func (f Field) Validate(value string) error {
 		}
 	}
 	return nil
+}
+
+func (f Field) ValidateIn(v Values) error {
+	value := v.Get(f.File, f.Key)
+	if value == "" && f.neededWhen != nil && f.neededWhen(v) {
+		return fmt.Errorf("%s: needed for a b2: repository", f.Key)
+	}
+	return f.Validate(value)
+}
+
+func b2Repository(v Values) bool {
+	return strings.HasPrefix(v.Get(PlainFile, "RESTIC_REPOSITORY"), "b2:")
 }
 
 func timeZone(value string) error {

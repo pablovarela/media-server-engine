@@ -2,7 +2,7 @@
 
 There are two ways to change the config, and they can be mixed:
 
-- `mse configure`, from a terminal on any machine of the installation. Its menu covers the settings and secrets below (General, Backups, VPN, Healthchecks, App logins, and rotating the internal API keys) and checks them: the time zone must exist, the port must be a port, the Portainer password must have 12 characters. It updates the config first, then commits and pushes what it changed.
+- `mse configure`, from a terminal on any machine of the installation. Its menu covers the settings and secrets below (General, Backups, VPN, Healthchecks, App logins, and rotating the internal API keys) and checks them: the time zone must exist, the port must be a port, the Portainer password must have 12 characters, and a `b2:` repository needs its B2 keys. It updates the config first, then commits and pushes what it changed.
 - Editing the files in this repository by hand. Every setting is a file here, so nothing needs the configuration tool.
 
 Either way, a change reaches the apps at the next `make update`, or `mse apply`.
