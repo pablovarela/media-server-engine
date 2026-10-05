@@ -103,9 +103,10 @@ func TestPruneWithNothingOutdated(t *testing.T) {
 
 type lines []string
 
-func (l *lines) Line(tool, text string) {
+func (l *lines) Line(tool, text string) string {
 	if tool != "" {
 		text = tool + " | " + text
 	}
 	*l = append(*l, text)
+	return ""
 }

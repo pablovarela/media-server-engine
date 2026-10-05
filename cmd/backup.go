@@ -192,9 +192,12 @@ func (d Dependencies) asker(cmd *cobra.Command) func(string) (string, bool) {
 		if d.Interactive == nil || !d.Interactive() {
 			return "", false
 		}
-		_, _ = fmt.Fprint(cmd.ErrOrStderr(), question)
+		r := report.From(cmd.Context())
+		r.Prompt(question)
 		line, _ := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
-		return strings.TrimSpace(line), true
+		answer := strings.TrimSpace(line)
+		r.Note(question + answer)
+		return answer, true
 	}
 }
 

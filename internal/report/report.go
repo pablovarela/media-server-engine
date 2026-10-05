@@ -11,7 +11,7 @@ import (
 const failureLines = 10
 
 type Log interface {
-	Line(tool, text string)
+	Line(tool, text string) (warning string)
 }
 
 type Reporter struct {
@@ -99,6 +99,9 @@ func (s *Step) Fail(err error) error {
 	defer s.r.mu.Unlock()
 	s.finish("failed")
 	s.r.logLine("", s.title+"... failed: "+err.Error())
+	if s.r.verbose {
+		return err
+	}
 	for _, line := range s.r.tail {
 		_, _ = fmt.Fprintln(s.r.errOut, "  "+line)
 	}
@@ -138,9 +141,26 @@ func (r *Reporter) endOpenLine() {
 }
 
 func (r *Reporter) logLine(tool, text string) {
-	if r.log != nil {
-		r.log.Line(tool, text)
+	if r.log == nil {
+		return
 	}
+	if warning := r.log.Line(tool, text); warning != "" {
+		r.endOpenLine()
+		_, _ = fmt.Fprintln(r.errOut, warning)
+	}
+}
+
+func (r *Reporter) Prompt(question string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.endOpenLine()
+	_, _ = fmt.Fprint(r.errOut, question)
+}
+
+func (r *Reporter) Note(text string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.logLine("", text)
 }
 
 type passing struct {

@@ -151,7 +151,9 @@ func runLogged(ctx context.Context, root *cobra.Command, args []string, globalLo
 		_, _ = fmt.Fprintln(root.ErrOrStderr(), paint.Stderr.Failure(fmt.Sprintf("mse: %v", err)))
 		code = 1
 	}
-	log.Line("", fmt.Sprintf("finish exit %d after %s", code, time.Since(started).Round(time.Millisecond)))
+	if warning := log.Line("", fmt.Sprintf("finish exit %d after %s", code, time.Since(started).Round(time.Millisecond))); warning != "" {
+		_, _ = fmt.Fprintln(reporter.Stderr(), warning)
+	}
 	if !log.Opened() && globalLogs != "" {
 		log.Open(globalLogs)
 	}

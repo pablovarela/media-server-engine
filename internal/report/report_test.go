@@ -12,11 +12,18 @@ import (
 
 type lines []string
 
-func (l *lines) Line(tool, text string) {
+func (l *lines) Line(tool, text string) string {
 	if tool != "" {
 		text = tool + " | " + text
 	}
 	*l = append(*l, text)
+	return ""
+}
+
+type failingLog struct{}
+
+func (failingLog) Line(string, string) string {
+	return "could not write the log /state/logs/mse.log (no space left on device); carrying on without it"
 }
 
 func TestSteps(t *testing.T) {
@@ -125,4 +132,41 @@ func TestDataIsShownButNotLogged(t *testing.T) {
 
 	assert.Equal(t, "Jellyfin     pablo      secret\n", out.String())
 	assert.Empty(t, log)
+}
+
+func TestALogFailureWarnsWithoutBreakingAStep(t *testing.T) {
+	var out, errOut bytes.Buffer
+	r := New(&out, &errOut, failingLog{})
+
+	s := r.Step("Stopping the stack")
+	s.Done("stopped 2 services")
+
+	assert.Equal(t, "Stopping the stack...\n  stopped 2 services.\n", out.String())
+	assert.Contains(t, errOut.String(), "could not write the log /state/logs/mse.log (no space left on device)")
+}
+
+func TestPromptsAndAnswersAreLoggedTogether(t *testing.T) {
+	var errOut bytes.Buffer
+	var log lines
+	r := New(&bytes.Buffer{}, &errOut, &log)
+
+	r.Prompt("Make this machine the main instead? (y/n) ")
+	r.Note("Make this machine the main instead? (y/n) y")
+	r.Warn("mse: nothing was claimed")
+
+	assert.Equal(t, "Make this machine the main instead? (y/n) mse: nothing was claimed\n", errOut.String())
+	assert.Equal(t, []string{"Make this machine the main instead? (y/n) y", "mse: nothing was claimed"}, []string(log))
+}
+
+func TestAVerboseFailureDoesNotRepeatTheToolLines(t *testing.T) {
+	var out, errOut bytes.Buffer
+	r := New(&out, &errOut, nil)
+	r.SetVerbose(true)
+
+	s := r.Step("Backing up volumes/")
+	_, _ = fmt.Fprintln(r.Tool("restic"), "Fatal: wrong password")
+	_ = s.Fail(errors.New("restic backup failed (exit 12)"))
+
+	assert.Equal(t, "Backing up volumes/...\nrestic | Fatal: wrong password\n  failed.\n", out.String())
+	assert.Empty(t, errOut.String())
 }

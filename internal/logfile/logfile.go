@@ -39,7 +39,7 @@ func (f *File) SetCommand(name string) {
 	f.command = name
 }
 
-func (f *File) Line(tool, text string) {
+func (f *File) Line(tool, text string) string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	prefix := ""
@@ -49,10 +49,11 @@ func (f *File) Line(tool, text string) {
 	line := fmt.Sprintf("%s %s[%s] %s%s\n", f.options.Now().Format("2006-01-02 15:04:05"), f.command, f.options.RunID, prefix, colour.ReplaceAllString(text, ""))
 	switch {
 	case f.file != nil:
-		f.write(line)
+		return f.write(line)
 	case !f.failed:
 		f.buffered = append(f.buffered, line)
 	}
+	return ""
 }
 
 func (f *File) Open(dir string) {
@@ -76,7 +77,9 @@ func (f *File) Open(dir string) {
 	}
 	f.file = file
 	for _, line := range f.buffered {
-		f.write(line)
+		if warning := f.write(line); warning != "" {
+			_, _ = fmt.Fprintln(f.options.Warn, warning)
+		}
 	}
 	f.buffered = nil
 }
@@ -97,17 +100,22 @@ func (f *File) Close() {
 	f.buffered = nil
 }
 
-func (f *File) write(line string) {
+func (f *File) write(line string) string {
 	if _, err := f.file.WriteString(line); err != nil {
 		path := f.file.Name()
 		_ = f.file.Close()
 		f.file = nil
-		f.fail(path, err)
+		return f.failure(path, err)
 	}
+	return ""
 }
 
 func (f *File) fail(path string, err error) {
+	_, _ = fmt.Fprintln(f.options.Warn, f.failure(path, err))
+}
+
+func (f *File) failure(path string, err error) string {
 	f.failed = true
 	f.buffered = nil
-	_, _ = fmt.Fprintf(f.options.Warn, "could not write the log %s (%v); carrying on without it\n", path, err)
+	return fmt.Sprintf("could not write the log %s (%v); carrying on without it", path, err)
 }

@@ -91,3 +91,16 @@ func TestAnUnusableLogWarnsOnce(t *testing.T) {
 	assert.Contains(t, warn.String(), "; carrying on without it\n")
 	assert.False(t, f.Opened())
 }
+
+func TestAWriteFailureIsReturnedOnce(t *testing.T) {
+	f := New(Options{Limit: 1 << 20, Keep: 5, RunID: "a1b2c3", Now: noon, Warn: &bytes.Buffer{}})
+	f.Open(t.TempDir())
+	_ = f.file.Close()
+
+	first := f.Line("", "lost")
+	second := f.Line("", "lost too")
+
+	assert.Contains(t, first, "could not write the log ")
+	assert.Contains(t, first, "; carrying on without it")
+	assert.Empty(t, second)
+}
