@@ -36,7 +36,7 @@ func (env Env) timeout() time.Duration {
 }
 
 func (env Env) noAnswer() string {
-	return "(no answer within " + env.timeout().String() + ")"
+	return "no answer within " + env.timeout().String()
 }
 
 func (env Env) bounded(ctx context.Context) (context.Context, context.CancelFunc) {
@@ -53,9 +53,15 @@ const (
 )
 
 type Result struct {
+	Name   string
 	Status Status
-	Line   string
+	Detail string
 	Fix    string
+}
+
+type Progress interface {
+	Started(name string)
+	Finished(result Result)
 }
 
 type Report struct {
@@ -78,19 +84,25 @@ func (r Report) count(status Status) int {
 	return n
 }
 
-func rendered(result Result, p *paint.Painter) string {
-	switch result.Status {
-	case Fail:
-		return fmt.Sprintf("  %s %s\n      run: %s\n", p.Failure("✗"), result.Line, result.Fix)
-	case Skip:
-		return fmt.Sprintf("  %s %s\n", p.Faint("–"), result.Line)
-	case Unchecked:
-		return fmt.Sprintf("  %s %s\n", p.Warning("?"), result.Line)
-	}
-	return fmt.Sprintf("  %s %s\n", p.Success("✓"), result.Line)
+func Begin(name string) string {
+	return "  " + name + "..."
 }
 
-func closing(problems, unchecked int) string {
+func End(result Result, p *paint.Painter) string {
+	mark := map[Status]string{Pass: p.Success("✓"), Fail: p.Failure("✗"), Skip: p.Faint("–"), Unchecked: p.Warning("?")}[result.Status]
+	line := " " + mark
+	if result.Detail != "" {
+		line += " " + result.Detail
+	}
+	line += "\n"
+	if result.Status == Fail && result.Fix != "" {
+		line += "      run: " + result.Fix + "\n"
+	}
+	return line
+}
+
+func (r Report) Closing() string {
+	problems, unchecked := r.Problems(), r.Unchecked()
 	switch {
 	case problems == 0 && unchecked == 0:
 		return "\nThis machine is ready.\n"
@@ -110,8 +122,8 @@ func things(n int) string {
 }
 
 type outcome struct {
-	ok        bool
-	line, fix string
+	ok          bool
+	detail, fix string
 }
 
 type check struct {
@@ -122,19 +134,22 @@ type check struct {
 	probe   func(ctx context.Context, env Env) outcome
 }
 
-const noSystemd = "timers: no systemd here, so nothing runs unattended; run mse update --apply yourself"
+const noSystemd = "no systemd here, so nothing runs unattended; run mse update --apply yourself"
+
+type silent struct{}
+
+func (silent) Started(string)  {}
+func (silent) Finished(Result) {}
 
 func Run(ctx context.Context, env Env) Report {
-	return RunEach(ctx, env, func(string) {}, &paint.Painter{})
+	return RunEach(ctx, env, silent{})
 }
 
-func RunEach(ctx context.Context, env Env, print func(string), p *paint.Painter) Report {
+func RunEach(ctx context.Context, env Env, progress Progress) Report {
 	var report Report
-	add := func(results ...Result) {
-		for _, result := range results {
-			report.Results = append(report.Results, result)
-			print(rendered(result, p))
-		}
+	finish := func(result Result) {
+		report.Results = append(report.Results, result)
+		progress.Finished(result)
 	}
 	passed := map[string]bool{}
 	for _, c := range checks() {
@@ -142,46 +157,53 @@ func RunEach(ctx context.Context, env Env, print func(string), p *paint.Painter)
 			passed[c.id] = true
 			continue
 		}
+		name := c.name(env)
+		progress.Started(name)
 		if blocker := firstUnmet(c.needs, passed); blocker != "" {
-			add(Result{Status: Skip, Line: c.name(env) + ": skipped until " + skipReason(blocker, env)})
+			finish(Result{Name: name, Status: Skip, Detail: "skipped until " + skipReason(blocker, env)})
 			continue
 		}
-		passed[c.id] = probed(ctx, env, c, add)
+		result := probed(ctx, env, c, name)
+		passed[c.id] = result.Status == Pass
+		finish(result)
 	}
-	add(portsCheck(ctx, env, passed)...)
+	portsChecks(ctx, env, passed, progress, finish)
 	if !env.Systemd {
-		add(Result{Status: Skip, Line: noSystemd})
+		progress.Started("timers")
+		finish(Result{Name: "timers", Status: Skip, Detail: noSystemd})
 	}
-	print(closing(report.Problems(), report.Unchecked()))
 	return report
 }
 
-func probed(ctx context.Context, env Env, c check, add func(...Result)) bool {
+func probed(ctx context.Context, env Env, c check, name string) Result {
 	probing, cancel := env.bounded(ctx)
 	defer cancel()
 	result := c.probe(probing, env)
-	if !result.ok && probing.Err() != nil {
-		add(Result{Status: Unchecked, Line: c.name(env) + ": couldn't check " + env.noAnswer()})
-		return false
+	switch {
+	case result.ok:
+		return Result{Name: name, Status: Pass, Detail: result.detail}
+	case probing.Err() != nil:
+		return Result{Name: name, Status: Unchecked, Detail: env.noAnswer()}
 	}
-	if result.ok {
-		add(Result{Status: Pass, Line: orName(result.line, c.name(env))})
-	} else {
-		add(Result{Status: Fail, Line: result.line, Fix: result.fix})
-	}
-	return result.ok
+	return Result{Name: name, Status: Fail, Detail: result.detail, Fix: result.fix}
 }
 
-func portsCheck(ctx context.Context, env Env, passed map[string]bool) []Result {
-	switch {
-	case len(env.Ports.Ports) == 0 && len(env.Ports.Unreadable) == 0:
-		return nil
-	case !passed[sessionCheck]:
-		return []Result{{Status: Skip, Line: "ports: skipped until " + skipReason(sessionCheck, env)}}
+func portsChecks(ctx context.Context, env Env, passed map[string]bool, progress Progress, finish func(Result)) {
+	if len(env.Ports.Unreadable) > 0 {
+		progress.Started(readableName)
+		finish(unreadablePorts(env.Ports.Unreadable))
+	}
+	if len(env.Ports.Ports) == 0 {
+		return
+	}
+	progress.Started(portsName)
+	if !passed[sessionCheck] {
+		finish(Result{Name: portsName, Status: Skip, Detail: "skipped until " + skipReason(sessionCheck, env)})
+		return
 	}
 	probing, cancel := env.bounded(ctx)
 	defer cancel()
-	return portsResults(probing, env.Ports, env.noAnswer())
+	finish(portsResult(probing, env.Ports, env.noAnswer()))
 }
 
 func firstUnmet(needs []string, passed map[string]bool) string {
@@ -191,13 +213,6 @@ func firstUnmet(needs []string, passed map[string]bool) string {
 		}
 	}
 	return ""
-}
-
-func orName(line, name string) string {
-	if line != "" {
-		return line
-	}
-	return name
 }
 
 func skipReason(id string, env Env) string {

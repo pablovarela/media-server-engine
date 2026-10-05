@@ -115,7 +115,7 @@ func TestAnUnreadablePortIsAProblem(t *testing.T) {
 	f := newPortsFixture(t)
 	f.env.Ports.Unreadable = []string{"eighty:3000"}
 
-	assert.Contains(t, f.render(t), "  ✗ the stack's port \"eighty:3000\" can't be read\n      run: correct it in compose.override.yml, or HOMEPAGE_PORT in installation.env\n")
+	assert.Contains(t, f.render(t), "  the stack's ports can be read... ✗ \"eighty:3000\"\n      run: correct it in compose.override.yml, or HOMEPAGE_PORT in installation.env\n")
 }
 
 func TestOnlyAnAddressInUseMakesAPortBusy(t *testing.T) {
@@ -147,7 +147,7 @@ func TestFreePorts(t *testing.T) {
 
 	out := f.render(t)
 
-	assert.Contains(t, out, "  ✓ the user manager has the docker group\n  ✓ ports 8096, 7359/udp, 80 free\n")
+	assert.Contains(t, out, "  the user manager has the docker group... ✓\n  ports... ✓ 8096, 7359/udp, 80 free\n")
 	assert.Contains(t, out, "This machine is ready.")
 }
 
@@ -162,7 +162,7 @@ func TestPortsHeldByThisStackCountAsFree(t *testing.T) {
 
 	out := f.render(t)
 
-	assert.Contains(t, out, "  ✓ ports 8096, 7359/udp, 80 free\n")
+	assert.Contains(t, out, "  ports... ✓ 8096, 7359/udp, 80 free\n")
 }
 
 func TestBusyPortsAreNamed(t *testing.T) {
@@ -172,9 +172,8 @@ func TestBusyPortsAreNamed(t *testing.T) {
 
 	out := f.render(t)
 
-	assert.Contains(t, out, "  ✗ port 8096 is in use by other-jellyfin\n      run: stop it, or free the port\n")
-	assert.Contains(t, out, "  ✗ port 80 is in use by something outside Docker\n      run: stop it, or free the port\n")
-	assert.Contains(t, out, "2 things to fix.")
+	assert.Contains(t, out, "  ports... ✗ 8096 is in use by other-jellyfin; 80 is in use by something outside Docker\n      run: stop them, or free the ports\n")
+	assert.Contains(t, out, "1 thing to fix.")
 }
 
 func TestBusyPortsWhenDockerCannotSay(t *testing.T) {
@@ -182,7 +181,7 @@ func TestBusyPortsWhenDockerCannotSay(t *testing.T) {
 	f.busy = map[Port]bool{{7359, "udp"}: true}
 	f.err = errors.New("permission denied")
 
-	assert.Contains(t, f.render(t), "  ? ports 7359/udp: in use, and Docker couldn't say by what (permission denied)\n")
+	assert.Contains(t, f.render(t), "  ports... ? 7359/udp in use, and Docker couldn't say by what (permission denied)\n")
 }
 
 func TestBusyPortsWhenDockerRunsOutOfTime(t *testing.T) {
@@ -196,7 +195,7 @@ func TestBusyPortsWhenDockerRunsOutOfTime(t *testing.T) {
 
 	out := f.render(t)
 
-	assert.Contains(t, out, "  ? ports 8096, 80: in use, and Docker couldn't say by what (no answer within 20ms)\n")
+	assert.Contains(t, out, "  ports... ? 8096, 80 in use, and Docker couldn't say by what (no answer within 20ms)\n")
 	assert.NotContains(t, out, "✗")
 }
 
@@ -204,7 +203,7 @@ func TestPortsWaitForDocker(t *testing.T) {
 	f := newPortsFixture(t)
 	f.fails("docker info")
 
-	assert.Contains(t, f.render(t), "  – ports: skipped until Docker answers\n")
+	assert.Contains(t, f.render(t), "  ports... – skipped until Docker answers\n")
 }
 
 func TestThePortsNote(t *testing.T) {
@@ -213,5 +212,5 @@ func TestThePortsNote(t *testing.T) {
 
 	out := f.render(t)
 
-	assert.True(t, strings.Contains(out, "  ✓ ports 8096, 7359/udp, 80 free (several installations here; using the default homepage port 80)\n"), out)
+	assert.True(t, strings.Contains(out, "  ports... ✓ 8096, 7359/udp, 80 free (several installations here; using the default homepage port 80)\n"), out)
 }

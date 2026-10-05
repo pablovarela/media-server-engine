@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -38,7 +39,12 @@ func (d Dependencies) checkMachine(cmd *cobra.Command) error {
 	}
 	out := cmd.OutOrStdout()
 	_, _ = fmt.Fprintln(out, "Checking this machine...")
-	report := machine.RunEach(cmd.Context(), env, func(line string) { _, _ = fmt.Fprint(out, line) }, paint.Stdout)
+	printer := &printedChecks{out: out, painter: paint.Stdout}
+	if d.Terminal != nil && d.Terminal() {
+		printer.ticker = d.secondTicker
+	}
+	report := machine.RunEach(cmd.Context(), env, printer)
+	_, _ = fmt.Fprint(out, report.Closing())
 	if !report.Ready() {
 		return errAlreadyReported
 	}
@@ -100,4 +106,47 @@ func (d Dependencies) carriedVariables() []string {
 		}
 	}
 	return carried
+}
+
+type printedChecks struct {
+	out     io.Writer
+	painter *paint.Painter
+	ticker  func() (<-chan time.Time, func())
+	stop    chan struct{}
+	done    chan struct{}
+}
+
+func (c *printedChecks) Started(name string) {
+	_, _ = fmt.Fprint(c.out, machine.Begin(name))
+	if c.ticker == nil {
+		return
+	}
+	ticks, stopTicking := c.ticker()
+	c.stop, c.done = make(chan struct{}), make(chan struct{})
+	go func(stop, done chan struct{}) {
+		defer close(done)
+		defer stopTicking()
+		for {
+			select {
+			case <-ticks:
+				_, _ = fmt.Fprint(c.out, ".")
+			case <-stop:
+				return
+			}
+		}
+	}(c.stop, c.done)
+}
+
+func (c *printedChecks) Finished(result machine.Result) {
+	if c.stop != nil {
+		close(c.stop)
+		<-c.done
+		c.stop = nil
+	}
+	_, _ = fmt.Fprint(c.out, machine.End(result, c.painter))
+}
+
+func (d Dependencies) secondTicker() (<-chan time.Time, func()) {
+	ticker := time.NewTicker(time.Second)
+	return ticker.C, ticker.Stop
 }

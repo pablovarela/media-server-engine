@@ -23,14 +23,14 @@ func bareGhToken(ctx context.Context, r runner, home, account string, carried []
 
 func ghLoggedIn(ctx context.Context, env Env) outcome {
 	if !env.Systemd {
-		return shellToken(ctx, env, "gh is logged in")
+		return shellToken(ctx, env, "")
 	}
 	if UnattendedToken(ctx, env.Runner, env.Home, env.Account, env.Carried) {
-		return outcome{ok: true, line: "gh is logged in (token on disk)"}
+		return outcome{ok: true, detail: "token on disk"}
 	}
 	if result, err := bareGhToken(ctx, env.Runner, env.Home, env.Account, env.Carried); err == nil && result.Exit == notFound {
 		if _, found := output(ctx, env.Runner, "gh", "--version"); found {
-			return outcome{line: "gh isn't on the timers' PATH (" + SystemdPath + ")", fix: `sudo ln -s "$(command -v gh)" /usr/local/bin/gh`}
+			return outcome{detail: "gh isn't on the timers' PATH (" + SystemdPath + ")", fix: `sudo ln -s "$(command -v gh)" /usr/local/bin/gh`}
 		}
 		return ghMissing(env)
 	}
@@ -39,9 +39,9 @@ func ghLoggedIn(ctx context.Context, env Env) outcome {
 		return shell
 	}
 	if variable := tokenVariable(env); variable != "" {
-		return outcome{line: "gh's token comes from " + variable + ", which the timers can't read", fix: "unset " + variable + ", then gh auth login --insecure-storage"}
+		return outcome{detail: "its token comes from " + variable + ", which the timers can't read", fix: "unset " + variable + ", then gh auth login --insecure-storage"}
 	}
-	return outcome{line: "gh's token is only in a keyring, which the timers can't read", fix: "gh auth login --insecure-storage"}
+	return outcome{detail: "its token is only in a keyring, which the timers can't read", fix: "gh auth login --insecure-storage"}
 }
 
 func shellToken(ctx context.Context, env Env, passing string) outcome {
@@ -50,13 +50,13 @@ func shellToken(ctx context.Context, env Env, passing string) outcome {
 	case err != nil || result.Exit == notFound:
 		return ghMissing(env)
 	case result.Exit == 0 && strings.TrimSpace(string(result.Stdout)) != "":
-		return outcome{ok: true, line: passing}
+		return outcome{ok: true, detail: passing}
 	}
-	return outcome{line: "gh isn't logged in", fix: "gh auth login"}
+	return outcome{detail: "not logged in", fix: "gh auth login"}
 }
 
 func ghMissing(env Env) outcome {
-	return outcome{line: "gh isn't installed", fix: onOS(env, "sudo apt install gh", "brew install gh")}
+	return outcome{detail: "gh isn't installed", fix: onOS(env, "sudo apt install gh", "brew install gh")}
 }
 
 func tokenVariable(env Env) string {
