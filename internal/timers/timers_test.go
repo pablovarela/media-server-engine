@@ -129,5 +129,15 @@ func TestTheEnvironmentTheInstallationNeedsReachesTheServices(t *testing.T) {
 	text, err := Render("media-backup.service", v)
 
 	require.NoError(t, err)
-	assert.Contains(t, text, "Environment=MSE_INSTALLATION=gorgon\nEnvironment=XDG_DATA_HOME=/mnt/ssd/share\nEnvironment=\"SOPS_AGE_KEY_CMD=op read age key\"\nExecStart=")
+	assert.Contains(t, text, "Environment=MSE_INSTALLATION=gorgon\nEnvironment=\"XDG_DATA_HOME=/mnt/ssd/share\"\nEnvironment=\"SOPS_AGE_KEY_CMD=op read age key\"\nExecStart=")
+}
+
+func TestQuotesBackslashesAndPercentsSurviveSystemd(t *testing.T) {
+	v := gorgon
+	v.Environment = []string{`SOPS_AGE_KEY_CMD=op read "op://vault/age key" --at 100% \n`}
+
+	text, err := Render("media-update.service", v)
+
+	require.NoError(t, err)
+	assert.Contains(t, text, `Environment="SOPS_AGE_KEY_CMD=op read \"op://vault/age key\" --at 100%% \\n"`+"\n")
 }

@@ -144,7 +144,8 @@ func TestTheInstallationsPathsAndKeyReachTheUnits(t *testing.T) {
 	code, _, stderr := tf.run(t)
 
 	require.Equal(t, 0, code, stderr)
-	assert.Contains(t, tf.written[filepath.Join(tf.deps.UnitDir, "media-update.service")], "Environment=SOPS_AGE_KEY_FILE=/keys/age.txt\n")
+	assert.Contains(t, tf.written[filepath.Join(tf.deps.UnitDir, "media-update.service")], "Environment=\"SOPS_AGE_KEY_FILE=/keys/age.txt\"\n")
+	assert.Equal(t, []string{"env", "-i", "HOME=" + tf.deps.Home, "USER=pablo", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "SOPS_AGE_KEY_FILE=/keys/age.txt", "gh", "auth", "token"}, tf.tokenCall, "gh is asked in the units' environment")
 }
 
 func TestAKeyGivenByValueCantReachTheTimers(t *testing.T) {

@@ -67,13 +67,12 @@ func (d Dependencies) timersCanRun(ctx context.Context, i *installation.Installa
 	if err != nil {
 		return timers.Values{}, err
 	}
-	return values, d.unattendedToken(ctx, values.User)
+	return values, d.unattendedToken(ctx, values)
 }
 
-func (d Dependencies) unattendedToken(ctx context.Context, account string) error {
-	result, err := d.Run(io.Discard, io.Discard).Output(ctx, process.Command{
-		Name: "env", Args: []string{"-i", "HOME=" + d.Home, "USER=" + account, "PATH=" + systemdPath, "gh", "auth", "token"},
-	})
+func (d Dependencies) unattendedToken(ctx context.Context, values timers.Values) error {
+	args := append([]string{"-i", "HOME=" + d.Home, "USER=" + values.User, "PATH=" + systemdPath}, values.Environment...)
+	result, err := d.Run(io.Discard, io.Discard).Output(ctx, process.Command{Name: "env", Args: append(args, "gh", "auth", "token")})
 	if err != nil || result.Exit != 0 || strings.TrimSpace(string(result.Stdout)) == "" {
 		return errNoUnattendedToken
 	}

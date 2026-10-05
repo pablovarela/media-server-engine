@@ -41,11 +41,9 @@ func Render(file string, v Values) (string, error) {
 
 func environment(v Values) string {
 	lines := []string{"Environment=MSE_INSTALLATION=" + v.Installation}
+	quoting := strings.NewReplacer(`\`, `\\`, `"`, `\"`, "%", "%%")
 	for _, variable := range v.Environment {
-		if strings.ContainsAny(variable, " \t") {
-			variable = `"` + variable + `"`
-		}
-		lines = append(lines, "Environment="+variable)
+		lines = append(lines, `Environment="`+quoting.Replace(variable)+`"`)
 	}
 	return strings.Join(lines, "\n")
 }
