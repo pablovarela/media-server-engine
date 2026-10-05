@@ -36,6 +36,7 @@ type service interface {
 	Stop(ctx context.Context, projectName string, options api.StopOptions) error
 	Start(ctx context.Context, projectName string, options api.StartOptions) error
 	Pull(ctx context.Context, project *types.Project, options api.PullOptions) error
+	RunOneOffContainer(ctx context.Context, project *types.Project, options api.RunOptions) (int, error)
 }
 
 type inspector interface {
@@ -304,4 +305,8 @@ func BindSources(project *types.Project, under string) []string {
 	sources := slices.Collect(maps.Keys(found))
 	slices.Sort(sources)
 	return sources
+}
+
+func (r *Runner) RunOnce(ctx context.Context, project *types.Project, service string) (int, error) {
+	return r.service.RunOneOffContainer(ctx, project, api.RunOptions{Project: project, Service: service, AutoRemove: true})
 }

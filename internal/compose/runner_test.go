@@ -287,3 +287,17 @@ func TestPullAndRecreate(t *testing.T) {
 		require.NoError(t, (&Runner{service: service}).Recreate(ctx, full, []string{"deluge"}))
 	})
 }
+
+func TestRunOnceRunsAThrowawayContainerOfTheService(t *testing.T) {
+	ctx := context.Background()
+	project := &types.Project{Name: "media-server"}
+	service := newMockService(t)
+	service.EXPECT().RunOneOffContainer(ctx, project, mock.MatchedBy(func(o api.RunOptions) bool {
+		return o.Project == project && o.Service == "configarr" && o.AutoRemove && !o.Detach && !o.Tty && !o.Interactive
+	})).Return(3, nil)
+
+	exit, err := (&Runner{service: service}).RunOnce(ctx, project, "configarr")
+
+	require.NoError(t, err)
+	assert.Equal(t, 3, exit)
+}

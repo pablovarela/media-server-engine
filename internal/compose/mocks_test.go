@@ -449,6 +449,78 @@ func (_c *mockService_Restart_Call) RunAndReturn(run func(ctx context.Context, p
 	return _c
 }
 
+// RunOneOffContainer provides a mock function for the type mockService
+func (_mock *mockService) RunOneOffContainer(ctx context.Context, project *types.Project, options api.RunOptions) (int, error) {
+	ret := _mock.Called(ctx, project, options)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RunOneOffContainer")
+	}
+
+	var r0 int
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project, api.RunOptions) (int, error)); ok {
+		return returnFunc(ctx, project, options)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project, api.RunOptions) int); ok {
+		r0 = returnFunc(ctx, project, options)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *types.Project, api.RunOptions) error); ok {
+		r1 = returnFunc(ctx, project, options)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// mockService_RunOneOffContainer_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RunOneOffContainer'
+type mockService_RunOneOffContainer_Call struct {
+	*mock.Call
+}
+
+// RunOneOffContainer is a helper method to define mock.On call
+//   - ctx context.Context
+//   - project *types.Project
+//   - options api.RunOptions
+func (_e *mockService_Expecter) RunOneOffContainer(ctx any, project any, options any) *mockService_RunOneOffContainer_Call {
+	return &mockService_RunOneOffContainer_Call{Call: _e.mock.On("RunOneOffContainer", ctx, project, options)}
+}
+
+func (_c *mockService_RunOneOffContainer_Call) Run(run func(ctx context.Context, project *types.Project, options api.RunOptions)) *mockService_RunOneOffContainer_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *types.Project
+		if args[1] != nil {
+			arg1 = args[1].(*types.Project)
+		}
+		var arg2 api.RunOptions
+		if args[2] != nil {
+			arg2 = args[2].(api.RunOptions)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *mockService_RunOneOffContainer_Call) Return(n int, err error) *mockService_RunOneOffContainer_Call {
+	_c.Call.Return(n, err)
+	return _c
+}
+
+func (_c *mockService_RunOneOffContainer_Call) RunAndReturn(run func(ctx context.Context, project *types.Project, options api.RunOptions) (int, error)) *mockService_RunOneOffContainer_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Start provides a mock function for the type mockService
 func (_mock *mockService) Start(ctx context.Context, projectName string, options api.StartOptions) error {
 	ret := _mock.Called(ctx, projectName, options)
