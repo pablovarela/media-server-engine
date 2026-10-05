@@ -14,7 +14,7 @@ func complete() Values {
 			v = v.With(f.File, f.Key, "current-"+f.Key)
 		}
 	}
-	v = v.With(PlainFile, "TZ", "Europe/London")
+	v = v.With(PlainFile, "TZ", "Europe/London").With(PlainFile, "HOMEPAGE_PORT", "8080")
 	for _, app := range Rotatable {
 		v = v.With(AppsFile, app.Key, "old-"+app.Key)
 	}
