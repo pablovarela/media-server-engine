@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -58,6 +59,56 @@ func (r Repository) FastForward(ctx context.Context) (int, error) {
 	}
 	_, err = r.succeeding(ctx, "merge", "--ff-only", "--quiet", "@{upstream}")
 	return behind, err
+}
+
+func (r Repository) HasIdentity(ctx context.Context) (bool, error) {
+	for _, key := range []string{"user.name", "user.email"} {
+		result, err := r.git(ctx, "config", key)
+		if err != nil {
+			return false, err
+		}
+		if result.Exit != 0 || strings.TrimSpace(string(result.Stdout)) == "" {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func (r Repository) Commit(ctx context.Context, message string, paths []string) (string, error) {
+	if _, err := r.succeeding(ctx, append([]string{"add", "--"}, paths...)...); err != nil {
+		return "", err
+	}
+	if _, err := r.succeeding(ctx, append([]string{"commit", "--quiet", "-m", message, "--"}, paths...)...); err != nil {
+		return "", err
+	}
+	sha, err := r.succeeding(ctx, "rev-parse", "--short", "HEAD")
+	return strings.TrimSpace(sha), err
+}
+
+func (r Repository) Push(ctx context.Context) error {
+	_, err := r.succeeding(ctx, "push", "--quiet")
+	return err
+}
+
+func (r Repository) Restore(ctx context.Context, paths []string) error {
+	_, err := r.succeeding(ctx, append([]string{"checkout", "--"}, paths...)...)
+	return err
+}
+
+func (r Repository) RemoteURL(ctx context.Context) (string, error) {
+	out, err := r.succeeding(ctx, "remote", "get-url", "origin")
+	return strings.TrimSpace(out), err
+}
+
+func DisplayRemote(remote string) string {
+	if parsed, err := url.Parse(remote); err == nil && parsed.Scheme != "" && parsed.Host != "" {
+		return strings.TrimSuffix(parsed.Host+parsed.Path, ".git")
+	}
+	if user, rest, found := strings.Cut(remote, "@"); found && !strings.Contains(user, "/") {
+		host, path, _ := strings.Cut(rest, ":")
+		return strings.TrimSuffix(host+"/"+path, ".git")
+	}
+	return remote
 }
 
 func (r Repository) count(ctx context.Context, revisions string) (int, error) {
