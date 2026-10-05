@@ -24,14 +24,16 @@ func rotate(dir string, limit int64, keep int) error {
 	if err != nil || !full {
 		return err
 	}
-	if err := shiftOlder(dir, keep); err != nil {
+	if err := shiftCompressed(dir, keep); err != nil {
 		return err
 	}
-	moved := current + ".1"
-	if err := os.Rename(current, moved); err != nil {
-		return err
+	previous := current + ".1"
+	if _, err := os.Stat(previous); err == nil {
+		if err := compress(previous, numbered(dir, 2)); err != nil {
+			return err
+		}
 	}
-	return compress(moved, numbered(dir, 1))
+	return os.Rename(current, previous)
 }
 
 func overLimit(path string, limit int64) (bool, error) {
@@ -45,11 +47,11 @@ func overLimit(path string, limit int64) (bool, error) {
 	return info.Size() > limit, nil
 }
 
-func shiftOlder(dir string, keep int) error {
-	if err := os.Remove(numbered(dir, keep)); err != nil && !errors.Is(err, os.ErrNotExist) {
+func shiftCompressed(dir string, keep int) error {
+	if err := os.Remove(numbered(dir, keep+1)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	for n := keep - 1; n >= 1; n-- {
+	for n := keep; n >= 2; n-- {
 		if err := os.Rename(numbered(dir, n), numbered(dir, n+1)); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
@@ -62,7 +64,15 @@ func numbered(dir string, n int) string {
 }
 
 func compress(from, to string) error {
-	source, err := os.Open(from) //nolint:gosec // the log just rotated
+	if err := gzipped(from, to); err != nil {
+		_ = os.Remove(to)
+		return err
+	}
+	return os.Remove(from)
+}
+
+func gzipped(from, to string) error {
+	source, err := os.Open(from) //nolint:gosec // the log rotated last time
 	if err != nil {
 		return err
 	}
@@ -80,8 +90,5 @@ func compress(from, to string) error {
 		_ = target.Close()
 		return err
 	}
-	if err := target.Close(); err != nil {
-		return err
-	}
-	return os.Remove(from)
+	return target.Close()
 }

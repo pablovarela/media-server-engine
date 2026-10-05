@@ -67,8 +67,7 @@ func (f *File) Open(dir string) {
 		return
 	}
 	if err := rotate(dir, f.options.Limit, f.options.Keep); err != nil {
-		f.fail(path, err)
-		return
+		_, _ = fmt.Fprintf(f.options.Warn, "could not rotate the log %s (%v); writing on to it\n", path, err)
 	}
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644) //nolint:gosec // the installation's log, readable like its other state
 	if err != nil {

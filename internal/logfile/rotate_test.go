@@ -1,7 +1,9 @@
 package logfile
 
 import (
+	"bytes"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -24,50 +26,91 @@ func gunzipped(t *testing.T, path string) string {
 	return string(text)
 }
 
+func names(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	var found []string
+	for _, entry := range entries {
+		if entry.Name() != ".rotate.lock" {
+			found = append(found, entry.Name())
+		}
+	}
+	return found
+}
+
 func TestRotation(t *testing.T) {
 	type Given struct {
-		current string
-		older   int
+		previous   string
+		compressed int
 	}
 	type Then struct {
-		rotated bool
-		files   []string
+		files []string
 	}
 	tests := map[string]struct {
 		Given Given
 		Then  Then
 	}{
-		"under the limit": {Given: Given{current: "small\n"}, Then: Then{files: []string{"mse.log"}}},
-		"over the limit":  {Given: Given{current: "a long enough log\n"}, Then: Then{rotated: true, files: []string{"mse.log.1.gz"}}},
-		"keeps five": {
-			Given: Given{current: "a long enough log\n", older: 5},
-			Then:  Then{rotated: true, files: []string{"mse.log.1.gz", "mse.log.2.gz", "mse.log.3.gz", "mse.log.4.gz", "mse.log.5.gz"}},
+		"the first rotation keeps the file plain": {
+			Then: Then{files: []string{"mse.log.1"}},
+		},
+		"the previous rotation is compressed": {
+			Given: Given{previous: "the run before\n"},
+			Then:  Then{files: []string{"mse.log.1", "mse.log.2.gz"}},
+		},
+		"five compressed are kept": {
+			Given: Given{previous: "the run before\n", compressed: 5},
+			Then:  Then{files: []string{"mse.log.1", "mse.log.2.gz", "mse.log.3.gz", "mse.log.4.gz", "mse.log.5.gz", "mse.log.6.gz"}},
 		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			dir := t.TempDir()
-			require.NoError(t, os.WriteFile(filepath.Join(dir, "mse.log"), []byte(tt.Given.current), 0o644))
-			for n := 1; n <= tt.Given.older; n++ {
-				require.NoError(t, os.WriteFile(filepath.Join(dir, "mse.log."+string(rune('0'+n))+".gz"), []byte("old"), 0o644))
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "mse.log"), []byte("a long enough log\n"), 0o644))
+			if tt.Given.previous != "" {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "mse.log.1"), []byte(tt.Given.previous), 0o644))
+			}
+			for n := 2; n < 2+tt.Given.compressed; n++ {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, fmt.Sprintf("mse.log.%d.gz", n)), []byte("old"), 0o644))
 			}
 
 			require.NoError(t, rotate(dir, 10, 5))
 
-			var found []string
-			entries, err := os.ReadDir(dir)
+			assert.Equal(t, tt.Then.files, names(t, dir))
+			plain, err := os.ReadFile(filepath.Join(dir, "mse.log.1"))
 			require.NoError(t, err)
-			for _, entry := range entries {
-				if entry.Name() != ".rotate.lock" {
-					found = append(found, entry.Name())
-				}
-			}
-			assert.Equal(t, tt.Then.files, found)
-			if tt.Then.rotated {
-				assert.Equal(t, tt.Given.current, gunzipped(t, filepath.Join(dir, "mse.log.1.gz")))
+			assert.Equal(t, "a long enough log\n", string(plain))
+			if tt.Given.previous != "" {
+				assert.Equal(t, tt.Given.previous, gunzipped(t, filepath.Join(dir, "mse.log.2.gz")))
 			}
 		})
 	}
+}
+
+func TestUnderTheLimitNothingRotates(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "mse.log"), []byte("small\n"), 0o644))
+
+	require.NoError(t, rotate(dir, 10, 5))
+
+	assert.Equal(t, []string{"mse.log"}, names(t, dir))
+}
+
+func TestARunWritingDuringARotationKeepsItsLines(t *testing.T) {
+	dir := t.TempDir()
+	running := New(Options{Limit: 10, Keep: 5, RunID: "aaaaaa", Now: noon, Warn: &bytes.Buffer{}})
+	running.Open(dir)
+	running.Line("", "Stopping the stack... a line long enough to pass the limit")
+	other := New(Options{Limit: 10, Keep: 5, RunID: "bbbbbb", Now: noon, Warn: &bytes.Buffer{}})
+	other.Open(dir)
+
+	running.Line("", "Backup done.")
+	running.Close()
+	other.Close()
+
+	plain, err := os.ReadFile(filepath.Join(dir, "mse.log.1"))
+	require.NoError(t, err)
+	assert.Contains(t, string(plain), "Backup done.")
 }
 
 func TestRotationSkipsWhileLocked(t *testing.T) {
@@ -80,6 +123,24 @@ func TestRotationSkipsWhileLocked(t *testing.T) {
 
 	require.NoError(t, rotate(dir, 10, 5))
 
-	assert.FileExists(t, filepath.Join(dir, "mse.log"))
-	assert.NoFileExists(t, filepath.Join(dir, "mse.log.1.gz"))
+	assert.Equal(t, []string{"mse.log"}, names(t, dir))
+}
+
+func TestAFailedRotationStillLogs(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "mse.log"), []byte("a long enough log\n"), 0o644))
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "mse.log.1"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "mse.log.1", "blocker"), nil, 0o644))
+	var warn bytes.Buffer
+	f := New(Options{Limit: 10, Keep: 5, RunID: "a1b2c3", Now: noon, Warn: &warn})
+
+	f.Open(dir)
+	f.Line("", "still logged")
+	f.Close()
+
+	logged, err := os.ReadFile(filepath.Join(dir, "mse.log"))
+	require.NoError(t, err)
+	assert.Contains(t, string(logged), "still logged")
+	assert.Contains(t, warn.String(), "could not rotate the log")
+	assert.NoFileExists(t, filepath.Join(dir, "mse.log.2.gz"), "a partial compressed file is removed")
 }
