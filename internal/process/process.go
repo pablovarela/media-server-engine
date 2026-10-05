@@ -18,6 +18,7 @@ type Command struct {
 	Env        []string
 	ExtraFiles []*os.File
 	Stdout     io.Writer
+	Stderr     io.Writer
 }
 
 type Result struct {
@@ -38,6 +39,9 @@ func (s System) Run(ctx context.Context, c Command) (int, error) {
 		command.Stdout = c.Stdout
 	}
 	command.Stderr = s.ErrOut
+	if c.Stderr != nil {
+		command.Stderr = c.Stderr
+	}
 	return finished(ctx, c, command.Run())
 }
 

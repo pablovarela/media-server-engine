@@ -105,3 +105,13 @@ func TestStdoutCanGoElsewhere(t *testing.T) {
 	assert.Equal(t, "json\n", own.String())
 	assert.Empty(t, out.String())
 }
+
+func TestStderrCanGoElsewhere(t *testing.T) {
+	var errOut, own bytes.Buffer
+
+	_, err := System{Out: &bytes.Buffer{}, ErrOut: &errOut}.Run(context.Background(), Command{Name: "sh", Args: []string{"-c", "echo json >&2"}, Stderr: &own})
+
+	require.NoError(t, err)
+	assert.Equal(t, "json\n", own.String())
+	assert.Empty(t, errOut.String())
+}

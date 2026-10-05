@@ -190,6 +190,7 @@ func TestLocks(t *testing.T) {
 func TestBackupSummary(t *testing.T) {
 	type Given struct {
 		stdout string
+		stderr string
 	}
 	type Then struct {
 		summary BackupSummary
@@ -207,12 +208,19 @@ func TestBackupSummary(t *testing.T) {
 				logged:  "snapshot 40c4a929: 2 new, 877 changed, 803 unchanged files; 20.5 MiB added (2.8 MiB stored)\n",
 			},
 		},
-		"an error message is kept": {
-			Given: Given{stdout: `{"message_type":"error","error":{"message":"permission denied"},"during":"archival","item":"/data/volumes/x"}` + "\n" +
-				`{"message_type":"summary","snapshot_id":"40c4a929f0d1e2b3"}` + "\n"},
+		"errors on stderr are kept readably": {
+			Given: Given{
+				stdout: `{"message_type":"summary","snapshot_id":"40c4a929f0d1e2b3"}` + "\n",
+				stderr: `{"message_type":"error","error":{"message":"permission denied"},"during":"archival","item":"/data/volumes/x"}` + "\n" +
+					`{"message_type":"exit_error","code":3,"message":"Warning: at least one source file could not be read"}` + "\n" +
+					"a line that is not JSON\n",
+			},
 			Then: Then{
 				summary: BackupSummary{SnapshotID: "40c4a929f0d1e2b3"},
-				logged:  "error during archival: /data/volumes/x: permission denied\nsnapshot 40c4a929: 0 new, 0 changed, 0 unchanged files; 0 B added (0 B stored)\n",
+				logged: "snapshot 40c4a929: 0 new, 0 changed, 0 unchanged files; 0 B added (0 B stored)\n" +
+					"error during archival: /data/volumes/x: permission denied\n" +
+					"Warning: at least one source file could not be read\n" +
+					"a line that is not JSON\n",
 			},
 		},
 	}
@@ -221,9 +229,10 @@ func TestBackupSummary(t *testing.T) {
 			var logged bytes.Buffer
 			runner := newMockRunner(t)
 			runner.EXPECT().Run(mock.Anything, mock.MatchedBy(func(c process.Command) bool {
-				return slices.Equal(c.Args, []string{"backup", "--json", "--retry-lock", "2h", "--host", "gorgon", "--tag", "nightly", "--exclude-file", "/state/excludes", "volumes"}) && c.Dir == "/data" && c.Stdout != nil
+				return slices.Equal(c.Args, []string{"backup", "--json", "--retry-lock", "2h", "--host", "gorgon", "--tag", "nightly", "--exclude-file", "/state/excludes", "volumes"}) && c.Dir == "/data" && c.Stdout != nil && c.Stderr != nil
 			})).RunAndReturn(func(_ context.Context, c process.Command) (int, error) {
 				_, _ = io.WriteString(c.Stdout, tt.Given.stdout)
+				_, _ = io.WriteString(c.Stderr, tt.Given.stderr)
 				return 0, nil
 			})
 
@@ -258,4 +267,14 @@ func TestPrune(t *testing.T) {
 	runner.EXPECT().Run(mock.Anything, command("prune", "--retry-lock", "2h")).Return(0, nil)
 
 	require.NoError(t, Restic{Runner: runner, Env: env}.Prune(context.Background(), nil))
+}
+
+func TestForgetWithNothingToForget(t *testing.T) {
+	runner := newMockRunner(t)
+	runner.EXPECT().Run(mock.Anything, mock.MatchedBy(func(c process.Command) bool { return slices.Contains(c.Args, "forget") })).Return(0, nil)
+
+	summary, err := Restic{Runner: runner, Env: env}.Forget(context.Background(), "gorgon", nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, "kept 0, removed 0", summary.String())
 }

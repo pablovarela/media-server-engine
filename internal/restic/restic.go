@@ -123,8 +123,8 @@ func (r Restic) Backup(ctx context.Context, o BackupOptions) (BackupSummary, err
 		args = append(args, "--tag", tag)
 	}
 	args = append(args, "--exclude-file", o.ExcludeFile)
-	messages := &backupMessages{log: r.Log}
-	err := r.run(ctx, process.Command{Args: append(args, o.Paths...), Dir: o.Dir, ExtraFiles: o.Inherit, Stdout: messages})
+	messages, problems := &backupMessages{log: r.Log}, &backupMessages{log: r.Log}
+	err := r.run(ctx, process.Command{Args: append(args, o.Paths...), Dir: o.Dir, ExtraFiles: o.Inherit, Stdout: messages, Stderr: problems})
 	return messages.summary, err
 }
 
@@ -140,7 +140,7 @@ func (r Restic) Forget(ctx context.Context, host string, inherit []*os.File) (Fo
 		Keep   []Snapshot `json:"keep"`
 		Remove []Snapshot `json:"remove"`
 	}
-	if err := json.Unmarshal(listed.Bytes(), &groups); err != nil {
+	if err := json.Unmarshal(listed.Bytes(), &groups); err != nil && len(bytes.TrimSpace(listed.Bytes())) > 0 {
 		return ForgetSummary{}, fmt.Errorf("restic forget printed unreadable JSON: %w", err)
 	}
 	var summary ForgetSummary
@@ -323,11 +323,12 @@ func (m *backupMessages) Write(b []byte) (int, error) {
 
 func (m *backupMessages) read(line string) {
 	var message struct {
-		Type   string `json:"message_type"`
-		During string `json:"during"`
-		Item   string `json:"item"`
-		Action string `json:"action"`
-		Error  struct {
+		Type    string `json:"message_type"`
+		During  string `json:"during"`
+		Item    string `json:"item"`
+		Action  string `json:"action"`
+		Message string `json:"message"`
+		Error   struct {
 			Message string `json:"message"`
 		} `json:"error"`
 	}
@@ -342,6 +343,8 @@ func (m *backupMessages) read(line string) {
 		m.say(m.summary.String())
 	case "error":
 		m.say(fmt.Sprintf("error during %s: %s: %s", message.During, message.Item, message.Error.Message))
+	case "exit_error":
+		m.say(message.Message)
 	case "verbose_status":
 		m.say(message.Action + " " + message.Item)
 	default:
