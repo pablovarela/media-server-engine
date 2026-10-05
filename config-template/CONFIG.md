@@ -68,6 +68,6 @@ Deluge's web password is applied at every update. Jellyfin's and Portainer's adm
 git -C ~/<name>/config commit -am "What changed"
 ```
 
-For a config kept on GitHub, push the commit. Every machine of the installation applies it at its next daily update (`mse update --apply`, once `mse install-timers` has set up the timers), or straight away with `mse update --apply` or `make update` from `~/<name>`. For a local-only config, run `make update` from `~/<name>`.
+For a config kept on GitHub, push the commit. Every machine of the installation applies it at its next daily update (`mse update --apply`), or straight away with `mse update --apply` or `make update` from `~/<name>`. For a local-only config, run `make update` from `~/<name>`.
 
 `make update` refuses to run while the config has changes that are not committed, and lists them. With `mse`, `mse update --apply` pulls the config and applies it, and `mse apply` applies the config as it is on disk, to try a change before committing it.

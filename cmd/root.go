@@ -123,7 +123,6 @@ func Execute(engine fs.FS) int {
 		Systemd:       func() bool { _, err := os.Stat("/run/systemd/system"); return err == nil },
 		LocalTime:     "/etc/localtime",
 		Executable:    os.Executable,
-		UnitDir:       "/etc/systemd/system",
 		Account:       currentAccount,
 		WiringSteps:   wiringSteps,
 		Exec:          func(path string, args []string) error { return syscall.Exec(path, args, os.Environ()) }, //nolint:gosec // runs the mse release it just installed
