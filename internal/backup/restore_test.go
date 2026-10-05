@@ -53,6 +53,7 @@ func TestRestore(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			b, m, out, _ := fixture(t)
 			volumes := filepath.Join(b.Installation.Data, "volumes")
+			require.NoError(t, os.RemoveAll(volumes))
 			for _, app := range tt.Given.volumes {
 				require.NoError(t, os.MkdirAll(filepath.Join(volumes, app), 0o755))
 			}

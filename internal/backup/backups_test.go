@@ -2,8 +2,12 @@ package backup
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/pablovarela/media-server-engine/internal/installation"
 	"github.com/pablovarela/media-server-engine/internal/restic"
@@ -19,8 +23,10 @@ func fixture(t *testing.T) (*Backups, mocks, *bytes.Buffer, *bytes.Buffer) {
 	t.Helper()
 	m := mocks{repository: newMockRepository(t), stack: newMockStack(t), pinger: newMockPinger(t)}
 	var out, errOut bytes.Buffer
+	data := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(data, "volumes", "jellyfin"), 0o755))
 	b := &Backups{
-		Installation:       &installation.Installation{Name: "gorgon", Data: t.TempDir(), State: t.TempDir()},
+		Installation:       &installation.Installation{Name: "gorgon", Data: data, State: t.TempDir()},
 		Repository:         m.repository,
 		RepositoryLocation: "b2:bucket",
 		Stack:              m.stack,

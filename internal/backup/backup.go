@@ -76,10 +76,14 @@ func (b *Backups) backupHolding(ctx context.Context, lock *heldLock, claiming bo
 			return err
 		}
 	}
+	dir, err := b.dataToBackUp()
+	if err != nil {
+		return err
+	}
 	if stopped, err = b.stopStack(ctx); err != nil {
 		return err
 	}
-	if err := b.snapshotVolumes(ctx, lock); err != nil {
+	if err := b.snapshotVolumes(ctx, lock, dir); err != nil {
 		return err
 	}
 	if err := b.startAgain(ctx, stopped); err != nil {
@@ -96,6 +100,17 @@ func (b *Backups) backupHolding(ctx context.Context, lock *heldLock, claiming bo
 	b.Pinger.Ping(ctx, "backup", "")
 	b.say(paint.Stdout.Success("Backup done."))
 	return nil
+}
+
+func (b *Backups) dataToBackUp() (string, error) {
+	held, err := hasAppData(filepath.Join(b.Installation.Data, "volumes"))
+	if err != nil {
+		return "", err
+	}
+	if !held {
+		return "", fmt.Errorf("volumes/ in %s holds no app data; nothing was backed up", b.Installation.Data)
+	}
+	return filepath.EvalSymlinks(b.Installation.Data)
 }
 
 func (b *Backups) stopStack(ctx context.Context) ([]string, error) {
@@ -131,13 +146,13 @@ func (b *Backups) finish(ctx context.Context, stopped []string, err error) error
 	return err
 }
 
-func (b *Backups) snapshotVolumes(ctx context.Context, lock *heldLock) error {
+func (b *Backups) snapshotVolumes(ctx context.Context, lock *heldLock, dir string) error {
 	b.say("Backing up volumes/...")
 	return b.Repository.Backup(ctx, restic.BackupOptions{
 		Host:        b.Installation.Name,
 		Tags:        []string{"machine:" + b.MachineID, "machine-name:" + b.ShortHost, "nightly"},
 		ExcludeFile: b.ExcludeFile,
-		Dir:         b.Installation.Data,
+		Dir:         dir,
 		Paths:       []string{"volumes"},
 		Inherit:     lock.files(),
 	})

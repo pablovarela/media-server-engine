@@ -19,9 +19,10 @@ func notCancelled(ctx context.Context) bool { return ctx.Err() == nil }
 func TestBackup(t *testing.T) {
 	ours := []restic.Snapshot{snapshot("this", "pi", "2026-10-04 04:30")}
 	backupOptions := func(b *Backups) any {
+		resolved, _ := filepath.EvalSymlinks(b.Installation.Data)
 		return mock.MatchedBy(func(o restic.BackupOptions) bool {
 			return o.Host == "gorgon" && assert.ObjectsAreEqual([]string{"machine:this", "machine-name:pi", "nightly"}, o.Tags) &&
-				o.ExcludeFile == "/state/backup-excludes.txt" && o.Dir == b.Installation.Data &&
+				o.ExcludeFile == "/state/backup-excludes.txt" && o.Dir == resolved &&
 				assert.ObjectsAreEqual([]string{"volumes"}, o.Paths) && len(o.Inherit) == 1
 		})
 	}
@@ -276,4 +277,37 @@ func TestTheRestartIsShieldedFromSignals(t *testing.T) {
 
 	assert.EqualError(t, b.Backup(context.Background()), "restic was interrupted")
 	assert.False(t, shielded, "the shield is released")
+}
+
+func TestBackupRunsResticInTheResolvedDataDirectory(t *testing.T) {
+	b, m, _, _ := fixture(t)
+	real := b.Installation.Data
+	require.NoError(t, os.MkdirAll(filepath.Join(real, "volumes", "sonarr"), 0o755))
+	linked := filepath.Join(t.TempDir(), "linked")
+	require.NoError(t, os.Symlink(real, linked))
+	b.Installation.Data = linked
+	resolved, err := filepath.EvalSymlinks(real)
+	require.NoError(t, err)
+	m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+	m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(nil, nil)
+	m.stack.EXPECT().RunningServices(mock.Anything).Return(nil, nil)
+	m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
+	m.stack.EXPECT().Stop(mock.Anything).Return(nil)
+	m.repository.EXPECT().Backup(mock.Anything, mock.MatchedBy(func(o restic.BackupOptions) bool { return o.Dir == resolved })).Return(nil)
+	m.repository.EXPECT().Forget(mock.Anything, "gorgon", mock.Anything).Return(nil)
+	m.pinger.EXPECT().Ping(mock.Anything, "backup", "").Return()
+
+	require.NoError(t, b.Backup(context.Background()))
+}
+
+func TestBackupRefusesAnEmptyDataDirectory(t *testing.T) {
+	b, m, _, _ := fixture(t)
+	require.NoError(t, os.RemoveAll(filepath.Join(b.Installation.Data, "volumes")))
+	m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+	m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(nil, nil)
+	m.pinger.EXPECT().Ping(mock.Anything, "backup", "/fail").Return()
+
+	err := b.Backup(context.Background())
+
+	assert.EqualError(t, err, "volumes/ in "+b.Installation.Data+" holds no app data; nothing was backed up")
 }

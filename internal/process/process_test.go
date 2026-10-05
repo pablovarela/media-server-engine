@@ -86,3 +86,12 @@ func TestRunErrors(t *testing.T) {
 		assert.EqualError(t, err, "sleep was interrupted")
 	})
 }
+
+func TestTheWorkingDirectoryIsThePWD(t *testing.T) {
+	dir := t.TempDir()
+
+	result, err := System{}.Output(context.Background(), Command{Name: "sh", Args: []string{"-c", `printf %s "$PWD"`}, Dir: dir, Env: []string{"PWD=/elsewhere"}})
+
+	require.NoError(t, err)
+	assert.Equal(t, dir, string(result.Stdout))
+}

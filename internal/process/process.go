@@ -50,6 +50,9 @@ func prepared(ctx context.Context, c Command) *exec.Cmd {
 	command := exec.CommandContext(ctx, c.Name, c.Args...) //nolint:gosec // runs the programs the engine names, with arguments it builds
 	command.Dir = c.Dir
 	command.Env = append(os.Environ(), c.Env...)
+	if c.Dir != "" {
+		command.Env = append(command.Env, "PWD="+c.Dir)
+	}
 	command.ExtraFiles = c.ExtraFiles
 	command.Cancel = func() error { return command.Process.Signal(os.Interrupt) }
 	command.WaitDelay = time.Minute
