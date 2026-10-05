@@ -8,7 +8,10 @@ import (
 	"strings"
 )
 
-const nameKey = "name"
+const (
+	nameKey      = "name"
+	apiKeyHeader = "X-Api-Key" //nolint:gosec // a header name, not a credential
+)
 
 func field(item map[string]any, name string) any {
 	for _, entry := range list(item["fields"]) {

@@ -25,7 +25,7 @@ type prowlarr struct {
 }
 
 func prowlarrAPI(env Env) *API {
-	return &API{Env: env, Base: env.URL("PROWLARR_URL", "http://localhost:9696"), Headers: map[string]string{"X-Api-Key": env.Secrets["PROWLARR_API_KEY"]}}
+	return &API{Env: env, Base: env.URL("PROWLARR_URL", "http://localhost:9696"), Headers: map[string]string{apiKeyHeader: env.Secrets["PROWLARR_API_KEY"]}}
 }
 
 func Prowlarr(ctx context.Context, env Env) error {

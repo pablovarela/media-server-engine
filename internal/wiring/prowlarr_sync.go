@@ -95,7 +95,7 @@ func shortOfIndexers(ctx context.Context, env Env, applications []map[string]any
 
 func indexersIn(ctx context.Context, env Env, application map[string]any) (int, error) {
 	name := text(application[nameKey])
-	api := &API{Env: env, Base: addressFromThisMachine(env, name, text(application["url"])), Headers: map[string]string{"X-Api-Key": env.Secrets[text(application["api_key"])]}}
+	api := &API{Env: env, Base: addressFromThisMachine(env, name, text(application["url"])), Headers: map[string]string{apiKeyHeader: env.Secrets[text(application["api_key"])]}}
 	var indexers []map[string]any
 	if err := api.Get(ctx, "/api/v3/indexer", &indexers); err != nil {
 		return 0, err
