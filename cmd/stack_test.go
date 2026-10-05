@@ -3,7 +3,10 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
+	"net/http"
+	"os"
 	"path/filepath"
 	"testing"
 	"testing/fstest"
@@ -11,6 +14,7 @@ import (
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/pablovarela/media-server-engine/internal/compose"
 	"github.com/pablovarela/media-server-engine/internal/installation"
@@ -18,20 +22,52 @@ import (
 
 func TestStackCommands(t *testing.T) {
 	project := &types.Project{Name: "media-server"}
+	homepageStopped := func(r *mockComposeRunner) { r.EXPECT().Ps(mock.Anything, project).Return(nil, nil) }
+	type Given struct {
+		configServices string
+	}
 	type When struct {
 		args []string
 	}
 	type Then struct {
-		expect func(r *mockComposeRunner)
-		stdout string
+		expect     func(r *mockComposeRunner)
+		stdout     string
+		stderr     string
+		drawn      bool
+		envWritten bool
 	}
 	tests := map[string]struct {
-		When When
-		Then Then
+		Given Given
+		When  When
+		Then  Then
 	}{
+		"stack up draws the page first": {
+			When: When{args: []string{"stack", "up"}},
+			Then: Then{expect: func(r *mockComposeRunner) {
+				r.EXPECT().Up(mock.Anything, project, []string{}).Return(nil)
+				homepageStopped(r)
+			}, drawn: true},
+		},
+		"stack up starts the containers when the page cannot be drawn": {
+			Given: Given{configServices: "not: a list\n"},
+			When:  When{args: []string{"stack", "up"}},
+			Then: Then{
+				expect:     func(r *mockComposeRunner) { r.EXPECT().Up(mock.Anything, project, []string{}).Return(nil) },
+				stderr:     "could not draw the landing page (services.yaml: expected a list); it keeps its previous files\n",
+				drawn:      true,
+				envWritten: true,
+			},
+		},
+		"monitoring up draws no page": {
+			When: When{args: []string{"monitoring", "up"}},
+			Then: Then{expect: func(r *mockComposeRunner) { r.EXPECT().Up(mock.Anything, project, []string{}).Return(nil) }},
+		},
 		"stack up with services": {
 			When: When{args: []string{"stack", "up", "jellyfin"}},
-			Then: Then{expect: func(r *mockComposeRunner) { r.EXPECT().Up(mock.Anything, project, []string{"jellyfin"}).Return(nil) }},
+			Then: Then{expect: func(r *mockComposeRunner) {
+				r.EXPECT().Up(mock.Anything, project, []string{"jellyfin"}).Return(nil)
+				homepageStopped(r)
+			}, drawn: true},
 		},
 		"stack down": {
 			When: When{args: []string{"stack", "down"}},
@@ -41,7 +77,16 @@ func TestStackCommands(t *testing.T) {
 			When: When{args: []string{"stack", "restart", "homepage"}},
 			Then: Then{expect: func(r *mockComposeRunner) {
 				r.EXPECT().Restart(mock.Anything, project, []string{"homepage"}).Return(nil)
-			}},
+				homepageStopped(r)
+			}, drawn: true},
+		},
+		"stack restart recreates homepage when its environment changed": {
+			When: When{args: []string{"stack", "restart"}},
+			Then: Then{expect: func(r *mockComposeRunner) {
+				r.EXPECT().Restart(mock.Anything, project, []string{}).Return(nil)
+				r.EXPECT().Ps(mock.Anything, project).Return([]compose.Container{{Name: "homepage", State: "running"}}, nil)
+				r.EXPECT().Up(mock.Anything, project, []string{"homepage"}).Return(nil)
+			}, drawn: true},
 		},
 		"stack ps": {
 			When: When{args: []string{"stack", "ps"}},
@@ -82,6 +127,11 @@ func TestStackCommands(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			getenv, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"})
+			if tt.Given.configServices != "" {
+				services := filepath.Join(home, ".config", "mse", "gorgon", "homepage", "services.yaml")
+				require.NoError(t, os.MkdirAll(filepath.Dir(services), 0o755))
+				require.NoError(t, os.WriteFile(services, []byte(tt.Given.configServices), 0o644))
+			}
 			runner := newMockComposeRunner(t)
 			kind := compose.Stack
 			if tt.When.args[0] == "monitoring" {
@@ -98,7 +148,13 @@ func TestStackCommands(t *testing.T) {
 					"docker-compose.monitoring.yml": {Data: []byte("services: {}\n")},
 					"grafana/datasource.yml":        {Data: []byte("# fixture\n")},
 					"prometheus/prometheus.yml":     {Data: []byte("# fixture\n")},
+					"homepage/settings.yaml":        {Data: []byte("title: x\n")},
+					"homepage/services.yaml":        {Data: []byte("[]\n")},
+					"homepage/widgets.yaml":         {Data: []byte("[]\n")},
+					"homepage/bookmarks.yaml":       {Data: []byte("[]\n")},
+					"homepage/custom.css":           {Data: []byte("")},
 				},
+				HTTP:    &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) { return nil, errors.New("no network in tests") })},
 				Compose: func(_, _ io.Writer) (composeRunner, error) { return runner, nil },
 			}
 			root := NewRootCommand(deps)
@@ -113,6 +169,18 @@ func TestStackCommands(t *testing.T) {
 			assert.FileExists(t, filepath.Join(state, ".secrets", "vpn.env"))
 			assert.FileExists(t, filepath.Join(state, "docker-compose.yml"))
 			assert.Equal(t, tt.Then.stdout, stdout.String())
+			assert.Equal(t, tt.Then.stderr, stderr.String())
+			if tt.Then.envWritten {
+				env, err := os.ReadFile(filepath.Join(state, ".secrets", "homepage.env"))
+				require.NoError(t, err)
+				assert.Contains(t, string(env), "HOMEPAGE_VAR_SONARR_KEY=")
+			}
+			drawnPage := filepath.Join(state, ".homepage", "settings.yaml")
+			if tt.Then.drawn {
+				assert.FileExists(t, drawnPage)
+			} else {
+				assert.NoFileExists(t, drawnPage)
+			}
 		})
 	}
 }

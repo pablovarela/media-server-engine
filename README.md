@@ -53,7 +53,7 @@ From then on, run make from the installation, `cd ~/<name>` (its Makefile passes
 
 ## Installing mse
 
-`mse` is the engine's Go binary. It prints its version (`mse version`), updates itself (`mse update`), runs an installation's containers (`mse stack`, `mse monitoring`), and prints its addresses and logins (`mse urls`, `mse logins`). The Makefile runs the Python engine for everything else. It is built for Linux and macOS on amd64 and arm64, and installed from a GitHub release. The repository is private, so installing needs a token that can read it. Where gh is logged in:
+`mse` is the engine's Go binary. It prints its version (`mse version`), updates itself (`mse update`), runs an installation's containers (`mse stack`, `mse monitoring`), draws its landing page (`mse homepage`), prints its addresses and logins (`mse urls`, `mse logins`), and cleans up old images and executable downloads (`mse prune-stack-images`, `mse remove-executable-downloads`). The Makefile runs the Python engine for everything else. It is built for Linux and macOS on amd64 and arm64, and installed from a GitHub release. The repository is private, so installing needs a token that can read it. Where gh is logged in:
 
     curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
       https://raw.githubusercontent.com/pablovarela/media-server-engine/main/install.sh | sh
@@ -71,6 +71,8 @@ Elsewhere, such as a Raspberry Pi without gh, export a token (a fine-grained tok
 From a clone, `make go-build` builds `dist/mse` for the machine it runs on.
 
 `mse` keeps an installation in the XDG base directories: its config (the clone of the config repository) in `~/.config/mse/<name>`, its data in `~/.local/share/mse/<name>`, and the files it generates, decrypted secrets included, in `~/.local/state/mse/<name>`. `XDG_CONFIG_HOME`, `XDG_DATA_HOME` and `XDG_STATE_HOME` move them. With one installation on the machine `mse` uses it; with several, `--installation <name>` or `MSE_INSTALLATION` chooses. It reads the age key from `SOPS_AGE_KEY_FILE`, `SOPS_AGE_KEY` or `SOPS_AGE_KEY_CMD`, else from `~/.config/sops/age/keys.txt` (under `XDG_CONFIG_HOME`), and talks to the Docker daemon directly: no `sops` or `docker compose` command is needed.
+
+When the config pins a `homepage` image, `mse stack up` and `mse stack restart` draw the landing page into the state directory before starting the containers, from the config's `homepage/` files over the engine's default page, then reload Homepage so it shows it. A page that cannot be drawn is reported and the containers start anyway. `mse homepage` redraws the page on its own.
 
 `mse stack` and `mse monitoring` mount the decrypted secrets and the engine's files from the state directory, where the Makefile mounts them from the engine checkout. `mse stack up` therefore recreates containers the Makefile started, and the other way round: manage an installation's containers with one of them.
 
