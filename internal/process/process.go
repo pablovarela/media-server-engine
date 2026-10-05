@@ -17,6 +17,7 @@ type Command struct {
 	Dir        string
 	Env        []string
 	ExtraFiles []*os.File
+	Stdin      io.Reader
 	Stdout     io.Writer
 	Stderr     io.Writer
 }
@@ -62,6 +63,7 @@ func prepared(ctx context.Context, c Command) *exec.Cmd {
 		command.Env = append(command.Env, "PWD="+c.Dir)
 	}
 	command.ExtraFiles = c.ExtraFiles
+	command.Stdin = c.Stdin
 	command.Cancel = func() error { return command.Process.Signal(os.Interrupt) }
 	command.WaitDelay = time.Minute
 	return command
