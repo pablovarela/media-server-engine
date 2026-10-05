@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -48,33 +49,82 @@ type PortsCheck struct {
 	Unreadable []string
 }
 
-func StackPorts(compose []byte, homepagePort string) (ports []Port, unreadable []string, err error) {
+func StackPorts(engine, override []byte, homepagePort string) (ports []Port, unreadable []string, err error) {
 	if homepagePort == "" {
 		homepagePort = "80"
 	}
-	var stack struct {
-		Services yaml.Node `yaml:"services"`
-	}
-	if err := yaml.Unmarshal(compose, &stack); err != nil {
+	services, err := servicePorts(engine)
+	if err != nil {
 		return nil, nil, err
 	}
-	for i := 1; i < len(stack.Services.Content); i += 2 {
-		var service struct {
-			Ports []yaml.Node `yaml:"ports"`
-		}
-		if err := stack.Services.Content[i].Decode(&service); err != nil {
-			return nil, nil, err
-		}
-		for _, entry := range service.Ports {
+	overridden, err := servicePorts(override)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, each := range overridden {
+		services = merged(services, each)
+	}
+	for _, service := range services {
+		for _, entry := range service.entries {
 			published, protocol, text := portEntry(entry, homepagePort)
 			found, ok := hostPorts(published, protocol)
 			if !ok {
 				unreadable = append(unreadable, text)
 			}
-			ports = append(ports, found...)
+			for _, port := range found {
+				if !slices.Contains(ports, port) {
+					ports = append(ports, port)
+				}
+			}
 		}
 	}
 	return ports, unreadable, nil
+}
+
+type serviceEntries struct {
+	name    string
+	entries []yaml.Node
+	replace bool
+}
+
+func servicePorts(compose []byte) ([]serviceEntries, error) {
+	var stack struct {
+		Services yaml.Node `yaml:"services"`
+	}
+	if err := yaml.Unmarshal(compose, &stack); err != nil {
+		return nil, err
+	}
+	var services []serviceEntries
+	for i := 1; i < len(stack.Services.Content); i += 2 {
+		var service struct {
+			Ports yaml.Node `yaml:"ports"`
+		}
+		if err := stack.Services.Content[i].Decode(&service); err != nil {
+			return nil, err
+		}
+		replace := service.Ports.Tag == "!override" || service.Ports.Tag == "!reset"
+		var entries []yaml.Node
+		for _, entry := range service.Ports.Content {
+			entries = append(entries, *entry)
+		}
+		services = append(services, serviceEntries{name: stack.Services.Content[i-1].Value, entries: entries, replace: replace})
+	}
+	return services, nil
+}
+
+func merged(services []serviceEntries, override serviceEntries) []serviceEntries {
+	for i, service := range services {
+		if service.name != override.name {
+			continue
+		}
+		if override.replace {
+			services[i].entries = override.entries
+		} else {
+			services[i].entries = append(services[i].entries, override.entries...)
+		}
+		return services
+	}
+	return append(services, override)
 }
 
 func portEntry(entry yaml.Node, homepagePort string) (published, protocol, text string) {

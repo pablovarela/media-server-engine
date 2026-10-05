@@ -272,7 +272,6 @@ func TestAStalledDockerDoesNotHangTheChecks(t *testing.T) {
 	}).Maybe()
 	f.env.Runner = runner
 	f.env.Timeout = 20 * time.Millisecond
-	f.answers["id -Gn"] = process.Result{Stdout: []byte("pablo docker\n")}
 
-	assert.Contains(t, f.render(t), "  ✗ Docker doesn't answer\n      run: sudo systemctl start docker\n")
+	assert.Contains(t, f.render(t), "  ✗ Docker didn't answer within 20ms\n      run: sudo systemctl restart docker\n")
 }

@@ -83,6 +83,9 @@ func dockerAnswers(ctx context.Context, env Env) outcome {
 	if _, ok := output(ctx, env.Runner, "docker", "info"); ok {
 		return outcome{ok: true, line: "Docker answers"}
 	}
+	if ctx.Err() != nil {
+		return outcome{line: "Docker didn't answer within " + env.timeout().String(), fix: onOS(env, "sudo systemctl restart docker", "restart Docker")}
+	}
 	if !linux(env) {
 		return outcome{line: "Docker doesn't answer", fix: "start Docker"}
 	}

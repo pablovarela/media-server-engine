@@ -27,12 +27,12 @@ const composeSnippet = `services:
 `
 
 func TestStackPorts(t *testing.T) {
-	ports, unreadable, err := StackPorts([]byte(composeSnippet), "")
+	ports, unreadable, err := StackPorts([]byte(composeSnippet), nil, "")
 	require.NoError(t, err)
 	assert.Empty(t, unreadable)
 	assert.Equal(t, []Port{{8096, "tcp"}, {7359, "udp"}, {80, "tcp"}}, ports)
 
-	ports, _, err = StackPorts([]byte(composeSnippet), "8080")
+	ports, _, err = StackPorts([]byte(composeSnippet), nil, "8080")
 	require.NoError(t, err)
 	assert.Contains(t, ports, Port{8080, "tcp"})
 	assert.NotContains(t, ports, Port{80, "tcp"})
@@ -54,15 +54,42 @@ func TestStackPortsInEveryForm(t *testing.T) {
       - target: 86
       - "nonsense:90"
 `
-	ports, unreadable, err := StackPorts([]byte(compose), "")
+	ports, unreadable, err := StackPorts([]byte(compose), nil, "")
 
 	require.NoError(t, err)
 	assert.Equal(t, []Port{{8081, "tcp"}, {8082, "tcp"}, {6881, "udp"}, {6882, "udp"}, {6883, "udp"}, {8084, "udp"}, {8085, "tcp"}}, ports)
 	assert.Equal(t, []string{"nonsense:90"}, unreadable)
 }
 
+func TestTheOverrideAddsReplacesAndResetsPorts(t *testing.T) {
+	override := `services:
+  jellyfin:
+    ports: !override
+      - "8097:8096"
+  homepage:
+    ports: !reset []
+  extra:
+    ports:
+      - "9443:443"
+`
+	ports, unreadable, err := StackPorts([]byte(composeSnippet), []byte(override), "")
+
+	require.NoError(t, err)
+	assert.Empty(t, unreadable)
+	assert.Equal(t, []Port{{8097, "tcp"}, {9443, "tcp"}}, ports)
+}
+
+func TestTheOverrideAddsToAServicesPorts(t *testing.T) {
+	override := "services:\n  jellyfin:\n    ports:\n      - \"8443:8920\"\n      - \"8096:8096\"\n"
+
+	ports, _, err := StackPorts([]byte(composeSnippet), []byte(override), "")
+
+	require.NoError(t, err)
+	assert.Equal(t, []Port{{8096, "tcp"}, {7359, "udp"}, {8443, "tcp"}, {80, "tcp"}}, ports)
+}
+
 func TestAHomepagePortThatIsNotANumberIsReported(t *testing.T) {
-	_, unreadable, err := StackPorts([]byte(composeSnippet), "eighty")
+	_, unreadable, err := StackPorts([]byte(composeSnippet), nil, "eighty")
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"eighty:3000"}, unreadable)
@@ -72,7 +99,7 @@ func TestStackPortsOfTheEnginesComposeFile(t *testing.T) {
 	compose, err := os.ReadFile("../../docker-compose.yml")
 	require.NoError(t, err)
 
-	ports, unreadable, err := StackPorts(compose, "")
+	ports, unreadable, err := StackPorts(compose, nil, "")
 
 	require.NoError(t, err)
 	assert.Empty(t, unreadable)

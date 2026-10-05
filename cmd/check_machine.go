@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 
 	"github.com/spf13/cobra"
 
@@ -86,19 +85,11 @@ func (d Dependencies) portsCheck(cmd *cobra.Command) (machine.PortsCheck, error)
 	if err != nil {
 		return machine.PortsCheck{}, err
 	}
-	check := machine.PortsCheck{Project: compose.Stack.Name, Free: d.PortFree, Published: d.Published, Note: note}
-	for _, file := range [][]byte{engineFile, override} {
-		ports, unreadable, err := machine.StackPorts(file, homepagePort)
-		if err != nil {
-			return machine.PortsCheck{}, err
-		}
-		check.Unreadable = append(check.Unreadable, unreadable...)
-		for _, port := range ports {
-			if !slices.Contains(check.Ports, port) {
-				check.Ports = append(check.Ports, port)
-			}
-		}
+	ports, unreadable, err := machine.StackPorts(engineFile, override, homepagePort)
+	if err != nil {
+		return machine.PortsCheck{}, err
 	}
+	check := machine.PortsCheck{Ports: ports, Unreadable: unreadable, Project: compose.Stack.Name, Free: d.PortFree, Published: d.Published, Note: note}
 	return check, nil
 }
 

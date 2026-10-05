@@ -29,11 +29,15 @@ type Env struct {
 
 const defaultTimeout = 10 * time.Second
 
-func (env Env) bounded(ctx context.Context) (context.Context, context.CancelFunc) {
+func (env Env) timeout() time.Duration {
 	if env.Timeout == 0 {
-		return context.WithTimeout(ctx, defaultTimeout)
+		return defaultTimeout
 	}
-	return context.WithTimeout(ctx, env.Timeout)
+	return env.Timeout
+}
+
+func (env Env) bounded(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(ctx, env.timeout())
 }
 
 type Status int
