@@ -255,17 +255,40 @@ func (r *Runner) Pull(ctx context.Context, project *types.Project) (Pulled, erro
 			images[service.Image] = true
 		}
 	}
+	before, err := r.imageIDs(ctx, images)
+	if err != nil {
+		return Pulled{}, err
+	}
+	if err := r.service.Pull(ctx, project, api.PullOptions{}); err != nil {
+		return Pulled{}, err
+	}
+	after, err := r.imageIDs(ctx, images)
+	if err != nil {
+		return Pulled{}, err
+	}
 	pulled := Pulled{Total: len(images)}
 	for image := range images {
-		_, err := r.docker.ImageInspect(ctx, image)
-		switch {
-		case cerrdefs.IsNotFound(err):
+		if before[image] != after[image] {
 			pulled.New++
-		case err != nil:
-			return Pulled{}, err
 		}
 	}
-	return pulled, r.service.Pull(ctx, project, api.PullOptions{})
+	return pulled, nil
+}
+
+func (r *Runner) imageIDs(ctx context.Context, images map[string]bool) (map[string]string, error) {
+	ids := map[string]string{}
+	for image := range images {
+		inspected, err := r.docker.ImageInspect(ctx, image)
+		switch {
+		case cerrdefs.IsNotFound(err):
+			ids[image] = ""
+		case err != nil:
+			return nil, err
+		default:
+			ids[image] = inspected.ID
+		}
+	}
+	return ids, nil
 }
 
 func (r *Runner) Recreate(ctx context.Context, project *types.Project, services []string) error {

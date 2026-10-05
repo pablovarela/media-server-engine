@@ -276,14 +276,23 @@ func TestPullAndRecreate(t *testing.T) {
 		}}
 		service := newMockService(t)
 		service.EXPECT().Pull(ctx, pinned, api.PullOptions{}).Return(nil)
+		pinned.Services["override"] = types.ServiceConfig{Name: "override", Image: "busybox:latest"}
 		docker := newMockContainers(t)
-		docker.EXPECT().ImageInspect(ctx, "sonarr@sha256:a").Return(client.ImageInspectResult{}, nil)
-		docker.EXPECT().ImageInspect(ctx, "radarr@sha256:b").Return(client.ImageInspectResult{}, cerrdefs.ErrNotFound)
+		inspected := func(id string) client.ImageInspectResult {
+			result := client.ImageInspectResult{}
+			result.ID = id
+			return result
+		}
+		docker.EXPECT().ImageInspect(ctx, "sonarr@sha256:a").Return(inspected("s1"), nil).Twice()
+		docker.EXPECT().ImageInspect(ctx, "radarr@sha256:b").Return(client.ImageInspectResult{}, cerrdefs.ErrNotFound).Once()
+		docker.EXPECT().ImageInspect(ctx, "radarr@sha256:b").Return(inspected("r1"), nil).Once()
+		docker.EXPECT().ImageInspect(ctx, "busybox:latest").Return(inspected("b1"), nil).Once()
+		docker.EXPECT().ImageInspect(ctx, "busybox:latest").Return(inspected("b2"), nil).Once()
 
 		pulled, err := (&Runner{service: service, docker: docker}).Pull(ctx, pinned)
 
 		require.NoError(t, err)
-		assert.Equal(t, Pulled{New: 1, Total: 2}, pulled)
+		assert.Equal(t, Pulled{New: 2, Total: 3}, pulled)
 	})
 
 	t.Run("an image docker cannot inspect stops the pull", func(t *testing.T) {
