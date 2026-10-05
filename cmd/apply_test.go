@@ -103,7 +103,7 @@ func (f applyFixture) deps(t *testing.T, systemd bool) Dependencies {
 func (f applyFixture) expectApply(pullErr error) {
 	f.composer.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, []string{"homepage"}).Return(f.project, nil)
 	f.composer.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, []string{"homepage", "wiring"}).Return(f.project, nil)
-	f.composer.EXPECT().Pull(mock.Anything, f.project).Return(pullErr)
+	f.composer.EXPECT().Pull(mock.Anything, f.project).Return(compose.Pulled{New: 2, Total: 13}, pullErr)
 	if pullErr != nil {
 		return
 	}
@@ -134,7 +134,7 @@ func TestApplyCommand(t *testing.T) {
 				requests: []string{"POST /api/v3/checks/", "POST /api/v3/checks/", "POST /api/v3/checks/"},
 				stdout: []string{
 					"Setting up the Healthchecks checks... gorgon-backup, gorgon-verify, gorgon-update.\n",
-					"Pulling images...", "Starting the stack...", "Reattaching to gluetun... nothing to reattach.\n",
+					"Pulling images... pulled 2 new images, 11 up to date.\n", "Starting the stack...", "Reattaching to gluetun... nothing to reattach.\n",
 					"Reloading Homepage... not running.\n", "Removing outdated images...",
 				},
 			},
@@ -196,7 +196,7 @@ func TestApplyCreatesTheDataFolders(t *testing.T) {
 func TestApplyReattachesTheDetachedServices(t *testing.T) {
 	f := newApplyFixture(t)
 	f.composer.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, mock.Anything).Return(f.project, nil)
-	f.composer.EXPECT().Pull(mock.Anything, f.project).Return(nil)
+	f.composer.EXPECT().Pull(mock.Anything, f.project).Return(compose.Pulled{}, nil)
 	f.composer.EXPECT().Up(mock.Anything, f.project, []string(nil), compose.NoWait).Return(nil)
 	f.composer.EXPECT().Detached(mock.Anything, f.project, "gluetun", gluetunDependents).Return([]string{"deluge"}, nil)
 	f.composer.EXPECT().Recreate(mock.Anything, f.project, []string{"deluge"}).Return(nil)
@@ -312,7 +312,7 @@ func TestAPanicAfterAnUpdateStillReportsFail(t *testing.T) {
 	f := newApplyFixture(t)
 	writeHealthchecksKeys(t, f)
 	f.composer.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, mock.Anything).Return(f.project, nil)
-	f.composer.EXPECT().Pull(mock.Anything, f.project).Return(nil)
+	f.composer.EXPECT().Pull(mock.Anything, f.project).Return(compose.Pulled{}, nil)
 	f.composer.EXPECT().Up(mock.Anything, f.project, []string(nil), compose.NoWait).Return(nil)
 	f.composer.EXPECT().Detached(mock.Anything, f.project, "gluetun", gluetunDependents).Return(nil, nil)
 	deps := f.deps(t, false)
@@ -326,4 +326,17 @@ func TestAPanicAfterAnUpdateStillReportsFail(t *testing.T) {
 	assert.Panics(t, func() { run(context.Background(), root, []string{"apply", "--after-update=a1b2c3"}) })
 
 	assert.Equal(t, []string{"GET /ping-key/gorgon-update/fail"}, *f.requests)
+}
+
+func TestThePullSaysHowManyImagesWereNew(t *testing.T) {
+	for pulled, want := range map[compose.Pulled]string{
+		{New: 0, Total: 13}: "13 up to date",
+		{New: 1, Total: 13}: "pulled 1 new image, 12 up to date",
+		{New: 2, Total: 2}:  "pulled 2 new images",
+		{New: 0, Total: 0}:  "nothing to pull",
+	} {
+		t.Run(want, func(t *testing.T) {
+			assert.Equal(t, want, describePull(pulled))
+		})
+	}
 }

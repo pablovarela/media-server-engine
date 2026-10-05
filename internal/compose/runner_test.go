@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"io"
 	"testing"
 	"time"
 
 	"github.com/compose-spec/compose-go/v2/types"
+	cerrdefs "github.com/containerd/errdefs"
 	"github.com/docker/compose/v5/pkg/api"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
@@ -263,14 +265,44 @@ func TestBindSources(t *testing.T) {
 }
 
 func TestPullAndRecreate(t *testing.T) {
-	project := &types.Project{Name: "media-server"}
 	ctx := context.Background()
 
-	t.Run("pull pulls the whole project", func(t *testing.T) {
+	t.Run("pull pulls the whole project and counts the images that were new", func(t *testing.T) {
+		pinned := &types.Project{Name: "media-server", Services: types.Services{
+			"sonarr":    {Name: "sonarr", Image: "sonarr@sha256:a"},
+			"radarr":    {Name: "radarr", Image: "radarr@sha256:b"},
+			"configarr": {Name: "configarr", Image: "radarr@sha256:b"},
+			"built":     {Name: "built"},
+		}}
 		service := newMockService(t)
-		service.EXPECT().Pull(ctx, project, api.PullOptions{}).Return(nil)
+		service.EXPECT().Pull(ctx, pinned, api.PullOptions{}).Return(nil)
+		pinned.Services["override"] = types.ServiceConfig{Name: "override", Image: "busybox:latest"}
+		docker := newMockContainers(t)
+		inspected := func(id string) client.ImageInspectResult {
+			result := client.ImageInspectResult{}
+			result.ID = id
+			return result
+		}
+		docker.EXPECT().ImageInspect(ctx, "sonarr@sha256:a").Return(inspected("s1"), nil).Twice()
+		docker.EXPECT().ImageInspect(ctx, "radarr@sha256:b").Return(client.ImageInspectResult{}, cerrdefs.ErrNotFound).Once()
+		docker.EXPECT().ImageInspect(ctx, "radarr@sha256:b").Return(inspected("r1"), nil).Once()
+		docker.EXPECT().ImageInspect(ctx, "busybox:latest").Return(inspected("b1"), nil).Once()
+		docker.EXPECT().ImageInspect(ctx, "busybox:latest").Return(inspected("b2"), nil).Once()
 
-		require.NoError(t, (&Runner{service: service}).Pull(ctx, project))
+		pulled, err := (&Runner{service: service, docker: docker}).Pull(ctx, pinned)
+
+		require.NoError(t, err)
+		assert.Equal(t, Pulled{New: 2, Total: 3}, pulled)
+	})
+
+	t.Run("an image docker cannot inspect stops the pull", func(t *testing.T) {
+		pinned := &types.Project{Name: "media-server", Services: types.Services{"sonarr": {Name: "sonarr", Image: "sonarr@sha256:a"}}}
+		docker := newMockContainers(t)
+		docker.EXPECT().ImageInspect(ctx, "sonarr@sha256:a").Return(client.ImageInspectResult{}, errors.New("cannot connect to the Docker daemon"))
+
+		_, err := (&Runner{service: newMockService(t), docker: docker}).Pull(ctx, pinned)
+
+		assert.EqualError(t, err, "cannot connect to the Docker daemon")
 	})
 
 	t.Run("recreate forces only the named services, without their dependencies", func(t *testing.T) {
