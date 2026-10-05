@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"os"
+	"path/filepath"
+	"slices"
 
 	"github.com/spf13/cobra"
 
@@ -67,7 +70,7 @@ func (d Dependencies) machineEnv(cmd *cobra.Command) (machine.Env, error) {
 }
 
 func (d Dependencies) portsCheck(cmd *cobra.Command) (machine.PortsCheck, error) {
-	homepagePort, note := "", ""
+	homepagePort, note, override := "", "", []byte(nil)
 	i, err := d.anyInstallation(cmd)
 	switch {
 	case errors.Is(err, installation.ErrSeveralInstallations):
@@ -77,16 +80,26 @@ func (d Dependencies) portsCheck(cmd *cobra.Command) (machine.PortsCheck, error)
 		return machine.PortsCheck{}, err
 	default:
 		homepagePort = i.Settings["HOMEPAGE_PORT"]
+		override, _ = os.ReadFile(filepath.Join(i.Config, "compose.override.yml")) //nolint:gosec // the installation's own override
 	}
-	composeFile, err := fs.ReadFile(d.Engine, compose.Stack.EngineFile)
+	engineFile, err := fs.ReadFile(d.Engine, compose.Stack.EngineFile)
 	if err != nil {
 		return machine.PortsCheck{}, err
 	}
-	ports, err := machine.StackPorts(composeFile, homepagePort)
-	if err != nil {
-		return machine.PortsCheck{}, err
+	check := machine.PortsCheck{Project: compose.Stack.Name, Free: d.PortFree, Published: d.Published, Note: note}
+	for _, file := range [][]byte{engineFile, override} {
+		ports, unreadable, err := machine.StackPorts(file, homepagePort)
+		if err != nil {
+			return machine.PortsCheck{}, err
+		}
+		check.Unreadable = append(check.Unreadable, unreadable...)
+		for _, port := range ports {
+			if !slices.Contains(check.Ports, port) {
+				check.Ports = append(check.Ports, port)
+			}
+		}
 	}
-	return machine.PortsCheck{Ports: ports, Project: compose.Stack.Name, Free: d.PortFree, Published: d.Published, Note: note}, nil
+	return check, nil
 }
 
 func (d Dependencies) carriedVariables() []string {

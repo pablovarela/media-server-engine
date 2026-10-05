@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/pablovarela/media-server-engine/internal/machine"
 	"github.com/pablovarela/media-server-engine/internal/process"
@@ -125,4 +128,14 @@ func TestCheckMachineLooksForTheTokenWhereTheTimersWould(t *testing.T) {
 	_, stdout, _ := f.check(t)
 
 	assert.Contains(t, stdout, "  ✓ gh is logged in (token on disk)\n")
+}
+
+func TestCheckMachineChecksTheOverridesPortsToo(t *testing.T) {
+	f := newCheckMachineFixture(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"})
+	override := "services:\n  homepage:\n    ports:\n      - \"8443:443\"\n  jellyfin:\n    ports:\n      - \"8096:8096\"\n"
+	require.NoError(t, os.WriteFile(filepath.Join(f.deps.Home, ".config", "mse", "gorgon", "compose.override.yml"), []byte(override), 0o644))
+
+	_, stdout, _ := f.check(t)
+
+	assert.Contains(t, stdout, "  ✓ ports 8096, 80, 8443 free\n")
 }

@@ -27,26 +27,67 @@ const composeSnippet = `services:
 `
 
 func TestStackPorts(t *testing.T) {
-	ports, err := StackPorts([]byte(composeSnippet), "")
+	ports, unreadable, err := StackPorts([]byte(composeSnippet), "")
 	require.NoError(t, err)
+	assert.Empty(t, unreadable)
 	assert.Equal(t, []Port{{8096, "tcp"}, {7359, "udp"}, {80, "tcp"}}, ports)
 
-	ports, err = StackPorts([]byte(composeSnippet), "8080")
+	ports, _, err = StackPorts([]byte(composeSnippet), "8080")
 	require.NoError(t, err)
 	assert.Contains(t, ports, Port{8080, "tcp"})
 	assert.NotContains(t, ports, Port{80, "tcp"})
+}
+
+func TestStackPortsInEveryForm(t *testing.T) {
+	compose := `services:
+  a:
+    ports:
+      - "3000"
+      - "127.0.0.1:8081:81"
+      - "[::1]:8082:82"
+      - "6881-6883:6881-6883/udp"
+      - target: 84
+        published: "8084"
+        protocol: udp
+      - target: 85
+        published: 8085
+      - target: 86
+      - "nonsense:90"
+`
+	ports, unreadable, err := StackPorts([]byte(compose), "")
+
+	require.NoError(t, err)
+	assert.Equal(t, []Port{{8081, "tcp"}, {8082, "tcp"}, {6881, "udp"}, {6882, "udp"}, {6883, "udp"}, {8084, "udp"}, {8085, "tcp"}}, ports)
+	assert.Equal(t, []string{"nonsense:90"}, unreadable)
+}
+
+func TestAHomepagePortThatIsNotANumberIsReported(t *testing.T) {
+	_, unreadable, err := StackPorts([]byte(composeSnippet), "eighty")
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"eighty:3000"}, unreadable)
 }
 
 func TestStackPortsOfTheEnginesComposeFile(t *testing.T) {
 	compose, err := os.ReadFile("../../docker-compose.yml")
 	require.NoError(t, err)
 
-	ports, err := StackPorts(compose, "")
+	ports, unreadable, err := StackPorts(compose, "")
 
 	require.NoError(t, err)
-	for _, want := range []Port{{8096, "tcp"}, {8989, "tcp"}, {7878, "tcp"}, {9000, "tcp"}, {80, "tcp"}, {7359, "udp"}} {
-		assert.Contains(t, ports, want)
-	}
+	assert.Empty(t, unreadable)
+	assert.Equal(t, []Port{
+		{8096, "tcp"}, {8920, "tcp"}, {7359, "udp"}, {1900, "udp"}, {8112, "tcp"}, {58846, "tcp"}, {58946, "tcp"},
+		{6881, "tcp"}, {6881, "udp"}, {9696, "tcp"}, {8198, "tcp"}, {8989, "tcp"}, {7878, "tcp"}, {6767, "tcp"},
+		{9000, "tcp"}, {5055, "tcp"}, {6246, "tcp"}, {80, "tcp"},
+	}, ports)
+}
+
+func TestAnUnreadablePortIsAProblem(t *testing.T) {
+	f := newPortsFixture(t)
+	f.env.Ports.Unreadable = []string{"eighty:3000"}
+
+	assert.Contains(t, f.render(t), "  ✗ the stack's port \"eighty:3000\" can't be read\n      run: correct it in compose.override.yml, or HOMEPAGE_PORT in installation.env\n")
 }
 
 func TestOnlyAnAddressInUseMakesAPortBusy(t *testing.T) {

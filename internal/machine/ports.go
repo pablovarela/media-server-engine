@@ -40,14 +40,15 @@ type Published struct {
 }
 
 type PortsCheck struct {
-	Ports     []Port
-	Project   string
-	Free      func(Port) bool
-	Published func(ctx context.Context) ([]Published, error)
-	Note      string
+	Ports      []Port
+	Project    string
+	Free       func(Port) bool
+	Published  func(ctx context.Context) ([]Published, error)
+	Note       string
+	Unreadable []string
 }
 
-func StackPorts(compose []byte, homepagePort string) ([]Port, error) {
+func StackPorts(compose []byte, homepagePort string) (ports []Port, unreadable []string, err error) {
 	if homepagePort == "" {
 		homepagePort = "80"
 	}
@@ -55,38 +56,75 @@ func StackPorts(compose []byte, homepagePort string) ([]Port, error) {
 		Services yaml.Node `yaml:"services"`
 	}
 	if err := yaml.Unmarshal(compose, &stack); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	var ports []Port
 	for i := 1; i < len(stack.Services.Content); i += 2 {
 		var service struct {
-			Ports []string `yaml:"ports"`
+			Ports []yaml.Node `yaml:"ports"`
 		}
 		if err := stack.Services.Content[i].Decode(&service); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, entry := range service.Ports {
-			port, err := hostPort(strings.ReplaceAll(entry, homepagePortVar, homepagePort))
-			if err != nil {
-				return nil, err
+			published, protocol, text := portEntry(entry, homepagePort)
+			found, ok := hostPorts(published, protocol)
+			if !ok {
+				unreadable = append(unreadable, text)
 			}
-			ports = append(ports, port)
+			ports = append(ports, found...)
 		}
 	}
-	return ports, nil
+	return ports, unreadable, nil
 }
 
-func hostPort(entry string) (Port, error) {
-	mapping, protocol, found := strings.Cut(entry, "/")
-	if !found {
-		protocol = tcp
+func portEntry(entry yaml.Node, homepagePort string) (published, protocol, text string) {
+	if entry.Kind == yaml.MappingNode {
+		var long struct {
+			Published string `yaml:"published"`
+			Protocol  string `yaml:"protocol"`
+		}
+		_ = entry.Decode(&long)
+		return long.Published, orTCP(long.Protocol), long.Published
+	}
+	text = strings.ReplaceAll(entry.Value, homepagePortVar, homepagePort)
+	mapping, protocol, _ := strings.Cut(text, "/")
+	if strings.HasPrefix(mapping, "[") {
+		if _, rest, found := strings.Cut(mapping, "]:"); found {
+			mapping = rest
+		}
 	}
 	parts := strings.Split(mapping, ":")
-	number, err := strconv.Atoi(parts[max(0, len(parts)-2)])
-	if err != nil {
-		return Port{}, fmt.Errorf("can't read the published port %q", entry)
+	if len(parts) < 2 {
+		return "", orTCP(protocol), text
 	}
-	return Port{Number: number, Protocol: protocol}, nil
+	return parts[len(parts)-2], orTCP(protocol), text
+}
+
+func orTCP(protocol string) string {
+	if protocol == "" {
+		return tcp
+	}
+	return protocol
+}
+
+func hostPorts(published, protocol string) ([]Port, bool) {
+	if published == "" {
+		return nil, true
+	}
+	first, last, ranged := strings.Cut(published, "-")
+	if !ranged {
+		last = first
+	}
+	from, err := strconv.Atoi(first)
+	to, errLast := strconv.Atoi(last)
+	if err != nil || errLast != nil || from < 1 || to < from || to > 65535 {
+		return nil, false
+	}
+	ports := make([]Port, 0, to-from+1)
+	for number := from; number <= to; number++ {
+		ports = append(ports, Port{Number: number, Protocol: protocol})
+	}
+	return ports, true
 }
 
 func PortFree(p Port) bool {
@@ -142,6 +180,17 @@ func firstOr(names []string, fallback string) string {
 }
 
 func portsResults(ctx context.Context, check PortsCheck) []Result {
+	unreadable := make([]Result, 0, len(check.Unreadable))
+	for _, entry := range check.Unreadable {
+		unreadable = append(unreadable, Result{Status: Fail, Line: fmt.Sprintf("the stack's port %q can't be read", entry), Fix: "correct it in compose.override.yml, or HOMEPAGE_PORT in installation.env"})
+	}
+	if len(check.Ports) == 0 {
+		return unreadable
+	}
+	return append(unreadable, busyResults(ctx, check)...)
+}
+
+func busyResults(ctx context.Context, check PortsCheck) []Result {
 	var busy []Port
 	for _, p := range check.Ports {
 		if !check.Free(p) {

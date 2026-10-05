@@ -120,7 +120,7 @@ func Run(ctx context.Context, env Env) Report {
 
 func portsCheck(ctx context.Context, env Env, passed map[string]bool) []Result {
 	switch {
-	case len(env.Ports.Ports) == 0:
+	case len(env.Ports.Ports) == 0 && len(env.Ports.Unreadable) == 0:
 		return nil
 	case !passed[sessionCheck]:
 		return []Result{{Status: Skip, Line: "ports: skipped until " + skipReason(sessionCheck, env)}}
