@@ -13,6 +13,7 @@ type Values struct {
 	Group        string
 	Installation string
 	Executable   string
+	Environment  []string
 }
 
 type Unit struct {
@@ -35,7 +36,18 @@ func Render(file string, v Values) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.NewReplacer("@USER@", v.User, "@GROUP@", v.Group, "@INSTALLATION@", v.Installation, "@MSE@", v.Executable).Replace(string(template)), nil
+	return strings.NewReplacer("@USER@", v.User, "@GROUP@", v.Group, "@ENVIRONMENT@", environment(v), "@MSE@", v.Executable).Replace(string(template)), nil
+}
+
+func environment(v Values) string {
+	lines := []string{"Environment=MSE_INSTALLATION=" + v.Installation}
+	for _, variable := range v.Environment {
+		if strings.ContainsAny(variable, " \t") {
+			variable = `"` + variable + `"`
+		}
+		lines = append(lines, "Environment="+variable)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func Plan(main bool) (install, remove []Unit) {

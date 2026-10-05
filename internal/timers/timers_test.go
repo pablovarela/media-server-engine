@@ -121,3 +121,13 @@ func TestTheMainRunsTheBackupsAndAnotherMachineRemovesThem(t *testing.T) {
 	assert.Equal(t, []Unit{Update, Cleanup}, install)
 	assert.Equal(t, []Unit{Backup, Verify}, remove)
 }
+
+func TestTheEnvironmentTheInstallationNeedsReachesTheServices(t *testing.T) {
+	v := gorgon
+	v.Environment = []string{"XDG_DATA_HOME=/mnt/ssd/share", "SOPS_AGE_KEY_CMD=op read age key"}
+
+	text, err := Render("media-backup.service", v)
+
+	require.NoError(t, err)
+	assert.Contains(t, text, "Environment=MSE_INSTALLATION=gorgon\nEnvironment=XDG_DATA_HOME=/mnt/ssd/share\nEnvironment=\"SOPS_AGE_KEY_CMD=op read age key\"\nExecStart=")
+}

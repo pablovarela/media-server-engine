@@ -70,7 +70,10 @@ func TestNothingChangedWritesNothingAndStillEnablesTheTimers(t *testing.T) {
 	outcome, err := Installer{Runner: runner, Dir: dir, Read: reading(present(t, Update, Cleanup, Backup, Verify))}.Install(context.Background(), true, gorgon)
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"systemctl enable --now media-update.timer media-download-cleanup.timer media-backup.timer media-verify.timer"}, s.calls)
+	assert.Equal(t, []string{
+		"systemctl daemon-reload",
+		"systemctl enable --now media-update.timer media-download-cleanup.timer media-backup.timer media-verify.timer",
+	}, s.calls)
 	assert.Equal(t, "all 4 unchanged", outcome.String())
 }
 
@@ -140,4 +143,18 @@ func TestAFailureWithoutAMessageNamesTheExitCode(t *testing.T) {
 	_, err := Installer{Runner: runner, Dir: dir, Read: reading(present(t, Update, Cleanup, Backup, Verify))}.Install(context.Background(), true, gorgon)
 
 	assert.EqualError(t, err, "sudo systemctl enable --now media-update.timer media-download-cleanup.timer media-backup.timer media-verify.timer failed: exit 1")
+}
+
+func TestALeftoverServiceWithoutItsTimerIsRemovedToo(t *testing.T) {
+	files := present(t, Update, Cleanup)
+	service, err := Render("media-backup.service", gorgon)
+	require.NoError(t, err)
+	files[dir+"/media-backup.service"] = []byte(service)
+	runner, s := recording(t, nil)
+
+	outcome, err := Installer{Runner: runner, Dir: dir, Read: reading(files)}.Install(context.Background(), false, gorgon)
+
+	require.NoError(t, err)
+	assert.Contains(t, s.calls, "rm -f /etc/systemd/system/media-backup.service /etc/systemd/system/media-backup.timer")
+	assert.Equal(t, []string{"media-backup"}, outcome.Removed)
 }

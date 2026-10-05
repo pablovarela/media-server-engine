@@ -7,7 +7,7 @@ After=network-online.target media-backup.service
 Type=oneshot
 User=@USER@
 Group=@GROUP@
-Environment=MSE_INSTALLATION=@INSTALLATION@
+@ENVIRONMENT@
 ExecStart=@MSE@ verify-backup
 Nice=10
 IOSchedulingClass=idle

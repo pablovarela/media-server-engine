@@ -6,6 +6,6 @@ After=docker.service
 Type=oneshot
 User=@USER@
 Group=@GROUP@
-Environment=MSE_INSTALLATION=@INSTALLATION@
+@ENVIRONMENT@
 ExecStart=@MSE@ remove-executable-downloads
 Nice=10

@@ -8,7 +8,7 @@ Type=oneshot
 User=@USER@
 Group=@GROUP@
 SupplementaryGroups=docker
-Environment=MSE_INSTALLATION=@INSTALLATION@
+@ENVIRONMENT@
 ExecStart=@MSE@ update --apply
 Nice=10
 IOSchedulingClass=idle
