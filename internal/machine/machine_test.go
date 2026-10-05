@@ -2,10 +2,12 @@ package machine
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -253,6 +255,24 @@ func TestAStoppedDockerWhenTheSessionHasTheGroup(t *testing.T) {
 	f := newFixture(t)
 	f.fails("docker info")
 	f.answers["id -Gn"] = process.Result{Stdout: []byte("pablo adm docker\n")}
+
+	assert.Contains(t, f.render(t), "  ✗ Docker doesn't answer\n      run: sudo systemctl start docker\n")
+}
+
+func TestAStalledDockerDoesNotHangTheChecks(t *testing.T) {
+	f := newFixture(t)
+	answering := f.env.Runner
+	runner := newMockRunner(t)
+	runner.EXPECT().Output(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, c process.Command) (process.Result, error) {
+		if c.Name == "docker" && c.Args[0] == "info" {
+			<-ctx.Done()
+			return process.Result{Exit: -1}, errors.New("docker was interrupted")
+		}
+		return answering.Output(ctx, c)
+	}).Maybe()
+	f.env.Runner = runner
+	f.env.Timeout = 20 * time.Millisecond
+	f.answers["id -Gn"] = process.Result{Stdout: []byte("pablo docker\n")}
 
 	assert.Contains(t, f.render(t), "  ✗ Docker doesn't answer\n      run: sudo systemctl start docker\n")
 }

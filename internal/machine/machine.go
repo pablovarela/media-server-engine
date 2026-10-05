@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/pablovarela/media-server-engine/internal/paint"
 	"github.com/pablovarela/media-server-engine/internal/process"
@@ -23,6 +24,16 @@ type Env struct {
 	Ports    PortsCheck
 	Carried  []string
 	Getenv   func(string) string
+	Timeout  time.Duration
+}
+
+const defaultTimeout = 10 * time.Second
+
+func (env Env) bounded(ctx context.Context) (context.Context, context.CancelFunc) {
+	if env.Timeout == 0 {
+		return context.WithTimeout(ctx, defaultTimeout)
+	}
+	return context.WithTimeout(ctx, env.Timeout)
 }
 
 type Status int
@@ -103,7 +114,9 @@ func Run(ctx context.Context, env Env) Report {
 			report.Results = append(report.Results, Result{Status: Skip, Line: c.name(env) + ": skipped until " + skipReason(blocker, env)})
 			continue
 		}
-		result := c.probe(ctx, env)
+		probing, cancel := env.bounded(ctx)
+		result := c.probe(probing, env)
+		cancel()
 		passed[c.id] = result.ok
 		if result.ok {
 			report.Results = append(report.Results, Result{Status: Pass, Line: orName(result.line, c.name(env))})
@@ -125,7 +138,9 @@ func portsCheck(ctx context.Context, env Env, passed map[string]bool) []Result {
 	case !passed[sessionCheck]:
 		return []Result{{Status: Skip, Line: "ports: skipped until " + skipReason(sessionCheck, env)}}
 	}
-	return portsResults(ctx, env.Ports)
+	probing, cancel := env.bounded(ctx)
+	defer cancel()
+	return portsResults(probing, env.Ports)
 }
 
 func firstUnmet(needs []string, passed map[string]bool) string {
