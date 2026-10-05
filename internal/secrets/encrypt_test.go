@@ -56,3 +56,15 @@ func TestSopsEncrypterNeedsACreationRule(t *testing.T) {
 	assert.Contains(t, err.Error(), "has no creation rule for")
 	assert.NotContains(t, err.Error(), "s3cret")
 }
+
+func TestSopsEncrypterKeepsTheRulesCommentSettings(t *testing.T) {
+	useTestKey(t)
+	config := t.TempDir()
+	rules := "creation_rules:\n  - path_regex: (^|/)secrets/[^/]+\\.sops\\.env$\n    age: " + testRecipient + "\n    unencrypted_comment_regex: keep-plain\n"
+	require.NoError(t, os.WriteFile(filepath.Join(config, ".sops.yaml"), []byte(rules), 0o644))
+
+	encrypted, err := SopsEncrypter(t.TempDir(), filepath.Join(config, ".sops.yaml"))(filepath.Join(config, "secrets", "vpn.sops.env"), []byte("A=1\n"))
+
+	require.NoError(t, err)
+	assert.Contains(t, string(encrypted), "sops_unencrypted_comment_regex=keep-plain")
+}

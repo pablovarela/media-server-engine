@@ -46,13 +46,15 @@ func SopsEncrypter(configBase, sopsConfig string) Encrypter {
 
 func metadataFor(rule *config.Config) sops.Metadata {
 	return sops.Metadata{
-		KeyGroups:         rule.KeyGroups,
-		ShamirThreshold:   rule.ShamirThreshold,
-		UnencryptedSuffix: rule.UnencryptedSuffix,
-		EncryptedSuffix:   rule.EncryptedSuffix,
-		UnencryptedRegex:  rule.UnencryptedRegex,
-		EncryptedRegex:    rule.EncryptedRegex,
-		MACOnlyEncrypted:  rule.MACOnlyEncrypted,
-		Version:           version.Version,
+		KeyGroups:               rule.KeyGroups,
+		ShamirThreshold:         rule.ShamirThreshold,
+		UnencryptedSuffix:       rule.UnencryptedSuffix,
+		EncryptedSuffix:         rule.EncryptedSuffix,
+		UnencryptedRegex:        rule.UnencryptedRegex,
+		EncryptedRegex:          rule.EncryptedRegex,
+		UnencryptedCommentRegex: rule.UnencryptedCommentRegex,
+		EncryptedCommentRegex:   rule.EncryptedCommentRegex,
+		MACOnlyEncrypted:        rule.MACOnlyEncrypted,
+		Version:                 version.Version,
 	}
 }
