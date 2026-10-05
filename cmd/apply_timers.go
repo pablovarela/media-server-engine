@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -15,13 +14,12 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/apply"
 	"github.com/pablovarela/media-server-engine/internal/backup"
 	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/machine"
 	"github.com/pablovarela/media-server-engine/internal/process"
 	"github.com/pablovarela/media-server-engine/internal/report"
 	"github.com/pablovarela/media-server-engine/internal/secrets"
 	"github.com/pablovarela/media-server-engine/internal/timers"
 )
-
-const systemdPath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 var carriedIntoUnits = []string{"XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "SOPS_AGE_KEY_FILE", "SOPS_AGE_KEY_CMD"}
 
@@ -77,10 +75,10 @@ func (t *appliedTimers) Set(ctx context.Context) (string, []string, error) {
 
 func (t *appliedTimers) unattendedWarnings(ctx context.Context, account string, values timers.Values) []string {
 	warnings := t.droppedVariables()
-	if !t.unattendedToken(ctx, account, values) {
+	if !machine.UnattendedToken(ctx, t.d.Run(io.Discard, io.Discard), t.d.Home, account, values.Environment) {
 		warnings = append(warnings, noUnattendedToken)
 	}
-	if uid, stale := t.managerWithoutDocker(ctx, account); stale {
+	if uid, stale := machine.ManagerWithoutDocker(ctx, t.d.Run(io.Discard, io.Discard), t.d.procRoot(), account); stale {
 		warnings = append(warnings, "the timers can't reach Docker: your user manager started before you joined the docker group; "+
 			"restart it with sudo systemctl restart user@"+uid+" (or reboot)")
 	}
@@ -92,41 +90,6 @@ func (t *appliedTimers) lingering(ctx context.Context, account string) bool {
 	return err == nil && result.Exit == 0 && strings.TrimSpace(string(result.Stdout)) == "Linger=yes"
 }
 
-func (t *appliedTimers) managerWithoutDocker(ctx context.Context, account string) (uid string, stale bool) {
-	if !slices.Contains(strings.Fields(t.output(ctx, "id", "-Gn", account)), "docker") {
-		return "", false
-	}
-	docker := strings.Split(t.output(ctx, "getent", "group", "docker"), ":")
-	uid = t.output(ctx, "id", "-u", account)
-	pid := t.output(ctx, "systemctl", "show", "user@"+uid+".service", "-p", "MainPID", "--value")
-	if len(docker) < 3 || uid == "" || pid == "" || pid == "0" {
-		return "", false
-	}
-	groups, found := managerGroups(filepath.Join(t.d.procRoot(), pid, "status"))
-	return uid, found && !slices.Contains(groups, docker[2])
-}
-
-func (t *appliedTimers) output(ctx context.Context, name string, args ...string) string {
-	result, err := t.d.Run(io.Discard, io.Discard).Output(ctx, process.Command{Name: name, Args: args})
-	if err != nil || result.Exit != 0 {
-		return ""
-	}
-	return strings.TrimSpace(string(result.Stdout))
-}
-
-func managerGroups(status string) ([]string, bool) {
-	text, err := os.ReadFile(status) //nolint:gosec // a /proc status file named by systemd's pid
-	if err != nil {
-		return nil, false
-	}
-	for _, line := range strings.Split(string(text), "\n") {
-		if groups, found := strings.CutPrefix(line, "Groups:"); found {
-			return strings.Fields(groups), true
-		}
-	}
-	return nil, false
-}
-
 func (t *appliedTimers) values() (timers.Values, error) {
 	executable, err := t.d.Executable()
 	if err != nil {
@@ -135,19 +98,7 @@ func (t *appliedTimers) values() (timers.Values, error) {
 	if executable, err = filepath.EvalSymlinks(executable); err != nil {
 		return timers.Values{}, err
 	}
-	var environment []string
-	for _, variable := range carriedIntoUnits {
-		if value := t.d.Environment(variable); value != "" {
-			environment = append(environment, variable+"="+value)
-		}
-	}
-	return timers.Values{Installation: t.i.Name, Executable: executable, Environment: environment}, nil
-}
-
-func (t *appliedTimers) unattendedToken(ctx context.Context, account string, values timers.Values) bool {
-	args := append([]string{"-i", "HOME=" + t.d.Home, "USER=" + account, "PATH=" + systemdPath}, values.Environment...)
-	result, err := t.d.Run(io.Discard, io.Discard).Output(ctx, process.Command{Name: "env", Args: append(args, "gh", "auth", "token")})
-	return err == nil && result.Exit == 0 && strings.TrimSpace(string(result.Stdout)) != ""
+	return timers.Values{Installation: t.i.Name, Executable: executable, Environment: t.d.carriedVariables()}, nil
 }
 
 func (t *appliedTimers) droppedVariables() []string {

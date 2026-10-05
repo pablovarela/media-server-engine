@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -12,6 +13,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -25,6 +27,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/images"
 	"github.com/pablovarela/media-server-engine/internal/installation"
 	"github.com/pablovarela/media-server-engine/internal/logfile"
+	"github.com/pablovarela/media-server-engine/internal/machine"
 	"github.com/pablovarela/media-server-engine/internal/paint"
 	"github.com/pablovarela/media-server-engine/internal/process"
 	"github.com/pablovarela/media-server-engine/internal/report"
@@ -63,6 +66,9 @@ type Dependencies struct {
 	Prompter      func(ctx context.Context) prompter
 	Encrypt       func(config string) secrets.Encrypter
 	RandomKey     func() (string, error)
+	GOOS          string
+	PortFree      func(machine.Port) bool
+	Published     func(ctx context.Context) ([]machine.Published, error)
 }
 
 func NewRootCommand(deps Dependencies) *cobra.Command {
@@ -85,6 +91,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 		newVersionCommand(deps.Build),
 		newUpdateCommand(deps),
 		newConfigureCommand(deps),
+		newCheckMachineCommand(deps),
 		newApplyCommand(deps),
 		newURLsCommand(deps),
 		newLoginsCommand(deps),
@@ -138,6 +145,9 @@ func Execute(engine fs.FS) int {
 			return secrets.SopsEncrypter(installation.BasesFrom(os.Getenv, home).Config, filepath.Join(config, ".sops.yaml"))
 		},
 		RandomKey: secrets.RandomKey,
+		GOOS:      runtime.GOOS,
+		PortFree:  machine.PortFree,
+		Published: machine.DockerPublished,
 		Exec:      func(path string, args []string) error { return syscall.Exec(path, args, os.Environ()) }, //nolint:gosec // runs the mse release it just installed
 	}
 	globalLogs := filepath.Join(installation.BasesFrom(os.Getenv, home).State, "mse")
@@ -166,6 +176,8 @@ func pause(ctx context.Context, d time.Duration) error {
 		return nil
 	}
 }
+
+var errAlreadyReported = errors.New("already reported")
 
 var endingSignals = []os.Signal{os.Interrupt, syscall.SIGTERM, syscall.SIGHUP}
 
@@ -202,7 +214,9 @@ func runLogged(ctx context.Context, root *cobra.Command, args []string, globalLo
 	log.Line("", "start "+strings.Join(args, " "))
 	code := 0
 	if err := root.ExecuteContext(withLog(report.With(ctx, reporter), log)); err != nil {
-		_, _ = fmt.Fprintln(root.ErrOrStderr(), paint.Stderr.Failure(fmt.Sprintf("mse: %v", err)))
+		if !errors.Is(err, errAlreadyReported) {
+			_, _ = fmt.Fprintln(root.ErrOrStderr(), paint.Stderr.Failure(fmt.Sprintf("mse: %v", err)))
+		}
 		code = 1
 	}
 	if warning := log.Line("", fmt.Sprintf("finish exit %d after %s", code, time.Since(started).Round(time.Millisecond))); warning != "" {
