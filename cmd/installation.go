@@ -7,6 +7,14 @@ import (
 )
 
 func (d Dependencies) installation(cmd *cobra.Command) (*installation.Installation, error) {
+	loaded, err := d.anyInstallation(cmd)
+	if err != nil {
+		return nil, err
+	}
+	return loaded, loaded.CheckSchema(d.Build.Major())
+}
+
+func (d Dependencies) anyInstallation(cmd *cobra.Command) (*installation.Installation, error) {
 	requested, _ := cmd.Flags().GetString("installation")
 	if requested == "" {
 		requested = d.Environment("MSE_INSTALLATION")
@@ -21,5 +29,5 @@ func (d Dependencies) installation(cmd *cobra.Command) (*installation.Installati
 		return nil, err
 	}
 	openInstallationLog(cmd.Context(), loaded.State)
-	return loaded, loaded.CheckSchema(d.Build.Major())
+	return loaded, nil
 }

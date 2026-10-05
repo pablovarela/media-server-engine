@@ -20,6 +20,7 @@ import (
 	"github.com/docker/compose/v5/pkg/api"
 	sdk "github.com/docker/compose/v5/pkg/compose"
 	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/client"
 
 	"github.com/pablovarela/media-server-engine/internal/installation"
 	"github.com/pablovarela/media-server-engine/internal/paint"
@@ -34,6 +35,11 @@ type service interface {
 	Restart(ctx context.Context, projectName string, options api.RestartOptions) error
 	Stop(ctx context.Context, projectName string, options api.StopOptions) error
 	Start(ctx context.Context, projectName string, options api.StartOptions) error
+	Pull(ctx context.Context, project *types.Project, options api.PullOptions) error
+}
+
+type inspector interface {
+	ContainerInspect(ctx context.Context, containerID string, options client.ContainerInspectOptions) (client.ContainerInspectResult, error)
 }
 
 type Container struct {
@@ -51,6 +57,7 @@ type LogsOptions struct {
 
 type Runner struct {
 	service service
+	inspect inspector
 }
 
 func (k Kind) Title() string {
@@ -72,7 +79,7 @@ func NewRunner(tool io.Writer, outcomes *Outcomes) (*Runner, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Runner{service: composeService}, nil
+	return &Runner{service: composeService, inspect: dockerCLI.Client()}, nil
 }
 
 func (r *Runner) Load(ctx context.Context, i *installation.Installation, kind Kind, variables, profiles []string) (*types.Project, error) {
@@ -225,4 +232,76 @@ func (r *Runner) Start(ctx context.Context, project *types.Project, services []s
 		return err
 	}
 	return r.service.Start(ctx, project.Name, api.StartOptions{Project: selected})
+}
+
+func (r *Runner) Pull(ctx context.Context, project *types.Project) error {
+	return r.service.Pull(ctx, project, api.PullOptions{})
+}
+
+func (r *Runner) Recreate(ctx context.Context, project *types.Project, services []string) error {
+	selected, err := project.WithSelectedServices(services, types.IgnoreDependencies)
+	if err != nil {
+		return err
+	}
+	return r.service.Up(ctx, selected, api.UpOptions{
+		Create: api.CreateOptions{Services: services, Recreate: api.RecreateForce, RecreateDependencies: api.RecreateNever, Inherit: true},
+		Start:  api.StartOptions{Project: selected, Services: services},
+	})
+}
+
+func (r *Runner) Detached(ctx context.Context, project *types.Project, from string, dependents []string) ([]string, error) {
+	summaries, err := r.service.Ps(ctx, project.Name, api.PsOptions{Project: project, All: true})
+	if err != nil {
+		return nil, err
+	}
+	ids := map[string]string{}
+	for _, summary := range summaries {
+		if summary.Service != from || summary.State == container.StateRunning {
+			ids[summary.Service] = summary.ID
+		}
+	}
+	hub, running := ids[from]
+	if !running {
+		return nil, nil
+	}
+	var detached []string
+	for _, dependent := range dependents {
+		if _, inProject := project.Services[dependent]; !inProject {
+			continue
+		}
+		attached, err := r.attachedTo(ctx, ids[dependent], hub)
+		if err != nil {
+			return nil, err
+		}
+		if !attached {
+			detached = append(detached, dependent)
+		}
+	}
+	return detached, nil
+}
+
+func (r *Runner) attachedTo(ctx context.Context, id, hub string) (bool, error) {
+	if id == "" {
+		return false, nil
+	}
+	inspected, err := r.inspect.ContainerInspect(ctx, id, client.ContainerInspectOptions{})
+	if err != nil {
+		return false, err
+	}
+	return inspected.Container.HostConfig != nil && string(inspected.Container.HostConfig.NetworkMode) == "container:"+hub, nil
+}
+
+func BindSources(project *types.Project, under string) []string {
+	found := map[string]bool{}
+	prefix := strings.TrimRight(under, "/") + "/"
+	for _, service := range project.Services {
+		for _, volume := range service.Volumes {
+			if volume.Type == types.VolumeTypeBind && strings.HasPrefix(volume.Source, prefix) {
+				found[volume.Source] = true
+			}
+		}
+	}
+	sources := slices.Collect(maps.Keys(found))
+	slices.Sort(sources)
+	return sources
 }

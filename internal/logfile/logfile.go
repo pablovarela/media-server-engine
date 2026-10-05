@@ -33,6 +33,8 @@ func New(o Options) *File {
 	return &File{options: o, command: "mse"}
 }
 
+func (f *File) RunID() string { return f.options.RunID }
+
 func (f *File) SetCommand(name string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

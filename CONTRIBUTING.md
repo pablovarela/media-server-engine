@@ -42,4 +42,4 @@ Releases are tags on `main`, `vMAJOR.MINOR.PATCH`. The major version is also the
 2. The `release` workflow checks that the tag's major is the `config:` in `config-template/config.yml`, then builds `mse` with GoReleaser and publishes the GitHub release with the archives, `checksums.txt` and `install.sh`.
 3. Replace the release's body with notes that say what changes for an installation and whether its config needs anything: `gh release edit v0.9.0 --notes-file notes.md`.
 
-Each installation's config gets a Renovate pull request for the new `ENGINE_VERSION`; merging it is the upgrade (see [docs/UPGRADING.md](docs/UPGRADING.md)).
+An installation picks up the release with `mse update`, which takes the newest release of its major version.

@@ -53,7 +53,7 @@ SOPS decrypts it into your editor and encrypts it again when you save. It needs 
 |---|---|
 | `secrets/vpn.sops.env` | `VPN_SERVICE_PROVIDER`, `OPENVPN_USER`, `OPENVPN_PASSWORD`, `SERVER_COUNTRIES`. Any other gluetun setting can be added here too; `make configure` keeps keys it does not manage. |
 | `secrets/backup.sops.env` | `RESTIC_PASSWORD`, and for B2 `B2_ACCOUNT_ID` and `B2_ACCOUNT_KEY`. |
-| `secrets/healthchecks.sops.env` | `HEALTHCHECKS_PING_KEY`, empty to turn the pings off. `HEALTHCHECKS_API_KEY` (optional): a read-only API key of the same healthchecks.io project, to show the checks' status on the landing page. `HEALTHCHECKS_MANAGE_KEY` (optional): a read-write API key of the same project; with it, `make update` sets up the checks' schedules and descriptions (see the engine's docs/BACKUP.md). |
+| `secrets/healthchecks.sops.env` | `HEALTHCHECKS_PING_KEY`, empty to turn the pings off. `HEALTHCHECKS_API_KEY` (optional): a read-only API key of the same healthchecks.io project, to show the checks' status on the landing page. `HEALTHCHECKS_MANAGE_KEY` (optional): a read-write API key of the same project; with it, `make update` and `mse apply` set up the checks' schedules and descriptions (see the engine's docs/BACKUP.md). |
 | `secrets/apps.sops.env` | `JELLYFIN_ADMIN_PASSWORD`, `DELUGE_WEB_PASSWORD`, `PORTAINER_ADMIN_PASSWORD` (at least 12 characters), and the internal `SONARR_API_KEY`, `RADARR_API_KEY` and `PROWLARR_API_KEY`. |
 
 The internal API keys connect the apps to each other. Change one with `make configure ROTATE=sonarr` (or `radarr`, `prowlarr`) rather than by hand, so every app that uses it is rewired.
@@ -70,4 +70,4 @@ git -C ~/<name>/config commit -am "What changed"
 
 For a config kept on GitHub, push the commit. Every machine of the installation applies it at its next daily update, or straight away with `make update` from `~/<name>`. For a local-only config, run `make update` from `~/<name>`.
 
-`make update` refuses to run while the config has changes that are not committed, and lists them.
+`make update` refuses to run while the config has changes that are not committed, and lists them. With `mse`, `mse update --apply` pulls the config and applies it, and `mse apply` applies the config as it is on disk, to try a change before committing it.

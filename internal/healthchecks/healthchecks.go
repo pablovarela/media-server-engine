@@ -18,7 +18,7 @@ var retryAfter = []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}
 
 func Slug(name, job, role, shortHost string) string {
 	slug := name + "-" + job
-	if job == "update" && role != "main" {
+	if job == updateJob && role != "main" {
 		slug += "-" + shortHost
 	}
 	return slug

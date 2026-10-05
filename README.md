@@ -53,7 +53,7 @@ From then on, run make from the installation, `cd ~/<name>` (its Makefile passes
 
 ## Installing mse
 
-`mse` is the engine's Go binary. It prints its version (`mse version`), updates itself (`mse update`), runs an installation's containers (`mse stack`, `mse monitoring`), draws its landing page (`mse homepage`), prints its addresses and logins (`mse urls`, `mse logins`), cleans up old images and executable downloads (`mse prune-stack-images`, `mse remove-executable-downloads`), and backs up and restores it (`mse backup`, `mse verify-backup`, `mse restore`, `mse backup-role`, `mse claim-backup-main`, `mse unlock-backup`). The Makefile runs the Python engine for everything else. It is built for Linux and macOS on amd64 and arm64, and installed from a GitHub release. The repository is private, so installing needs a token that can read it. Where gh is logged in:
+`mse` is the engine's Go binary. It prints its version (`mse version`), updates itself and the config (`mse update`), applies the config (`mse apply`), runs an installation's containers (`mse stack`, `mse monitoring`), draws its landing page (`mse homepage`), prints its addresses and logins (`mse urls`, `mse logins`), cleans up old images and executable downloads (`mse prune-stack-images`, `mse remove-executable-downloads`), and backs up and restores it (`mse backup`, `mse verify-backup`, `mse restore`, `mse backup-role`, `mse claim-backup-main`, `mse unlock-backup`). The Makefile runs the Python engine for everything else. It is built for Linux and macOS on amd64 and arm64, and installed from a GitHub release. The repository is private, so installing needs a token that can read it. Where gh is logged in:
 
     curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
       https://raw.githubusercontent.com/pablovarela/media-server-engine/main/install.sh | sh
@@ -66,7 +66,9 @@ Elsewhere, such as a Raspberry Pi without gh, export a token (a fine-grained tok
 
 `install.sh` takes the token from `GITHUB_TOKEN`, or from `gh auth token` when gh is installed. It installs the latest release into `~/.local/bin`. Settings for `install.sh` go on its side of the pipe: `… | MSE_VERSION=v0.7.0 sh` picks a release, and `MSE_INSTALL_DIR` another directory. It checks the archive against the release's `checksums.txt` before installing, and leaves the installed `mse` in place when the download or the check fails.
 
-`mse update` replaces the installed `mse` with the newest release of its major version, after checking it against `checksums.txt` and running it once; it takes the token the same way as `install.sh`. A newer major version can need config changes, so `mse update` only says it is available; `mse update --force` installs it.
+`mse update` fast-forwards the config from its remote, then replaces the installed `mse` with the newest release of its major version, after checking it against `checksums.txt` and running it once; it takes the token the same way as `install.sh`. It refuses to run while the config has changes that are not committed. A newer major version can need config changes, so `mse update` only says it is available; `mse update --force` installs it.
+
+`mse apply` applies the config on disk to the machine, uncommitted changes included: it writes the secrets, draws the landing page, sets up the healthchecks.io checks (under systemd, with `HEALTHCHECKS_MANAGE_KEY`), pulls the stack's images (trying again when a registry limits requests), starts the stack, puts Prowlarr, FlareSolverr and Deluge back on gluetun's network if they lost it, reloads Homepage and removes outdated images. A failed pull stops it before anything restarts. `mse update --apply` does both: it waits for a running backup, updates, then applies with the updated `mse`, and reports to healthchecks.io as the update check; it is what the nightly timer will run.
 
 From a clone, `make go-build` builds `dist/mse` for the machine it runs on.
 

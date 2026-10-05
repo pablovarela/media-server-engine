@@ -105,25 +105,21 @@ func (d Dependencies) backups(cmd *cobra.Command, needs backupNeeds) (*backup.Ba
 	if err != nil {
 		return nil, err
 	}
-	role := i.Role()
 	tool := report.From(cmd.Context()).Tool("restic")
 	return &backup.Backups{
 		Installation:       i,
 		Repository:         resticFor(d.Run(tool, tool), repository, tool),
 		RepositoryLocation: repository["RESTIC_REPOSITORY"],
 		Stack:              stack,
-		Pinger: &healthchecks.Pings{
-			Client: d.HTTP, URL: healthchecks.PingURL, Key: pingKey(i), Sleep: d.Sleep, ErrOut: cmd.ErrOrStderr(),
-			Slug: func(job string) string { return healthchecks.Slug(i.Name, job, role, short) },
-		},
-		MachineID:   machine,
-		ShortHost:   short,
-		ExcludeFile: excludes,
-		TempDir:     tempDir(d.Environment),
-		Now:         d.Now,
-		Ask:         d.asker(cmd),
-		Shield:      shieldSignals,
-		Report:      report.From(cmd.Context()),
+		Pinger:             d.pinger(cmd, i),
+		MachineID:          machine,
+		ShortHost:          short,
+		ExcludeFile:        excludes,
+		TempDir:            tempDir(d.Environment),
+		Now:                d.Now,
+		Ask:                d.asker(cmd),
+		Shield:             shieldSignals,
+		Report:             report.From(cmd.Context()),
 	}, nil
 }
 
@@ -175,9 +171,23 @@ func resticFor(runner commandRunner, repository map[string]string, tool io.Write
 	return restic.Restic{Runner: runner, Env: env, Log: tool}
 }
 
-func pingKey(i *installation.Installation) string {
+func (d Dependencies) pinger(cmd *cobra.Command, i *installation.Installation) *healthchecks.Pings {
+	short, role := d.shortHost(), i.Role()
+	return &healthchecks.Pings{
+		Client: d.HTTP, URL: healthchecks.PingURL, Key: healthchecksKey(i, "HEALTHCHECKS_PING_KEY"), Sleep: d.Sleep, ErrOut: cmd.ErrOrStderr(),
+		Slug: func(job string) string { return healthchecks.Slug(i.Name, job, role, short) },
+	}
+}
+
+func (d Dependencies) shortHost() string {
+	hostname, _ := d.Host.Hostname()
+	short, _, _ := strings.Cut(hostname, ".")
+	return short
+}
+
+func healthchecksKey(i *installation.Installation, name string) string {
 	text, _ := os.ReadFile(filepath.Join(i.State, ".secrets", "healthchecks.env")) //nolint:gosec // the installation's decrypted healthchecks keys
-	return secrets.Dotenv(text)["HEALTHCHECKS_PING_KEY"]
+	return secrets.Dotenv(text)[name]
 }
 
 func tempDir(getenv func(string) string) string {

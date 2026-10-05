@@ -1,0 +1,241 @@
+package cmd
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"testing/fstest"
+	"time"
+
+	"github.com/compose-spec/compose-go/v2/types"
+	"github.com/moby/moby/client"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
+	"github.com/pablovarela/media-server-engine/internal/compose"
+	"github.com/pablovarela/media-server-engine/internal/images"
+	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/process"
+)
+
+type noImages struct{}
+
+func (noImages) ImageList(context.Context, client.ImageListOptions) (client.ImageListResult, error) {
+	return client.ImageListResult{}, nil
+}
+
+func (noImages) ImageRemove(context.Context, string, client.ImageRemoveOptions) (client.ImageRemoveResult, error) {
+	return client.ImageRemoveResult{}, nil
+}
+
+type applyFixture struct {
+	home     string
+	data     string
+	composer *mockComposeRunner
+	runner   *mockCommandRunner
+	project  *types.Project
+	requests *[]string
+}
+
+func newApplyFixture(t *testing.T) applyFixture {
+	t.Helper()
+	_, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\nRESTIC_REPOSITORY=b2:bucket\n"})
+	config := filepath.Join(home, ".config", "mse", "gorgon")
+	require.NoError(t, os.WriteFile(filepath.Join(config, "secrets", "healthchecks.sops.env"), nil, 0o644))
+	data := filepath.Join(home, ".local", "share", "mse", "gorgon")
+	require.NoError(t, os.MkdirAll(data, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(data, ".backup-main"), nil, 0o644))
+	return applyFixture{
+		home: home, data: data,
+		composer: newMockComposeRunner(t), runner: newMockCommandRunner(t),
+		project:  &types.Project{Name: "media-server", Services: types.Services{"gluetun": {Name: "gluetun"}}},
+		requests: &[]string{},
+	}
+}
+
+func (f applyFixture) deps(t *testing.T, systemd bool) Dependencies {
+	t.Helper()
+	return Dependencies{
+		Environment: func(key string) string {
+			if key == "USER" {
+				return "pablo"
+			}
+			return ""
+		},
+		Home: f.home, Update: newMockUpdater(t),
+		Decrypt: func(string) ([]byte, error) {
+			return []byte("HEALTHCHECKS_PING_KEY=ping-key\nHEALTHCHECKS_MANAGE_KEY=manage-key\n"), nil
+		},
+		Host: installation.Host{GOOS: "linux", Hostname: func() (string, error) { return "gorgon.local", nil }},
+		Engine: fstest.MapFS{
+			"docker-compose.yml":            {Data: []byte("services: {}\n")},
+			"docker-compose.monitoring.yml": {Data: []byte("services: {}\n")},
+			"grafana/datasource.yml":        {Data: []byte("# fixture\n")},
+			"prometheus/prometheus.yml":     {Data: []byte("# fixture\n")},
+			"homepage/settings.yaml":        {Data: []byte("title: gorgon\n")},
+			"homepage/services.yaml":        {Data: []byte("[]\n")},
+			"homepage/widgets.yaml":         {Data: []byte("[]\n")},
+			"homepage/bookmarks.yaml":       {Data: []byte("[]\n")},
+			"homepage/custom.css":           {Data: []byte("")},
+		},
+		Compose: func(io.Writer, *compose.Outcomes) (composeRunner, error) { return f.composer, nil },
+		Run:     func(_, _ io.Writer) commandRunner { return f.runner },
+		Images:  func() (images.Client, error) { return noImages{}, nil },
+		HTTP: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			*f.requests = append(*f.requests, r.Method+" "+r.URL.Path)
+			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("{}"))}, nil
+		})},
+		Systemd:   func() bool { return systemd },
+		LocalTime: filepath.Join(t.TempDir(), "localtime"),
+		Now:       func() time.Time { return time.Date(2026, 10, 6, 5, 0, 0, 0, time.UTC) },
+		Sleep:     func(time.Duration) { t.Fatal("nothing needs a retry") },
+	}
+}
+
+func (f applyFixture) expectApply(pullErr error) {
+	f.composer.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, []string{"homepage"}).Return(f.project, nil)
+	f.composer.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, []string{"homepage", "wiring"}).Return(f.project, nil)
+	f.composer.EXPECT().Pull(mock.Anything, f.project).Return(pullErr)
+	if pullErr != nil {
+		return
+	}
+	f.composer.EXPECT().Up(mock.Anything, f.project, []string(nil), compose.NoWait).Return(nil)
+	f.composer.EXPECT().Detached(mock.Anything, f.project, "gluetun", gluetunDependents).Return(nil, nil)
+	f.composer.EXPECT().Ps(mock.Anything, f.project).Return(nil, nil)
+}
+
+func TestApplyCommand(t *testing.T) {
+	type Given struct {
+		systemd bool
+		pullErr error
+	}
+	type Then struct {
+		code     int
+		requests []string
+		stdout   []string
+	}
+	tests := map[string]struct {
+		Given Given
+		When  []string
+		Then  Then
+	}{
+		"applies and sets up the checks under systemd": {
+			Given: Given{systemd: true},
+			When:  []string{"apply"},
+			Then: Then{
+				requests: []string{"POST /api/v3/checks/", "POST /api/v3/checks/", "POST /api/v3/checks/"},
+				stdout: []string{
+					"Setting up the Healthchecks checks... gorgon-backup, gorgon-verify, gorgon-update.\n",
+					"Pulling images...", "Starting the stack...", "Reattaching to gluetun... nothing to reattach.\n",
+					"Reloading Homepage... not running.\n", "Removing outdated images...",
+				},
+			},
+		},
+		"no checks and no pings without systemd": {
+			When: []string{"apply"},
+			Then: Then{stdout: []string{"Pulling images..."}},
+		},
+		"after an update it reports success": {
+			When: []string{"apply", "--after-update=a1b2c3", "--installation", "gorgon", "--verbose"},
+			Then: Then{requests: []string{"GET /ping-key/gorgon-update"}},
+		},
+		"after an update a failure reports fail": {
+			Given: Given{pullErr: errors.New("manifest unknown")},
+			When:  []string{"apply", "--after-update=a1b2c3"},
+			Then:  Then{code: 1, requests: []string{"GET /ping-key/gorgon-update/fail"}},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			f := newApplyFixture(t)
+			f.expectApply(tt.Given.pullErr)
+			if tt.Given.systemd {
+				f.runner.EXPECT().Output(mock.Anything, process.Command{Name: "timedatectl", Args: []string{"show", "-p", "Timezone", "--value"}}).
+					Return(process.Result{Stdout: []byte("Europe/London\n")}, nil)
+			}
+			root := NewRootCommand(f.deps(t, tt.Given.systemd))
+			var stdout, stderr bytes.Buffer
+			root.SetOut(&stdout)
+			root.SetErr(&stderr)
+
+			code := run(context.Background(), root, tt.When)
+
+			assert.Equal(t, tt.Then.code, code, stderr.String())
+			assert.Equal(t, tt.Then.requests, append([]string(nil), *f.requests...))
+			for _, line := range tt.Then.stdout {
+				assert.Contains(t, stdout.String(), line)
+			}
+		})
+	}
+}
+
+func TestApplyCreatesTheDataFolders(t *testing.T) {
+	f := newApplyFixture(t)
+	jellyfin := filepath.Join(f.data, "volumes", "jellyfin")
+	f.project.Services["jellyfin"] = types.ServiceConfig{Name: "jellyfin", Volumes: []types.ServiceVolumeConfig{{Type: types.VolumeTypeBind, Source: jellyfin}}}
+	f.expectApply(nil)
+	root := NewRootCommand(f.deps(t, false))
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+
+	code := run(context.Background(), root, []string{"apply"})
+
+	require.Equal(t, 0, code, stderr.String())
+	assert.DirExists(t, jellyfin)
+}
+
+func TestApplyReattachesTheDetachedServices(t *testing.T) {
+	f := newApplyFixture(t)
+	f.composer.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, mock.Anything).Return(f.project, nil)
+	f.composer.EXPECT().Pull(mock.Anything, f.project).Return(nil)
+	f.composer.EXPECT().Up(mock.Anything, f.project, []string(nil), compose.NoWait).Return(nil)
+	f.composer.EXPECT().Detached(mock.Anything, f.project, "gluetun", gluetunDependents).Return([]string{"deluge"}, nil)
+	f.composer.EXPECT().Recreate(mock.Anything, f.project, []string{"deluge"}).Return(nil)
+	f.composer.EXPECT().Ps(mock.Anything, f.project).Return(nil, nil)
+	root := NewRootCommand(f.deps(t, false))
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+
+	code := run(context.Background(), root, []string{"apply"})
+
+	require.Equal(t, 0, code, stderr.String())
+	assert.Contains(t, stdout.String(), "Reattaching to gluetun... recreated deluge.\n")
+}
+
+func TestApplyAfterAnUpdateReportsFailWhenTheConfigNeedsAnotherMajor(t *testing.T) {
+	f := newApplyFixture(t)
+	writeHealthchecksKeys(t, f)
+	require.NoError(t, os.WriteFile(filepath.Join(f.home, ".config", "mse", "gorgon", "config.yml"), []byte("config: 1\n"), 0o644))
+	root := NewRootCommand(f.deps(t, false))
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+
+	code := run(context.Background(), root, []string{"apply", "--after-update=a1b2c3"})
+
+	assert.Equal(t, 1, code)
+	assert.Equal(t, []string{"GET /ping-key/gorgon-update/fail"}, *f.requests)
+}
+
+func TestApplyRefusesARunIDThatIsNotOne(t *testing.T) {
+	f := newApplyFixture(t)
+	root := NewRootCommand(f.deps(t, false))
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+
+	code := run(context.Background(), root, []string{"apply", "--after-update=foo"})
+
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stderr.String(), "--after-update takes the run id of the update that handed over, six hex digits")
+	assert.Empty(t, *f.requests)
+}

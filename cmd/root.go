@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -46,7 +47,11 @@ type Dependencies struct {
 	MachineIDFile string
 	Now           func() time.Time
 	Sleep         func(time.Duration)
+	Pause         func(ctx context.Context, d time.Duration) error
 	Interactive   func() bool
+	Systemd       func() bool
+	LocalTime     string
+	Exec          func(path string, args []string) error
 }
 
 func NewRootCommand(deps Dependencies) *cobra.Command {
@@ -67,7 +72,8 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 	}
 	root.AddCommand(
 		newVersionCommand(deps.Build),
-		newUpdateCommand(deps.Build, deps.Update),
+		newUpdateCommand(deps),
+		newApplyCommand(deps),
 		newURLsCommand(deps),
 		newLoginsCommand(deps),
 		newHomepageCommand(deps),
@@ -107,10 +113,25 @@ func Execute(engine fs.FS) int {
 		MachineIDFile: "/etc/machine-id",
 		Now:           time.Now,
 		Sleep:         time.Sleep,
+		Pause:         pause,
 		Interactive:   func() bool { return term.IsTerminal(int(os.Stdin.Fd())) }, //nolint:gosec // a file descriptor fits in an int
+		Systemd:       func() bool { _, err := os.Stat("/run/systemd/system"); return err == nil },
+		LocalTime:     "/etc/localtime",
+		Exec:          func(path string, args []string) error { return syscall.Exec(path, args, os.Environ()) }, //nolint:gosec // runs the mse release it just installed
 	}
 	globalLogs := filepath.Join(installation.BasesFrom(os.Getenv, home).State, "mse")
 	return runLogged(ctx, NewRootCommand(deps), os.Args[1:], globalLogs)
+}
+
+func pause(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 var endingSignals = []os.Signal{os.Interrupt, syscall.SIGTERM, syscall.SIGHUP}
@@ -136,7 +157,7 @@ func run(ctx context.Context, root *cobra.Command, args []string) int {
 
 func runLogged(ctx context.Context, root *cobra.Command, args []string, globalLogs string) int {
 	started := time.Now()
-	log := logfile.New(logfile.Options{Limit: 10 << 20, Keep: 5, RunID: runID(), Now: time.Now, Warn: root.ErrOrStderr()})
+	log := logfile.New(logfile.Options{Limit: 10 << 20, Keep: 5, RunID: runIDFrom(args), Now: time.Now, Warn: root.ErrOrStderr()})
 	defer log.Close()
 	reporter := report.New(root.OutOrStdout(), root.ErrOrStderr(), log)
 	root.SetOut(reporter.Stdout())
@@ -158,6 +179,24 @@ func runLogged(ctx context.Context, root *cobra.Command, args []string, globalLo
 		log.Open(globalLogs)
 	}
 	return code
+}
+
+var afterUpdateRunID = regexp.MustCompile(`^--after-update=([0-9a-f]{6})$`)
+
+func runIDFrom(args []string) string {
+	for _, arg := range args {
+		if found := afterUpdateRunID.FindStringSubmatch(arg); found != nil {
+			return found[1]
+		}
+	}
+	return runID()
+}
+
+func runIDOf(ctx context.Context) string {
+	if log, ok := ctx.Value(logKey{}).(*logfile.File); ok {
+		return log.RunID()
+	}
+	return runID()
 }
 
 func runID() string {

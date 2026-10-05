@@ -287,6 +287,86 @@ func (_c *mockComposeRunner_AnyRunning_Call) RunAndReturn(run func(ctx context.C
 	return _c
 }
 
+// Detached provides a mock function for the type mockComposeRunner
+func (_mock *mockComposeRunner) Detached(ctx context.Context, project *types.Project, from string, dependents []string) ([]string, error) {
+	ret := _mock.Called(ctx, project, from, dependents)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Detached")
+	}
+
+	var r0 []string
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project, string, []string) ([]string, error)); ok {
+		return returnFunc(ctx, project, from, dependents)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project, string, []string) []string); ok {
+		r0 = returnFunc(ctx, project, from, dependents)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]string)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *types.Project, string, []string) error); ok {
+		r1 = returnFunc(ctx, project, from, dependents)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// mockComposeRunner_Detached_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Detached'
+type mockComposeRunner_Detached_Call struct {
+	*mock.Call
+}
+
+// Detached is a helper method to define mock.On call
+//   - ctx context.Context
+//   - project *types.Project
+//   - from string
+//   - dependents []string
+func (_e *mockComposeRunner_Expecter) Detached(ctx any, project any, from any, dependents any) *mockComposeRunner_Detached_Call {
+	return &mockComposeRunner_Detached_Call{Call: _e.mock.On("Detached", ctx, project, from, dependents)}
+}
+
+func (_c *mockComposeRunner_Detached_Call) Run(run func(ctx context.Context, project *types.Project, from string, dependents []string)) *mockComposeRunner_Detached_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *types.Project
+		if args[1] != nil {
+			arg1 = args[1].(*types.Project)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		var arg3 []string
+		if args[3] != nil {
+			arg3 = args[3].([]string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *mockComposeRunner_Detached_Call) Return(strings []string, err error) *mockComposeRunner_Detached_Call {
+	_c.Call.Return(strings, err)
+	return _c
+}
+
+func (_c *mockComposeRunner_Detached_Call) RunAndReturn(run func(ctx context.Context, project *types.Project, from string, dependents []string) ([]string, error)) *mockComposeRunner_Detached_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Down provides a mock function for the type mockComposeRunner
 func (_mock *mockComposeRunner) Down(ctx context.Context, project *types.Project) error {
 	ret := _mock.Called(ctx, project)
@@ -563,6 +643,126 @@ func (_c *mockComposeRunner_Ps_Call) Return(containers []compose.Container, err 
 }
 
 func (_c *mockComposeRunner_Ps_Call) RunAndReturn(run func(ctx context.Context, project *types.Project) ([]compose.Container, error)) *mockComposeRunner_Ps_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Pull provides a mock function for the type mockComposeRunner
+func (_mock *mockComposeRunner) Pull(ctx context.Context, project *types.Project) error {
+	ret := _mock.Called(ctx, project)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Pull")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project) error); ok {
+		r0 = returnFunc(ctx, project)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// mockComposeRunner_Pull_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Pull'
+type mockComposeRunner_Pull_Call struct {
+	*mock.Call
+}
+
+// Pull is a helper method to define mock.On call
+//   - ctx context.Context
+//   - project *types.Project
+func (_e *mockComposeRunner_Expecter) Pull(ctx any, project any) *mockComposeRunner_Pull_Call {
+	return &mockComposeRunner_Pull_Call{Call: _e.mock.On("Pull", ctx, project)}
+}
+
+func (_c *mockComposeRunner_Pull_Call) Run(run func(ctx context.Context, project *types.Project)) *mockComposeRunner_Pull_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *types.Project
+		if args[1] != nil {
+			arg1 = args[1].(*types.Project)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *mockComposeRunner_Pull_Call) Return(err error) *mockComposeRunner_Pull_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *mockComposeRunner_Pull_Call) RunAndReturn(run func(ctx context.Context, project *types.Project) error) *mockComposeRunner_Pull_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Recreate provides a mock function for the type mockComposeRunner
+func (_mock *mockComposeRunner) Recreate(ctx context.Context, project *types.Project, services []string) error {
+	ret := _mock.Called(ctx, project, services)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Recreate")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project, []string) error); ok {
+		r0 = returnFunc(ctx, project, services)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// mockComposeRunner_Recreate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Recreate'
+type mockComposeRunner_Recreate_Call struct {
+	*mock.Call
+}
+
+// Recreate is a helper method to define mock.On call
+//   - ctx context.Context
+//   - project *types.Project
+//   - services []string
+func (_e *mockComposeRunner_Expecter) Recreate(ctx any, project any, services any) *mockComposeRunner_Recreate_Call {
+	return &mockComposeRunner_Recreate_Call{Call: _e.mock.On("Recreate", ctx, project, services)}
+}
+
+func (_c *mockComposeRunner_Recreate_Call) Run(run func(ctx context.Context, project *types.Project, services []string)) *mockComposeRunner_Recreate_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *types.Project
+		if args[1] != nil {
+			arg1 = args[1].(*types.Project)
+		}
+		var arg2 []string
+		if args[2] != nil {
+			arg2 = args[2].([]string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *mockComposeRunner_Recreate_Call) Return(err error) *mockComposeRunner_Recreate_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *mockComposeRunner_Recreate_Call) RunAndReturn(run func(ctx context.Context, project *types.Project, services []string) error) *mockComposeRunner_Recreate_Call {
 	_c.Call.Return(run)
 	return _c
 }

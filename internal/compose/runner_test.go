@@ -9,6 +9,7 @@ import (
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/compose/v5/pkg/api"
 	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -180,5 +181,109 @@ func TestStoppingAndStarting(t *testing.T) {
 		})).Return(nil)
 
 		require.NoError(t, (&Runner{service: service}).Start(ctx, full, []string{"sonarr"}))
+	})
+}
+
+func TestDetached(t *testing.T) {
+	ctx := context.Background()
+	project := &types.Project{Name: "media-server", Services: types.Services{
+		"gluetun": {Name: "gluetun"}, "deluge": {Name: "deluge"}, "prowlarr": {Name: "prowlarr"}, "flaresolverr": {Name: "flaresolverr"},
+	}}
+	dependents := []string{"prowlarr", "flaresolverr", "deluge", "not-in-project"}
+
+	type Given struct {
+		containers []api.ContainerSummary
+		modes      map[string]string
+	}
+	tests := map[string]struct {
+		Given Given
+		Then  []string
+	}{
+		"all attached": {
+			Given: Given{
+				containers: []api.ContainerSummary{
+					{ID: "g1", Service: "gluetun", State: container.StateRunning},
+					{ID: "p1", Service: "prowlarr", State: container.StateRunning},
+					{ID: "f1", Service: "flaresolverr", State: container.StateRunning},
+					{ID: "d1", Service: "deluge", State: container.StateRunning},
+				},
+				modes: map[string]string{"p1": "container:g1", "f1": "container:g1", "d1": "container:g1"},
+			},
+		},
+		"one on an old gluetun and one missing": {
+			Given: Given{
+				containers: []api.ContainerSummary{
+					{ID: "g2", Service: "gluetun", State: container.StateRunning},
+					{ID: "p1", Service: "prowlarr", State: container.StateRunning},
+					{ID: "d1", Service: "deluge", State: container.StateRunning},
+				},
+				modes: map[string]string{"p1": "container:g2", "d1": "container:g1"},
+			},
+			Then: []string{"flaresolverr", "deluge"},
+		},
+		"gluetun not running": {
+			Given: Given{containers: []api.ContainerSummary{{ID: "g1", Service: "gluetun", State: container.StateExited}}},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			service := newMockService(t)
+			service.EXPECT().Ps(ctx, "media-server", api.PsOptions{Project: project, All: true}).Return(tt.Given.containers, nil)
+			inspect := newMockInspector(t)
+			for id, mode := range tt.Given.modes {
+				result := client.ContainerInspectResult{}
+				result.Container.HostConfig = &container.HostConfig{NetworkMode: container.NetworkMode(mode)}
+				inspect.EXPECT().ContainerInspect(ctx, id, client.ContainerInspectOptions{}).Return(result, nil)
+			}
+
+			detached, err := (&Runner{service: service, inspect: inspect}).Detached(ctx, project, "gluetun", dependents)
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.Then, detached)
+		})
+	}
+}
+
+func TestBindSources(t *testing.T) {
+	project := &types.Project{Services: types.Services{
+		"jellyfin": {Name: "jellyfin", Volumes: []types.ServiceVolumeConfig{
+			{Type: types.VolumeTypeBind, Source: "/data/mse/gorgon/volumes/jellyfin"},
+			{Type: types.VolumeTypeBind, Source: "/media/movies"},
+			{Type: types.VolumeTypeVolume, Source: "cache"},
+		}},
+		"sonarr": {Name: "sonarr", Volumes: []types.ServiceVolumeConfig{
+			{Type: types.VolumeTypeBind, Source: "/data/mse/gorgon/volumes/sonarr"},
+			{Type: types.VolumeTypeBind, Source: "/data/mse/gorgon/volumes/jellyfin"},
+		}},
+	}}
+
+	assert.Equal(t, []string{"/data/mse/gorgon/volumes/jellyfin", "/data/mse/gorgon/volumes/sonarr"}, BindSources(project, "/data/mse/gorgon"))
+}
+
+func TestPullAndRecreate(t *testing.T) {
+	project := &types.Project{Name: "media-server"}
+	ctx := context.Background()
+
+	t.Run("pull pulls the whole project", func(t *testing.T) {
+		service := newMockService(t)
+		service.EXPECT().Pull(ctx, project, api.PullOptions{}).Return(nil)
+
+		require.NoError(t, (&Runner{service: service}).Pull(ctx, project))
+	})
+
+	t.Run("recreate forces only the named services, without their dependencies", func(t *testing.T) {
+		full := &types.Project{Name: "media-server", Services: types.Services{
+			"gluetun": {Name: "gluetun", Image: "g"},
+			"deluge":  {Name: "deluge", Image: "d", NetworkMode: "service:gluetun", DependsOn: types.DependsOnConfig{"gluetun": {Condition: "service_started"}}},
+		}}
+		service := newMockService(t)
+		service.EXPECT().Up(ctx, mock.MatchedBy(func(p *types.Project) bool {
+			return assert.ObjectsAreEqual([]string{"deluge"}, p.ServiceNames())
+		}), mock.MatchedBy(func(o api.UpOptions) bool {
+			return o.Create.Recreate == api.RecreateForce && o.Create.RecreateDependencies == api.RecreateNever &&
+				assert.ObjectsAreEqual([]string{"deluge"}, o.Create.Services) && o.Create.Inherit
+		})).Return(nil)
+
+		require.NoError(t, (&Runner{service: service}).Recreate(ctx, full, []string{"deluge"}))
 	})
 }
