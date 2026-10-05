@@ -16,6 +16,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/homepage"
 	"github.com/pablovarela/media-server-engine/internal/installation"
 	"github.com/pablovarela/media-server-engine/internal/paint"
+	"github.com/pablovarela/media-server-engine/internal/report"
 )
 
 const homepageService = "homepage"
@@ -70,22 +71,31 @@ func (d Dependencies) applyPage(ctx context.Context, o opened) error {
 	if o.page == nil {
 		return nil
 	}
-	return reload(ctx, d, o.runner, o.project, o.installation.HomepagePort(), *o.page)
+	step := report.From(ctx).Step("Reloading Homepage")
+	result, err := reload(ctx, d, o.runner, o.project, o.installation.HomepagePort(), *o.page)
+	if err != nil {
+		return step.Fail(err)
+	}
+	if o.outcomes != nil {
+		o.outcomes.Take()
+	}
+	step.Done(result)
+	return nil
 }
 
-func reload(ctx context.Context, d Dependencies, runner composeRunner, project *types.Project, port string, changes pageChanges) error {
+func reload(ctx context.Context, d Dependencies, runner composeRunner, project *types.Project, port string, changes pageChanges) (string, error) {
 	containers, err := runner.Ps(ctx, project)
 	if err != nil || !slices.ContainsFunc(containers, func(c compose.Container) bool { return c.Name == homepageService && c.State == "running" }) {
-		return nil
+		return "not running", nil
 	}
 	switch {
 	case changes.env:
-		return runner.Up(ctx, project, []string{homepageService}, compose.NoWait)
+		return "recreated", runner.Up(ctx, project, []string{homepageService}, compose.NoWait)
 	case changes.images:
-		return runner.Restart(ctx, project, []string{homepageService})
+		return "restarted", runner.Restart(ctx, project, []string{homepageService})
 	}
 	revalidate(ctx, d.HTTP, "http://localhost:"+port+"/api/revalidate")
-	return nil
+	return "asked it to revalidate", nil
 }
 
 func revalidate(ctx context.Context, client *http.Client, url string) {

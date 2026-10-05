@@ -63,7 +63,7 @@ func backupDependencies(t *testing.T, home, tmp string, runner commandRunner, co
 			"prometheus/prometheus.yml":     {Data: []byte("# fixture\n")},
 			"scripts/backup-excludes.txt":   {Data: []byte("logs\n")},
 		},
-		Compose: func(_, _ io.Writer) (composeRunner, error) { return composer, nil },
+		Compose: func(io.Writer, *compose.Outcomes) (composeRunner, error) { return composer, nil },
 		Run:     func(_, _ io.Writer) commandRunner { return runner },
 		HTTP: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 			*pings = append(*pings, r.URL.Path)

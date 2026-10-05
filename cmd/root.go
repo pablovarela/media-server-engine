@@ -39,7 +39,7 @@ type Dependencies struct {
 	Home          string
 	Host          installation.Host
 	Decrypt       secrets.Decrypter
-	Compose       func(out, errOut io.Writer) (composeRunner, error)
+	Compose       func(tool io.Writer, outcomes *compose.Outcomes) (composeRunner, error)
 	HTTP          *http.Client
 	Images        func() (images.Client, error)
 	Run           func(out, errOut io.Writer) commandRunner
@@ -98,8 +98,8 @@ func Execute(engine fs.FS) int {
 		Home:        home,
 		Host:        installation.SystemHost(),
 		Decrypt:     secrets.Sops(installation.BasesFrom(os.Getenv, home).Config),
-		Compose: func(out, errOut io.Writer) (composeRunner, error) {
-			return compose.NewRunner(out, errOut)
+		Compose: func(tool io.Writer, outcomes *compose.Outcomes) (composeRunner, error) {
+			return compose.NewRunner(tool, outcomes)
 		},
 		HTTP:          &http.Client{Timeout: 30 * time.Second},
 		Images:        images.NewDocker,

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"slices"
@@ -14,6 +15,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/compose"
 	"github.com/pablovarela/media-server-engine/internal/installation"
 	"github.com/pablovarela/media-server-engine/internal/paint"
+	"github.com/pablovarela/media-server-engine/internal/report"
 	"github.com/pablovarela/media-server-engine/internal/secrets"
 )
 
@@ -46,6 +48,7 @@ type opened struct {
 	runner       composeRunner
 	project      *types.Project
 	page         *pageChanges
+	outcomes     *compose.Outcomes
 }
 
 func (d Dependencies) openProject(cmd *cobra.Command, kind compose.Kind, draw drawing) (opened, error) {
@@ -71,27 +74,52 @@ func (d Dependencies) openProject(cmd *cobra.Command, kind compose.Kind, draw dr
 	if err != nil {
 		return opened{}, err
 	}
-	runner, err := d.Compose(cmd.OutOrStdout(), cmd.ErrOrStderr())
+	outcomes := &compose.Outcomes{}
+	runner, err := d.Compose(report.From(cmd.Context()).Tool("compose"), outcomes)
 	if err != nil {
 		return opened{}, err
 	}
 	project, err := runner.Load(cmd.Context(), i, kind, compose.Variables(i, network, compose.DockerGID()), profiles)
-	return opened{installation: i, network: network, runner: runner, project: project, page: page}, err
+	return opened{installation: i, network: network, runner: runner, project: project, page: page, outcomes: outcomes}, err
 }
 
 func (d Dependencies) drawPageFor(cmd *cobra.Command, i *installation.Installation, network string, profiles []string, draw drawing) (*pageChanges, error) {
 	if draw == noDrawing || (draw == drawingWhenPinned && !slices.Contains(profiles, homepageService)) {
 		return nil, nil
 	}
+	r := report.From(cmd.Context())
+	step := r.Step("Drawing the landing page")
 	changes, err := d.drawPage(cmd.Context(), i, network, cmd.ErrOrStderr())
 	switch {
 	case err == nil:
+		step.Done("done")
 		return &changes, nil
 	case draw == drawingAlways:
-		return nil, err
+		return nil, step.Fail(err)
 	}
-	_, _ = fmt.Fprintln(cmd.ErrOrStderr(), paint.Stderr.Warning(fmt.Sprintf("could not draw the landing page (%v); it keeps its previous files", err)))
+	step.Done("failed")
+	r.Warn(paint.Stderr.Warning(fmt.Sprintf("could not draw the landing page (%v); it keeps its previous files", err)))
 	return nil, nil
+}
+
+func composeStep(cmd *cobra.Command, o opened, title string, do func() error) error {
+	step := report.From(cmd.Context()).Step(title)
+	if err := do(); err != nil {
+		return step.Fail(err)
+	}
+	outcome := o.outcomes.Take()
+	if len(outcome.Failed) > 0 {
+		return step.Fail(errors.New(strings.Join(outcome.Failed, "; ")))
+	}
+	step.Done(outcome.String())
+	return nil
+}
+
+func titled(verb string, kind compose.Kind, services []string) string {
+	if len(services) > 0 {
+		return verb + " " + strings.Join(services, ", ")
+	}
+	return verb + " " + kind.Title()
 }
 
 func newProjectCommand(deps Dependencies, use, short string, kind compose.Kind) *cobra.Command {
@@ -106,12 +134,12 @@ func newProjectCommand(deps Dependencies, use, short string, kind compose.Kind) 
 		}}
 	}
 	command.AddCommand(
-		upCommand(deps, use, operation),
+		upCommand(deps, use, kind, operation),
 		operation("down", "Stop and remove the containers", cobra.NoArgs, noDrawing, func(cmd *cobra.Command, o opened, _ []string) error {
-			return o.runner.Down(cmd.Context(), o.project)
+			return composeStep(cmd, o, titled("Stopping", kind, nil), func() error { return o.runner.Down(cmd.Context(), o.project) })
 		}),
 		operation("restart [service...]", "Restart the containers", cobra.ArbitraryArgs, drawingWhenPinned, func(cmd *cobra.Command, o opened, args []string) error {
-			if err := o.runner.Restart(cmd.Context(), o.project, args); err != nil {
+			if err := composeStep(cmd, o, titled("Restarting", kind, args), func() error { return o.runner.Restart(cmd.Context(), o.project, args) }); err != nil {
 				return err
 			}
 			return deps.applyPage(cmd.Context(), o)
@@ -128,7 +156,7 @@ func newProjectCommand(deps Dependencies, use, short string, kind compose.Kind) 
 	return command
 }
 
-func upCommand(deps Dependencies, parent string, operation func(use, short string, args cobra.PositionalArgs, draw drawing, do projectOperation) *cobra.Command) *cobra.Command {
+func upCommand(deps Dependencies, parent string, kind compose.Kind, operation func(use, short string, args cobra.PositionalArgs, draw drawing, do projectOperation) *cobra.Command) *cobra.Command {
 	var wait bool
 	var timeout time.Duration
 	command := operation("up [service...]", "Create and start the containers", cobra.ArbitraryArgs, drawingWhenPinned, func(cmd *cobra.Command, o opened, args []string) error {
@@ -136,7 +164,7 @@ func upCommand(deps Dependencies, parent string, operation func(use, short strin
 		if wait {
 			waiting = compose.Wait{Enabled: true, Timeout: timeout}
 		}
-		if err := o.runner.Up(cmd.Context(), o.project, args, waiting); err != nil {
+		if err := composeStep(cmd, o, titled("Starting", kind, args), func() error { return o.runner.Up(cmd.Context(), o.project, args, waiting) }); err != nil {
 			return err
 		}
 		return deps.applyPage(cmd.Context(), o)

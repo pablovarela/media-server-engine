@@ -45,7 +45,7 @@ func TestStackCommands(t *testing.T) {
 	}{
 		"stack up draws the page first": {
 			When: When{args: []string{"stack", "up"}},
-			Then: Then{expect: func(r *mockComposeRunner) {
+			Then: Then{stdout: "Drawing the landing page... done.\nStarting the stack... done.\nReloading Homepage... not running.\n", expect: func(r *mockComposeRunner) {
 				r.EXPECT().Up(mock.Anything, project, []string{}, compose.NoWait).Return(nil)
 				homepageStopped(r)
 			}, drawn: true},
@@ -53,7 +53,7 @@ func TestStackCommands(t *testing.T) {
 		"stack up starts the containers when the page cannot be drawn": {
 			Given: Given{configServices: "not: a list\n"},
 			When:  When{args: []string{"stack", "up"}},
-			Then: Then{
+			Then: Then{stdout: "Drawing the landing page... failed.\nStarting the stack... done.\n",
 				expect: func(r *mockComposeRunner) {
 					r.EXPECT().Up(mock.Anything, project, []string{}, compose.NoWait).Return(nil)
 				},
@@ -64,45 +64,45 @@ func TestStackCommands(t *testing.T) {
 		},
 		"monitoring up draws no page": {
 			When: When{args: []string{"monitoring", "up"}},
-			Then: Then{expect: func(r *mockComposeRunner) {
+			Then: Then{stdout: "Starting the monitoring stack... done.\n", expect: func(r *mockComposeRunner) {
 				r.EXPECT().Up(mock.Anything, project, []string{}, compose.NoWait).Return(nil)
 			}},
 		},
 		"stack up --wait": {
 			When: When{args: []string{"stack", "up", "--wait"}},
-			Then: Then{expect: func(r *mockComposeRunner) {
+			Then: Then{stdout: "Drawing the landing page... done.\nStarting the stack... done.\nReloading Homepage... not running.\n", expect: func(r *mockComposeRunner) {
 				r.EXPECT().Up(mock.Anything, project, []string{}, compose.Wait{Enabled: true, Timeout: 5 * time.Minute}).Return(nil)
 				homepageStopped(r)
 			}, drawn: true},
 		},
 		"stack up --wait-timeout": {
 			When: When{args: []string{"stack", "up", "--wait", "--wait-timeout", "2m"}},
-			Then: Then{expect: func(r *mockComposeRunner) {
+			Then: Then{stdout: "Drawing the landing page... done.\nStarting the stack... done.\nReloading Homepage... not running.\n", expect: func(r *mockComposeRunner) {
 				r.EXPECT().Up(mock.Anything, project, []string{}, compose.Wait{Enabled: true, Timeout: 2 * time.Minute}).Return(nil)
 				homepageStopped(r)
 			}, drawn: true},
 		},
 		"stack up with services": {
 			When: When{args: []string{"stack", "up", "jellyfin"}},
-			Then: Then{expect: func(r *mockComposeRunner) {
+			Then: Then{stdout: "Drawing the landing page... done.\nStarting jellyfin... done.\nReloading Homepage... not running.\n", expect: func(r *mockComposeRunner) {
 				r.EXPECT().Up(mock.Anything, project, []string{"jellyfin"}, compose.NoWait).Return(nil)
 				homepageStopped(r)
 			}, drawn: true},
 		},
 		"stack down": {
 			When: When{args: []string{"stack", "down"}},
-			Then: Then{expect: func(r *mockComposeRunner) { r.EXPECT().Down(mock.Anything, project).Return(nil) }},
+			Then: Then{stdout: "Stopping the stack... done.\n", expect: func(r *mockComposeRunner) { r.EXPECT().Down(mock.Anything, project).Return(nil) }},
 		},
 		"stack restart": {
 			When: When{args: []string{"stack", "restart", "homepage"}},
-			Then: Then{expect: func(r *mockComposeRunner) {
+			Then: Then{stdout: "Drawing the landing page... done.\nRestarting homepage... done.\nReloading Homepage... not running.\n", expect: func(r *mockComposeRunner) {
 				r.EXPECT().Restart(mock.Anything, project, []string{"homepage"}).Return(nil)
 				homepageStopped(r)
 			}, drawn: true},
 		},
 		"stack restart recreates homepage when its environment changed": {
 			When: When{args: []string{"stack", "restart"}},
-			Then: Then{expect: func(r *mockComposeRunner) {
+			Then: Then{stdout: "Drawing the landing page... done.\nRestarting the stack... done.\nReloading Homepage... recreated.\n", expect: func(r *mockComposeRunner) {
 				r.EXPECT().Restart(mock.Anything, project, []string{}).Return(nil)
 				r.EXPECT().Ps(mock.Anything, project).Return([]compose.Container{{Name: "homepage", State: "running"}}, nil)
 				r.EXPECT().Up(mock.Anything, project, []string{"homepage"}, compose.NoWait).Return(nil)
@@ -175,7 +175,7 @@ func TestStackCommands(t *testing.T) {
 					"homepage/custom.css":           {Data: []byte("")},
 				},
 				HTTP:    &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) { return nil, errors.New("no network in tests") })},
-				Compose: func(_, _ io.Writer) (composeRunner, error) { return runner, nil },
+				Compose: func(io.Writer, *compose.Outcomes) (composeRunner, error) { return runner, nil },
 			}
 			root := NewRootCommand(deps)
 			var stdout, stderr bytes.Buffer
