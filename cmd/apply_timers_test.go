@@ -17,16 +17,17 @@ import (
 )
 
 type timersFixture struct {
-	f           applyFixture
-	deps        Dependencies
-	units       string
-	mse         string
-	snapshots   process.Result
-	linger      string
-	token       string
-	environment map[string]string
-	systemctl   []string
-	tokenCall   []string
+	f              applyFixture
+	deps           Dependencies
+	units          string
+	mse            string
+	snapshots      process.Result
+	linger         string
+	token          string
+	environment    map[string]string
+	systemctl      []string
+	tokenCall      []string
+	systemctlFails string
 }
 
 func newTimersFixture(t *testing.T) *timersFixture {
@@ -56,7 +57,11 @@ func newTimersFixture(t *testing.T) *timersFixture {
 		case "restic":
 			return tf.snapshots, nil
 		case "systemctl":
-			tf.systemctl = append(tf.systemctl, strings.Join(c.Args, " "))
+			call := strings.Join(c.Args, " ")
+			tf.systemctl = append(tf.systemctl, call)
+			if call == tf.systemctlFails {
+				return process.Result{Exit: 1, Stderr: []byte("Failed to connect to bus\n")}, nil
+			}
 			return process.Result{}, nil
 		}
 		t.Fatalf("unexpected command %s %v", c.Name, c.Args)
@@ -68,7 +73,7 @@ func newTimersFixture(t *testing.T) *timersFixture {
 	tf.deps.Executable = func() (string, error) { return link, nil }
 	tf.units = filepath.Join(t.TempDir(), "systemd", "user")
 	tf.deps.UnitDir = tf.units
-	tf.deps.Account = func() (string, string, error) { return "pablo", "pablo", nil }
+	tf.deps.Account = func() (string, error) { return "pablo", nil }
 	machineID := filepath.Join(t.TempDir(), "machine-id")
 	require.NoError(t, os.WriteFile(machineID, []byte("this-machine\n"), 0o644))
 	tf.deps.MachineIDFile = machineID
@@ -182,7 +187,7 @@ func TestWithoutAnUnattendedTokenTheTimersAreStillSetUpWithAWarning(t *testing.T
 
 	require.Equal(t, 0, code, stderr)
 	assert.Contains(t, stderr, "the nightly update can't get a GitHub token without a login: run gh auth login (gh keeps the token in ~/.config/gh/hosts.yml when there is no keyring); a GITHUB_TOKEN in the shell doesn't reach the timers")
-	assert.Contains(t, stdout, "mse-gorgon-update")
+	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update")
 	assert.FileExists(t, filepath.Join(tf.units, "mse-gorgon-update.timer"))
 }
 
@@ -194,9 +199,10 @@ func TestAnUnreadableRepositoryLeavesTheBackupTimersAsTheyAre(t *testing.T) {
 	code, stdout, stderr := tf.apply(t)
 
 	require.Equal(t, 0, code, stderr)
-	assert.Contains(t, stderr, "could not tell whether this machine is the main")
-	assert.Contains(t, stderr, "the backup timers are left as they are")
-	assert.Contains(t, stdout, "mse-gorgon-update, mse-gorgon-download-cleanup changed.\n")
+	assert.Contains(t, stderr, "cannot read the backup repository to tell which machine is gorgon's main (")
+	assert.Contains(t, stderr, "); the backup timers are left as they are")
+	assert.NotContains(t, stderr, "could not tell")
+	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update, mse-gorgon-download-cleanup changed.\n")
 	assert.Equal(t, "placed before\n", tf.unit(t, "mse-gorgon-backup.timer"))
 }
 
@@ -220,4 +226,49 @@ func TestInstallTimersIsGone(t *testing.T) {
 
 	assert.Equal(t, 1, code)
 	assert.Contains(t, stderr.String(), `unknown command "install-timers"`)
+}
+
+func TestAFreshInstallationSaysHowToMakeAMain(t *testing.T) {
+	tf := newTimersFixture(t)
+	tf.snapshots = process.Result{Stdout: []byte("[]")}
+	require.NoError(t, os.Remove(filepath.Join(tf.f.data, ".backup-main")))
+
+	code, stdout, stderr := tf.apply(t)
+
+	require.Equal(t, 0, code, stderr)
+	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update, mse-gorgon-download-cleanup changed; no backups yet (mse claim-backup-main makes this machine the main).\n")
+}
+
+func TestAnInstallationWithoutABackupRepositoryGetsNoBackupTimersQuietly(t *testing.T) {
+	tf := newTimersFixture(t)
+	config := filepath.Join(tf.deps.Home, ".config", "mse", "gorgon")
+	require.NoError(t, os.WriteFile(filepath.Join(config, "installation.env"), []byte("INSTALLATION_NAME=gorgon\n"), 0o644))
+
+	code, stdout, stderr := tf.apply(t)
+
+	require.Equal(t, 0, code, stderr)
+	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update, mse-gorgon-download-cleanup changed.\n")
+	assert.NotContains(t, stderr, "backup")
+}
+
+func TestATimerVariableMissingFromTheShellIsPointedOut(t *testing.T) {
+	tf := newTimersFixture(t)
+	require.NoError(t, os.MkdirAll(tf.units, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(tf.units, "mse-gorgon-update.service"), []byte("[Service]\nEnvironment=MSE_INSTALLATION=gorgon\nEnvironment=\"SOPS_AGE_KEY_FILE=/keys/age.txt\"\n"), 0o644))
+
+	code, _, stderr := tf.apply(t)
+
+	require.Equal(t, 0, code, stderr)
+	assert.Contains(t, stderr, "the timers had SOPS_AGE_KEY_FILE set and this shell doesn't set it, so they now run without it; export it and run mse apply again to keep it")
+}
+
+func TestAFailedSystemctlDoesNotShowResticAsItsCause(t *testing.T) {
+	tf := newTimersFixture(t)
+	tf.systemctlFails = "--user daemon-reload"
+
+	code, _, stderr := tf.apply(t)
+
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stderr, "systemctl --user daemon-reload failed: Failed to connect to bus")
+	assert.NotContains(t, stderr, "restic")
 }

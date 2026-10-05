@@ -130,11 +130,12 @@ func TestALeftoverServiceWithoutItsTimerIsRemovedToo(t *testing.T) {
 	text, err := Render(Backup, ".service", gorgon)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "mse-gorgon-backup.service"), []byte(text), 0o644))
-	runner, _ := recording(t, nil, nil)
+	runner, s := recording(t, nil, nil)
 
 	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Secondary, gorgon)
 
 	require.NoError(t, err)
+	assert.NotContains(t, s.calls, "--user disable --now mse-gorgon-backup.timer", "systemctl can't disable a timer whose file is gone")
 	assert.NoFileExists(t, filepath.Join(dir, "mse-gorgon-backup.service"))
 	assert.Equal(t, []string{"mse-gorgon-backup"}, outcome.Removed)
 }

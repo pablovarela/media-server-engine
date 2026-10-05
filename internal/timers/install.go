@@ -86,8 +86,10 @@ func (in Installer) remove(ctx context.Context, job Job, installation string) (b
 	if !in.present(files) {
 		return false, nil
 	}
-	if err := in.systemctl(ctx, "disable", "--now", files[1]); err != nil {
-		return false, err
+	if _, err := os.Stat(filepath.Join(in.Dir, files[1])); err == nil {
+		if err := in.systemctl(ctx, "disable", "--now", files[1]); err != nil {
+			return false, err
+		}
 	}
 	for _, file := range files {
 		if err := os.Remove(filepath.Join(in.Dir, file)); err != nil && !errors.Is(err, os.ErrNotExist) {

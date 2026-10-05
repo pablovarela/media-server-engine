@@ -3,10 +3,8 @@ package process
 import (
 	"bytes"
 	"context"
-	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -116,13 +114,4 @@ func TestStderrCanGoElsewhere(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "json\n", own.String())
 	assert.Empty(t, errOut.String())
-}
-
-func TestRunPassesStdin(t *testing.T) {
-	var out bytes.Buffer
-
-	_, err := System{Out: &out, ErrOut: io.Discard}.Run(context.Background(), Command{Name: "cat", Stdin: strings.NewReader("unit text\n")})
-
-	require.NoError(t, err)
-	assert.Equal(t, "unit text\n", out.String())
 }

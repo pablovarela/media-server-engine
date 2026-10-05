@@ -120,7 +120,7 @@ func description(job string, facts Facts) string {
 	runs := "Runs " + when(s.cron)
 	unit := "mse-" + facts.Name + "-" + job
 	timer := fmt.Sprintf("via the %s timer (%s)", unit, s.command)
-	login := fmt.Sprintf("If it fails: ssh %s, journalctl --user -u %s.service", facts.SSH, unit)
+	login := fmt.Sprintf("If it fails: ssh %s, journalctl --user-unit %s.service", facts.SSH, unit)
 	switch job {
 	case backupJob:
 		return fmt.Sprintf("Nightly backup of %s's app state (libraries, history, users, settings) to %s with restic. Media files are not included. "+

@@ -42,7 +42,7 @@ type Images interface {
 }
 
 type Timers interface {
-	Set(ctx context.Context) (string, error)
+	Set(ctx context.Context) (result string, warnings []string, err error)
 }
 
 type Apply struct {
@@ -78,10 +78,23 @@ func (a *Apply) Run(ctx context.Context) error {
 	if err := a.Images.Prune(ctx); err != nil {
 		return err
 	}
+	return a.setUpTimers(ctx)
+}
+
+func (a *Apply) setUpTimers(ctx context.Context) error {
 	if a.Timers == nil {
 		return nil
 	}
-	return a.step("Setting up the timers", func() (string, error) { return a.Timers.Set(ctx) })
+	s := a.Report.Step("Setting up the timers")
+	result, warnings, err := a.Timers.Set(ctx)
+	if err != nil {
+		return s.Fail(err)
+	}
+	s.Done(result)
+	for _, warning := range warnings {
+		a.Report.Warn(paint.Stderr.Warning(warning))
+	}
+	return nil
 }
 
 func (a *Apply) step(title string, do func() (string, error)) error {

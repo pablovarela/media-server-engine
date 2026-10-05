@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -11,10 +12,11 @@ import (
 	"golang.org/x/mod/semver"
 
 	"github.com/pablovarela/media-server-engine/internal/apply"
+	"github.com/pablovarela/media-server-engine/internal/backup"
 	"github.com/pablovarela/media-server-engine/internal/installation"
-	"github.com/pablovarela/media-server-engine/internal/paint"
 	"github.com/pablovarela/media-server-engine/internal/process"
 	"github.com/pablovarela/media-server-engine/internal/report"
+	"github.com/pablovarela/media-server-engine/internal/secrets"
 	"github.com/pablovarela/media-server-engine/internal/timers"
 )
 
@@ -38,31 +40,38 @@ func (d Dependencies) timersOrNil(cmd *cobra.Command, i *installation.Installati
 	return &appliedTimers{d: d, cmd: cmd, i: i}
 }
 
-func (t *appliedTimers) Set(ctx context.Context) (string, error) {
+func (t *appliedTimers) Set(ctx context.Context) (string, []string, error) {
 	if !semver.IsValid(t.d.Build.Version) {
-		return "skipped: a dev build can't be updated by mse update", nil
+		return "skipped: a dev build can't be updated by mse update", nil, nil
 	}
-	account, _, err := t.d.Account()
+	account, err := t.d.Account()
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	if !t.lingering(ctx, account) {
-		return "skipped: they need lingering, once: sudo loginctl enable-linger " + account, nil
+		return "skipped: they need lingering, once: sudo loginctl enable-linger " + account, nil, nil
 	}
 	if t.d.Environment("SOPS_AGE_KEY") != "" {
-		return "skipped: SOPS_AGE_KEY can't reach the timers; keep the key in a file and set SOPS_AGE_KEY_FILE", nil
+		return "skipped: SOPS_AGE_KEY can't reach the timers; keep the key in a file and set SOPS_AGE_KEY_FILE", nil, nil
 	}
 	values, err := t.values()
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
-	t.warnWithoutToken(ctx, account, values)
+	warnings := t.droppedVariables()
+	if !t.unattendedToken(ctx, account, values) {
+		warnings = append(warnings, noUnattendedToken)
+	}
+	role, note, warning := t.role(ctx)
+	if warning != "" {
+		warnings = append(warnings, warning)
+	}
 	installer := timers.Installer{Runner: t.d.Run(io.Discard, io.Discard), Dir: t.d.unitDir()}
-	outcome, err := installer.Install(ctx, t.role(ctx), values)
+	outcome, err := installer.Install(ctx, role, values)
 	if err != nil {
-		return "", err
+		return "", warnings, err
 	}
-	return outcome.String(), nil
+	return outcome.String() + note, warnings, nil
 }
 
 func (t *appliedTimers) lingering(ctx context.Context, account string) bool {
@@ -87,27 +96,70 @@ func (t *appliedTimers) values() (timers.Values, error) {
 	return timers.Values{Installation: t.i.Name, Executable: executable, Environment: environment}, nil
 }
 
-func (t *appliedTimers) warnWithoutToken(ctx context.Context, account string, values timers.Values) {
+func (t *appliedTimers) unattendedToken(ctx context.Context, account string, values timers.Values) bool {
 	args := append([]string{"-i", "HOME=" + t.d.Home, "USER=" + account, "PATH=" + systemdPath}, values.Environment...)
 	result, err := t.d.Run(io.Discard, io.Discard).Output(ctx, process.Command{Name: "env", Args: append(args, "gh", "auth", "token")})
-	if err != nil || result.Exit != 0 || strings.TrimSpace(string(result.Stdout)) == "" {
-		report.From(ctx).Warn(paint.Stderr.Warning(noUnattendedToken))
-	}
+	return err == nil && result.Exit == 0 && strings.TrimSpace(string(result.Stdout)) != ""
 }
 
-func (t *appliedTimers) role(ctx context.Context) timers.Role {
-	b, err := t.d.backups(t.cmd, telling)
-	if err == nil {
-		var runs bool
-		if runs, err = b.RunsBackups(ctx); err == nil && runs {
-			return timers.Main
-		}
-		if err == nil {
-			return timers.Secondary
+func (t *appliedTimers) droppedVariables() []string {
+	current, err := os.ReadFile(filepath.Join(t.d.unitDir(), timers.Update.Unit(t.i.Name)+".service"))
+	if err != nil {
+		return nil
+	}
+	var warnings []string
+	for _, variable := range carriedIntoUnits {
+		if strings.Contains(string(current), `Environment="`+variable+"=") && t.d.Environment(variable) == "" {
+			warnings = append(warnings, fmt.Sprintf("the timers had %s set and this shell doesn't set it, so they now run without it; export it and run mse apply again to keep it", variable))
 		}
 	}
-	report.From(ctx).Warn(paint.Stderr.Warning(fmt.Sprintf("could not tell whether this machine is the main (%v); the backup timers are left as they are", err)))
-	return timers.Unknown
+	return warnings
+}
+
+const noBackupsYet = "; no backups yet (mse claim-backup-main makes this machine the main)"
+
+func (t *appliedTimers) role(ctx context.Context) (role timers.Role, note, warning string) {
+	b, configured, err := t.d.backupRole(t.i)
+	if err == nil && !configured {
+		return timers.Secondary, "", ""
+	}
+	if err == nil {
+		var runs, backedUp bool
+		if runs, backedUp, err = b.RunsBackups(ctx); err == nil {
+			switch {
+			case runs:
+				return timers.Main, "", ""
+			case !backedUp:
+				return timers.Secondary, noBackupsYet, ""
+			}
+			return timers.Secondary, "", ""
+		}
+	}
+	return timers.Unknown, "", fmt.Sprintf("%v; the backup timers are left as they are", err)
+}
+
+func (d Dependencies) backupRole(i *installation.Installation) (*backup.Backups, bool, error) {
+	location := i.Settings["RESTIC_REPOSITORY"]
+	environment := map[string]string{}
+	if decrypted, err := d.Decrypt(filepath.Join(i.Config, "secrets", "backup.sops.env")); err == nil {
+		environment = secrets.Dotenv(decrypted)
+	}
+	if environment["RESTIC_REPOSITORY"] == "" {
+		environment["RESTIC_REPOSITORY"] = location
+	}
+	if environment["RESTIC_REPOSITORY"] == "" {
+		return nil, false, nil
+	}
+	machine, err := backup.MachineID(d.MachineIDFile, i.Data)
+	if err != nil {
+		return nil, true, err
+	}
+	return &backup.Backups{
+		Installation: i,
+		Repository:   resticFor(d.Run(io.Discard, io.Discard), environment, io.Discard),
+		MachineID:    machine,
+		Report:       report.New(io.Discard, io.Discard, nil),
+	}, true, nil
 }
 
 func (d Dependencies) unitDir() string {

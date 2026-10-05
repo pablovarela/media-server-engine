@@ -261,7 +261,7 @@ func TestTheTimersAreSetUpLast(t *testing.T) {
 	ctx := context.Background()
 	stack, page, images := succeeding(t, ctx)
 	timers := newMockTimers(t)
-	timers.EXPECT().Set(ctx).Return("all 4 unchanged", nil)
+	timers.EXPECT().Set(ctx).Return("all 4 unchanged", nil, nil)
 	var stdout bytes.Buffer
 
 	err := (&Apply{
@@ -277,7 +277,7 @@ func TestAFailedTimersStepFailsTheApply(t *testing.T) {
 	ctx := context.Background()
 	stack, page, images := succeeding(t, ctx)
 	timers := newMockTimers(t)
-	timers.EXPECT().Set(ctx).Return("", errors.New("systemctl --user daemon-reload failed: Failed to connect to bus"))
+	timers.EXPECT().Set(ctx).Return("", nil, errors.New("systemctl --user daemon-reload failed: Failed to connect to bus"))
 	var stdout bytes.Buffer
 
 	err := (&Apply{
@@ -301,4 +301,20 @@ func TestAFailedApplyLeavesTheTimersAlone(t *testing.T) {
 	}).Run(ctx)
 
 	assert.EqualError(t, err, "manifest unknown")
+}
+
+func TestTheTimersWarningsFollowTheirResult(t *testing.T) {
+	ctx := context.Background()
+	stack, page, images := succeeding(t, ctx)
+	timers := newMockTimers(t)
+	timers.EXPECT().Set(ctx).Return("all 4 unchanged", []string{"the nightly update can't get a GitHub token"}, nil)
+	var out bytes.Buffer
+
+	err := (&Apply{
+		Stack: stack, Page: page, Images: images, Timers: timers, MkdirAll: func(string) error { return nil },
+		Sleep: func(context.Context, time.Duration) error { return nil }, Report: report.New(&out, &out, nil),
+	}).Run(ctx)
+
+	require.NoError(t, err)
+	assert.True(t, strings.HasSuffix(out.String(), "Setting up the timers... all 4 unchanged.\nthe nightly update can't get a GitHub token\n"), out.String())
 }
