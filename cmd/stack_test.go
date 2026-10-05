@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -255,4 +256,65 @@ func TestContainerLogsStayOutOfTheLog(t *testing.T) {
 	logged, err := os.ReadFile(filepath.Join(home, ".local", "state", "mse", "gorgon", "logs", "mse.log"))
 	require.NoError(t, err)
 	assert.NotContains(t, string(logged), "a container log line")
+}
+
+func TestComposeEventsReachTheLogAndOnlyVerboseScreens(t *testing.T) {
+	project := &types.Project{Name: "media-server"}
+	for _, verbose := range []bool{false, true} {
+		getenv, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"})
+		runner := newMockComposeRunner(t)
+		var tool io.Writer
+		runner.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, mock.Anything).Return(project, nil)
+		runner.EXPECT().Down(mock.Anything, project).RunAndReturn(func(context.Context, *types.Project) error {
+			_, err := io.WriteString(tool, "Container seerr Stopped\n")
+			return err
+		})
+		root := NewRootCommand(Dependencies{
+			Environment: getenv, Home: home, Update: newMockUpdater(t),
+			Decrypt: func(string) ([]byte, error) { return []byte("A=1\n"), nil },
+			Host:    installation.Host{GOOS: "linux", Hostname: func() (string, error) { return "gorgon", nil }},
+			Engine: fstest.MapFS{
+				"docker-compose.yml":            {Data: []byte("services: {}\n")},
+				"docker-compose.monitoring.yml": {Data: []byte("services: {}\n")},
+				"grafana/datasource.yml":        {Data: []byte("# fixture\n")},
+				"prometheus/prometheus.yml":     {Data: []byte("# fixture\n")},
+			},
+			Compose: func(w io.Writer, _ *compose.Outcomes) (composeRunner, error) {
+				tool = w
+				return runner, nil
+			},
+		})
+		var stdout bytes.Buffer
+		root.SetOut(&stdout)
+		root.SetErr(&bytes.Buffer{})
+		args := []string{"stack", "down"}
+		if verbose {
+			args = append(args, "-v")
+		}
+
+		code := run(context.Background(), root, args)
+
+		assert.Equal(t, 0, code)
+		logged, err := os.ReadFile(filepath.Join(home, ".local", "state", "mse", "gorgon", "logs", "mse.log"))
+		require.NoError(t, err)
+		assert.Contains(t, string(logged), "compose | Container seerr Stopped")
+		assert.Equal(t, verbose, strings.Contains(stdout.String(), "compose | Container seerr Stopped"), "verbose %v", verbose)
+	}
+}
+
+func TestAnUnwritableLogDoesNotStopACommand(t *testing.T) {
+	getenv, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"})
+	state := filepath.Join(home, ".local", "state", "mse", "gorgon")
+	require.NoError(t, os.MkdirAll(state, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(state, "logs"), nil, 0o644))
+	root := NewRootCommand(Dependencies{Environment: getenv, Home: home, Update: newMockUpdater(t), Host: installation.Host{GOOS: "linux", Hostname: func() (string, error) { return "gorgon", nil }}})
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+
+	code := run(context.Background(), root, []string{"urls"})
+
+	assert.Equal(t, 0, code)
+	assert.Contains(t, stdout.String(), "http://")
+	assert.Equal(t, 1, strings.Count(stderr.String(), "could not write the log "))
 }
