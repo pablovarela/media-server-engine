@@ -30,7 +30,7 @@ const (
 
 func backupHome(t *testing.T) (home, data, resolved, tmp string) {
 	t.Helper()
-	_, home = xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"})
+	_, home = xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\nRESTIC_REPOSITORY=b2:bucket\n"})
 	config := filepath.Join(home, ".config", "mse", "gorgon")
 	require.NoError(t, os.WriteFile(filepath.Join(config, "secrets", "healthchecks.sops.env"), nil, 0o644))
 	data = filepath.Join(home, ".local", "share", "mse", "gorgon")
@@ -53,7 +53,7 @@ func backupDependencies(t *testing.T, home, tmp string, runner commandRunner, co
 		},
 		Home: home, Update: newMockUpdater(t),
 		Decrypt: func(string) ([]byte, error) {
-			return []byte("RESTIC_REPOSITORY=b2:bucket\nRESTIC_PASSWORD=secret\nHEALTHCHECKS_PING_KEY=ping-key\n"), nil
+			return []byte("RESTIC_PASSWORD=secret\nHEALTHCHECKS_PING_KEY=ping-key\n"), nil
 		},
 		Host: installation.Host{GOOS: "linux", Hostname: func() (string, error) { return "gorgon.local", nil }},
 		Engine: fstest.MapFS{
