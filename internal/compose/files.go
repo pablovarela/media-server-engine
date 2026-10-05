@@ -1,7 +1,6 @@
 package compose
 
 import (
-	"bytes"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -12,6 +11,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
+	"github.com/pablovarela/media-server-engine/internal/files"
 	"github.com/pablovarela/media-server-engine/internal/installation"
 )
 
@@ -91,13 +91,8 @@ func removeUnwanted(dir string, wanted map[string]bool) error {
 }
 
 func writeIfChanged(path string, content []byte) error {
-	if current, err := os.ReadFile(path); err == nil && bytes.Equal(current, content) { //nolint:gosec // reads the state directory's own files
-		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // containers running as other users read these folders
-		return err
-	}
-	return os.WriteFile(path, content, 0o644) //nolint:gosec // compose and the containers read these files
+	_, err := files.WriteIfChanged(path, content, 0o644)
+	return err
 }
 
 func Variables(i *installation.Installation, network string, dockerGID int) []string {
