@@ -2,8 +2,9 @@ package timers
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"io"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -17,7 +18,6 @@ type runner interface {
 type Installer struct {
 	Runner runner
 	Dir    string
-	Read   func(path string) ([]byte, error)
 }
 
 type Outcome struct {
@@ -26,54 +26,54 @@ type Outcome struct {
 	Removed   []string
 }
 
-func (in Installer) Install(ctx context.Context, main bool, v Values) (Outcome, error) {
-	install, remove := Plan(main)
+func (in Installer) Install(ctx context.Context, role Role, v Values) (Outcome, error) {
+	install, remove := Plan(role)
 	var outcome Outcome
-	for _, unit := range install {
-		changed, err := in.write(ctx, unit, v)
+	for _, job := range install {
+		changed, err := in.write(job, v)
 		if err != nil {
 			return Outcome{}, err
 		}
 		if changed {
-			outcome.Changed = append(outcome.Changed, unit.Name)
+			outcome.Changed = append(outcome.Changed, job.Unit(v.Installation))
 		} else {
-			outcome.Unchanged = append(outcome.Unchanged, unit.Name)
+			outcome.Unchanged = append(outcome.Unchanged, job.Unit(v.Installation))
 		}
 	}
-	for _, unit := range remove {
-		removed, err := in.remove(ctx, unit)
+	for _, job := range remove {
+		removed, err := in.remove(ctx, job, v.Installation)
 		if err != nil {
 			return Outcome{}, err
 		}
 		if removed {
-			outcome.Removed = append(outcome.Removed, unit.Name)
+			outcome.Removed = append(outcome.Removed, job.Unit(v.Installation))
 		}
 	}
-	if err := in.sudo(ctx, nil, "systemctl", "daemon-reload"); err != nil {
+	if err := in.systemctl(ctx, "daemon-reload"); err != nil {
 		return Outcome{}, err
 	}
-	enable := []string{"systemctl", "enable", "--now"}
-	for _, unit := range install {
-		enable = append(enable, unit.Name+".timer")
+	enable := []string{"enable", "--now"}
+	for _, job := range install {
+		enable = append(enable, job.Unit(v.Installation)+".timer")
 	}
-	return outcome, in.sudo(ctx, nil, enable...)
+	return outcome, in.systemctl(ctx, enable...)
 }
 
-func (in Installer) path(file string) string {
-	return filepath.Join(in.Dir, file)
-}
-
-func (in Installer) write(ctx context.Context, unit Unit, v Values) (bool, error) {
+func (in Installer) write(job Job, v Values) (bool, error) {
+	if err := os.MkdirAll(in.Dir, 0o755); err != nil { //nolint:gosec // systemd reads the user's units
+		return false, err
+	}
 	changed := false
-	for _, file := range unit.Files() {
-		text, err := Render(file, v)
+	for n, suffix := range []string{".service", ".timer"} {
+		text, err := Render(job, suffix, v)
 		if err != nil {
 			return false, err
 		}
-		if current, err := in.Read(in.path(file)); err == nil && string(current) == text {
+		path := filepath.Join(in.Dir, job.Files(v.Installation)[n])
+		if current, err := os.ReadFile(path); err == nil && string(current) == text { //nolint:gosec // the user's own unit
 			continue
 		}
-		if err := in.sudo(ctx, strings.NewReader(text), "tee", in.path(file)); err != nil {
+		if err := os.WriteFile(path, []byte(text), 0o644); err != nil { //nolint:gosec // systemd reads the user's units
 			return false, err
 		}
 		changed = true
@@ -81,28 +81,34 @@ func (in Installer) write(ctx context.Context, unit Unit, v Values) (bool, error
 	return changed, nil
 }
 
-func (in Installer) remove(ctx context.Context, unit Unit) (bool, error) {
-	if !in.present(unit) {
+func (in Installer) remove(ctx context.Context, job Job, installation string) (bool, error) {
+	files := job.Files(installation)
+	if !in.present(files) {
 		return false, nil
 	}
-	if err := in.sudo(ctx, nil, "systemctl", "disable", "--now", unit.Name+".timer"); err != nil {
+	if err := in.systemctl(ctx, "disable", "--now", files[1]); err != nil {
 		return false, err
 	}
-	files := unit.Files()
-	return true, in.sudo(ctx, nil, "rm", "-f", in.path(files[0]), in.path(files[1]))
+	for _, file := range files {
+		if err := os.Remove(filepath.Join(in.Dir, file)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return false, err
+		}
+	}
+	return true, nil
 }
 
-func (in Installer) present(unit Unit) bool {
-	for _, file := range unit.Files() {
-		if _, err := in.Read(in.path(file)); err == nil {
+func (in Installer) present(files []string) bool {
+	for _, file := range files {
+		if _, err := os.Stat(filepath.Join(in.Dir, file)); err == nil {
 			return true
 		}
 	}
 	return false
 }
 
-func (in Installer) sudo(ctx context.Context, stdin io.Reader, args ...string) error {
-	result, err := in.Runner.Output(ctx, process.Command{Name: "sudo", Args: args, Stdin: stdin})
+func (in Installer) systemctl(ctx context.Context, args ...string) error {
+	args = append([]string{"--user"}, args...)
+	result, err := in.Runner.Output(ctx, process.Command{Name: "systemctl", Args: args})
 	if err != nil {
 		return err
 	}
@@ -113,7 +119,7 @@ func (in Installer) sudo(ctx context.Context, stdin io.Reader, args ...string) e
 	if detail == "" {
 		detail = fmt.Sprintf("exit %d", result.Exit)
 	}
-	return fmt.Errorf("sudo %s failed: %s", strings.Join(args, " "), detail)
+	return fmt.Errorf("systemctl %s failed: %s", strings.Join(args, " "), detail)
 }
 
 func (o Outcome) String() string {

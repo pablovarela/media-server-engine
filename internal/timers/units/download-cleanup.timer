@@ -1,5 +1,5 @@
 [Unit]
-Description=Check for executable downloads every 15 minutes
+Description=Download cleanup every 15 minutes (@NAME@)
 
 [Timer]
 OnCalendar=*:0/15

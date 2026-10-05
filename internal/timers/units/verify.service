@@ -1,0 +1,10 @@
+[Unit]
+Description=Check the media server's backups can be restored (@NAME@)
+After=mse-@NAME@-backup.service
+
+[Service]
+Type=oneshot
+@ENVIRONMENT@
+ExecStart=@MSE@ verify-backup
+Nice=10
+IOSchedulingClass=idle

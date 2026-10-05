@@ -1,9 +1,9 @@
 [Unit]
-Description=Weekly media-server backup verification
+Description=Weekly backup check (@NAME@)
 
 [Timer]
-Persistent=true
 OnCalendar=Sun *-*-* 05:30:00
+Persistent=true
 
 [Install]
 WantedBy=timers.target

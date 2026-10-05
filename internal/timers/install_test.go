@@ -2,10 +2,11 @@ package timers
 
 import (
 	"context"
-	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -14,26 +15,21 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/process"
 )
 
-const dir = "/etc/systemd/system"
-
-type sudo struct {
-	calls   []string
-	written map[string]string
+type systemctl struct {
+	calls []string
 }
 
-func recording(t *testing.T, failing map[string]string) (*mockRunner, *sudo) {
+func recording(t *testing.T, failing map[string]string, before func(call string)) (*mockRunner, *systemctl) {
 	t.Helper()
-	s := &sudo{written: map[string]string{}}
+	s := &systemctl{}
 	runner := newMockRunner(t)
 	runner.EXPECT().Output(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, c process.Command) (process.Result, error) {
-		require.Equal(t, "sudo", c.Name)
+		require.Equal(t, "systemctl", c.Name)
 		call := strings.Join(c.Args, " ")
-		s.calls = append(s.calls, call)
-		if c.Stdin != nil {
-			text, err := io.ReadAll(c.Stdin)
-			require.NoError(t, err)
-			s.written[c.Args[len(c.Args)-1]] = string(text)
+		if before != nil {
+			before(call)
 		}
+		s.calls = append(s.calls, call)
 		if stderr, failed := failing[call]; failed {
 			return process.Result{Exit: 1, Stderr: []byte(stderr)}, nil
 		}
@@ -42,119 +38,136 @@ func recording(t *testing.T, failing map[string]string) (*mockRunner, *sudo) {
 	return runner, s
 }
 
-func present(t *testing.T, units ...Unit) map[string][]byte {
+func place(t *testing.T, dir string, jobs ...Job) {
 	t.Helper()
-	files := map[string][]byte{}
-	for _, unit := range units {
-		for _, file := range unit.Files() {
-			text, err := Render(file, gorgon)
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	for _, job := range jobs {
+		for _, suffix := range []string{".service", ".timer"} {
+			text, err := Render(job, suffix, gorgon)
 			require.NoError(t, err)
-			files[dir+"/"+file] = []byte(text)
+			require.NoError(t, os.WriteFile(filepath.Join(dir, job.Unit("gorgon")+suffix), []byte(text), 0o644))
 		}
 	}
-	return files
 }
 
-func reading(files map[string][]byte) func(string) ([]byte, error) {
-	return func(path string) ([]byte, error) {
-		if content, ok := files[path]; ok {
-			return content, nil
-		}
-		return nil, os.ErrNotExist
-	}
-}
+const enableAll = "--user enable --now mse-gorgon-update.timer mse-gorgon-download-cleanup.timer mse-gorgon-backup.timer mse-gorgon-verify.timer"
 
 func TestNothingChangedWritesNothingAndStillEnablesTheTimers(t *testing.T) {
-	runner, s := recording(t, nil)
+	dir := t.TempDir()
+	place(t, dir, Update, Cleanup, Backup, Verify)
+	old := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	require.NoError(t, os.Chtimes(filepath.Join(dir, "mse-gorgon-update.service"), old, old))
+	runner, s := recording(t, nil, nil)
 
-	outcome, err := Installer{Runner: runner, Dir: dir, Read: reading(present(t, Update, Cleanup, Backup, Verify))}.Install(context.Background(), true, gorgon)
+	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Main, gorgon)
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{
-		"systemctl daemon-reload",
-		"systemctl enable --now media-update.timer media-download-cleanup.timer media-backup.timer media-verify.timer",
-	}, s.calls)
+	assert.Equal(t, []string{"--user daemon-reload", enableAll}, s.calls)
 	assert.Equal(t, "all 4 unchanged", outcome.String())
+	info, err := os.Stat(filepath.Join(dir, "mse-gorgon-update.service"))
+	require.NoError(t, err)
+	assert.Equal(t, old, info.ModTime().UTC(), "an unchanged unit isn't written")
 }
 
-func TestAChangedUnitIsWrittenAndSystemdReloaded(t *testing.T) {
-	files := present(t, Update, Cleanup, Backup, Verify)
-	files[dir+"/media-update.service"] = []byte("[Service]\nExecStart=/old/engine-run update\n")
-	runner, s := recording(t, nil)
+func TestAChangedUnitIsRewritten(t *testing.T) {
+	dir := t.TempDir()
+	place(t, dir, Update, Cleanup, Backup, Verify)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "mse-gorgon-update.service"), []byte("[Service]\nExecStart=/old/mse update\n"), 0o644))
+	runner, s := recording(t, nil, nil)
 
-	outcome, err := Installer{Runner: runner, Dir: dir, Read: reading(files)}.Install(context.Background(), true, gorgon)
+	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Main, gorgon)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"--user daemon-reload", enableAll}, s.calls)
+	written, err := os.ReadFile(filepath.Join(dir, "mse-gorgon-update.service"))
+	require.NoError(t, err)
+	want, err := Render(Update, ".service", gorgon)
+	require.NoError(t, err)
+	assert.Equal(t, want, string(written))
+	assert.Equal(t, "mse-gorgon-update changed; mse-gorgon-download-cleanup, mse-gorgon-backup, mse-gorgon-verify unchanged", outcome.String())
+}
+
+func TestAFreshMachineGetsItsUnitDirectoryAndEveryFile(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "systemd", "user")
+	runner, _ := recording(t, nil, nil)
+
+	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Secondary, gorgon)
+
+	require.NoError(t, err)
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	assert.Len(t, entries, 4)
+	assert.Equal(t, "mse-gorgon-update, mse-gorgon-download-cleanup changed", outcome.String())
+}
+
+func TestAFormerMainDisablesItsBackupTimersBeforeRemovingThem(t *testing.T) {
+	dir := t.TempDir()
+	place(t, dir, Update, Cleanup, Backup, Verify)
+	runner, s := recording(t, nil, func(call string) {
+		if strings.HasPrefix(call, "--user disable") {
+			assert.FileExists(t, filepath.Join(dir, strings.TrimPrefix(call, "--user disable --now ")))
+		}
+	})
+
+	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Secondary, gorgon)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{
-		"tee /etc/systemd/system/media-update.service",
-		"systemctl daemon-reload",
-		"systemctl enable --now media-update.timer media-download-cleanup.timer media-backup.timer media-verify.timer",
+		"--user disable --now mse-gorgon-backup.timer",
+		"--user disable --now mse-gorgon-verify.timer",
+		"--user daemon-reload",
+		"--user enable --now mse-gorgon-update.timer mse-gorgon-download-cleanup.timer",
 	}, s.calls)
-	want, err := Render("media-update.service", gorgon)
-	require.NoError(t, err)
-	assert.Equal(t, want, s.written["/etc/systemd/system/media-update.service"])
-	assert.Equal(t, "media-update changed; media-download-cleanup, media-backup, media-verify unchanged", outcome.String())
-}
-
-func TestAFreshMachineGetsEveryFile(t *testing.T) {
-	runner, s := recording(t, nil)
-
-	outcome, err := Installer{Runner: runner, Dir: dir, Read: reading(nil)}.Install(context.Background(), false, gorgon)
-
-	require.NoError(t, err)
-	assert.Equal(t, []string{
-		"tee /etc/systemd/system/media-update.service", "tee /etc/systemd/system/media-update.timer",
-		"tee /etc/systemd/system/media-download-cleanup.service", "tee /etc/systemd/system/media-download-cleanup.timer",
-		"systemctl daemon-reload",
-		"systemctl enable --now media-update.timer media-download-cleanup.timer",
-	}, s.calls)
-	assert.Equal(t, "media-update, media-download-cleanup changed", outcome.String())
-}
-
-func TestAFormerMainStopsBackingUp(t *testing.T) {
-	runner, s := recording(t, nil)
-
-	outcome, err := Installer{Runner: runner, Dir: dir, Read: reading(present(t, Update, Cleanup, Backup, Verify))}.Install(context.Background(), false, gorgon)
-
-	require.NoError(t, err)
-	assert.Equal(t, []string{
-		"systemctl disable --now media-backup.timer",
-		"rm -f /etc/systemd/system/media-backup.service /etc/systemd/system/media-backup.timer",
-		"systemctl disable --now media-verify.timer",
-		"rm -f /etc/systemd/system/media-verify.service /etc/systemd/system/media-verify.timer",
-		"systemctl daemon-reload",
-		"systemctl enable --now media-update.timer media-download-cleanup.timer",
-	}, s.calls)
-	assert.Equal(t, "media-update, media-download-cleanup unchanged; media-backup, media-verify removed (not the main)", outcome.String())
-}
-
-func TestAFailedSudoStopsWithItsMessage(t *testing.T) {
-	runner, s := recording(t, map[string]string{"tee /etc/systemd/system/media-update.service": "sudo: a password is required\n"})
-
-	_, err := Installer{Runner: runner, Dir: dir, Read: reading(nil)}.Install(context.Background(), true, gorgon)
-
-	assert.EqualError(t, err, "sudo tee /etc/systemd/system/media-update.service failed: sudo: a password is required")
-	assert.Equal(t, []string{"tee /etc/systemd/system/media-update.service"}, s.calls)
-}
-
-func TestAFailureWithoutAMessageNamesTheExitCode(t *testing.T) {
-	runner, _ := recording(t, map[string]string{"systemctl enable --now media-update.timer media-download-cleanup.timer media-backup.timer media-verify.timer": ""})
-
-	_, err := Installer{Runner: runner, Dir: dir, Read: reading(present(t, Update, Cleanup, Backup, Verify))}.Install(context.Background(), true, gorgon)
-
-	assert.EqualError(t, err, "sudo systemctl enable --now media-update.timer media-download-cleanup.timer media-backup.timer media-verify.timer failed: exit 1")
+	for _, file := range append(Backup.Files("gorgon"), Verify.Files("gorgon")...) {
+		assert.NoFileExists(t, filepath.Join(dir, file))
+	}
+	assert.Equal(t, "mse-gorgon-update, mse-gorgon-download-cleanup unchanged; mse-gorgon-backup, mse-gorgon-verify removed (not the main)", outcome.String())
 }
 
 func TestALeftoverServiceWithoutItsTimerIsRemovedToo(t *testing.T) {
-	files := present(t, Update, Cleanup)
-	service, err := Render("media-backup.service", gorgon)
+	dir := t.TempDir()
+	place(t, dir, Update, Cleanup)
+	text, err := Render(Backup, ".service", gorgon)
 	require.NoError(t, err)
-	files[dir+"/media-backup.service"] = []byte(service)
-	runner, s := recording(t, nil)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "mse-gorgon-backup.service"), []byte(text), 0o644))
+	runner, _ := recording(t, nil, nil)
 
-	outcome, err := Installer{Runner: runner, Dir: dir, Read: reading(files)}.Install(context.Background(), false, gorgon)
+	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Secondary, gorgon)
 
 	require.NoError(t, err)
-	assert.Contains(t, s.calls, "rm -f /etc/systemd/system/media-backup.service /etc/systemd/system/media-backup.timer")
-	assert.Equal(t, []string{"media-backup"}, outcome.Removed)
+	assert.NoFileExists(t, filepath.Join(dir, "mse-gorgon-backup.service"))
+	assert.Equal(t, []string{"mse-gorgon-backup"}, outcome.Removed)
+}
+
+func TestAnUnknownMainLeavesTheBackupTimersAsTheyAre(t *testing.T) {
+	dir := t.TempDir()
+	place(t, dir, Update, Cleanup)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "mse-gorgon-backup.service"), []byte("an older backup unit\n"), 0o644))
+	runner, s := recording(t, nil, nil)
+
+	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Unknown, gorgon)
+
+	require.NoError(t, err)
+	kept, err := os.ReadFile(filepath.Join(dir, "mse-gorgon-backup.service"))
+	require.NoError(t, err)
+	assert.Equal(t, "an older backup unit\n", string(kept))
+	assert.NotContains(t, strings.Join(s.calls, "\n"), "backup")
+	assert.Equal(t, "all 2 unchanged", outcome.String())
+}
+
+func TestAFailedSystemctlStopsWithItsMessage(t *testing.T) {
+	runner, s := recording(t, map[string]string{"--user daemon-reload": "Failed to connect to bus: No medium found\n"}, nil)
+
+	_, err := Installer{Runner: runner, Dir: t.TempDir()}.Install(context.Background(), Main, gorgon)
+
+	assert.EqualError(t, err, "systemctl --user daemon-reload failed: Failed to connect to bus: No medium found")
+	assert.Equal(t, []string{"--user daemon-reload"}, s.calls)
+}
+
+func TestAFailureWithoutAMessageNamesTheExitCode(t *testing.T) {
+	runner, _ := recording(t, map[string]string{enableAll: ""}, nil)
+
+	_, err := Installer{Runner: runner, Dir: t.TempDir()}.Install(context.Background(), Main, gorgon)
+
+	assert.EqualError(t, err, "systemctl "+enableAll+" failed: exit 1")
 }

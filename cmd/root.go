@@ -79,7 +79,6 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 		newVersionCommand(deps.Build),
 		newUpdateCommand(deps),
 		newApplyCommand(deps),
-		newInstallTimersCommand(deps),
 		newURLsCommand(deps),
 		newLoginsCommand(deps),
 		newHomepageCommand(deps),
