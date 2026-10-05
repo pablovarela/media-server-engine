@@ -31,3 +31,20 @@ func TestShieldedSignalsDoNotEndTheProcess(t *testing.T) {
 	}
 	time.Sleep(100 * time.Millisecond)
 }
+
+func TestTheFirstSignalStillInterruptsWhileShielded(t *testing.T) {
+	ctx, stop := interruptible()
+	defer stop()
+	release := shieldSignals()
+	defer release()
+
+	require.NoError(t, syscall.Kill(os.Getpid(), syscall.SIGTERM))
+
+	select {
+	case <-ctx.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("a shielded signal did not interrupt")
+	}
+	require.NoError(t, syscall.Kill(os.Getpid(), syscall.SIGTERM))
+	time.Sleep(100 * time.Millisecond)
+}

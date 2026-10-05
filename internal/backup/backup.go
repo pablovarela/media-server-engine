@@ -69,7 +69,11 @@ func (b *Backups) backup(ctx context.Context, claiming bool) error {
 
 func (b *Backups) backupHolding(ctx context.Context, lock *heldLock, claiming bool) (err error) {
 	var stopped []string
-	defer func() { err = b.finish(context.WithoutCancel(ctx), stopped, err) }()
+	release := func() {}
+	defer func() {
+		err = b.finish(context.WithoutCancel(ctx), stopped, err)
+		release()
+	}()
 	b.Pinger.Ping(ctx, "backup", "/start")
 	if !claiming {
 		if err := b.requireMain(ctx); err != nil {
@@ -80,6 +84,7 @@ func (b *Backups) backupHolding(ctx context.Context, lock *heldLock, claiming bo
 	if err != nil {
 		return err
 	}
+	release = b.shielded()
 	if stopped, err = b.stopStack(ctx); err != nil {
 		return err
 	}

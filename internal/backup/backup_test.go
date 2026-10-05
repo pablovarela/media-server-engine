@@ -314,8 +314,14 @@ func TestTheRestartIsShieldedFromSignals(t *testing.T) {
 	m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(nil, nil)
 	m.stack.EXPECT().RunningServices(mock.Anything).Return([]string{"jellyfin"}, nil)
 	m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
-	m.stack.EXPECT().Stop(mock.Anything).Return(nil)
-	m.repository.EXPECT().Backup(mock.Anything, mock.Anything).Return(errors.New("restic was interrupted"))
+	m.stack.EXPECT().Stop(mock.Anything).RunAndReturn(func(context.Context) error {
+		assert.True(t, shielded, "signals are shielded from the moment the stack stops")
+		return nil
+	})
+	m.repository.EXPECT().Backup(mock.Anything, mock.Anything).RunAndReturn(func(context.Context, restic.BackupOptions) error {
+		assert.True(t, shielded, "signals are shielded while restic runs with the stack stopped")
+		return errors.New("restic was interrupted")
+	})
 	m.stack.EXPECT().Start(mock.Anything, []string{"jellyfin"}).RunAndReturn(func(context.Context, []string) error {
 		assert.True(t, shielded, "signals are shielded while the services start again")
 		return nil
