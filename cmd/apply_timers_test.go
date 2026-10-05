@@ -28,6 +28,8 @@ type timersFixture struct {
 	systemctl      []string
 	tokenCall      []string
 	systemctlFails string
+	accountGroups  string
+	managerGroups  string
 }
 
 func newTimersFixture(t *testing.T) *timersFixture {
@@ -35,6 +37,7 @@ func newTimersFixture(t *testing.T) *timersFixture {
 	tf := &timersFixture{
 		f: newApplyFixture(t), snapshots: process.Result{Stdout: []byte(ourSnapshots)},
 		linger: "Linger=yes\n", token: "gho_not_shown\n", environment: map[string]string{"XDG_RUNTIME_DIR": "/run/user/1000"},
+		accountGroups: "pablo adm docker\n", managerGroups: "4 995 1000",
 	}
 	installed := filepath.Join(t.TempDir(), "opt", "mse")
 	require.NoError(t, os.MkdirAll(filepath.Dir(installed), 0o755))
@@ -45,27 +48,7 @@ func newTimersFixture(t *testing.T) *timersFixture {
 	link := filepath.Join(t.TempDir(), "mse")
 	require.NoError(t, os.Symlink(installed, link))
 	tf.f.runner.EXPECT().Output(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, c process.Command) (process.Result, error) {
-		switch c.Name {
-		case "timedatectl":
-			return process.Result{Stdout: []byte("Europe/London\n")}, nil
-		case "loginctl":
-			assert.Equal(t, []string{"show-user", "pablo", "-p", "Linger"}, c.Args)
-			return process.Result{Stdout: []byte(tf.linger)}, nil
-		case "env":
-			tf.tokenCall = append([]string{c.Name}, c.Args...)
-			return process.Result{Stdout: []byte(tf.token)}, nil
-		case "restic":
-			return tf.snapshots, nil
-		case "systemctl":
-			call := strings.Join(c.Args, " ")
-			tf.systemctl = append(tf.systemctl, call)
-			if call == tf.systemctlFails {
-				return process.Result{Exit: 1, Stderr: []byte("Failed to connect to bus\n")}, nil
-			}
-			return process.Result{}, nil
-		}
-		t.Fatalf("unexpected command %s %v", c.Name, c.Args)
-		return process.Result{}, nil
+		return tf.answer(t, c), nil
 	}).Maybe()
 	tf.f.expectApply(nil)
 	tf.deps = tf.f.deps(t, true)
@@ -78,7 +61,57 @@ func newTimersFixture(t *testing.T) *timersFixture {
 	require.NoError(t, os.WriteFile(machineID, []byte("this-machine\n"), 0o644))
 	tf.deps.MachineIDFile = machineID
 	tf.deps.Environment = func(key string) string { return tf.environment[key] }
+	tf.deps.ProcRoot = t.TempDir()
 	return tf
+}
+
+func (tf *timersFixture) answer(t *testing.T, c process.Command) process.Result {
+	switch c.Name {
+	case "timedatectl":
+		return process.Result{Stdout: []byte("Europe/London\n")}
+	case "loginctl":
+		assert.Equal(t, []string{"show-user", "pablo", "-p", "Linger"}, c.Args)
+		return process.Result{Stdout: []byte(tf.linger)}
+	case "env":
+		tf.tokenCall = append([]string{c.Name}, c.Args...)
+		return process.Result{Stdout: []byte(tf.token)}
+	case "restic":
+		return tf.snapshots
+	case "id", "getent":
+		return tf.answerGroups(t, c)
+	case "systemctl":
+		call := strings.Join(c.Args, " ")
+		if call == "show user@1000.service -p MainPID --value" {
+			return process.Result{Stdout: []byte("4242\n")}
+		}
+		tf.systemctl = append(tf.systemctl, call)
+		if call == tf.systemctlFails {
+			return process.Result{Exit: 1, Stderr: []byte("Failed to connect to bus\n")}
+		}
+		return process.Result{}
+	}
+	t.Fatalf("unexpected command %s %v", c.Name, c.Args)
+	return process.Result{}
+}
+
+func (tf *timersFixture) answerGroups(t *testing.T, c process.Command) process.Result {
+	switch strings.Join(append([]string{c.Name}, c.Args...), " ") {
+	case "id -u pablo":
+		return process.Result{Stdout: []byte("1000\n")}
+	case "id -Gn pablo":
+		return process.Result{Stdout: []byte(tf.accountGroups)}
+	case "getent group docker":
+		return process.Result{Stdout: []byte("docker:x:995:pablo\n")}
+	}
+	t.Fatalf("unexpected command %s %v", c.Name, c.Args)
+	return process.Result{}
+}
+
+func (tf *timersFixture) writeManagerStatus(t *testing.T) {
+	t.Helper()
+	dir := filepath.Join(tf.deps.ProcRoot, "4242")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "status"), []byte("Name:\tsystemd\nGroups:\t"+tf.managerGroups+"\nVmPeak:\t1 kB\n"), 0o644))
 }
 
 func (tf *timersFixture) apply(t *testing.T) (int, string, string) {
@@ -182,6 +215,7 @@ func TestTheCarriedVariablesReachTheUnitsAndTheTokenCheck(t *testing.T) {
 func TestWithoutAnUnattendedTokenTheTimersAreStillSetUpWithAWarning(t *testing.T) {
 	tf := newTimersFixture(t)
 	tf.token = ""
+	tf.writeManagerStatus(t)
 
 	code, stdout, stderr := tf.apply(t)
 
@@ -283,4 +317,51 @@ func TestWithoutAUserSessionTheTimersAreSkipped(t *testing.T) {
 	assert.Contains(t, stdout, "Setting up the timers... skipped: no user session here (XDG_RUNTIME_DIR isn't set); run mse apply from a login or let the timers run it.\n")
 	assert.NoDirExists(t, tf.units)
 	assert.Empty(t, tf.systemctl)
+}
+
+const managerWithoutDocker = "the timers can't reach Docker: your user manager started before you joined the docker group; " +
+	"restart it with sudo systemctl restart user@1000 (or reboot)"
+
+func TestAUserManagerStartedBeforeJoiningDockerIsPointedOut(t *testing.T) {
+	tf := newTimersFixture(t)
+	tf.managerGroups = "4 1000"
+	tf.writeManagerStatus(t)
+
+	code, stdout, stderr := tf.apply(t)
+
+	require.Equal(t, 0, code, stderr)
+	assert.Contains(t, stderr, managerWithoutDocker)
+	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update")
+	assert.FileExists(t, filepath.Join(tf.units, "mse-gorgon-update.timer"))
+}
+
+func TestAUserManagerInTheDockerGroupNeedsNoWarning(t *testing.T) {
+	tf := newTimersFixture(t)
+	tf.writeManagerStatus(t)
+
+	code, _, stderr := tf.apply(t)
+
+	require.Equal(t, 0, code, stderr)
+	assert.NotContains(t, stderr, "can't reach Docker")
+}
+
+func TestAnAccountOutsideTheDockerGroupGetsNoManagerWarning(t *testing.T) {
+	tf := newTimersFixture(t)
+	tf.accountGroups = "pablo adm\n"
+	tf.managerGroups = "4 1000"
+	tf.writeManagerStatus(t)
+
+	code, _, stderr := tf.apply(t)
+
+	require.Equal(t, 0, code, stderr)
+	assert.NotContains(t, stderr, "can't reach Docker")
+}
+
+func TestAnUnreadableUserManagerGetsNoWarning(t *testing.T) {
+	tf := newTimersFixture(t)
+
+	code, _, stderr := tf.apply(t)
+
+	require.Equal(t, 0, code, stderr)
+	assert.NotContains(t, stderr, "can't reach Docker")
 }
