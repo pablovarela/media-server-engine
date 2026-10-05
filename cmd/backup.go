@@ -104,6 +104,7 @@ func (d Dependencies) backups(cmd *cobra.Command, withStack bool) (*backup.Backu
 		TempDir:     tempDir(d.Environment),
 		Now:         d.Now,
 		Ask:         d.asker(cmd),
+		Shield:      shieldSignals,
 		Out:         cmd.OutOrStdout(),
 		ErrOut:      cmd.ErrOrStderr(),
 	}, nil
@@ -173,6 +174,10 @@ type projectStack struct {
 
 func (s projectStack) RunningServices(ctx context.Context) ([]string, error) {
 	return s.runner.RunningServices(ctx, s.project)
+}
+
+func (s projectStack) AnyRunning(ctx context.Context) (bool, error) {
+	return s.runner.AnyRunning(ctx, s.project)
 }
 
 func (s projectStack) Stop(ctx context.Context) error {

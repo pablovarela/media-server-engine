@@ -25,6 +25,7 @@ type composeRunner interface {
 	Logs(ctx context.Context, project *types.Project, options compose.LogsOptions, w io.Writer) error
 	Restart(ctx context.Context, project *types.Project, services []string) error
 	RunningServices(ctx context.Context, project *types.Project) ([]string, error)
+	AnyRunning(ctx context.Context, project *types.Project) (bool, error)
 	Stop(ctx context.Context, project *types.Project) error
 	Start(ctx context.Context, project *types.Project, services []string) error
 }

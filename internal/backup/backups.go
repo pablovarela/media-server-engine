@@ -26,6 +26,7 @@ type Repository interface {
 
 type Stack interface {
 	RunningServices(ctx context.Context) ([]string, error)
+	AnyRunning(ctx context.Context) (bool, error)
 	Stop(ctx context.Context) error
 	Start(ctx context.Context, services []string) error
 }
@@ -46,8 +47,16 @@ type Backups struct {
 	TempDir            string
 	Now                func() time.Time
 	Ask                func(question string) (answer string, interactive bool)
+	Shield             func() (release func())
 	Out                io.Writer
 	ErrOut             io.Writer
+}
+
+func (b *Backups) shielded() (release func()) {
+	if b.Shield == nil {
+		return func() {}
+	}
+	return b.Shield()
 }
 
 func (b *Backups) say(line string) {

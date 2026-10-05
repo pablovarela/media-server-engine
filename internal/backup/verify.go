@@ -24,6 +24,7 @@ func (b *Backups) Verify(ctx context.Context) (err error) {
 	finishing := context.WithoutCancel(ctx)
 	defer func() {
 		if err != nil {
+			defer b.shielded()()
 			b.Pinger.Ping(finishing, "verify", "/fail")
 		}
 	}()
@@ -46,7 +47,10 @@ func (b *Backups) Verify(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	defer func() { _ = os.RemoveAll(dir) }()
+	defer func() {
+		defer b.shielded()()
+		_ = os.RemoveAll(dir)
+	}()
 	b.say("Restoring the databases of the latest snapshot...")
 	host := ""
 	if latest != nil {

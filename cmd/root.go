@@ -100,13 +100,21 @@ func Execute(engine fs.FS) int {
 	return run(ctx, NewRootCommand(deps), os.Args[1:])
 }
 
+var endingSignals = []os.Signal{os.Interrupt, syscall.SIGTERM, syscall.SIGHUP}
+
 func interruptible() (context.Context, context.CancelFunc) {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(context.Background(), endingSignals...)
 	go func() {
 		<-ctx.Done()
 		stop()
 	}()
 	return ctx, stop
+}
+
+func shieldSignals() (release func()) {
+	ignored := make(chan os.Signal, 1)
+	signal.Notify(ignored, endingSignals...)
+	return func() { signal.Stop(ignored) }
 }
 
 func run(ctx context.Context, root *cobra.Command, args []string) int {

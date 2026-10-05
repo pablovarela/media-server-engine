@@ -16,7 +16,7 @@ import (
 
 func TestRestore(t *testing.T) {
 	type Given struct {
-		running    []string
+		running    bool
 		runningErr error
 		volumes    []string
 		overwrite  bool
@@ -33,7 +33,7 @@ func TestRestore(t *testing.T) {
 		"an empty data directory": {Then: Then{restored: true}},
 		"only configarr":          {Given: Given{volumes: []string{"configarr"}}, Then: Then{restored: true}},
 		"the stack is running": {
-			Given: Given{running: []string{"jellyfin"}},
+			Given: Given{running: true},
 			Then:  Then{err: "the stack is running; stop it with mse stack down first"},
 		},
 		"docker cannot tell": {
@@ -56,7 +56,7 @@ func TestRestore(t *testing.T) {
 			for _, app := range tt.Given.volumes {
 				require.NoError(t, os.MkdirAll(filepath.Join(volumes, app), 0o755))
 			}
-			m.stack.EXPECT().RunningServices(mock.Anything).Return(tt.Given.running, tt.Given.runningErr)
+			m.stack.EXPECT().AnyRunning(mock.Anything).Return(tt.Given.running, tt.Given.runningErr)
 			if tt.Then.restored {
 				m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
 				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return([]restic.Snapshot{snapshot("this", "pi", "2026-10-04 04:30")}, nil)

@@ -655,6 +655,66 @@ func (_m *mockStack) EXPECT() *mockStack_Expecter {
 	return &mockStack_Expecter{mock: &_m.Mock}
 }
 
+// AnyRunning provides a mock function for the type mockStack
+func (_mock *mockStack) AnyRunning(ctx context.Context) (bool, error) {
+	ret := _mock.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AnyRunning")
+	}
+
+	var r0 bool
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context) (bool, error)); ok {
+		return returnFunc(ctx)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context) bool); ok {
+		r0 = returnFunc(ctx)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = returnFunc(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// mockStack_AnyRunning_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AnyRunning'
+type mockStack_AnyRunning_Call struct {
+	*mock.Call
+}
+
+// AnyRunning is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *mockStack_Expecter) AnyRunning(ctx any) *mockStack_AnyRunning_Call {
+	return &mockStack_AnyRunning_Call{Call: _e.mock.On("AnyRunning", ctx)}
+}
+
+func (_c *mockStack_AnyRunning_Call) Run(run func(ctx context.Context)) *mockStack_AnyRunning_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *mockStack_AnyRunning_Call) Return(b bool, err error) *mockStack_AnyRunning_Call {
+	_c.Call.Return(b, err)
+	return _c
+}
+
+func (_c *mockStack_AnyRunning_Call) RunAndReturn(run func(ctx context.Context) (bool, error)) *mockStack_AnyRunning_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // RunningServices provides a mock function for the type mockStack
 func (_mock *mockStack) RunningServices(ctx context.Context) ([]string, error) {
 	ret := _mock.Called(ctx)

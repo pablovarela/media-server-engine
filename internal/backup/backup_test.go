@@ -254,3 +254,26 @@ func TestClaim(t *testing.T) {
 		})
 	}
 }
+
+func TestTheRestartIsShieldedFromSignals(t *testing.T) {
+	b, m, _, _ := fixture(t)
+	shielded := false
+	b.Shield = func() func() {
+		shielded = true
+		return func() { shielded = false }
+	}
+	m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+	m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(nil, nil)
+	m.stack.EXPECT().RunningServices(mock.Anything).Return([]string{"jellyfin"}, nil)
+	m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
+	m.stack.EXPECT().Stop(mock.Anything).Return(nil)
+	m.repository.EXPECT().Backup(mock.Anything, mock.Anything).Return(errors.New("restic was interrupted"))
+	m.stack.EXPECT().Start(mock.Anything, []string{"jellyfin"}).RunAndReturn(func(context.Context, []string) error {
+		assert.True(t, shielded, "signals are shielded while the services start again")
+		return nil
+	})
+	m.pinger.EXPECT().Ping(mock.Anything, "backup", "/fail").Return()
+
+	assert.EqualError(t, b.Backup(context.Background()), "restic was interrupted")
+	assert.False(t, shielded, "the shield is released")
+}

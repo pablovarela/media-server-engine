@@ -119,6 +119,7 @@ func (b *Backups) startAgain(ctx context.Context, services []string) error {
 }
 
 func (b *Backups) finish(ctx context.Context, stopped []string, err error) error {
+	defer b.shielded()()
 	if len(stopped) > 0 {
 		if startErr := b.Stack.Start(ctx, stopped); startErr != nil {
 			err = errors.Join(err, startErr)

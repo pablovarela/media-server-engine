@@ -141,3 +141,21 @@ func TestVerifyRunsOnTheMainOnly(t *testing.T) {
 		})
 	}
 }
+
+func TestTheVerifyCleanupIsShieldedFromSignals(t *testing.T) {
+	b, m, _, _ := fixture(t)
+	shielded := false
+	b.Shield = func() func() {
+		shielded = true
+		return func() { shielded = false }
+	}
+	m.pinger.EXPECT().Ping(mock.Anything, "verify", "/start").Return()
+	m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(nil, nil)
+	m.repository.EXPECT().Unlock(mock.Anything).Return(errors.New("restic unlock failed (exit 1)"))
+	m.pinger.EXPECT().Ping(mock.Anything, "verify", "/fail").RunAndReturn(func(context.Context, string, string) {
+		assert.True(t, shielded, "signals are shielded while the failure is reported")
+	})
+
+	assert.EqualError(t, b.Verify(context.Background()), "restic unlock failed (exit 1)")
+	assert.False(t, shielded)
+}

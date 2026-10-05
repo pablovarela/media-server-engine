@@ -189,15 +189,24 @@ func (r *Runner) RunningServices(ctx context.Context, project *types.Project) ([
 	if err != nil {
 		return nil, err
 	}
+	inProject := project.ServiceNames()
 	running := map[string]bool{}
 	for _, summary := range summaries {
-		if summary.State == container.StateRunning {
+		if summary.State == container.StateRunning && slices.Contains(inProject, summary.Service) {
 			running[summary.Service] = true
 		}
 	}
 	services := slices.Collect(maps.Keys(running))
 	slices.Sort(services)
 	return services, nil
+}
+
+func (r *Runner) AnyRunning(ctx context.Context, project *types.Project) (bool, error) {
+	summaries, err := r.service.Ps(ctx, project.Name, api.PsOptions{Project: project})
+	if err != nil {
+		return false, err
+	}
+	return slices.ContainsFunc(summaries, func(s api.ContainerSummary) bool { return s.State == container.StateRunning }), nil
 }
 
 func (r *Runner) Stop(ctx context.Context, project *types.Project) error {

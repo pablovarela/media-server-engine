@@ -15,11 +15,11 @@ func (b *Backups) Restore(ctx context.Context, overwrite bool) error {
 	if err := os.MkdirAll(data, 0o755); err != nil { //nolint:gosec // the installation's data directory, read by its containers
 		return err
 	}
-	running, err := b.Stack.RunningServices(ctx)
+	running, err := b.Stack.AnyRunning(ctx)
 	if err != nil {
 		return fmt.Errorf("cannot tell whether the stack is running (%w)", err)
 	}
-	if len(running) > 0 {
+	if running {
 		return errors.New("the stack is running; stop it with mse stack down first")
 	}
 	volumes := filepath.Join(data, "volumes")
