@@ -40,6 +40,8 @@ func (p *Painter) Failure(text string) string { return p.paint(text, color.FgRed
 
 func (p *Painter) Bold(text string) string { return p.paint(text, color.Bold) }
 
+func (p *Painter) Faint(text string) string { return p.paint(text, color.Faint) }
+
 func (p *Painter) paint(text string, attribute color.Attribute) string {
 	if !p.enabled || text == "" {
 		return text
