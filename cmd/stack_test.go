@@ -30,10 +30,11 @@ func TestStackCommands(t *testing.T) {
 		args []string
 	}
 	type Then struct {
-		expect func(r *mockComposeRunner)
-		stdout string
-		stderr string
-		drawn  bool
+		expect     func(r *mockComposeRunner)
+		stdout     string
+		stderr     string
+		drawn      bool
+		envWritten bool
 	}
 	tests := map[string]struct {
 		Given Given
@@ -51,9 +52,10 @@ func TestStackCommands(t *testing.T) {
 			Given: Given{configServices: "not: a list\n"},
 			When:  When{args: []string{"stack", "up"}},
 			Then: Then{
-				expect: func(r *mockComposeRunner) { r.EXPECT().Up(mock.Anything, project, []string{}).Return(nil) },
-				stderr: "could not draw the landing page (services.yaml: expected a list); it keeps its previous files\n",
-				drawn:  true,
+				expect:     func(r *mockComposeRunner) { r.EXPECT().Up(mock.Anything, project, []string{}).Return(nil) },
+				stderr:     "could not draw the landing page (services.yaml: expected a list); it keeps its previous files\n",
+				drawn:      true,
+				envWritten: true,
 			},
 		},
 		"monitoring up draws no page": {
@@ -168,6 +170,11 @@ func TestStackCommands(t *testing.T) {
 			assert.FileExists(t, filepath.Join(state, "docker-compose.yml"))
 			assert.Equal(t, tt.Then.stdout, stdout.String())
 			assert.Equal(t, tt.Then.stderr, stderr.String())
+			if tt.Then.envWritten {
+				env, err := os.ReadFile(filepath.Join(state, ".secrets", "homepage.env"))
+				require.NoError(t, err)
+				assert.Contains(t, string(env), "HOMEPAGE_VAR_SONARR_KEY=")
+			}
 			drawnPage := filepath.Join(state, ".homepage", "settings.yaml")
 			if tt.Then.drawn {
 				assert.FileExists(t, drawnPage)

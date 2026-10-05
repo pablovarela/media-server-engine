@@ -57,11 +57,11 @@ func (d Dependencies) drawPage(ctx context.Context, i *installation.Installation
 		ShortHost:       short,
 		HealthchecksKey: homepage.HealthchecksKey(i),
 	}
-	images, err := homepage.Draw(ctx, d.Engine, i, inputs, homepage.Healthchecks{Client: d.HTTP, URL: homepage.ChecksURL}, warn)
+	env, err := homepage.WriteEnv(i, homepage.Env(i))
 	if err != nil {
 		return pageChanges{}, err
 	}
-	env, err := homepage.WriteEnv(i, homepage.Env(i))
+	images, err := homepage.Draw(ctx, d.Engine, i, inputs, homepage.Healthchecks{Client: d.HTTP, URL: homepage.ChecksURL}, warn)
 	return pageChanges{env: env, images: images}, err
 }
 
