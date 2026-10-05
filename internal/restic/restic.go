@@ -140,7 +140,7 @@ func (r Restic) Restore(ctx context.Context, o RestoreOptions) error {
 }
 
 func (r Restic) HasRepository(ctx context.Context) (bool, error) {
-	result, err := r.output(ctx, "cat", "config")
+	result, err := r.output(ctx, "cat", "config", "--no-lock")
 	switch {
 	case err != nil:
 		return false, err

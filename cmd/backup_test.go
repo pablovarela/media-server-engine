@@ -26,6 +26,9 @@ func resticCall(args ...string) any {
 }
 
 func TestBackupCommands(t *testing.T) {
+	type Given struct {
+		machineID string
+	}
 	type When struct {
 		args []string
 	}
@@ -34,11 +37,13 @@ func TestBackupCommands(t *testing.T) {
 		stdout string
 	}
 	tests := map[string]struct {
-		When When
-		Then Then
+		Given Given
+		When  When
+		Then  Then
 	}{
 		"backup-role": {
-			When: When{args: []string{"backup-role"}},
+			Given: Given{machineID: "this-machine\n"},
+			When:  When{args: []string{"backup-role"}},
 			Then: Then{
 				expect: func(r *mockCommandRunner) {
 					r.EXPECT().Output(mock.Anything, resticCall("snapshots", "--no-lock", "--host", "gorgon", "--json")).Return(process.Result{
@@ -63,7 +68,9 @@ func TestBackupCommands(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			getenv, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"})
 			machineID := filepath.Join(t.TempDir(), "machine-id")
-			require.NoError(t, os.WriteFile(machineID, []byte("this-machine\n"), 0o644))
+			if tt.Given.machineID != "" {
+				require.NoError(t, os.WriteFile(machineID, []byte(tt.Given.machineID), 0o644))
+			}
 			runner := newMockCommandRunner(t)
 			tt.Then.expect(runner)
 			deps := Dependencies{
@@ -85,9 +92,7 @@ func TestBackupCommands(t *testing.T) {
 
 			assert.Equal(t, 0, code, stderr.String())
 			assert.Equal(t, tt.Then.stdout, stdout.String())
-			excludes, err := os.ReadFile(filepath.Join(home, ".local", "state", "mse", "gorgon", "backup-excludes.txt"))
-			require.NoError(t, err)
-			assert.Equal(t, "logs\n", string(excludes))
+			assert.NoFileExists(t, filepath.Join(home, ".local", "share", "mse", "gorgon", ".machine-id"), "only the commands that need it read the machine's identity")
 		})
 	}
 }

@@ -28,45 +28,58 @@ type commandRunner interface {
 	Output(ctx context.Context, c process.Command) (process.Result, error)
 }
 
+type backupNeeds struct {
+	stack    bool
+	identity bool
+	excludes bool
+}
+
+var (
+	backingUp = backupNeeds{stack: true, identity: true, excludes: true}
+	restoring = backupNeeds{stack: true}
+	telling   = backupNeeds{identity: true}
+	unlocking = backupNeeds{}
+)
+
 func newBackupCommands(deps Dependencies) []*cobra.Command {
 	var yes, all, overwrite bool
-	backupCommand := func(use, short string, withStack bool, do func(cmd *cobra.Command, b *backup.Backups) error) *cobra.Command {
+	backupCommand := func(use, short string, needs backupNeeds, do func(cmd *cobra.Command, b *backup.Backups) error) *cobra.Command {
 		return &cobra.Command{Use: use, Short: short, Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
-			b, err := deps.backups(cmd, withStack)
+			b, err := deps.backups(cmd, needs)
 			if err != nil {
 				return err
 			}
 			return do(cmd, b)
 		}}
 	}
-	claim := backupCommand("claim-backup-main", "Make this machine the installation's main, the one that backs up", true, func(cmd *cobra.Command, b *backup.Backups) error {
+	claim := backupCommand("claim-backup-main", "Make this machine the installation's main, the one that backs up", backingUp, func(cmd *cobra.Command, b *backup.Backups) error {
 		return b.Claim(cmd.Context(), yes)
 	})
 	claim.Flags().BoolVar(&yes, "yes", false, "take over from another main without asking")
-	unlock := backupCommand("unlock-backup", "Remove stale locks from the backup repository and show the ones left", false, func(cmd *cobra.Command, b *backup.Backups) error {
+	unlock := backupCommand("unlock-backup", "Remove stale locks from the backup repository and show the ones left", unlocking, func(cmd *cobra.Command, b *backup.Backups) error {
 		return b.Unlock(cmd.Context(), all)
 	})
 	unlock.Flags().BoolVar(&all, "all", false, "remove every lock: only when no machine is running restic")
-	restore := backupCommand("restore", "Restore volumes/ from the latest backup", true, func(cmd *cobra.Command, b *backup.Backups) error {
+	restore := backupCommand("restore", "Restore volumes/ from the latest backup", restoring, func(cmd *cobra.Command, b *backup.Backups) error {
 		return b.Restore(cmd.Context(), overwrite)
 	})
 	restore.Flags().BoolVar(&overwrite, "overwrite", false, "move the existing volumes/ aside and restore over it")
 	return []*cobra.Command{
-		backupCommand("backup", "Back up the apps' data now (stops them for a few minutes; only on the installation's main)", true, func(cmd *cobra.Command, b *backup.Backups) error {
+		backupCommand("backup", "Back up the apps' data now (stops them for a few minutes; only on the installation's main)", backingUp, func(cmd *cobra.Command, b *backup.Backups) error {
 			return b.Backup(cmd.Context())
 		}),
-		backupCommand("verify-backup", "Check the backups: restic check and a test restore of the latest snapshot's databases", false, func(cmd *cobra.Command, b *backup.Backups) error {
+		backupCommand("verify-backup", "Check the backups: restic check and a test restore of the latest snapshot's databases", telling, func(cmd *cobra.Command, b *backup.Backups) error {
 			return b.Verify(cmd.Context())
 		}),
-		backupCommand("backup-role", "Show which machine is the installation's main", false, func(cmd *cobra.Command, b *backup.Backups) error {
+		backupCommand("backup-role", "Show which machine is the installation's main", telling, func(cmd *cobra.Command, b *backup.Backups) error {
 			return b.DescribeRole(cmd.Context())
 		}),
 		claim, unlock, restore,
 	}
 }
 
-func (d Dependencies) backups(cmd *cobra.Command, withStack bool) (*backup.Backups, error) {
-	i, stack, err := d.backupTarget(cmd, withStack)
+func (d Dependencies) backups(cmd *cobra.Command, needs backupNeeds) (*backup.Backups, error) {
+	i, stack, err := d.backupTarget(cmd, needs.stack)
 	if err != nil {
 		return nil, err
 	}
@@ -80,11 +93,7 @@ func (d Dependencies) backups(cmd *cobra.Command, withStack bool) (*backup.Backu
 		return nil, err
 	}
 	short, _, _ := strings.Cut(hostname, ".")
-	machine, err := backup.MachineID(d.MachineIDFile, i.Data)
-	if err != nil {
-		return nil, err
-	}
-	excludes, err := d.writeExcludes(i)
+	machine, excludes, err := d.backupFiles(i, needs)
 	if err != nil {
 		return nil, err
 	}
@@ -108,6 +117,20 @@ func (d Dependencies) backups(cmd *cobra.Command, withStack bool) (*backup.Backu
 		Out:         cmd.OutOrStdout(),
 		ErrOut:      cmd.ErrOrStderr(),
 	}, nil
+}
+
+func (d Dependencies) backupFiles(i *installation.Installation, needs backupNeeds) (machine, excludes string, err error) {
+	if needs.identity {
+		if machine, err = backup.MachineID(d.MachineIDFile, i.Data); err != nil {
+			return "", "", err
+		}
+	}
+	if needs.excludes {
+		if excludes, err = d.writeExcludes(i); err != nil {
+			return "", "", err
+		}
+	}
+	return machine, excludes, nil
 }
 
 func (d Dependencies) backupTarget(cmd *cobra.Command, withStack bool) (*installation.Installation, backup.Stack, error) {

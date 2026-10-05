@@ -122,7 +122,7 @@ func TestHasRepository(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			runner := newMockRunner(t)
-			runner.EXPECT().Output(mock.Anything, command("cat", "config")).Return(tt.Given.result, nil)
+			runner.EXPECT().Output(mock.Anything, command("cat", "config", "--no-lock")).Return(tt.Given.result, nil)
 
 			exists, err := Restic{Runner: runner, Env: env}.HasRepository(context.Background())
 
