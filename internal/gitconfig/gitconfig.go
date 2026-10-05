@@ -35,8 +35,12 @@ func (r Repository) HasRemote(ctx context.Context) (bool, error) {
 }
 
 func (r Repository) FastForward(ctx context.Context) (int, error) {
-	if result, err := r.git(ctx, "rev-parse", "--abbrev-ref", "@{upstream}"); err != nil || result.Exit != 0 {
-		return 0, errors.Join(err, ErrNoUpstream)
+	tracking, err := r.git(ctx, "rev-parse", "--abbrev-ref", "@{upstream}")
+	if err != nil {
+		return 0, err
+	}
+	if tracking.Exit != 0 {
+		return 0, ErrNoUpstream
 	}
 	if _, err := r.succeeding(ctx, "fetch", "--quiet"); err != nil {
 		return 0, err
@@ -45,12 +49,12 @@ func (r Repository) FastForward(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if ahead > 0 {
-		return 0, ErrDiverged
-	}
 	behind, err := r.count(ctx, "HEAD..@{upstream}")
 	if err != nil || behind == 0 {
 		return 0, err
+	}
+	if ahead > 0 {
+		return 0, ErrDiverged
 	}
 	_, err = r.succeeding(ctx, "merge", "--ff-only", "--quiet", "@{upstream}")
 	return behind, err

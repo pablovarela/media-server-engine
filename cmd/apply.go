@@ -30,16 +30,20 @@ func newApplyCommand(deps Dependencies) *cobra.Command {
 		Short: "Apply the config on disk to this machine: secrets, landing page, images and containers",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if afterUpdate == "" {
+			if !cmd.Flags().Changed("after-update") {
 				return deps.apply(cmd)
 			}
-			i, err := deps.installation(cmd)
+			if !afterUpdateRunID.MatchString("--after-update=" + afterUpdate) {
+				return errors.New("--after-update takes the run id of the update that handed over, six hex digits")
+			}
+			i, err := deps.anyInstallation(cmd)
 			if err != nil {
 				return err
 			}
 			return deps.reported(cmd, i, func() error { return deps.apply(cmd) })
 		},
 	}
+	// Older releases hand over with exactly `apply --after-update=<run id> --installation <name> [--verbose]`.
 	command.Flags().StringVar(&afterUpdate, "after-update", "", "the run id of the update that handed over to this apply")
 	_ = command.Flags().MarkHidden("after-update")
 	return command
@@ -77,7 +81,7 @@ func (d Dependencies) apply(cmd *cobra.Command) error {
 		Page:     pageFunc(func(ctx context.Context) error { return d.applyPage(ctx, o) }),
 		Images:   imagesFunc(func(ctx context.Context) error { return d.pruneImages(ctx, o.installation) }),
 		MkdirAll: func(path string) error { return os.MkdirAll(path, 0o755) }, //nolint:gosec // containers running as other users read these folders
-		Sleep:    d.Sleep,
+		Sleep:    d.Pause,
 		Report:   report.From(cmd.Context()),
 	}).Run(cmd.Context())
 }

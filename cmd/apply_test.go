@@ -143,7 +143,7 @@ func TestApplyCommand(t *testing.T) {
 			Then: Then{stdout: []string{"Pulling images..."}},
 		},
 		"after an update it reports success": {
-			When: []string{"apply", "--after-update=a1b2c3"},
+			When: []string{"apply", "--after-update=a1b2c3", "--installation", "gorgon", "--verbose"},
 			Then: Then{requests: []string{"GET /ping-key/gorgon-update"}},
 		},
 		"after an update a failure reports fail": {
@@ -209,4 +209,33 @@ func TestApplyReattachesTheDetachedServices(t *testing.T) {
 
 	require.Equal(t, 0, code, stderr.String())
 	assert.Contains(t, stdout.String(), "Reattaching to gluetun... recreated deluge.\n")
+}
+
+func TestApplyAfterAnUpdateReportsFailWhenTheConfigNeedsAnotherMajor(t *testing.T) {
+	f := newApplyFixture(t)
+	writeHealthchecksKeys(t, f)
+	require.NoError(t, os.WriteFile(filepath.Join(f.home, ".config", "mse", "gorgon", "config.yml"), []byte("config: 1\n"), 0o644))
+	root := NewRootCommand(f.deps(t, false))
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+
+	code := run(context.Background(), root, []string{"apply", "--after-update=a1b2c3"})
+
+	assert.Equal(t, 1, code)
+	assert.Equal(t, []string{"GET /ping-key/gorgon-update/fail"}, *f.requests)
+}
+
+func TestApplyRefusesARunIDThatIsNotOne(t *testing.T) {
+	f := newApplyFixture(t)
+	root := NewRootCommand(f.deps(t, false))
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+
+	code := run(context.Background(), root, []string{"apply", "--after-update=foo"})
+
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stderr.String(), "--after-update takes the run id of the update that handed over, six hex digits")
+	assert.Empty(t, *f.requests)
 }

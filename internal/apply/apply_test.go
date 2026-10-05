@@ -61,7 +61,7 @@ func TestRun(t *testing.T) {
 		"rate limited every time restarts nothing": {
 			Given: Given{pulls: []error{errRegistryLimit, errRegistryLimit, errRegistryLimit, errRegistryLimit}},
 			Then: Then{
-				err:   "a registry kept refusing pulls as too many requests; run mse update --apply again later",
+				err:   "a registry kept refusing pulls as too many requests; try again later",
 				slept: []time.Duration{30 * time.Second, 60 * time.Second, 90 * time.Second},
 			},
 		},
@@ -92,7 +92,7 @@ func TestRun(t *testing.T) {
 			a := &Apply{
 				Stack: stack, Checks: checks, Wiring: wiring, Page: page, Images: images,
 				MkdirAll: func(path string) error { made = append(made, path); return nil },
-				Sleep:    func(d time.Duration) { slept = append(slept, d) },
+				Sleep:    func(_ context.Context, d time.Duration) error { slept = append(slept, d); return nil },
 				Report:   report.New(&stdout, &stderr, nil),
 			}
 
@@ -160,7 +160,7 @@ func TestRunWarnsWhenAChecksSetUpFails(t *testing.T) {
 
 	err := (&Apply{
 		Stack: stack, Checks: checks, Page: page, Images: images,
-		MkdirAll: func(string) error { return nil }, Sleep: func(time.Duration) {}, Report: report.New(&stdout, &stderr, nil),
+		MkdirAll: func(string) error { return nil }, Sleep: func(context.Context, time.Duration) error { return nil }, Report: report.New(&stdout, &stderr, nil),
 	}).Run(ctx)
 
 	require.NoError(t, err)
@@ -182,7 +182,7 @@ func TestRunWithoutChecksSkipsTheirStep(t *testing.T) {
 
 	err := (&Apply{
 		Stack: stack, Page: page, Images: images,
-		MkdirAll: func(string) error { return nil }, Sleep: func(time.Duration) {}, Report: report.New(&stdout, &stdout, nil),
+		MkdirAll: func(string) error { return nil }, Sleep: func(context.Context, time.Duration) error { return nil }, Report: report.New(&stdout, &stdout, nil),
 	}).Run(ctx)
 
 	require.NoError(t, err)
@@ -196,8 +196,23 @@ func TestRunStopsWhenADataFolderCannotBeCreated(t *testing.T) {
 
 	err := (&Apply{
 		Stack: stack, MkdirAll: func(string) error { return errors.New("permission denied") },
-		Sleep: func(time.Duration) {}, Report: report.New(&stdout, &stdout, nil),
+		Sleep: func(context.Context, time.Duration) error { return nil }, Report: report.New(&stdout, &stdout, nil),
 	}).Run(context.Background())
 
 	assert.EqualError(t, err, "permission denied")
+}
+
+func TestRunStopsRetryingThePullWhenInterrupted(t *testing.T) {
+	ctx := context.Background()
+	stack := newMockStack(t)
+	stack.EXPECT().BindSources().Return(nil)
+	stack.EXPECT().Pull(ctx).Return("", errRegistryLimit).Once()
+	var stdout bytes.Buffer
+
+	err := (&Apply{
+		Stack: stack, MkdirAll: func(string) error { return nil }, Report: report.New(&stdout, &stdout, nil),
+		Sleep: func(context.Context, time.Duration) error { return context.Canceled },
+	}).Run(ctx)
+
+	assert.ErrorIs(t, err, context.Canceled)
 }

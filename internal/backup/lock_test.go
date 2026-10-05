@@ -1,6 +1,7 @@
 package backup
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,9 +29,9 @@ func TestLock(t *testing.T) {
 func TestWaitWhileRunning(t *testing.T) {
 	t.Run("no backup running", func(t *testing.T) {
 		announced := 0
-		err := WaitWhileRunning(filepath.Join(t.TempDir(), ".backup.lock"), Waiting{
+		err := WaitWhileRunning(context.Background(), filepath.Join(t.TempDir(), ".backup.lock"), Waiting{
 			Timeout: time.Hour, Poll: 10 * time.Second, Now: time.Now,
-			Sleep:    func(time.Duration) { t.Fatal("no wait needed") },
+			Sleep:    func(context.Context, time.Duration) error { t.Fatal("no wait needed"); return nil },
 			Announce: func() { announced++ },
 		})
 
@@ -44,14 +45,15 @@ func TestWaitWhileRunning(t *testing.T) {
 		require.NoError(t, err)
 		announced, slept := 0, 0
 
-		err = WaitWhileRunning(path, Waiting{
+		err = WaitWhileRunning(context.Background(), path, Waiting{
 			Timeout: time.Hour, Poll: 10 * time.Second, Now: time.Now,
-			Sleep: func(d time.Duration) {
+			Sleep: func(_ context.Context, d time.Duration) error {
 				assert.Equal(t, 10*time.Second, d)
 				slept++
 				if slept == 2 {
 					held.release()
 				}
+				return nil
 			},
 			Announce: func() { announced++ },
 		})
@@ -68,11 +70,25 @@ func TestWaitWhileRunning(t *testing.T) {
 		defer held.release()
 		now := time.Date(2026, 10, 6, 5, 0, 0, 0, time.UTC)
 
-		err = WaitWhileRunning(path, Waiting{
+		err = WaitWhileRunning(context.Background(), path, Waiting{
 			Timeout: time.Hour, Poll: 10 * time.Minute, Now: func() time.Time { return now },
-			Sleep: func(d time.Duration) { now = now.Add(d) }, Announce: func() {},
+			Sleep: func(_ context.Context, d time.Duration) error { now = now.Add(d); return nil }, Announce: func() {},
 		})
 
 		assert.ErrorIs(t, err, ErrStillRunning)
+	})
+
+	t.Run("stops waiting when interrupted", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), ".backup.lock")
+		held, err := takeLock(path)
+		require.NoError(t, err)
+		defer held.release()
+
+		err = WaitWhileRunning(context.Background(), path, Waiting{
+			Timeout: time.Hour, Poll: 10 * time.Second, Now: time.Now, Announce: func() {},
+			Sleep: func(context.Context, time.Duration) error { return context.Canceled },
+		})
+
+		assert.ErrorIs(t, err, context.Canceled)
 	})
 }

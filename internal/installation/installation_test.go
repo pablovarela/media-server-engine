@@ -168,3 +168,16 @@ func TestNoInstallationIsRecognisable(t *testing.T) {
 
 	assert.ErrorIs(t, err, ErrNoInstallation)
 }
+
+func TestSeveralInstallationsAreRecognisable(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"gorgon", "trial"} {
+		dir := filepath.Join(root, "config", "mse", name)
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "installation.env"), []byte("INSTALLATION_NAME="+name+"\n"), 0o644))
+	}
+
+	_, err := Load(Bases{Config: filepath.Join(root, "config")}, "", func(string) string { return "" })
+
+	assert.ErrorIs(t, err, ErrSeveralInstallations)
+}

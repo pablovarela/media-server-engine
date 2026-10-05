@@ -1,6 +1,7 @@
 package backup
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -17,7 +18,7 @@ type Waiting struct {
 	Timeout  time.Duration
 	Poll     time.Duration
 	Now      func() time.Time
-	Sleep    func(time.Duration)
+	Sleep    func(ctx context.Context, d time.Duration) error
 	Announce func()
 }
 
@@ -25,7 +26,7 @@ func LockPath(data string) string {
 	return filepath.Join(data, ".backup.lock")
 }
 
-func WaitWhileRunning(path string, w Waiting) error {
+func WaitWhileRunning(ctx context.Context, path string, w Waiting) error {
 	deadline := w.Now().Add(w.Timeout)
 	for announced := false; ; announced = true {
 		running, err := backupRunning(path)
@@ -38,7 +39,9 @@ func WaitWhileRunning(path string, w Waiting) error {
 		if !announced {
 			w.Announce()
 		}
-		w.Sleep(w.Poll)
+		if err := w.Sleep(ctx, w.Poll); err != nil {
+			return err
+		}
 	}
 }
 

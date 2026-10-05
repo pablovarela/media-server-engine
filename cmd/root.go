@@ -47,11 +47,11 @@ type Dependencies struct {
 	MachineIDFile string
 	Now           func() time.Time
 	Sleep         func(time.Duration)
+	Pause         func(ctx context.Context, d time.Duration) error
 	Interactive   func() bool
 	Systemd       func() bool
 	LocalTime     string
 	Exec          func(path string, args []string) error
-	Executable    func() (string, error)
 }
 
 func NewRootCommand(deps Dependencies) *cobra.Command {
@@ -113,14 +113,25 @@ func Execute(engine fs.FS) int {
 		MachineIDFile: "/etc/machine-id",
 		Now:           time.Now,
 		Sleep:         time.Sleep,
+		Pause:         pause,
 		Interactive:   func() bool { return term.IsTerminal(int(os.Stdin.Fd())) }, //nolint:gosec // a file descriptor fits in an int
 		Systemd:       func() bool { _, err := os.Stat("/run/systemd/system"); return err == nil },
 		LocalTime:     "/etc/localtime",
 		Exec:          func(path string, args []string) error { return syscall.Exec(path, args, os.Environ()) }, //nolint:gosec // runs the mse release it just installed
-		Executable:    os.Executable,
 	}
 	globalLogs := filepath.Join(installation.BasesFrom(os.Getenv, home).State, "mse")
 	return runLogged(ctx, NewRootCommand(deps), os.Args[1:], globalLogs)
+}
+
+func pause(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 var endingSignals = []os.Signal{os.Interrupt, syscall.SIGTERM, syscall.SIGHUP}

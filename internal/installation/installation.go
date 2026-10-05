@@ -9,7 +9,10 @@ import (
 	"strings"
 )
 
-var ErrNoInstallation = errors.New("no installation")
+var (
+	ErrNoInstallation       = errors.New("no installation")
+	ErrSeveralInstallations = errors.New("several installations")
+)
 
 type Bases struct {
 	Config string
@@ -103,7 +106,7 @@ func choose(root string, names []string, requested string) (string, error) {
 	case len(names) == 0:
 		return "", fmt.Errorf("%w in %s", ErrNoInstallation, root)
 	default:
-		return "", errors.New(strings.TrimRight(fmt.Sprintf("several installations in %s: choose one with --installation <name>\n%s", root, listed(names)), "\n"))
+		return "", fmt.Errorf("%w in %s: choose one with --installation <name>\n%s", ErrSeveralInstallations, root, strings.TrimRight(listed(names), "\n"))
 	}
 }
 

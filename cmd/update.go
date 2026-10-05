@@ -50,6 +50,8 @@ func (d Dependencies) update(cmd *cobra.Command, force bool) (selfupdate.Result,
 	switch {
 	case errors.Is(err, installation.ErrNoInstallation):
 		report.From(cmd.Context()).Say("No installation here; updating mse only.")
+	case errors.Is(err, installation.ErrSeveralInstallations):
+		report.From(cmd.Context()).Say("Several installations here; updating mse only. Choose one with --installation <name> to update its config too.")
 	case err != nil:
 		return selfupdate.Result{}, err
 	default:
@@ -160,8 +162,8 @@ func (d Dependencies) handOver(cmd *cobra.Command, path string, i *installation.
 
 func (d Dependencies) waitForBackup(cmd *cobra.Command, i *installation.Installation) error {
 	r := report.From(cmd.Context())
-	return backup.WaitWhileRunning(backup.LockPath(i.Data), backup.Waiting{
-		Timeout: time.Hour, Poll: 10 * time.Second, Now: d.Now, Sleep: d.Sleep,
+	return backup.WaitWhileRunning(cmd.Context(), backup.LockPath(i.Data), backup.Waiting{
+		Timeout: time.Hour, Poll: 10 * time.Second, Now: d.Now, Sleep: d.Pause,
 		Announce: func() { r.Say("Waiting for the running backup to finish...") },
 	})
 }

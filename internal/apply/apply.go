@@ -16,7 +16,7 @@ var (
 	PullRetry    = 30 * time.Second
 )
 
-var errRateLimited = errors.New("a registry kept refusing pulls as too many requests; run mse update --apply again later")
+var errRateLimited = errors.New("a registry kept refusing pulls as too many requests; try again later")
 
 type Stack interface {
 	BindSources() []string
@@ -48,7 +48,7 @@ type Apply struct {
 	Page     Page
 	Images   Images
 	MkdirAll func(path string) error
-	Sleep    func(time.Duration)
+	Sleep    func(ctx context.Context, d time.Duration) error
 	Report   *report.Reporter
 }
 
@@ -122,7 +122,9 @@ func (a *Apply) pull(ctx context.Context) error {
 			}
 			wait := PullRetry * time.Duration(attempt)
 			a.Report.Say(fmt.Sprintf("A registry is limiting requests; trying the pull again in %s...", wait))
-			a.Sleep(wait)
+			if err := a.Sleep(ctx, wait); err != nil {
+				return "", err
+			}
 		}
 	})
 }

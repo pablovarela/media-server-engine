@@ -236,10 +236,10 @@ func TestUpdateApplyWaitsForTheBackup(t *testing.T) {
 	deps.Build = released
 	deps.Update = updatingTo(t, "", "")
 	waits := 0
-	deps.Sleep = func(d time.Duration) {
+	deps.Pause = func(_ context.Context, d time.Duration) error {
 		assert.Equal(t, 10*time.Second, d)
 		waits++
-		_ = held.Close()
+		return held.Close()
 	}
 	root := NewRootCommand(deps)
 	var stdout, stderr bytes.Buffer
@@ -275,5 +275,64 @@ func TestUpdateApplyReportsFailWhenInterrupted(t *testing.T) {
 	code := run(ctx, root, []string{"update", "--apply"})
 
 	assert.Equal(t, 1, code)
+	assert.Equal(t, []string{"GET /ping-key/gorgon-update/start", "GET /ping-key/gorgon-update/fail"}, *f.requests)
+}
+
+func TestUpdateApplyReportsFailWhenInterruptedWaitingForTheBackup(t *testing.T) {
+	f := newApplyFixture(t)
+	writeHealthchecksKeys(t, f)
+	held, err := os.OpenFile(filepath.Join(f.data, ".backup.lock"), os.O_RDWR|os.O_CREATE, 0o644)
+	require.NoError(t, err)
+	defer func() { _ = held.Close() }()
+	require.NoError(t, syscall.Flock(int(held.Fd()), syscall.LOCK_EX|syscall.LOCK_NB))
+	deps := f.deps(t, false)
+	deps.Build = released
+	deps.Pause = func(context.Context, time.Duration) error { return context.Canceled }
+	root := NewRootCommand(deps)
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+
+	code := run(context.Background(), root, []string{"update", "--apply"})
+
+	assert.Equal(t, 1, code)
+	assert.Equal(t, []string{"GET /ping-key/gorgon-update/start", "GET /ping-key/gorgon-update/fail"}, *f.requests)
+}
+
+func TestUpdateWithSeveralInstallationsUpdatesOnlyMse(t *testing.T) {
+	_, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n", "trial": "INSTALLATION_NAME=trial\n"})
+	deps := Dependencies{Build: released, Update: updatingTo(t, "", ""), Home: home, Environment: func(string) string { return "" }}
+	root := NewRootCommand(deps)
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+
+	code := run(context.Background(), root, []string{"update"})
+
+	assert.Equal(t, 0, code, stderr.String())
+	assert.Contains(t, stdout.String(), "Several installations here; updating mse only. Choose one with --installation <name> to update its config too.\n")
+}
+
+func TestUpdateApplyReportsFailWhenTheBackupKeepsRunning(t *testing.T) {
+	f := newApplyFixture(t)
+	writeHealthchecksKeys(t, f)
+	held, err := os.OpenFile(filepath.Join(f.data, ".backup.lock"), os.O_RDWR|os.O_CREATE, 0o644)
+	require.NoError(t, err)
+	defer func() { _ = held.Close() }()
+	require.NoError(t, syscall.Flock(int(held.Fd()), syscall.LOCK_EX|syscall.LOCK_NB))
+	deps := f.deps(t, false)
+	deps.Build = released
+	now := time.Date(2026, 10, 6, 5, 0, 0, 0, time.UTC)
+	deps.Now = func() time.Time { return now }
+	deps.Pause = func(_ context.Context, d time.Duration) error { now = now.Add(d); return nil }
+	root := NewRootCommand(deps)
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+
+	code := run(context.Background(), root, []string{"update", "--apply"})
+
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stderr.String(), "a backup is still running; run mse update --apply again once it has finished")
 	assert.Equal(t, []string{"GET /ping-key/gorgon-update/start", "GET /ping-key/gorgon-update/fail"}, *f.requests)
 }

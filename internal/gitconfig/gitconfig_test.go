@@ -2,6 +2,7 @@ package gitconfig
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -66,7 +67,8 @@ func TestFastForward(t *testing.T) {
 	}{
 		"already up to date": {Given: Given{upstream: tracked, ahead: "0\n", behind: "0\n"}, Then: Then{taken: 0}},
 		"behind":             {Given: Given{upstream: tracked, ahead: "0\n", behind: "2\n"}, Then: Then{taken: 2}},
-		"diverged":           {Given: Given{upstream: tracked, ahead: "1\n"}, Then: Then{err: ErrDiverged}},
+		"diverged":           {Given: Given{upstream: tracked, ahead: "1\n", behind: "2\n"}, Then: Then{err: ErrDiverged}},
+		"only ahead":         {Given: Given{upstream: tracked, ahead: "1\n", behind: "0\n"}, Then: Then{taken: 0}},
 		"no upstream": {
 			Given: Given{upstream: process.Result{Exit: 128, Stderr: []byte("fatal: no upstream configured for branch 'main'\n")}},
 			Then:  Then{err: ErrNoUpstream},
@@ -87,7 +89,7 @@ func TestFastForward(t *testing.T) {
 			if tt.Given.behind != "" {
 				runner.EXPECT().Output(ctx, git("rev-list", "--count", "HEAD..@{upstream}")).Return(answer(tt.Given.behind, 0), nil)
 			}
-			if tt.Given.behind != "" && tt.Given.behind != "0\n" {
+			if tt.Given.behind != "" && tt.Given.behind != "0\n" && tt.Given.ahead == "0\n" {
 				runner.EXPECT().Output(ctx, git("merge", "--ff-only", "--quiet", "@{upstream}")).Return(answer("", tt.Given.mergeExit), nil)
 			}
 
@@ -104,4 +106,14 @@ func TestFastForward(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFastForwardWhenGitCannotRun(t *testing.T) {
+	ctx := context.Background()
+	runner := newMockRunner(t)
+	runner.EXPECT().Output(ctx, git("rev-parse", "--abbrev-ref", "@{upstream}")).Return(process.Result{}, errors.New("exec: \"git\": executable file not found in $PATH"))
+
+	_, err := Repository{Runner: runner, Dir: dir}.FastForward(ctx)
+
+	assert.EqualError(t, err, "exec: \"git\": executable file not found in $PATH")
 }
