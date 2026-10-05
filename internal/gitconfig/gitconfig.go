@@ -25,7 +25,7 @@ type Repository struct {
 }
 
 func (r Repository) Changes(ctx context.Context) (string, error) {
-	out, err := r.succeeding(ctx, "status", "--porcelain")
+	out, err := r.succeeding(ctx, "status", "--porcelain", "--untracked-files=no")
 	return strings.TrimRight(out, "\n"), err
 }
 

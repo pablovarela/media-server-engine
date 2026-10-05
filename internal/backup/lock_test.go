@@ -39,6 +39,18 @@ func TestWaitWhileRunning(t *testing.T) {
 		assert.Zero(t, announced)
 	})
 
+	t.Run("a data folder that doesn't exist yet has no backup running", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "never-created", ".backup.lock")
+
+		err := WaitWhileRunning(context.Background(), path, Waiting{
+			Timeout: time.Hour, Poll: 10 * time.Second, Now: time.Now, Announce: func() {},
+			Sleep: func(context.Context, time.Duration) error { t.Fatal("no wait needed"); return nil },
+		})
+
+		require.NoError(t, err)
+		assert.NoFileExists(t, path)
+	})
+
 	t.Run("waits until the backup finishes", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), ".backup.lock")
 		held, err := takeLock(path)

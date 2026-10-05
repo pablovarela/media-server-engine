@@ -46,7 +46,10 @@ func WaitWhileRunning(ctx context.Context, path string, w Waiting) error {
 }
 
 func backupRunning(path string) (bool, error) {
-	file, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE, 0o644) //nolint:gosec // the installation's backup lock
+	file, err := os.Open(path) //nolint:gosec // the installation's backup lock
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
 	if err != nil {
 		return false, err
 	}

@@ -39,7 +39,7 @@ func expectGit(runner *mockCommandRunner, config string, a gitAnswers) {
 	answer := func(stdout string, exit int) process.Result {
 		return process.Result{Stdout: []byte(stdout), Exit: exit}
 	}
-	runner.EXPECT().Output(mock.Anything, git("status", "--porcelain")).Return(answer(a.changes, 0), nil)
+	runner.EXPECT().Output(mock.Anything, git("status", "--porcelain", "--untracked-files=no")).Return(answer(a.changes, 0), nil)
 	remote := 2
 	if a.remote {
 		remote = 0

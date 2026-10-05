@@ -24,12 +24,12 @@ func answer(stdout string, exit int) process.Result {
 func TestChanges(t *testing.T) {
 	ctx := context.Background()
 	runner := newMockRunner(t)
-	runner.EXPECT().Output(ctx, git("status", "--porcelain")).Return(answer(" M apps.yml\n?? notes.txt\n", 0), nil)
+	runner.EXPECT().Output(ctx, git("status", "--porcelain", "--untracked-files=no")).Return(answer(" M apps.yml\n D prowlarr.yml\n", 0), nil)
 
 	changes, err := Repository{Runner: runner, Dir: dir}.Changes(ctx)
 
 	require.NoError(t, err)
-	assert.Equal(t, " M apps.yml\n?? notes.txt", changes)
+	assert.Equal(t, " M apps.yml\n D prowlarr.yml", changes)
 }
 
 func TestHasRemote(t *testing.T) {
