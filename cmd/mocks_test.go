@@ -395,6 +395,194 @@ func (_c *mockComposeRunner_Restart_Call) RunAndReturn(run func(ctx context.Cont
 	return _c
 }
 
+// RunningServices provides a mock function for the type mockComposeRunner
+func (_mock *mockComposeRunner) RunningServices(ctx context.Context, project *types.Project) ([]string, error) {
+	ret := _mock.Called(ctx, project)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RunningServices")
+	}
+
+	var r0 []string
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project) ([]string, error)); ok {
+		return returnFunc(ctx, project)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project) []string); ok {
+		r0 = returnFunc(ctx, project)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]string)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *types.Project) error); ok {
+		r1 = returnFunc(ctx, project)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// mockComposeRunner_RunningServices_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RunningServices'
+type mockComposeRunner_RunningServices_Call struct {
+	*mock.Call
+}
+
+// RunningServices is a helper method to define mock.On call
+//   - ctx context.Context
+//   - project *types.Project
+func (_e *mockComposeRunner_Expecter) RunningServices(ctx any, project any) *mockComposeRunner_RunningServices_Call {
+	return &mockComposeRunner_RunningServices_Call{Call: _e.mock.On("RunningServices", ctx, project)}
+}
+
+func (_c *mockComposeRunner_RunningServices_Call) Run(run func(ctx context.Context, project *types.Project)) *mockComposeRunner_RunningServices_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *types.Project
+		if args[1] != nil {
+			arg1 = args[1].(*types.Project)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *mockComposeRunner_RunningServices_Call) Return(strings []string, err error) *mockComposeRunner_RunningServices_Call {
+	_c.Call.Return(strings, err)
+	return _c
+}
+
+func (_c *mockComposeRunner_RunningServices_Call) RunAndReturn(run func(ctx context.Context, project *types.Project) ([]string, error)) *mockComposeRunner_RunningServices_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Start provides a mock function for the type mockComposeRunner
+func (_mock *mockComposeRunner) Start(ctx context.Context, project *types.Project, services []string) error {
+	ret := _mock.Called(ctx, project, services)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Start")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project, []string) error); ok {
+		r0 = returnFunc(ctx, project, services)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// mockComposeRunner_Start_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Start'
+type mockComposeRunner_Start_Call struct {
+	*mock.Call
+}
+
+// Start is a helper method to define mock.On call
+//   - ctx context.Context
+//   - project *types.Project
+//   - services []string
+func (_e *mockComposeRunner_Expecter) Start(ctx any, project any, services any) *mockComposeRunner_Start_Call {
+	return &mockComposeRunner_Start_Call{Call: _e.mock.On("Start", ctx, project, services)}
+}
+
+func (_c *mockComposeRunner_Start_Call) Run(run func(ctx context.Context, project *types.Project, services []string)) *mockComposeRunner_Start_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *types.Project
+		if args[1] != nil {
+			arg1 = args[1].(*types.Project)
+		}
+		var arg2 []string
+		if args[2] != nil {
+			arg2 = args[2].([]string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *mockComposeRunner_Start_Call) Return(err error) *mockComposeRunner_Start_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *mockComposeRunner_Start_Call) RunAndReturn(run func(ctx context.Context, project *types.Project, services []string) error) *mockComposeRunner_Start_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Stop provides a mock function for the type mockComposeRunner
+func (_mock *mockComposeRunner) Stop(ctx context.Context, project *types.Project) error {
+	ret := _mock.Called(ctx, project)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Stop")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project) error); ok {
+		r0 = returnFunc(ctx, project)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// mockComposeRunner_Stop_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Stop'
+type mockComposeRunner_Stop_Call struct {
+	*mock.Call
+}
+
+// Stop is a helper method to define mock.On call
+//   - ctx context.Context
+//   - project *types.Project
+func (_e *mockComposeRunner_Expecter) Stop(ctx any, project any) *mockComposeRunner_Stop_Call {
+	return &mockComposeRunner_Stop_Call{Call: _e.mock.On("Stop", ctx, project)}
+}
+
+func (_c *mockComposeRunner_Stop_Call) Run(run func(ctx context.Context, project *types.Project)) *mockComposeRunner_Stop_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *types.Project
+		if args[1] != nil {
+			arg1 = args[1].(*types.Project)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *mockComposeRunner_Stop_Call) Return(err error) *mockComposeRunner_Stop_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *mockComposeRunner_Stop_Call) RunAndReturn(run func(ctx context.Context, project *types.Project) error) *mockComposeRunner_Stop_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Up provides a mock function for the type mockComposeRunner
 func (_mock *mockComposeRunner) Up(ctx context.Context, project *types.Project, services []string, wait compose.Wait) error {
 	ret := _mock.Called(ctx, project, services, wait)

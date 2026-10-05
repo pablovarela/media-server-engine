@@ -24,6 +24,9 @@ type composeRunner interface {
 	Ps(ctx context.Context, project *types.Project) ([]compose.Container, error)
 	Logs(ctx context.Context, project *types.Project, options compose.LogsOptions, w io.Writer) error
 	Restart(ctx context.Context, project *types.Project, services []string) error
+	RunningServices(ctx context.Context, project *types.Project) ([]string, error)
+	Stop(ctx context.Context, project *types.Project) error
+	Start(ctx context.Context, project *types.Project, services []string) error
 }
 
 type projectOperation func(cmd *cobra.Command, o opened, args []string) error

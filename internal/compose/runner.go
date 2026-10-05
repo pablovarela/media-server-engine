@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -18,6 +20,7 @@ import (
 	"github.com/docker/compose/v5/cmd/display"
 	"github.com/docker/compose/v5/pkg/api"
 	sdk "github.com/docker/compose/v5/pkg/compose"
+	"github.com/moby/moby/api/types/container"
 
 	"github.com/pablovarela/media-server-engine/internal/installation"
 	"github.com/pablovarela/media-server-engine/internal/paint"
@@ -30,6 +33,8 @@ type service interface {
 	Ps(ctx context.Context, projectName string, options api.PsOptions) ([]api.ContainerSummary, error)
 	Logs(ctx context.Context, projectName string, consumer api.LogConsumer, options api.LogOptions) error
 	Restart(ctx context.Context, projectName string, options api.RestartOptions) error
+	Stop(ctx context.Context, projectName string, options api.StopOptions) error
+	Start(ctx context.Context, projectName string, options api.StartOptions) error
 }
 
 type Container struct {
@@ -177,4 +182,32 @@ func portNumber(port string) int {
 	published, _, _ := strings.Cut(port, "->")
 	number, _ := strconv.Atoi(published)
 	return number
+}
+
+func (r *Runner) RunningServices(ctx context.Context, project *types.Project) ([]string, error) {
+	summaries, err := r.service.Ps(ctx, project.Name, api.PsOptions{Project: project})
+	if err != nil {
+		return nil, err
+	}
+	running := map[string]bool{}
+	for _, summary := range summaries {
+		if summary.State == container.StateRunning {
+			running[summary.Service] = true
+		}
+	}
+	services := slices.Collect(maps.Keys(running))
+	slices.Sort(services)
+	return services, nil
+}
+
+func (r *Runner) Stop(ctx context.Context, project *types.Project) error {
+	return r.service.Stop(ctx, project.Name, api.StopOptions{Project: project})
+}
+
+func (r *Runner) Start(ctx context.Context, project *types.Project, services []string) error {
+	selected, err := project.WithSelectedServices(services)
+	if err != nil {
+		return err
+	}
+	return r.service.Start(ctx, project.Name, api.StartOptions{Project: selected})
 }
