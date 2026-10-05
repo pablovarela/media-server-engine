@@ -30,8 +30,7 @@ func LibraryUpdates(ctx context.Context, env Env) error {
 	}
 	var failures []string
 	for _, arr := range libraryArrs {
-		api := &API{Env: env, Base: env.URL(arr.variable, arr.fallback), Headers: map[string]string{apiKeyHeader: env.Secrets[arr.key]}}
-		if err := connectToJellyfin(ctx, env, arr, api, key); err != nil {
+		if err := connectArrToJellyfin(ctx, env, arr, key); err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
@@ -42,6 +41,14 @@ func LibraryUpdates(ctx context.Context, env Env) error {
 		return Error{Message: strings.Join(failures, "; ")}
 	}
 	return nil
+}
+
+func connectArrToJellyfin(ctx context.Context, env Env, arr libraryArr, jellyfin string) error {
+	key, err := env.Secret(arr.key)
+	if err != nil {
+		return err
+	}
+	return connectToJellyfin(ctx, env, arr, &API{Env: env, Base: env.URL(arr.variable, arr.fallback), Headers: map[string]string{apiKeyHeader: key}}, jellyfin)
 }
 
 func connectToJellyfin(ctx context.Context, env Env, arr libraryArr, api *API, key string) error {

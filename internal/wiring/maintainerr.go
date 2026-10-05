@@ -86,7 +86,11 @@ func (m *maintainerr) connect(ctx context.Context, name, path string, wanted map
 }
 
 func (m *maintainerr) connectArr(ctx context.Context, arr maintainerrArr) error {
-	wanted := map[string]any{"serverName": arr.serverName, "url": arr.url, apiKeyField: m.env.Secrets[arr.key]}
+	key, err := m.env.Secret(arr.key)
+	if err != nil {
+		return err
+	}
+	wanted := map[string]any{"serverName": arr.serverName, "url": arr.url, apiKeyField: key}
 	var listed []map[string]any
 	if err := m.api.Get(ctx, "/api/settings/"+arr.kind, &listed); err != nil {
 		return err

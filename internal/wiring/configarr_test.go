@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -72,4 +73,15 @@ func TestConfigarrsOutputHasTheAppSecretsHidden(t *testing.T) {
 	require.NoError(t, Configarr(configarrPrinting("connecting with sonarr-key\n", 0), &tool)(context.Background(), env))
 
 	assert.Equal(t, "connecting with <hidden>\n", tool.String())
+}
+
+func TestAnErrorAfterAVeryLongLineStillFailsTheStep(t *testing.T) {
+	var tool bytes.Buffer
+	env, _ := testEnv(t, nil, nil)
+	output := "INFO " + strings.Repeat("x", 70000) + "\nERROR quality profile missing\n"
+
+	err := Configarr(configarrPrinting(output, 0), &tool)(context.Background(), env)
+
+	assert.EqualError(t, err, "configarr reported errors: ERROR quality profile missing")
+	assert.Contains(t, tool.String(), "ERROR quality profile missing")
 }

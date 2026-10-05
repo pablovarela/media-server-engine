@@ -831,8 +831,8 @@ func (_c *mockComposeRunner_Restart_Call) RunAndReturn(run func(ctx context.Cont
 }
 
 // RunOnce provides a mock function for the type mockComposeRunner
-func (_mock *mockComposeRunner) RunOnce(ctx context.Context, project *types.Project, service string) (int, error) {
-	ret := _mock.Called(ctx, project, service)
+func (_mock *mockComposeRunner) RunOnce(ctx context.Context, project *types.Project, service string, out io.Writer) (int, error) {
+	ret := _mock.Called(ctx, project, service, out)
 
 	if len(ret) == 0 {
 		panic("no return value specified for RunOnce")
@@ -840,16 +840,16 @@ func (_mock *mockComposeRunner) RunOnce(ctx context.Context, project *types.Proj
 
 	var r0 int
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project, string) (int, error)); ok {
-		return returnFunc(ctx, project, service)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project, string, io.Writer) (int, error)); ok {
+		return returnFunc(ctx, project, service, out)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project, string) int); ok {
-		r0 = returnFunc(ctx, project, service)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project, string, io.Writer) int); ok {
+		r0 = returnFunc(ctx, project, service, out)
 	} else {
 		r0 = ret.Get(0).(int)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, *types.Project, string) error); ok {
-		r1 = returnFunc(ctx, project, service)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *types.Project, string, io.Writer) error); ok {
+		r1 = returnFunc(ctx, project, service, out)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -865,11 +865,12 @@ type mockComposeRunner_RunOnce_Call struct {
 //   - ctx context.Context
 //   - project *types.Project
 //   - service string
-func (_e *mockComposeRunner_Expecter) RunOnce(ctx any, project any, service any) *mockComposeRunner_RunOnce_Call {
-	return &mockComposeRunner_RunOnce_Call{Call: _e.mock.On("RunOnce", ctx, project, service)}
+//   - out io.Writer
+func (_e *mockComposeRunner_Expecter) RunOnce(ctx any, project any, service any, out any) *mockComposeRunner_RunOnce_Call {
+	return &mockComposeRunner_RunOnce_Call{Call: _e.mock.On("RunOnce", ctx, project, service, out)}
 }
 
-func (_c *mockComposeRunner_RunOnce_Call) Run(run func(ctx context.Context, project *types.Project, service string)) *mockComposeRunner_RunOnce_Call {
+func (_c *mockComposeRunner_RunOnce_Call) Run(run func(ctx context.Context, project *types.Project, service string, out io.Writer)) *mockComposeRunner_RunOnce_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -883,10 +884,15 @@ func (_c *mockComposeRunner_RunOnce_Call) Run(run func(ctx context.Context, proj
 		if args[2] != nil {
 			arg2 = args[2].(string)
 		}
+		var arg3 io.Writer
+		if args[3] != nil {
+			arg3 = args[3].(io.Writer)
+		}
 		run(
 			arg0,
 			arg1,
 			arg2,
+			arg3,
 		)
 	})
 	return _c
@@ -897,7 +903,7 @@ func (_c *mockComposeRunner_RunOnce_Call) Return(n int, err error) *mockComposeR
 	return _c
 }
 
-func (_c *mockComposeRunner_RunOnce_Call) RunAndReturn(run func(ctx context.Context, project *types.Project, service string) (int, error)) *mockComposeRunner_RunOnce_Call {
+func (_c *mockComposeRunner_RunOnce_Call) RunAndReturn(run func(ctx context.Context, project *types.Project, service string, out io.Writer) (int, error)) *mockComposeRunner_RunOnce_Call {
 	_c.Call.Return(run)
 	return _c
 }

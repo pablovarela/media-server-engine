@@ -244,7 +244,7 @@ func TestApplyRefusesARunIDThatIsNotOne(t *testing.T) {
 func TestApplyWiresTheAppsAfterStartingThem(t *testing.T) {
 	f := newApplyFixture(t)
 	f.expectApply(nil)
-	f.composer.EXPECT().RunOnce(mock.Anything, f.project, "configarr").Return(0, nil)
+	f.composer.EXPECT().RunOnce(mock.Anything, f.project, "configarr", mock.Anything).Return(0, nil)
 	deps := f.deps(t, false)
 	deps.WiringSteps = func(configarr wiring.OneOff, tool io.Writer) ([]wiring.Step, error) {
 		return []wiring.Step{

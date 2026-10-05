@@ -33,7 +33,7 @@ type composeRunner interface {
 	Pull(ctx context.Context, project *types.Project) error
 	Recreate(ctx context.Context, project *types.Project, services []string) error
 	Detached(ctx context.Context, project *types.Project, from string, dependents []string) ([]string, error)
-	RunOnce(ctx context.Context, project *types.Project, service string) (int, error)
+	RunOnce(ctx context.Context, project *types.Project, service string, out io.Writer) (int, error)
 }
 
 type projectOperation func(cmd *cobra.Command, o opened, args []string) error

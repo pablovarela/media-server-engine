@@ -24,16 +24,24 @@ type prowlarr struct {
 	failures []string
 }
 
-func prowlarrAPI(env Env) *API {
-	return &API{Env: env, Base: env.URL("PROWLARR_URL", "http://localhost:9696"), Headers: map[string]string{apiKeyHeader: env.Secrets["PROWLARR_API_KEY"]}}
+func prowlarrAPI(env Env) (*API, error) {
+	key, err := env.Secret("PROWLARR_API_KEY")
+	if err != nil {
+		return nil, err
+	}
+	return &API{Env: env, Base: env.URL("PROWLARR_URL", "http://localhost:9696"), Headers: map[string]string{apiKeyHeader: key}}, nil
 }
 
 func Prowlarr(ctx context.Context, env Env) error {
+	api, err := prowlarrAPI(env)
+	if err != nil {
+		return err
+	}
 	declared, err := env.Declared("prowlarr.yml")
 	if err != nil {
 		return err
 	}
-	p := &prowlarr{env: env, api: prowlarrAPI(env)}
+	p := &prowlarr{env: env, api: api}
 	tags, err := p.wireProxies(ctx, entries(declared["indexer_proxies"]))
 	if err != nil {
 		return err

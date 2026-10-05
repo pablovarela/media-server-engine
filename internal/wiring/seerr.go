@@ -105,10 +105,17 @@ func (s *seerr) signInIfNeeded(ctx context.Context) error {
 	if err != nil || !same(public["mediaServerType"], seerrUnconfigured) {
 		return err
 	}
-	user := s.env.Settings["JELLYFIN_ADMIN_USER"]
+	user, err := s.env.Setting("JELLYFIN_ADMIN_USER")
+	if err != nil {
+		return err
+	}
+	password, err := s.env.Secret("JELLYFIN_ADMIN_PASSWORD")
+	if err != nil {
+		return err
+	}
 	s.env.Change(seerrApp, "sign in with jellyfin as "+user)
 	return s.api.Send(ctx, "POST", "/api/v1/auth/jellyfin", map[string]any{
-		"username": user, "password": s.env.Secrets["JELLYFIN_ADMIN_PASSWORD"], hostnameField: "jellyfin", portField: 8096,
+		"username": user, "password": password, hostnameField: "jellyfin", portField: 8096,
 		useSSLField: false, "urlBase": "", "serverType": seerrJellyfin,
 	}, nil)
 }
@@ -191,7 +198,10 @@ func setProfileAndFolder(entry map[string]any, arr seerrArr, profile map[string]
 }
 
 func (s *seerr) wireArr(ctx context.Context, arr seerrArr, declared map[string]any) error {
-	key := s.env.Secrets[arr.key]
+	key, err := s.env.Secret(arr.key)
+	if err != nil {
+		return err
+	}
 	var listed []map[string]any
 	if err := s.api.Get(ctx, "/api/v1/settings/"+arr.kind, &listed); err != nil {
 		return err

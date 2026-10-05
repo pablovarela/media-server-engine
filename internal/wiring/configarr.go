@@ -1,7 +1,6 @@
 package wiring
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -21,9 +20,8 @@ func Configarr(run OneOff, tool io.Writer) func(ctx context.Context, env Env) er
 		var output bytes.Buffer
 		exit, err := run(ctx, &output)
 		var errors []string
-		scanner := bufio.NewScanner(&output)
-		for scanner.Scan() {
-			line := env.Redact.Hide(passwordLine.ReplaceAllString(scanner.Text(), "$1 (hidden)"))
+		for _, raw := range outputLines(output.String()) {
+			line := env.Redact.Hide(passwordLine.ReplaceAllString(raw, "$1 (hidden)"))
 			_, _ = fmt.Fprintln(tool, line)
 			if strings.HasPrefix(line, "ERROR") {
 				errors = append(errors, line)
@@ -39,4 +37,11 @@ func Configarr(run OneOff, tool io.Writer) func(ctx context.Context, env Env) er
 		}
 		return nil
 	}
+}
+
+func outputLines(output string) []string {
+	if output == "" {
+		return nil
+	}
+	return strings.Split(strings.TrimSuffix(output, "\n"), "\n")
 }

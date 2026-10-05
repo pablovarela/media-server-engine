@@ -28,11 +28,19 @@ func Jellyfin(ctx context.Context, env Env) error {
 		return err
 	}
 	config := section(declared[jellyfinApp])
+	user, err := env.Setting("JELLYFIN_ADMIN_USER")
+	if err != nil {
+		return err
+	}
+	password, err := env.Secret("JELLYFIN_ADMIN_PASSWORD")
+	if err != nil {
+		return err
+	}
 	j := &jellyfin{
 		env:      env,
 		api:      &API{Env: env, Base: env.URL("JELLYFIN_URL", "http://localhost:8096"), Headers: map[string]string{}},
-		user:     env.Settings["JELLYFIN_ADMIN_USER"],
-		password: env.Secrets["JELLYFIN_ADMIN_PASSWORD"],
+		user:     user,
+		password: password,
 	}
 	serverName := text(config["server_name"])
 	if err := j.completeWizard(ctx, serverName); err != nil {

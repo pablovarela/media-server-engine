@@ -42,7 +42,11 @@ func Deluge(docker Docker) func(ctx context.Context, env Env) error {
 		}
 		config := section(declared[delugeApp])
 		plugins := entries(config["plugins"])
-		d, err := newDeluge(env, docker)
+		password, err := env.Secret("DELUGE_WEB_PASSWORD")
+		if err != nil {
+			return err
+		}
+		d, err := newDeluge(env, docker, password)
 		if err != nil {
 			return err
 		}
@@ -69,8 +73,8 @@ func Deluge(docker Docker) func(ctx context.Context, env Env) error {
 	}
 }
 
-func newDeluge(env Env, docker Docker) (*deluge, error) {
-	d := &deluge{env: env, docker: docker, config: filepath.Join(env.Data, "volumes", "deluge", "config"), password: env.Secrets["DELUGE_WEB_PASSWORD"]}
+func newDeluge(env Env, docker Docker, password string) (*deluge, error) {
+	d := &deluge{env: env, docker: docker, config: filepath.Join(env.Data, "volumes", "deluge", "config"), password: password}
 	var err error
 	if d.core, err = readDelugeConf(filepath.Join(d.config, "core.conf"), pluginConfHeader); err != nil {
 		return nil, err

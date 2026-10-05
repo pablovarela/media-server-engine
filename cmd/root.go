@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -148,39 +147,13 @@ func pause(ctx context.Context, d time.Duration) error {
 
 var endingSignals = []os.Signal{os.Interrupt, syscall.SIGTERM, syscall.SIGHUP}
 
-type listener struct {
-	mu      sync.Mutex
-	signals chan os.Signal
-	ctx     context.Context
-}
-
-var ending listener
-
 func interruptible() (context.Context, context.CancelFunc) {
-	ctx, cancel := context.WithCancel(context.Background())
-	signals := make(chan os.Signal, 1)
-	ending.mu.Lock()
-	ending.signals, ending.ctx = signals, ctx
-	ending.mu.Unlock()
-	signal.Notify(signals, endingSignals...)
+	ctx, stop := signal.NotifyContext(context.Background(), endingSignals...)
 	go func() {
-		select {
-		case <-signals:
-		case <-ctx.Done():
-		}
-		signal.Stop(signals)
-		cancel()
+		<-ctx.Done()
+		stop()
 	}()
-	return ctx, cancel
-}
-
-// Compose's one-off run resets every signal handler in the process.
-func listenForEndingSignalsAgain() {
-	ending.mu.Lock()
-	defer ending.mu.Unlock()
-	if ending.signals != nil && ending.ctx.Err() == nil {
-		signal.Notify(ending.signals, endingSignals...)
-	}
+	return ctx, stop
 }
 
 func shieldSignals() (release func()) {

@@ -19,6 +19,7 @@ import (
 	"github.com/docker/cli/cli/flags"
 	"github.com/docker/compose/v5/pkg/api"
 	sdk "github.com/docker/compose/v5/pkg/compose"
+	"github.com/moby/moby/api/pkg/stdcopy"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
 
@@ -36,11 +37,16 @@ type service interface {
 	Stop(ctx context.Context, projectName string, options api.StopOptions) error
 	Start(ctx context.Context, projectName string, options api.StartOptions) error
 	Pull(ctx context.Context, project *types.Project, options api.PullOptions) error
-	RunOneOffContainer(ctx context.Context, project *types.Project, options api.RunOptions) (int, error)
+	Create(ctx context.Context, project *types.Project, options api.CreateOptions) error
 }
 
-type inspector interface {
+type containers interface {
 	ContainerInspect(ctx context.Context, containerID string, options client.ContainerInspectOptions) (client.ContainerInspectResult, error)
+	ContainerStart(ctx context.Context, containerID string, options client.ContainerStartOptions) (client.ContainerStartResult, error)
+	ContainerLogs(ctx context.Context, containerID string, options client.ContainerLogsOptions) (client.ContainerLogsResult, error)
+	ContainerWait(ctx context.Context, containerID string, options client.ContainerWaitOptions) client.ContainerWaitResult
+	ContainerStop(ctx context.Context, containerID string, options client.ContainerStopOptions) (client.ContainerStopResult, error)
+	ContainerRemove(ctx context.Context, containerID string, options client.ContainerRemoveOptions) (client.ContainerRemoveResult, error)
 }
 
 type Container struct {
@@ -58,7 +64,7 @@ type LogsOptions struct {
 
 type Runner struct {
 	service service
-	inspect inspector
+	docker  containers
 }
 
 func (k Kind) Title() string {
@@ -80,7 +86,7 @@ func NewRunner(tool io.Writer, outcomes *Outcomes) (*Runner, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Runner{service: composeService, inspect: dockerCLI.Client()}, nil
+	return &Runner{service: composeService, docker: dockerCLI.Client()}, nil
 }
 
 func (r *Runner) Load(ctx context.Context, i *installation.Installation, kind Kind, variables, profiles []string) (*types.Project, error) {
@@ -285,7 +291,7 @@ func (r *Runner) attachedTo(ctx context.Context, id, hub string) (bool, error) {
 	if id == "" {
 		return false, nil
 	}
-	inspected, err := r.inspect.ContainerInspect(ctx, id, client.ContainerInspectOptions{})
+	inspected, err := r.docker.ContainerInspect(ctx, id, client.ContainerInspectOptions{})
 	if err != nil {
 		return false, err
 	}
@@ -307,6 +313,51 @@ func BindSources(project *types.Project, under string) []string {
 	return sources
 }
 
-func (r *Runner) RunOnce(ctx context.Context, project *types.Project, service string) (int, error) {
-	return r.service.RunOneOffContainer(ctx, project, api.RunOptions{Project: project, Service: service, AutoRemove: true})
+func (r *Runner) RunOnce(ctx context.Context, project *types.Project, service string, out io.Writer) (int, error) {
+	alone, err := project.WithSelectedServices([]string{service}, types.IgnoreDependencies)
+	if err != nil {
+		return 0, err
+	}
+	if err := r.service.Create(ctx, alone, api.CreateOptions{Services: []string{service}, Recreate: api.RecreateForce, RecreateDependencies: api.RecreateNever}); err != nil {
+		return 0, err
+	}
+	created, err := r.service.Ps(ctx, project.Name, api.PsOptions{Project: alone, All: true, Services: []string{service}})
+	if err != nil {
+		return 0, err
+	}
+	if len(created) == 0 {
+		return 0, fmt.Errorf("no %s container was created", service)
+	}
+	id := created[0].ID
+	defer func() {
+		_, _ = r.docker.ContainerRemove(context.WithoutCancel(ctx), id, client.ContainerRemoveOptions{Force: true})
+	}()
+	if _, err := r.docker.ContainerStart(ctx, id, client.ContainerStartOptions{}); err != nil {
+		return 0, err
+	}
+	return r.follow(ctx, id, out)
+}
+
+func (r *Runner) follow(ctx context.Context, id string, out io.Writer) (int, error) {
+	logs, err := r.docker.ContainerLogs(ctx, id, client.ContainerLogsOptions{ShowStdout: true, ShowStderr: true, Follow: true})
+	if err != nil {
+		return 0, err
+	}
+	copied := make(chan struct{})
+	go func() {
+		defer close(copied)
+		_, _ = stdcopy.StdCopy(out, out, logs)
+	}()
+	defer func() { _ = logs.Close() }()
+	waited := r.docker.ContainerWait(ctx, id, client.ContainerWaitOptions{Condition: container.WaitConditionNotRunning})
+	select {
+	case exited := <-waited.Result:
+		<-copied
+		return int(exited.StatusCode), nil
+	case err := <-waited.Error:
+		return 0, err
+	case <-ctx.Done():
+		_, _ = r.docker.ContainerStop(context.WithoutCancel(ctx), id, client.ContainerStopOptions{})
+		return 0, ctx.Err()
+	}
 }

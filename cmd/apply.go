@@ -106,12 +106,11 @@ func (d Dependencies) wiringFor(cmd *cobra.Command, i *installation.Installation
 	}
 	r := report.From(cmd.Context())
 	configarr := func(ctx context.Context, out io.Writer) (int, error) {
-		defer listenForEndingSignalsAgain()
-		runner, err := d.Compose(out, &compose.Outcomes{})
+		runner, err := d.Compose(r.Tool("compose"), &compose.Outcomes{})
 		if err != nil {
 			return 0, err
 		}
-		return runner.RunOnce(ctx, wired, "configarr")
+		return runner.RunOnce(ctx, wired, "configarr", out)
 	}
 	steps, err := d.WiringSteps(configarr, r.Tool("configarr"))
 	if err != nil {
