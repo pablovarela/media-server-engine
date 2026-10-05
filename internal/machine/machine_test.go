@@ -299,7 +299,7 @@ func TestACheckThatRunsOutOfTimeIsNotAVerdict(t *testing.T) {
 
 	assert.Contains(t, out, "  lingering... ? no answer within 20ms\n")
 	assert.NotContains(t, out, "lingering... ✗")
-	assert.Contains(t, out, "  the user manager has the docker group... – skipped until lingering is on\n")
+	assert.Contains(t, out, "  the user manager has the docker group... – skipped: lingering couldn't be checked\n")
 	assert.True(t, strings.HasSuffix(out, "\n1 thing to fix, and 1 couldn't be checked. Run mse check-machine again afterwards.\n"), out)
 }
 
@@ -332,4 +332,21 @@ func TestEachCheckStartsBeforeItsProbeAndFinishesBeforeTheNext(t *testing.T) {
 
 	assert.True(t, report.Ready())
 	assert.Len(t, events, 18)
+}
+
+func TestACheckThatRunsOutOfTimeNeverPasses(t *testing.T) {
+	f := newFixture(t)
+	stalling(t, f, "systemctl show user@1000.service -p MainPID --value")
+
+	out := f.render(t)
+
+	assert.Contains(t, out, "  the user manager has the docker group... ? no answer within 20ms\n")
+	assert.NotContains(t, out, "This machine is ready.")
+}
+
+func TestWhatWaitsOnAnUncheckedCheckSaysSo(t *testing.T) {
+	f := newFixture(t)
+	stalling(t, f, "loginctl show-user pablo -p Linger")
+
+	assert.Contains(t, f.render(t), "  the user manager has the docker group... – skipped: lingering couldn't be checked\n")
 }

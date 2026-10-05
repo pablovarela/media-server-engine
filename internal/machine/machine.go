@@ -152,6 +152,7 @@ func RunEach(ctx context.Context, env Env, progress Progress) Report {
 		progress.Finished(result)
 	}
 	passed := map[string]bool{}
+	unchecked := map[string]string{}
 	for _, c := range checks() {
 		if c.applies != nil && !c.applies(env) {
 			passed[c.id] = true
@@ -160,14 +161,17 @@ func RunEach(ctx context.Context, env Env, progress Progress) Report {
 		name := c.name(env)
 		progress.Started(name)
 		if blocker := firstUnmet(c.needs, passed); blocker != "" {
-			finish(Result{Name: name, Status: Skip, Detail: "skipped until " + skipReason(blocker, env)})
+			finish(Result{Name: name, Status: Skip, Detail: skipped(blocker, unchecked, env)})
 			continue
 		}
 		result := probed(ctx, env, c, name)
 		passed[c.id] = result.Status == Pass
+		if result.Status == Unchecked {
+			unchecked[c.id] = name
+		}
 		finish(result)
 	}
-	portsChecks(ctx, env, passed, progress, finish)
+	portsChecks(ctx, env, passed, unchecked, progress, finish)
 	if !env.Systemd {
 		progress.Started("timers")
 		finish(Result{Name: "timers", Status: Skip, Detail: noSystemd})
@@ -180,15 +184,15 @@ func probed(ctx context.Context, env Env, c check, name string) Result {
 	defer cancel()
 	result := c.probe(probing, env)
 	switch {
-	case result.ok:
-		return Result{Name: name, Status: Pass, Detail: result.detail}
 	case probing.Err() != nil:
 		return Result{Name: name, Status: Unchecked, Detail: env.noAnswer()}
+	case result.ok:
+		return Result{Name: name, Status: Pass, Detail: result.detail}
 	}
 	return Result{Name: name, Status: Fail, Detail: result.detail, Fix: result.fix}
 }
 
-func portsChecks(ctx context.Context, env Env, passed map[string]bool, progress Progress, finish func(Result)) {
+func portsChecks(ctx context.Context, env Env, passed map[string]bool, unchecked map[string]string, progress Progress, finish func(Result)) {
 	if len(env.Ports.Unreadable) > 0 {
 		progress.Started(readableName)
 		finish(unreadablePorts(env.Ports.Unreadable))
@@ -198,7 +202,7 @@ func portsChecks(ctx context.Context, env Env, passed map[string]bool, progress 
 	}
 	progress.Started(portsName)
 	if !passed[sessionCheck] {
-		finish(Result{Name: portsName, Status: Skip, Detail: "skipped until " + skipReason(sessionCheck, env)})
+		finish(Result{Name: portsName, Status: Skip, Detail: skipped(sessionCheck, unchecked, env)})
 		return
 	}
 	probing, cancel := env.bounded(ctx)
@@ -213,6 +217,13 @@ func firstUnmet(needs []string, passed map[string]bool) string {
 		}
 	}
 	return ""
+}
+
+func skipped(blocker string, unchecked map[string]string, env Env) string {
+	if name, found := unchecked[blocker]; found {
+		return "skipped: " + name + " couldn't be checked"
+	}
+	return "skipped until " + skipReason(blocker, env)
 }
 
 func skipReason(id string, env Env) string {

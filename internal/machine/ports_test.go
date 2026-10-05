@@ -214,3 +214,10 @@ func TestThePortsNote(t *testing.T) {
 
 	assert.True(t, strings.Contains(out, "  ports... ✓ 8096, 7359/udp, 80 free (several installations here; using the default homepage port 80)\n"), out)
 }
+
+func TestPortsWaitingOnAnUncheckedDockerSaySo(t *testing.T) {
+	f := newPortsFixture(t)
+	stalling(t, f.fixture, "docker info")
+
+	assert.Contains(t, f.render(t), "  ports... – skipped: Docker answers couldn't be checked\n")
+}
