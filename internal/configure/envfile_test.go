@@ -90,3 +90,7 @@ func TestRewriteEnvChangesEveryLineOfARepeatedKey(t *testing.T) {
 func TestRewriteEnvKeepsAnInlineComment(t *testing.T) {
 	assert.Equal(t, "TZ=Europe/Madrid  # home\n", RewriteEnv("TZ=Europe/London  # home\n", []Update{{"TZ", "Europe/Madrid"}}, true))
 }
+
+func TestRewriteEnvTreatsAHashInASecretAsPartOfTheValue(t *testing.T) {
+	assert.Equal(t, "OPENVPN_PASSWORD=newpass\n", RewriteEnv("OPENVPN_PASSWORD=abc #9x\n", []Update{{"OPENVPN_PASSWORD", "newpass"}}, false))
+}

@@ -35,7 +35,7 @@ func RewriteEnv(text string, updates []Update, quote bool) string {
 		if !found || !updated {
 			continue
 		}
-		lines[i] = exportPrefix(line) + key + "=" + written(value, quote) + inlineComment(old)
+		lines[i] = exportPrefix(line) + key + "=" + written(value, quote) + inlineComment(old, quote)
 		present[key] = true
 	}
 	for _, u := range updates {
@@ -47,8 +47,8 @@ func RewriteEnv(text string, updates []Update, quote bool) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-func inlineComment(value string) string {
-	if strings.HasPrefix(value, "'") || strings.HasPrefix(value, `"`) {
+func inlineComment(value string, plain bool) string {
+	if !plain || strings.HasPrefix(value, "'") || strings.HasPrefix(value, `"`) {
 		return ""
 	}
 	return trailingComment.FindString(value)
