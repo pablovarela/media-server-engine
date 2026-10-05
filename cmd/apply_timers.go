@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -61,10 +62,7 @@ func (t *appliedTimers) Set(ctx context.Context) (string, []string, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	warnings := t.droppedVariables()
-	if !t.unattendedToken(ctx, account, values) {
-		warnings = append(warnings, noUnattendedToken)
-	}
+	warnings := t.unattendedWarnings(ctx, account, values)
 	role, note, warning := t.role(ctx)
 	if warning != "" {
 		warnings = append(warnings, warning)
@@ -77,9 +75,56 @@ func (t *appliedTimers) Set(ctx context.Context) (string, []string, error) {
 	return outcome.String() + note, warnings, nil
 }
 
+func (t *appliedTimers) unattendedWarnings(ctx context.Context, account string, values timers.Values) []string {
+	warnings := t.droppedVariables()
+	if !t.unattendedToken(ctx, account, values) {
+		warnings = append(warnings, noUnattendedToken)
+	}
+	if uid, stale := t.managerWithoutDocker(ctx, account); stale {
+		warnings = append(warnings, "the timers can't reach Docker: your user manager started before you joined the docker group; "+
+			"restart it with sudo systemctl restart user@"+uid+" (or reboot)")
+	}
+	return warnings
+}
+
 func (t *appliedTimers) lingering(ctx context.Context, account string) bool {
 	result, err := t.d.Run(io.Discard, io.Discard).Output(ctx, process.Command{Name: "loginctl", Args: []string{"show-user", account, "-p", "Linger"}})
 	return err == nil && result.Exit == 0 && strings.TrimSpace(string(result.Stdout)) == "Linger=yes"
+}
+
+func (t *appliedTimers) managerWithoutDocker(ctx context.Context, account string) (uid string, stale bool) {
+	if !slices.Contains(strings.Fields(t.output(ctx, "id", "-Gn", account)), "docker") {
+		return "", false
+	}
+	docker := strings.Split(t.output(ctx, "getent", "group", "docker"), ":")
+	uid = t.output(ctx, "id", "-u", account)
+	pid := t.output(ctx, "systemctl", "show", "user@"+uid+".service", "-p", "MainPID", "--value")
+	if len(docker) < 3 || uid == "" || pid == "" || pid == "0" {
+		return "", false
+	}
+	groups, found := managerGroups(filepath.Join(t.d.procRoot(), pid, "status"))
+	return uid, found && !slices.Contains(groups, docker[2])
+}
+
+func (t *appliedTimers) output(ctx context.Context, name string, args ...string) string {
+	result, err := t.d.Run(io.Discard, io.Discard).Output(ctx, process.Command{Name: name, Args: args})
+	if err != nil || result.Exit != 0 {
+		return ""
+	}
+	return strings.TrimSpace(string(result.Stdout))
+}
+
+func managerGroups(status string) ([]string, bool) {
+	text, err := os.ReadFile(status) //nolint:gosec // a /proc status file named by systemd's pid
+	if err != nil {
+		return nil, false
+	}
+	for _, line := range strings.Split(string(text), "\n") {
+		if groups, found := strings.CutPrefix(line, "Groups:"); found {
+			return strings.Fields(groups), true
+		}
+	}
+	return nil, false
 }
 
 func (t *appliedTimers) values() (timers.Values, error) {
@@ -163,6 +208,13 @@ func (d Dependencies) backupRole(i *installation.Installation) (*backup.Backups,
 		MachineID:    machine,
 		Report:       report.New(io.Discard, io.Discard, nil),
 	}, true, nil
+}
+
+func (d Dependencies) procRoot() string {
+	if d.ProcRoot != "" {
+		return d.ProcRoot
+	}
+	return "/proc"
 }
 
 func (d Dependencies) unitDir() string {

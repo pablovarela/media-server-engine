@@ -55,6 +55,7 @@ type Dependencies struct {
 	Exec          func(path string, args []string) error
 	Executable    func() (string, error)
 	UnitDir       string
+	ProcRoot      string
 	Account       func() (string, error)
 	WiringSteps   func(configarr wiring.OneOff, tool io.Writer) ([]wiring.Step, error)
 }
