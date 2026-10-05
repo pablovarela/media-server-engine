@@ -288,3 +288,42 @@ func TestAFailedWiringStepIsNamedAndFailsTheApply(t *testing.T) {
 	assert.Contains(t, stdout.String(), "Reloading Homepage")
 	assert.NotContains(t, stdout.String(), "Removing outdated images")
 }
+
+func TestTheWiringWaitsForSlowAppsLongerThanOtherRequests(t *testing.T) {
+	f := newApplyFixture(t)
+	f.expectApply(nil)
+	deps := f.deps(t, false)
+	deps.HTTP.Timeout = 30 * time.Second
+	deps.WiringSteps = func(wiring.OneOff, io.Writer) ([]wiring.Step, error) {
+		return []wiring.Step{{Name: "prowlarr", Run: func(_ context.Context, env wiring.Env) error {
+			assert.Zero(t, env.HTTP.Timeout, "each wiring request has its own deadline")
+			assert.NotNil(t, env.HTTP.Transport)
+			return nil
+		}}}, nil
+	}
+	root := NewRootCommand(deps)
+	root.SetOut(io.Discard)
+	root.SetErr(io.Discard)
+
+	assert.Equal(t, 0, run(context.Background(), root, []string{"apply"}))
+}
+
+func TestAPanicAfterAnUpdateStillReportsFail(t *testing.T) {
+	f := newApplyFixture(t)
+	writeHealthchecksKeys(t, f)
+	f.composer.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, mock.Anything).Return(f.project, nil)
+	f.composer.EXPECT().Pull(mock.Anything, f.project).Return(nil)
+	f.composer.EXPECT().Up(mock.Anything, f.project, []string(nil), compose.NoWait).Return(nil)
+	f.composer.EXPECT().Detached(mock.Anything, f.project, "gluetun", gluetunDependents).Return(nil, nil)
+	deps := f.deps(t, false)
+	deps.WiringSteps = func(wiring.OneOff, io.Writer) ([]wiring.Step, error) {
+		return []wiring.Step{{Name: "seerr", Run: func(context.Context, wiring.Env) error { panic("a bug") }}}, nil
+	}
+	root := NewRootCommand(deps)
+	root.SetOut(io.Discard)
+	root.SetErr(io.Discard)
+
+	assert.Panics(t, func() { run(context.Background(), root, []string{"apply", "--after-update=a1b2c3"}) })
+
+	assert.Equal(t, []string{"GET /ping-key/gorgon-update/fail"}, *f.requests)
+}

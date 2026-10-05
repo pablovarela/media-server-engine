@@ -3,6 +3,7 @@ package wiring
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -135,6 +136,33 @@ func contains(items []any, value any) bool {
 }
 
 func show(value any) string {
+	if text, ok := value.(string); ok {
+		return text
+	}
+	return pythonRepr(value)
+}
+
+func pythonRepr(value any) string {
+	switch v := value.(type) {
+	case []any:
+		parts := make([]string, len(v))
+		for n, item := range v {
+			parts[n] = pythonRepr(item)
+		}
+		return "[" + strings.Join(parts, ", ") + "]"
+	case map[string]any:
+		parts := make([]string, 0, len(v))
+		for _, key := range sortedKeys(v) {
+			parts = append(parts, quoted(key)+": "+pythonRepr(v[key]))
+		}
+		return "{" + strings.Join(parts, ", ") + "}"
+	case string:
+		return quoted(v)
+	}
+	return pythonScalar(value)
+}
+
+func pythonScalar(value any) string {
 	switch v := value.(type) {
 	case nil:
 		return "None"
@@ -142,15 +170,21 @@ func show(value any) string {
 		if v {
 			return "True"
 		}
-		return pythonFalse
+		return "False"
+	case int:
+		return strconv.Itoa(v)
 	case float64:
-		return strconv.FormatFloat(v, 'f', -1, 64)
-	case []any:
-		parts := make([]string, len(v))
-		for n, item := range v {
-			parts[n] = show(item)
+		if v == math.Trunc(v) && !math.IsInf(v, 0) {
+			return strconv.FormatFloat(v, 'f', -1, 64)
 		}
-		return "[" + strings.Join(parts, ", ") + "]"
+		return pythonFloat(v).String()
 	}
 	return fmt.Sprint(value)
+}
+
+func quoted(text string) string {
+	if strings.Contains(text, "'") && !strings.Contains(text, `"`) {
+		return `"` + text + `"`
+	}
+	return "'" + strings.ReplaceAll(text, "'", `\'`) + "'"
 }

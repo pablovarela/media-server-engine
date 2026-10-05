@@ -23,9 +23,19 @@ func (n pythonNumber) String() string { return string(n) }
 
 type pythonFloat float64
 
+const (
+	smallestPlainExponent = -4
+	largestPlainExponent  = 16
+)
+
 func (f pythonFloat) String() string {
+	scientific := strconv.FormatFloat(float64(f), 'e', -1, 64)
+	exponent, _ := strconv.Atoi(scientific[strings.IndexByte(scientific, 'e')+1:])
+	if f != 0 && (exponent < smallestPlainExponent || exponent >= largestPlainExponent) {
+		return scientific
+	}
 	spelled := strconv.FormatFloat(float64(f), 'f', -1, 64)
-	if !strings.ContainsAny(spelled, ".eE") {
+	if !strings.Contains(spelled, ".") {
 		spelled += ".0"
 	}
 	return spelled

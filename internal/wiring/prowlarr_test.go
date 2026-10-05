@@ -430,3 +430,14 @@ func TestAnAppsAddressOnThisMachineKeepsTheDeclaredPortAndPath(t *testing.T) {
 		})
 	}
 }
+
+func TestAMissingProwlarrYMLFailsTheStep(t *testing.T) {
+	r := newRoutes(t)
+	env, _ := testEnv(t, r.client(), prowlarrSecrets)
+
+	err := Prowlarr(context.Background(), env)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "prowlarr.yml")
+	assert.Empty(t, r.requests)
+}

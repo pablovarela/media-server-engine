@@ -31,3 +31,15 @@ func TestSentRemembersHeadersAndSecretLookingFields(t *testing.T) {
 	assert.Equal(t, "admin <hidden> <hidden> <hidden> not-a-secret-name <hidden>",
 		r.Hide("admin jellyfin-token hunter22 nested-key not-a-secret-name form-secret"))
 }
+
+func TestHideFindsASecretAfterAnOverlappingOneItLeftAlone(t *testing.T) {
+	r := NewRedactor(map[string]string{"KEY": "ab-ab-"})
+
+	assert.Equal(t, "xab-<hidden>", r.Hide("xab-ab-ab-"))
+}
+
+func TestHideTreatsLettersBeyondASCIIAsPartOfAWord(t *testing.T) {
+	r := NewRedactor(map[string]string{"KEY": "secret1"})
+
+	assert.Equal(t, "ésecret1 secret1é <hidden>", r.Hide("ésecret1 secret1é secret1"))
+}

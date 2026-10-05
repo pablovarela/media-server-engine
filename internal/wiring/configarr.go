@@ -17,13 +17,13 @@ var passwordLine = regexp.MustCompile(`([Pp]assword[^:]*:).*`)
 type OneOff func(ctx context.Context, out io.Writer) (exit int, err error)
 
 func Configarr(run OneOff, tool io.Writer) func(ctx context.Context, env Env) error {
-	return func(ctx context.Context, _ Env) error {
+	return func(ctx context.Context, env Env) error {
 		var output bytes.Buffer
 		exit, err := run(ctx, &output)
 		var errors []string
 		scanner := bufio.NewScanner(&output)
 		for scanner.Scan() {
-			line := passwordLine.ReplaceAllString(scanner.Text(), "$1 (hidden)")
+			line := env.Redact.Hide(passwordLine.ReplaceAllString(scanner.Text(), "$1 (hidden)"))
 			_, _ = fmt.Fprintln(tool, line)
 			if strings.HasPrefix(line, "ERROR") {
 				errors = append(errors, line)

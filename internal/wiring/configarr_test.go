@@ -64,3 +64,12 @@ func TestConfigarrThatCannotRunFailsTheStep(t *testing.T) {
 
 	assert.EqualError(t, err, "no such service: configarr")
 }
+
+func TestConfigarrsOutputHasTheAppSecretsHidden(t *testing.T) {
+	var tool bytes.Buffer
+	env, _ := testEnv(t, nil, map[string]string{"SONARR_API_KEY": "sonarr-key"})
+
+	require.NoError(t, Configarr(configarrPrinting("connecting with sonarr-key\n", 0), &tool)(context.Background(), env))
+
+	assert.Equal(t, "connecting with <hidden>\n", tool.String())
+}

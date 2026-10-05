@@ -3,7 +3,9 @@ package cmd
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -54,6 +56,11 @@ func newApplyCommand(deps Dependencies) *cobra.Command {
 func (d Dependencies) reported(cmd *cobra.Command, i *installation.Installation, do func() error) (err error) {
 	finishing := context.WithoutCancel(cmd.Context())
 	defer func() {
+		crashed := recover()
+		if crashed != nil {
+			err = fmt.Errorf("%v", crashed)
+			defer panic(crashed)
+		}
 		if errors.Is(err, errHandedOver) {
 			return
 		}
@@ -99,6 +106,7 @@ func (d Dependencies) wiringFor(cmd *cobra.Command, i *installation.Installation
 	}
 	r := report.From(cmd.Context())
 	configarr := func(ctx context.Context, out io.Writer) (int, error) {
+		defer listenForEndingSignalsAgain()
 		runner, err := d.Compose(out, &compose.Outcomes{})
 		if err != nil {
 			return 0, err
@@ -113,7 +121,7 @@ func (d Dependencies) wiringFor(cmd *cobra.Command, i *installation.Installation
 	return &wiring.Wiring{
 		Env: wiring.Env{
 			Settings: i.Settings, Secrets: appSecrets, Config: i.Config, Data: i.Data,
-			HTTP: d.HTTP, Pause: d.Pause, Say: r.Say, Redact: wiring.NewRedactor(appSecrets),
+			HTTP: &http.Client{Transport: d.HTTP.Transport}, Pause: d.Pause, Say: r.Say, Redact: wiring.NewRedactor(appSecrets),
 		},
 		Steps:  steps,
 		Health: wiring.HealthChecks,

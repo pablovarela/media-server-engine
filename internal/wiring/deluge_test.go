@@ -316,3 +316,43 @@ func TestAFailedWriteIsStillReportedWhenDelugeWillNotStartAgainEither(t *testing
 
 	assert.EqualError(t, err, "could not write core.conf: permission denied; docker start deluge failed: Error response from daemon: No such container: deluge")
 }
+
+func TestAWebUIThatRefusesConnectionsIsAskedOncePerTry(t *testing.T) {
+	f := newDelugeFixture(t, "web pass")
+	f.r.on("POST", "/json", answer{err: syscall.ECONNREFUSED})
+	f.dockerAnswers(nil)
+
+	err := f.wire()
+
+	assert.EqualError(t, err, "the web UI does not accept the web password")
+	assert.Len(t, f.r.requests, delugeReadyTries)
+}
+
+func TestASignalWhileDelugeStopsStillStartsItAgain(t *testing.T) {
+	f := newDelugeFixture(t, "web pass")
+	ctx, cancel := context.WithCancel(context.Background())
+	started := false
+	f.docker.EXPECT().Exec(mock.Anything, "deluge", mock.Anything, mock.Anything).Return("3.12\n", nil).Maybe()
+	f.docker.EXPECT().Stop(mock.Anything, "deluge").RunAndReturn(func(stopping context.Context, _ string) error {
+		cancel()
+		return stopping.Err()
+	})
+	f.docker.EXPECT().Start(mock.Anything, "deluge").RunAndReturn(func(context.Context, string) error { started = true; return nil })
+
+	err := Deluge(f.docker)(ctx, f.env)
+
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.True(t, started)
+}
+
+func TestADeclaredNullThatDelugeDoesNotHaveIsNoChange(t *testing.T) {
+	f := newDelugeFixture(t, "web pass")
+	require.NoError(t, os.WriteFile(filepath.Join(f.env.Config, "apps.yml"), []byte("deluge:\n  core:\n    proxy: null\n"), 0o644))
+	f.dockerAnswers(nil)
+
+	require.NoError(t, f.wire())
+
+	assert.NotContains(t, f.out.lines, "deluge: set proxy None -> None")
+	_, core := readConf(t, filepath.Join(f.config, "core.conf"))
+	assert.NotContains(t, core, "proxy")
+}

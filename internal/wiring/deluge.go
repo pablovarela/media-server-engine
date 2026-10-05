@@ -126,7 +126,7 @@ func buildScript(plugin map[string]any) string {
 func (d *deluge) wireCore(settings map[string]any, plugins []map[string]any) {
 	for _, key := range sortedKeys(settings) {
 		value := pythonValue(settings[key])
-		if current, ok := d.core.body[key]; !ok || !same(current, value) {
+		if !same(d.core.body[key], value) {
 			d.env.Change(delugeApp, fmt.Sprintf("set %s %s -> %s", key, show(d.core.body[key]), show(value)))
 			d.core.set(key, value)
 		}
@@ -155,7 +155,7 @@ func (d *deluge) wirePluginSettings(plugins []map[string]any) error {
 		}
 		for _, key := range sortedKeys(settings) {
 			value := pythonValue(settings[key])
-			if current, ok := conf.body[key]; !ok || !same(current, value) {
+			if !same(conf.body[key], value) {
 				d.env.Change(delugeApp, fmt.Sprintf("set %s %s %s -> %s", name, key, show(conf.body[key]), show(value)))
 				conf.set(key, value)
 			}
@@ -202,7 +202,7 @@ func (d *deluge) apply(ctx context.Context) error {
 	if len(changed) == 0 {
 		return nil
 	}
-	if err := d.docker.Stop(ctx, delugeContainer); err != nil {
+	if err := d.docker.Stop(context.WithoutCancel(ctx), delugeContainer); err != nil {
 		return dockerFailure("stop", err)
 	}
 	var failures []string
@@ -222,19 +222,21 @@ func (d *deluge) apply(ctx context.Context) error {
 }
 
 func (d *deluge) waitForWebLogin(ctx context.Context) error {
-	api := &API{Env: d.env, Base: d.env.URL("DELUGE_URL", "http://localhost:8112"), Headers: map[string]string{}}
-	for try := 0; try < delugeReadyTries; try++ {
+	api := &API{Env: d.env, Base: d.env.URL("DELUGE_URL", "http://localhost:8112"), Headers: map[string]string{}, Attempts: 1}
+	waiting, stop := context.WithTimeout(ctx, delugeReadyTries*time.Second)
+	defer stop()
+	for try := 0; try < delugeReadyTries && waiting.Err() == nil; try++ {
 		var answer map[string]any
-		err := api.Send(ctx, "POST", "/json", map[string]any{"method": "auth.login", "params": []any{d.password}, "id": 1}, &answer)
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
+		err := api.Send(waiting, "POST", "/json", map[string]any{"method": "auth.login", "params": []any{d.password}, "id": 1}, &answer)
 		if err == nil && answer["result"] == true {
 			return nil
 		}
-		if err := d.env.Pause(ctx, time.Second); err != nil {
-			return err
+		if d.env.Pause(waiting, time.Second) != nil {
+			break
 		}
+	}
+	if ctx.Err() != nil {
+		return ctx.Err()
 	}
 	return Error{Message: "the web UI does not accept the web password"}
 }

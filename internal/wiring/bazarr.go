@@ -64,15 +64,9 @@ func Bazarr(ctx context.Context, env Env) error {
 	if err != nil {
 		return err
 	}
-	var languageFailure error
-	if languages := list(section(declared[bazarrApp])["languages"]); len(languages) > 0 {
-		codes := make([]string, len(languages))
-		for n, code := range languages {
-			codes[n] = text(code)
-		}
-		if languageFailure = wireLanguages(ctx, env, api, section(settings["general"]), codes, form); languageFailure != nil && ctx.Err() != nil {
-			return ctx.Err()
-		}
+	languageFailure := declaredLanguages(ctx, env, api, list(section(declared[bazarrApp])["languages"]), section(settings["general"]), form)
+	if ctx.Err() != nil {
+		return ctx.Err()
 	}
 	if len(form.values) > 0 {
 		if err := api.SendForm(ctx, "/api/system/settings", form.values, nil); err != nil {
@@ -80,6 +74,24 @@ func Bazarr(ctx context.Context, env Env) error {
 		}
 	}
 	return languageFailure
+}
+
+func declaredLanguages(ctx context.Context, env Env, api *API, languages []any, general map[string]any, form bazarrForm) error {
+	if len(languages) == 0 {
+		return nil
+	}
+	codes := make([]string, len(languages))
+	for n, code := range languages {
+		codes[n] = text(code)
+	}
+	languageForm := bazarrForm{values: url.Values{}}
+	if err := wireLanguages(ctx, env, api, general, codes, languageForm); err != nil {
+		return err
+	}
+	for key, values := range languageForm.values {
+		form.set(key, values...)
+	}
+	return nil
 }
 
 func connectArrs(env Env, general, settings map[string]any, form bazarrForm) {

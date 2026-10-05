@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"unicode"
+	"unicode/utf8"
 )
 
 const shortestSecret = 6
@@ -97,28 +98,32 @@ func (r *Redactor) Hide(text string) string {
 
 func replaceWhole(text, secret string) string {
 	var out strings.Builder
+	from := 0
 	for {
-		at := strings.Index(text, secret)
-		if at < 0 {
+		found := strings.Index(text[from:], secret)
+		if found < 0 {
 			out.WriteString(text)
 			return out.String()
 		}
-		end := at + len(secret)
+		at, end := from+found, from+found+len(secret)
 		if wordBefore(text, at) || wordAfter(text, end) {
-			out.WriteString(text[:end])
-		} else {
-			out.WriteString(text[:at] + "<hidden>")
+			_, size := utf8.DecodeRuneInString(text[at:])
+			from = at + size
+			continue
 		}
-		text = text[end:]
+		out.WriteString(text[:at] + "<hidden>")
+		text, from = text[end:], 0
 	}
 }
 
 func wordBefore(text string, at int) bool {
-	return at > 0 && isWord(rune(text[at-1]))
+	before, _ := utf8.DecodeLastRuneInString(text[:at])
+	return at > 0 && isWord(before)
 }
 
 func wordAfter(text string, end int) bool {
-	return end < len(text) && isWord(rune(text[end]))
+	after, _ := utf8.DecodeRuneInString(text[end:])
+	return end < len(text) && isWord(after)
 }
 
 func isWord(r rune) bool {

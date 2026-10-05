@@ -108,6 +108,14 @@ func (s *Step) Fail(err error) error {
 	return err
 }
 
+func (s *Step) FailWithoutTail(err error) error {
+	s.r.mu.Lock()
+	defer s.r.mu.Unlock()
+	s.finish("failed")
+	s.r.logLine("", s.title+"... failed: "+err.Error())
+	return err
+}
+
 func (s *Step) finish(result string) {
 	if s.r.open == s && !s.broken {
 		_, _ = fmt.Fprintln(s.r.out, " "+result+".")

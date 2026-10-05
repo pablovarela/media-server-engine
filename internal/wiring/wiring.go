@@ -39,9 +39,6 @@ func (e Env) URL(variable, fallback string) string {
 
 func (e Env) Declared(name string) (map[string]any, error) {
 	content, err := os.ReadFile(filepath.Join(e.Config, name)) //nolint:gosec // the config's own declarations
-	if errors.Is(err, os.ErrNotExist) {
-		return map[string]any{}, nil
-	}
 	if err != nil {
 		return nil, err
 	}

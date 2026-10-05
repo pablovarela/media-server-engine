@@ -248,3 +248,16 @@ func TestADefaultProfileThatPointsElsewhereIsPointedBack(t *testing.T) {
 	assert.Equal(t, []string{"bazarr: set the default subtitle profile for movies Spanish -> English"}, out.lines)
 	assert.Equal(t, "settings-general-movie_default_profile=1", r.sentForm("POST", "/api/system/settings").Encode())
 }
+
+func TestLanguagesAreLeftAloneWhenTheProfilesCannotBeRead(t *testing.T) {
+	r := bazarrAnswering(t, newRoutes(t), freshBazarrSettings(), nil)
+	r.on("GET", "/api/system/languages/profiles", failing(500, "boom"))
+	env, _ := bazarrEnv(t, r, "radarr-key")
+
+	err := Bazarr(context.Background(), env)
+
+	assert.EqualError(t, err, "GET /api/system/languages/profiles answered 500: boom")
+	form := r.sentForm("POST", "/api/system/settings")
+	assert.Equal(t, "sonarr", form.Get("settings-sonarr-ip"))
+	assert.NotContains(t, form, "languages-enabled")
+}
