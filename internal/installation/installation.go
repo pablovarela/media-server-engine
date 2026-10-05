@@ -37,7 +37,7 @@ func BasesFrom(getenv func(string) string, home string) Bases {
 	}
 }
 
-func Load(bases Bases, requested string) (*Installation, error) {
+func Load(bases Bases, requested string, lookup func(string) string) (*Installation, error) {
 	root := filepath.Join(bases.Config, "mse")
 	names, err := installationsIn(root)
 	if err != nil {
@@ -52,7 +52,7 @@ func Load(bases Bases, requested string) (*Installation, error) {
 	if err != nil {
 		return nil, err
 	}
-	settings := ParseEnv(string(text))
+	settings := ParseEnv(string(text), lookup)
 	switch settings["INSTALLATION_NAME"] {
 	case "":
 		return nil, fmt.Errorf("INSTALLATION_NAME is not set in %s", path)

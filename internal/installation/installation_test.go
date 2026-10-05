@@ -105,7 +105,7 @@ func TestLoad(t *testing.T) {
 				require.NoError(t, os.MkdirAll(filepath.Join(bases.Config, "mse", dir), 0o755))
 			}
 
-			loaded, err := Load(bases, tt.When.requested)
+			loaded, err := Load(bases, tt.When.requested, func(string) string { return "" })
 
 			if tt.Then.err != "" {
 				assert.EqualError(t, err, replaceAll(tt.Then.err, "<config>", bases.Config))
