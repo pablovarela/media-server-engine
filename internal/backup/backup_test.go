@@ -111,6 +111,53 @@ func TestBackup(t *testing.T) {
 			}},
 			Then: Then{out: "Stopping the stack...\nBacking up volumes/...\n", err: "restic was interrupted"},
 		},
+		"listing the running services fails": {
+			Given: Given{expect: func(b *Backups, m mocks, _ context.CancelFunc) {
+				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(ours, nil)
+				m.stack.EXPECT().RunningServices(mock.Anything).Return(nil, errors.New("cannot connect"))
+				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/fail").Return()
+			}},
+			Then: Then{err: "cannot connect"},
+		},
+		"unlock fails: nothing is stopped": {
+			Given: Given{expect: func(b *Backups, m mocks, _ context.CancelFunc) {
+				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(ours, nil)
+				m.stack.EXPECT().RunningServices(mock.Anything).Return([]string{"jellyfin"}, nil)
+				m.repository.EXPECT().Unlock(mock.Anything).Return(errors.New("restic unlock failed (exit 1)"))
+				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/fail").Return()
+			}},
+			Then: Then{err: "restic unlock failed (exit 1)"},
+		},
+		"starting after the backup fails: tried once more": {
+			Given: Given{expect: func(b *Backups, m mocks, _ context.CancelFunc) {
+				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(ours, nil)
+				m.stack.EXPECT().RunningServices(mock.Anything).Return([]string{"jellyfin"}, nil)
+				m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
+				m.stack.EXPECT().Stop(mock.Anything).Return(nil)
+				m.repository.EXPECT().Backup(mock.Anything, backupOptions(b)).Return(nil)
+				m.stack.EXPECT().Start(mock.Anything, []string{"jellyfin"}).Return(errors.New("port busy")).Once()
+				m.stack.EXPECT().Start(mock.Anything, []string{"jellyfin"}).Return(nil).Once()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/fail").Return()
+			}},
+			Then: Then{out: "Stopping the stack...\nBacking up volumes/...\nStarting 1 service...\n", err: "port busy"},
+		},
+		"forget fails: the services stay up": {
+			Given: Given{expect: func(b *Backups, m mocks, _ context.CancelFunc) {
+				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(ours, nil)
+				m.stack.EXPECT().RunningServices(mock.Anything).Return([]string{"jellyfin"}, nil)
+				m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
+				m.stack.EXPECT().Stop(mock.Anything).Return(nil)
+				m.repository.EXPECT().Backup(mock.Anything, backupOptions(b)).Return(nil)
+				m.stack.EXPECT().Start(mock.Anything, []string{"jellyfin"}).Return(nil).Once()
+				m.repository.EXPECT().Forget(mock.Anything, "gorgon", mock.Anything).Return(errors.New("restic forget failed (exit 1)"))
+				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/fail").Return()
+			}},
+			Then: Then{out: "Stopping the stack...\nBacking up volumes/...\nStarting 1 service...\nRemoving old snapshots...\n", err: "restic forget failed (exit 1)"},
+		},
 		"starting again fails too": {
 			Given: Given{expect: func(b *Backups, m mocks, _ context.CancelFunc) {
 				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
@@ -310,4 +357,19 @@ func TestBackupRefusesAnEmptyDataDirectory(t *testing.T) {
 	err := b.Backup(context.Background())
 
 	assert.EqualError(t, err, "volumes/ in "+b.Installation.Data+" holds no app data; nothing was backed up")
+}
+
+func TestBackupFailsWhenItCannotMarkTheMain(t *testing.T) {
+	b, m, _, _ := fixture(t)
+	require.NoError(t, os.Mkdir(filepath.Join(b.Installation.Data, ".backup-main"), 0o755))
+	m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+	m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(nil, nil)
+	m.stack.EXPECT().RunningServices(mock.Anything).Return(nil, nil)
+	m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
+	m.stack.EXPECT().Stop(mock.Anything).Return(nil)
+	m.repository.EXPECT().Backup(mock.Anything, mock.Anything).Return(nil)
+	m.repository.EXPECT().Forget(mock.Anything, "gorgon", mock.Anything).Return(nil)
+	m.pinger.EXPECT().Ping(mock.Anything, "backup", "/fail").Return()
+
+	assert.ErrorContains(t, b.Backup(context.Background()), ".backup-main")
 }
