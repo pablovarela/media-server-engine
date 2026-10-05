@@ -37,7 +37,10 @@ func Load(config string, decrypt secrets.Decrypter) (Values, map[string][]byte, 
 		return nil, nil, err
 	}
 	values := Values{PlainFile: ReadEnv(string(plain))}
-	texts := map[string][]byte{PlainFile: plain}
+	texts := map[string][]byte{}
+	if plain != nil {
+		texts[PlainFile] = plain
+	}
 	for _, file := range secretFiles() {
 		path := filepath.Join(config, file)
 		if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
