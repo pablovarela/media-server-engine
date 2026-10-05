@@ -61,7 +61,9 @@ func (f *fixture) fails(call string) {
 
 func (f *fixture) render(t *testing.T) string {
 	t.Helper()
-	return Run(context.Background(), f.env).Render(&paint.Painter{})
+	var out strings.Builder
+	RunEach(context.Background(), f.env, func(line string) { out.WriteString(line) }, &paint.Painter{})
+	return out.String()
 }
 
 const readyLinux = `  ✓ git
@@ -80,10 +82,8 @@ This machine is ready.
 func TestAReadyMachine(t *testing.T) {
 	f := newFixture(t)
 
-	report := Run(context.Background(), f.env)
-
-	assert.Equal(t, 0, report.Problems())
-	assert.Equal(t, readyLinux, report.Render(&paint.Painter{}))
+	assert.Equal(t, 0, Run(context.Background(), f.env).Problems())
+	assert.Equal(t, readyLinux, f.render(t))
 }
 
 func TestEachMissingPieceSaysHowToFixIt(t *testing.T) {
@@ -274,4 +274,23 @@ func TestAStalledDockerDoesNotHangTheChecks(t *testing.T) {
 	f.env.Timeout = 20 * time.Millisecond
 
 	assert.Contains(t, f.render(t), "  ✗ Docker didn't answer within 20ms\n      run: sudo systemctl restart docker\n")
+}
+
+func TestEachLineIsHandedOutBeforeTheNextCheckRuns(t *testing.T) {
+	f := newFixture(t)
+	answering := f.env.Runner
+	var printed []string
+	runner := newMockRunner(t)
+	runner.EXPECT().Output(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, c process.Command) (process.Result, error) {
+		if c.Name == "restic" {
+			assert.Len(t, printed, 6, "every earlier line is out before restic is probed")
+		}
+		return answering.Output(ctx, c)
+	}).Maybe()
+	f.env.Runner = runner
+
+	report := RunEach(context.Background(), f.env, func(line string) { printed = append(printed, line) }, &paint.Painter{})
+
+	assert.Equal(t, readyLinux, strings.Join(printed, ""))
+	assert.Equal(t, 0, report.Problems())
 }

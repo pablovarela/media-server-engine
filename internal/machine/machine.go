@@ -3,7 +3,6 @@ package machine
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/pablovarela/media-server-engine/internal/paint"
@@ -68,27 +67,24 @@ func (r Report) Problems() int {
 	return problems
 }
 
-func (r Report) Render(p *paint.Painter) string {
-	var out strings.Builder
-	for _, result := range r.Results {
-		switch result.Status {
-		case Pass:
-			fmt.Fprintf(&out, "  %s %s\n", p.Success("✓"), result.Line)
-		case Fail:
-			fmt.Fprintf(&out, "  %s %s\n      run: %s\n", p.Failure("✗"), result.Line, result.Fix)
-		case Skip:
-			fmt.Fprintf(&out, "  %s %s\n", p.Faint("–"), result.Line)
-		}
+func rendered(result Result, p *paint.Painter) string {
+	switch result.Status {
+	case Fail:
+		return fmt.Sprintf("  %s %s\n      run: %s\n", p.Failure("✗"), result.Line, result.Fix)
+	case Skip:
+		return fmt.Sprintf("  %s %s\n", p.Faint("–"), result.Line)
 	}
-	switch problems := r.Problems(); problems {
+	return fmt.Sprintf("  %s %s\n", p.Success("✓"), result.Line)
+}
+
+func closing(problems int) string {
+	switch problems {
 	case 0:
-		out.WriteString("\nThis machine is ready.\n")
+		return "\nThis machine is ready.\n"
 	case 1:
-		out.WriteString("\n1 thing to fix. Run mse check-machine again afterwards.\n")
-	default:
-		fmt.Fprintf(&out, "\n%d things to fix. Run mse check-machine again afterwards.\n", problems)
+		return "\n1 thing to fix. Run mse check-machine again afterwards.\n"
 	}
-	return out.String()
+	return fmt.Sprintf("\n%d things to fix. Run mse check-machine again afterwards.\n", problems)
 }
 
 type outcome struct {
@@ -107,32 +103,47 @@ type check struct {
 const noSystemd = "timers: no systemd here, so nothing runs unattended; run mse update --apply yourself"
 
 func Run(ctx context.Context, env Env) Report {
-	passed := map[string]bool{}
+	return RunEach(ctx, env, func(string) {}, &paint.Painter{})
+}
+
+func RunEach(ctx context.Context, env Env, print func(string), p *paint.Painter) Report {
 	var report Report
+	add := func(results ...Result) {
+		for _, result := range results {
+			report.Results = append(report.Results, result)
+			print(rendered(result, p))
+		}
+	}
+	passed := map[string]bool{}
 	for _, c := range checks() {
 		if c.applies != nil && !c.applies(env) {
 			passed[c.id] = true
 			continue
 		}
 		if blocker := firstUnmet(c.needs, passed); blocker != "" {
-			report.Results = append(report.Results, Result{Status: Skip, Line: c.name(env) + ": skipped until " + skipReason(blocker, env)})
+			add(Result{Status: Skip, Line: c.name(env) + ": skipped until " + skipReason(blocker, env)})
 			continue
 		}
-		probing, cancel := env.bounded(ctx)
-		result := c.probe(probing, env)
-		cancel()
-		passed[c.id] = result.ok
-		if result.ok {
-			report.Results = append(report.Results, Result{Status: Pass, Line: orName(result.line, c.name(env))})
-		} else {
-			report.Results = append(report.Results, Result{Status: Fail, Line: result.line, Fix: result.fix})
-		}
+		passed[c.id] = probed(ctx, env, c, add)
 	}
-	report.Results = append(report.Results, portsCheck(ctx, env, passed)...)
+	add(portsCheck(ctx, env, passed)...)
 	if !env.Systemd {
-		report.Results = append(report.Results, Result{Status: Skip, Line: noSystemd})
+		add(Result{Status: Skip, Line: noSystemd})
 	}
+	print(closing(report.Problems()))
 	return report
+}
+
+func probed(ctx context.Context, env Env, c check, add func(...Result)) bool {
+	probing, cancel := env.bounded(ctx)
+	defer cancel()
+	result := c.probe(probing, env)
+	if result.ok {
+		add(Result{Status: Pass, Line: orName(result.line, c.name(env))})
+	} else {
+		add(Result{Status: Fail, Line: result.line, Fix: result.fix})
+	}
+	return result.ok
 }
 
 func portsCheck(ctx context.Context, env Env, passed map[string]bool) []Result {
