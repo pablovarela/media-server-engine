@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -122,6 +123,18 @@ func (r *routes) sentBody(method, path string) map[string]any {
 	bodies := r.sentBodies(method, path)
 	require.NotEmpty(r.t, bodies, "no %s %s was sent", method, path)
 	return bodies[0]
+}
+
+func (r *routes) sentForm(method, path string) url.Values {
+	for _, request := range r.requests {
+		if request.method == method && request.path == path {
+			form, err := url.ParseQuery(request.body)
+			require.NoError(r.t, err)
+			return form
+		}
+	}
+	require.Failf(r.t, "not sent", "no %s %s was sent", method, path)
+	return nil
 }
 
 func decoded(t *testing.T, body string) map[string]any {

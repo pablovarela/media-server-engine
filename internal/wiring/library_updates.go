@@ -15,12 +15,12 @@ type libraryArr struct {
 }
 
 var libraryArrs = []libraryArr{
-	{"sonarr", "SONARR_URL", "http://localhost:8989", "SONARR_API_KEY", "/tv", "/data/tvshows"},
-	{"radarr", "RADARR_URL", "http://localhost:7878", "RADARR_API_KEY", "/movies", "/data/movies"},
+	{sonarrKind, "SONARR_URL", "http://localhost:8989", sonarrKeyName, "/tv", "/data/tvshows"},
+	{radarrKind, "RADARR_URL", "http://localhost:7878", radarrKeyName, "/movies", "/data/movies"},
 }
 
 func (a libraryArr) wanted() []setting {
-	return []setting{{"host", "jellyfin"}, {"port", 8096}, {"updateLibrary", true}, {"mapFrom", a.arrPath}, {"mapTo", a.jellyfinPath}}
+	return []setting{{"host", "jellyfin"}, {portField, 8096}, {"updateLibrary", true}, {"mapFrom", a.arrPath}, {"mapTo", a.jellyfinPath}}
 }
 
 func LibraryUpdates(ctx context.Context, env Env) error {
@@ -69,7 +69,7 @@ func connectToJellyfin(ctx context.Context, env Env, arr libraryArr, api *API, k
 	if !dirty {
 		return nil
 	}
-	setField(current, "apiKey", key)
+	setField(current, apiKeyField, key)
 	if err := api.Send(ctx, "PUT", "/api/v3/notification/"+show(current["id"])+"?forceSave=true", current, nil); err != nil {
 		return err
 	}
@@ -94,7 +94,7 @@ func addJellyfinConnection(ctx context.Context, env Env, arr libraryArr, api *AP
 	for _, s := range arr.wanted() {
 		setField(item, s.name, s.value)
 	}
-	setField(item, "apiKey", key)
+	setField(item, apiKeyField, key)
 	env.Change(arr.kind, "add the Jellyfin connection")
 	if err := api.Send(ctx, "POST", "/api/v3/notification?forceSave=true", item, nil); err != nil {
 		return err

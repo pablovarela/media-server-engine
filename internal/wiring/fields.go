@@ -9,8 +9,16 @@ import (
 )
 
 const (
-	nameKey      = "name"
-	apiKeyHeader = "X-Api-Key" //nolint:gosec // a header name, not a credential
+	nameKey       = "name"
+	apiKeyHeader  = "X-Api-Key"      //nolint:gosec // a header name, not a credential
+	sonarrKeyName = "SONARR_API_KEY" //nolint:gosec // the name of a secret, not its value
+	radarrKeyName = "RADARR_API_KEY" //nolint:gosec // the name of a secret, not its value
+	apiKeyField   = "apiKey"
+	portField     = "port"
+	hostnameField = "hostname"
+	useSSLField   = "useSsl"
+	baseURLField  = "baseUrl"
+	pythonFalse   = "False"
 )
 
 func field(item map[string]any, name string) any {
@@ -134,7 +142,7 @@ func show(value any) string {
 		if v {
 			return "True"
 		}
-		return "False"
+		return pythonFalse
 	case float64:
 		return strconv.FormatFloat(v, 'f', -1, 64)
 	case []any:

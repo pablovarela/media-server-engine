@@ -275,7 +275,7 @@ func (p *prowlarr) wireApplications(ctx context.Context, applications []map[stri
 			p.failures = append(p.failures, fmt.Sprintf("application %s: %s is not in the app secrets", name, keyName))
 			continue
 		}
-		wanted := []setting{{"baseUrl", application["url"]}, {"prowlarrUrl", prowlarrSeenByApps}}
+		wanted := []setting{{baseURLField, application["url"]}, {"prowlarrUrl", prowlarrSeenByApps}}
 		if categories, ok := application["sync_categories"]; ok {
 			wanted = append(wanted, setting{"syncCategories", categories})
 		}
@@ -301,7 +301,7 @@ func (p *prowlarr) wireApplication(ctx context.Context, application, item map[st
 	for _, s := range wanted {
 		setField(item, s.name, s.value)
 	}
-	setField(item, "apiKey", key)
+	setField(item, apiKeyField, key)
 	saved, err := p.save(ctx, "applications", item)
 	if err != nil || !saved {
 		return err
