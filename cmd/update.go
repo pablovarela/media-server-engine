@@ -55,7 +55,7 @@ func (d Dependencies) update(cmd *cobra.Command, force bool) (selfupdate.Result,
 	case err != nil:
 		return selfupdate.Result{}, err
 	default:
-		if err := d.fetchConfig(cmd, i); err != nil {
+		if err := d.fetchConfig(cmd, i, "update"); err != nil {
 			return selfupdate.Result{}, err
 		}
 	}
@@ -75,7 +75,7 @@ func (d Dependencies) updateBinary(cmd *cobra.Command, force bool) (selfupdate.R
 	return result, err
 }
 
-func (d Dependencies) fetchConfig(cmd *cobra.Command, i *installation.Installation) error {
+func (d Dependencies) fetchConfig(cmd *cobra.Command, i *installation.Installation, again string) error {
 	ctx := cmd.Context()
 	tool := report.From(ctx).Tool("git")
 	repository := gitconfig.Repository{Runner: d.Run(tool, tool), Dir: i.Config}
@@ -88,7 +88,7 @@ func (d Dependencies) fetchConfig(cmd *cobra.Command, i *installation.Installati
 		return err
 	}
 	if changes != "" {
-		return uncommitted(i.Config, changes, remote)
+		return uncommitted(i.Config, changes, remote, again)
 	}
 	step := report.From(ctx).Step("Updating the config")
 	if !remote {
@@ -113,12 +113,12 @@ func commitsTaken(n int) string {
 	return fmt.Sprintf("took %d commits", n)
 }
 
-func uncommitted(config, changes string, remote bool) error {
+func uncommitted(config, changes string, remote bool, again string) error {
 	lines := []string{"The config has changes that are not committed:", changes, "See them with: git -C " + config + " diff"}
 	if remote {
-		lines = append(lines, "Commit and push them, then update again:", fmt.Sprintf(`  git -C %s commit -am "<what changed>" && git -C %s push`, config, config))
+		lines = append(lines, "Commit and push them, then "+again+" again:", fmt.Sprintf(`  git -C %s commit -am "<what changed>" && git -C %s push`, config, config))
 	} else {
-		lines = append(lines, "Commit them, then update again:", fmt.Sprintf(`  git -C %s commit -am "<what changed>"`, config))
+		lines = append(lines, "Commit them, then "+again+" again:", fmt.Sprintf(`  git -C %s commit -am "<what changed>"`, config))
 	}
 	return errors.New(strings.Join(lines, "\n"))
 }

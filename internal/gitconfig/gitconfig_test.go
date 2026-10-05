@@ -117,3 +117,112 @@ func TestFastForwardWhenGitCannotRun(t *testing.T) {
 
 	assert.EqualError(t, err, "exec: \"git\": executable file not found in $PATH")
 }
+
+func TestHasIdentity(t *testing.T) {
+	ctx := context.Background()
+	tests := map[string]struct {
+		name, email process.Result
+		want        bool
+	}{
+		"both set":    {name: answer("Pablo\n", 0), email: answer("p@example.com\n", 0), want: true},
+		"no name":     {name: answer("", 1), email: answer("p@example.com\n", 0)},
+		"no email":    {name: answer("Pablo\n", 0), email: answer("", 1)},
+		"empty email": {name: answer("Pablo\n", 0), email: answer("\n", 0)},
+	}
+	for label, tt := range tests {
+		t.Run(label, func(t *testing.T) {
+			runner := newMockRunner(t)
+			runner.EXPECT().Output(ctx, git("config", "user.name")).Return(tt.name, nil)
+			runner.EXPECT().Output(ctx, git("config", "user.email")).Return(tt.email, nil).Maybe()
+
+			has, err := Repository{Runner: runner, Dir: dir}.HasIdentity(ctx)
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, has)
+		})
+	}
+}
+
+func TestCommit(t *testing.T) {
+	ctx := context.Background()
+	paths := []string{"installation.env", "secrets/vpn.sops.env"}
+	message := "Configure gorgon: General, VPN"
+	t.Run("committed", func(t *testing.T) {
+		runner := newMockRunner(t)
+		runner.EXPECT().Output(ctx, git("add", "--", "installation.env", "secrets/vpn.sops.env")).Return(answer("", 0), nil).Once()
+		runner.EXPECT().Output(ctx, git("commit", "--quiet", "-m", message, "--", "installation.env", "secrets/vpn.sops.env")).Return(answer("", 0), nil).Once()
+		runner.EXPECT().Output(ctx, git("rev-parse", "--short", "HEAD")).Return(answer("a1b2c3d\n", 0), nil).Once()
+
+		sha, err := Repository{Runner: runner, Dir: dir}.Commit(ctx, message, paths)
+
+		require.NoError(t, err)
+		assert.Equal(t, "a1b2c3d", sha)
+	})
+	t.Run("failing", func(t *testing.T) {
+		runner := newMockRunner(t)
+		runner.EXPECT().Output(ctx, git("add", "--", "installation.env", "secrets/vpn.sops.env")).Return(answer("", 0), nil).Once()
+		runner.EXPECT().Output(ctx, git("commit", "--quiet", "-m", message, "--", "installation.env", "secrets/vpn.sops.env")).
+			Return(process.Result{Exit: 1, Stderr: []byte("Author identity unknown\n")}, nil).Once()
+
+		_, err := Repository{Runner: runner, Dir: dir}.Commit(ctx, message, paths)
+
+		require.EqualError(t, err, "git commit --quiet failed (exit 1): Author identity unknown")
+	})
+}
+
+func TestPush(t *testing.T) {
+	ctx := context.Background()
+	for name, tt := range map[string]struct {
+		result process.Result
+		err    string
+	}{
+		"pushed":   {result: answer("", 0)},
+		"rejected": {result: process.Result{Exit: 1, Stderr: []byte("! [rejected] main -> main (fetch first)\n")}, err: "git push --quiet failed (exit 1): ! [rejected] main -> main (fetch first)"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			runner := newMockRunner(t)
+			runner.EXPECT().Output(ctx, git("push", "--quiet")).Return(tt.result, nil).Once()
+
+			err := Repository{Runner: runner, Dir: dir}.Push(ctx)
+
+			if tt.err == "" {
+				require.NoError(t, err)
+			} else {
+				require.EqualError(t, err, tt.err)
+			}
+		})
+	}
+}
+
+func TestRemoteURL(t *testing.T) {
+	ctx := context.Background()
+	runner := newMockRunner(t)
+	runner.EXPECT().Output(ctx, git("remote", "get-url", "origin")).Return(answer("git@github.com:pablovarela/cfg.git\n", 0), nil).Once()
+
+	url, err := Repository{Runner: runner, Dir: dir}.RemoteURL(ctx)
+
+	require.NoError(t, err)
+	assert.Equal(t, "git@github.com:pablovarela/cfg.git", url)
+}
+
+func TestDisplayRemote(t *testing.T) {
+	for given, want := range map[string]string{
+		"https://x-access-token:abc@github.com/pablovarela/cfg.git": "github.com/pablovarela/cfg",
+		"https://github.com/pablovarela/cfg":                        "github.com/pablovarela/cfg",
+		"git@github.com:pablovarela/cfg.git":                        "github.com/pablovarela/cfg",
+		"ssh://git@github.com/pablovarela/cfg":                      "github.com/pablovarela/cfg",
+		"/srv/git/cfg.git":                                          "/srv/git/cfg.git",
+	} {
+		t.Run(given, func(t *testing.T) {
+			assert.Equal(t, want, DisplayRemote(given))
+		})
+	}
+}
+
+func TestUnstage(t *testing.T) {
+	ctx := context.Background()
+	runner := newMockRunner(t)
+	runner.EXPECT().Output(ctx, git("reset", "--quiet", "--", "installation.env", "secrets/new.sops.env")).Return(answer("", 0), nil).Once()
+
+	require.NoError(t, Repository{Runner: runner, Dir: dir}.Unstage(ctx, []string{"installation.env", "secrets/new.sops.env"}))
+}

@@ -15,3 +15,4 @@ packages:
   github.com/pablovarela/media-server-engine/internal/apply: {}
   github.com/pablovarela/media-server-engine/internal/wiring: {}
   github.com/pablovarela/media-server-engine/internal/timers: {}
+  github.com/pablovarela/media-server-engine/internal/configure: {}
