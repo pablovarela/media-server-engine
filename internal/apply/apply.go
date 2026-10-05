@@ -146,5 +146,11 @@ func (a *Apply) wire(ctx context.Context) error {
 	if a.Wiring == nil {
 		return nil
 	}
-	return a.step("Wiring the apps", func() (string, error) { return a.Wiring.Wire(ctx) })
+	s := a.Report.Step("Wiring the apps")
+	result, err := a.Wiring.Wire(ctx)
+	if err != nil {
+		return s.FailWithoutTail(err)
+	}
+	s.Done(result)
+	return nil
 }

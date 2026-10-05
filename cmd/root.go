@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/secrets"
 	"github.com/pablovarela/media-server-engine/internal/selfupdate"
 	"github.com/pablovarela/media-server-engine/internal/version"
+	"github.com/pablovarela/media-server-engine/internal/wiring"
 )
 
 type Dependencies struct {
@@ -52,6 +54,7 @@ type Dependencies struct {
 	Systemd       func() bool
 	LocalTime     string
 	Exec          func(path string, args []string) error
+	WiringSteps   func(configarr wiring.OneOff, tool io.Writer) ([]wiring.Step, error)
 }
 
 func NewRootCommand(deps Dependencies) *cobra.Command {
@@ -117,10 +120,19 @@ func Execute(engine fs.FS) int {
 		Interactive:   func() bool { return term.IsTerminal(int(os.Stdin.Fd())) }, //nolint:gosec // a file descriptor fits in an int
 		Systemd:       func() bool { _, err := os.Stat("/run/systemd/system"); return err == nil },
 		LocalTime:     "/etc/localtime",
+		WiringSteps:   wiringSteps,
 		Exec:          func(path string, args []string) error { return syscall.Exec(path, args, os.Environ()) }, //nolint:gosec // runs the mse release it just installed
 	}
 	globalLogs := filepath.Join(installation.BasesFrom(os.Getenv, home).State, "mse")
 	return runLogged(ctx, NewRootCommand(deps), os.Args[1:], globalLogs)
+}
+
+func wiringSteps(configarr wiring.OneOff, tool io.Writer) ([]wiring.Step, error) {
+	docker, err := wiring.NewDocker()
+	if err != nil {
+		return nil, err
+	}
+	return wiring.Steps(docker, configarr, tool), nil
 }
 
 func pause(ctx context.Context, d time.Duration) error {
@@ -136,13 +148,39 @@ func pause(ctx context.Context, d time.Duration) error {
 
 var endingSignals = []os.Signal{os.Interrupt, syscall.SIGTERM, syscall.SIGHUP}
 
+type listener struct {
+	mu      sync.Mutex
+	signals chan os.Signal
+	ctx     context.Context
+}
+
+var ending listener
+
 func interruptible() (context.Context, context.CancelFunc) {
-	ctx, stop := signal.NotifyContext(context.Background(), endingSignals...)
+	ctx, cancel := context.WithCancel(context.Background())
+	signals := make(chan os.Signal, 1)
+	ending.mu.Lock()
+	ending.signals, ending.ctx = signals, ctx
+	ending.mu.Unlock()
+	signal.Notify(signals, endingSignals...)
 	go func() {
-		<-ctx.Done()
-		stop()
+		select {
+		case <-signals:
+		case <-ctx.Done():
+		}
+		signal.Stop(signals)
+		cancel()
 	}()
-	return ctx, stop
+	return ctx, cancel
+}
+
+// Compose's one-off run resets every signal handler in the process.
+func listenForEndingSignalsAgain() {
+	ending.mu.Lock()
+	defer ending.mu.Unlock()
+	if ending.signals != nil && ending.ctx.Err() == nil {
+		signal.Notify(ending.signals, endingSignals...)
+	}
 }
 
 func shieldSignals() (release func()) {

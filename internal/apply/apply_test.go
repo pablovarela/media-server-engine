@@ -216,3 +216,29 @@ func TestRunStopsRetryingThePullWhenInterrupted(t *testing.T) {
 
 	assert.ErrorIs(t, err, context.Canceled)
 }
+
+func TestAFailedWiringDoesNotPrintAnotherToolsLinesAsItsCause(t *testing.T) {
+	ctx := context.Background()
+	stack := newMockStack(t)
+	stack.EXPECT().BindSources().Return(nil)
+	stack.EXPECT().Pull(ctx).Return("pulled 0 images", nil)
+	stack.EXPECT().Up(ctx).Return("up to date", nil)
+	stack.EXPECT().Reattach(ctx).Return("nothing to reattach", nil)
+	page := newMockPage(t)
+	page.EXPECT().Reload(ctx).Return(nil)
+	var stdout, stderr bytes.Buffer
+	r := report.New(&stdout, &stderr, nil)
+	wiring := newMockWiring(t)
+	wiring.EXPECT().Wire(ctx).RunAndReturn(func(context.Context) (string, error) {
+		_, _ = r.Tool("configarr").Write([]byte("INFO configarr finished\n"))
+		return "", errors.New("wiring failed: seerr")
+	})
+
+	err := (&Apply{
+		Stack: stack, Wiring: wiring, Page: page, MkdirAll: func(string) error { return nil },
+		Sleep: func(context.Context, time.Duration) error { return nil }, Report: r,
+	}).Run(ctx)
+
+	assert.EqualError(t, err, "wiring failed: seerr")
+	assert.NotContains(t, stderr.String(), "configarr finished")
+}

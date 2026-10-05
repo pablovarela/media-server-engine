@@ -3,7 +3,9 @@ package cmd
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,9 +18,11 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/healthchecks"
 	"github.com/pablovarela/media-server-engine/internal/images"
 	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/paint"
 	"github.com/pablovarela/media-server-engine/internal/process"
 	"github.com/pablovarela/media-server-engine/internal/report"
 	"github.com/pablovarela/media-server-engine/internal/secrets"
+	"github.com/pablovarela/media-server-engine/internal/wiring"
 )
 
 var gluetunDependents = []string{"prowlarr", "flaresolverr", "deluge"}
@@ -52,6 +56,11 @@ func newApplyCommand(deps Dependencies) *cobra.Command {
 func (d Dependencies) reported(cmd *cobra.Command, i *installation.Installation, do func() error) (err error) {
 	finishing := context.WithoutCancel(cmd.Context())
 	defer func() {
+		crashed := recover()
+		if crashed != nil {
+			err = fmt.Errorf("%v", crashed)
+			defer panic(crashed)
+		}
 		if errors.Is(err, errHandedOver) {
 			return
 		}
@@ -75,15 +84,55 @@ func (d Dependencies) apply(cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
+	wires, err := d.wiringFor(cmd, o.installation, wired)
+	if err != nil {
+		return err
+	}
 	return (&apply.Apply{
 		Stack:    appliedStack{runner: o.runner, project: o.project, wired: wired, outcomes: o.outcomes, data: o.installation.Data},
 		Checks:   d.checks(o.installation, o.network),
+		Wiring:   wires,
 		Page:     pageFunc(func(ctx context.Context) error { return d.applyPage(ctx, o) }),
 		Images:   imagesFunc(func(ctx context.Context) error { return d.pruneImages(ctx, o.installation) }),
 		MkdirAll: func(path string) error { return os.MkdirAll(path, 0o755) }, //nolint:gosec // containers running as other users read these folders
 		Sleep:    d.Pause,
 		Report:   report.From(cmd.Context()),
 	}).Run(cmd.Context())
+}
+
+func (d Dependencies) wiringFor(cmd *cobra.Command, i *installation.Installation, wired *types.Project) (apply.Wiring, error) {
+	if d.WiringSteps == nil {
+		return nil, nil
+	}
+	r := report.From(cmd.Context())
+	configarr := func(ctx context.Context, out io.Writer) (int, error) {
+		defer listenForEndingSignalsAgain()
+		runner, err := d.Compose(out, &compose.Outcomes{})
+		if err != nil {
+			return 0, err
+		}
+		return runner.RunOnce(ctx, wired, "configarr")
+	}
+	steps, err := d.WiringSteps(configarr, r.Tool("configarr"))
+	if err != nil {
+		return nil, err
+	}
+	appSecrets := secrets.Dotenv(readSecretsFile(i, "apps.env"))
+	return &wiring.Wiring{
+		Env: wiring.Env{
+			Settings: i.Settings, Secrets: appSecrets, Config: i.Config, Data: i.Data,
+			HTTP: &http.Client{Transport: d.HTTP.Transport}, Pause: d.Pause, Say: r.Say, Redact: wiring.NewRedactor(appSecrets),
+		},
+		Steps:  steps,
+		Health: wiring.HealthChecks,
+		Now:    d.Now,
+		Warn:   func(line string) { r.Warn(paint.Stderr.Warning(line)) },
+	}, nil
+}
+
+func readSecretsFile(i *installation.Installation, name string) []byte {
+	content, _ := os.ReadFile(filepath.Join(i.State, ".secrets", name)) //nolint:gosec // the installation's decrypted secrets
+	return content
 }
 
 func (d Dependencies) wiredProject(cmd *cobra.Command, o opened) (*types.Project, error) {
