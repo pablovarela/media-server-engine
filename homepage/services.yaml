@@ -10,7 +10,7 @@
           refreshInterval: 60000
           mappings:
             - field: checks.0.status
-              label: Backup
+              label: Status
               remap:
                 - value: up
                   to: "🟢 Up"
@@ -29,7 +29,7 @@
           refreshInterval: 60000
           mappings:
             - field: checks.0.status
-              label: Update
+              label: Status
               remap:
                 - value: up
                   to: "🟢 Up"
@@ -48,7 +48,7 @@
           refreshInterval: 60000
           mappings:
             - field: checks.0.status
-              label: Verify
+              label: Status
               remap:
                 - value: up
                   to: "🟢 Up"
