@@ -59,20 +59,28 @@ func (f *fixture) fails(call string) {
 	f.answers[call] = process.Result{Exit: 1}
 }
 
+type written struct{ out *strings.Builder }
+
+func (w written) Started(name string)    { w.out.WriteString(Begin(name)) }
+func (w written) Finished(result Result) { w.out.WriteString(End(result, &paint.Painter{})) }
+
 func (f *fixture) render(t *testing.T) string {
 	t.Helper()
-	return Run(context.Background(), f.env).Render(&paint.Painter{})
+	var out strings.Builder
+	report := RunEach(context.Background(), f.env, written{&out})
+	out.WriteString(report.Closing())
+	return out.String()
 }
 
-const readyLinux = `  ✓ git
-  ✓ gh is logged in (token on disk)
-  ✓ git uses gh for github.com
-  ✓ Docker
-  ✓ pablo is in the docker group
-  ✓ Docker answers
-  ✓ restic
-  ✓ lingering
-  ✓ the user manager has the docker group
+const readyLinux = `  git... ✓
+  gh is logged in... ✓ token on disk
+  git uses gh for github.com... ✓
+  Docker... ✓
+  pablo is in the docker group... ✓
+  Docker answers... ✓
+  restic... ✓
+  lingering... ✓
+  the user manager has the docker group... ✓
 
 This machine is ready.
 `
@@ -80,22 +88,20 @@ This machine is ready.
 func TestAReadyMachine(t *testing.T) {
 	f := newFixture(t)
 
-	report := Run(context.Background(), f.env)
-
-	assert.Equal(t, 0, report.Problems())
-	assert.Equal(t, readyLinux, report.Render(&paint.Painter{}))
+	assert.Equal(t, 0, Run(context.Background(), f.env).Problems())
+	assert.Equal(t, readyLinux, f.render(t))
 }
 
 func TestEachMissingPieceSaysHowToFixIt(t *testing.T) {
 	tests := map[string]struct {
 		call, line string
 	}{
-		"git":       {"git --version", "  ✗ git isn't installed\n      run: sudo apt install git\n"},
-		"helper":    {"git config --global --get-all credential.https://github.com.helper", "  ✗ git doesn't use gh for github.com\n      run: gh auth setup-git\n"},
-		"docker":    {"docker --version", "  ✗ Docker isn't installed\n      run: curl -fsSL https://get.docker.com | sudo sh\n"},
-		"session":   {"docker info", "  ✗ Docker doesn't answer this session\n      run: log out and back in, so this session has the docker group\n"},
-		"restic":    {"restic version", "  ✗ restic isn't installed\n      run: sudo apt install restic\n"},
-		"lingering": {"loginctl show-user pablo -p Linger", "  ✗ lingering is off\n      run: sudo loginctl enable-linger pablo\n"},
+		"git":       {"git --version", "  git... ✗ not installed\n      run: sudo apt install git\n"},
+		"helper":    {"git config --global --get-all credential.https://github.com.helper", "  git uses gh for github.com... ✗\n      run: gh auth setup-git\n"},
+		"docker":    {"docker --version", "  Docker... ✗ not installed\n      run: curl -fsSL https://get.docker.com | sudo sh\n"},
+		"session":   {"docker info", "  Docker answers... ✗ this session doesn't have the docker group yet\n      run: log out and back in\n"},
+		"restic":    {"restic version", "  restic... ✗ not installed\n      run: sudo apt install restic\n"},
+		"lingering": {"loginctl show-user pablo -p Linger", "  lingering... ✗ off\n      run: sudo loginctl enable-linger pablo\n"},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -117,8 +123,8 @@ func TestGhNotLoggedIn(t *testing.T) {
 
 	out := f.render(t)
 
-	assert.Contains(t, out, "  ✗ gh isn't logged in\n      run: gh auth login\n")
-	assert.Contains(t, out, "  ✓ git uses gh for github.com\n")
+	assert.Contains(t, out, "  gh is logged in... ✗ not logged in\n      run: gh auth login\n")
+	assert.Contains(t, out, "  git uses gh for github.com... ✓\n")
 }
 
 func TestGhOffTheTimersPath(t *testing.T) {
@@ -126,14 +132,14 @@ func TestGhOffTheTimersPath(t *testing.T) {
 	f.answers[bareToken] = process.Result{Exit: 127, Stderr: []byte("env: 'gh': No such file or directory\n")}
 	f.answers["gh --version"] = process.Result{Stdout: []byte("gh version 2.83.0\n")}
 
-	assert.Contains(t, f.render(t), "  ✗ gh isn't on the timers' PATH (/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin)\n      run: sudo ln -s \"$(command -v gh)\" /usr/local/bin/gh\n")
+	assert.Contains(t, f.render(t), "  gh is logged in... ✗ gh isn't on the timers' PATH (/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin)\n      run: sudo ln -s \"$(command -v gh)\" /usr/local/bin/gh\n")
 }
 
 func TestGhNotInstalled(t *testing.T) {
 	f := newFixture(t)
 	f.answers[bareToken] = process.Result{Exit: 127}
 
-	assert.Contains(t, f.render(t), "  ✗ gh isn't installed\n      run: sudo apt install gh\n")
+	assert.Contains(t, f.render(t), "  gh is logged in... ✗ gh isn't installed\n      run: sudo apt install gh\n")
 }
 
 func TestATokenFromTheEnvironmentIsCaught(t *testing.T) {
@@ -142,7 +148,7 @@ func TestATokenFromTheEnvironmentIsCaught(t *testing.T) {
 	f.answers["gh auth token"] = process.Result{Stdout: []byte("ghp_from_env\n")}
 	f.env.Getenv = func(name string) string { return map[string]string{"GITHUB_TOKEN": "ghp_from_env"}[name] }
 
-	assert.Contains(t, f.render(t), "  ✗ gh's token comes from GITHUB_TOKEN, which the timers can't read\n      run: unset GITHUB_TOKEN, then gh auth login --insecure-storage\n")
+	assert.Contains(t, f.render(t), "  gh is logged in... ✗ its token comes from GITHUB_TOKEN, which the timers can't read\n      run: unset GITHUB_TOKEN, then gh auth login --insecure-storage\n")
 }
 
 func TestTheTokenProbeCarriesTheUnitsVariables(t *testing.T) {
@@ -151,7 +157,7 @@ func TestTheTokenProbeCarriesTheUnitsVariables(t *testing.T) {
 	f.fails(bareToken)
 	f.answers["env -i HOME=/home/pablo USER=pablo PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin XDG_CONFIG_HOME=/home/pablo/cfg gh auth token"] = process.Result{Stdout: []byte("gho_token\n")}
 
-	assert.Contains(t, f.render(t), "  ✓ gh is logged in (token on disk)\n")
+	assert.Contains(t, f.render(t), "  gh is logged in... ✓ token on disk\n")
 }
 
 func TestATokenOnlyInAKeyringIsCaught(t *testing.T) {
@@ -161,7 +167,7 @@ func TestATokenOnlyInAKeyringIsCaught(t *testing.T) {
 
 	out := f.render(t)
 
-	assert.Contains(t, out, "  ✗ gh's token is only in a keyring, which the timers can't read\n      run: gh auth login --insecure-storage\n")
+	assert.Contains(t, out, "  gh is logged in... ✗ its token is only in a keyring, which the timers can't read\n      run: gh auth login --insecure-storage\n")
 }
 
 func TestNotInTheDockerGroup(t *testing.T) {
@@ -170,9 +176,9 @@ func TestNotInTheDockerGroup(t *testing.T) {
 
 	out := f.render(t)
 
-	assert.Contains(t, out, "  ✗ pablo isn't in the docker group\n      run: sudo usermod -aG docker pablo, then log out and back in\n")
-	assert.Contains(t, out, "  – Docker answers: skipped until pablo is in the docker group\n")
-	assert.Contains(t, out, "  – the user manager has the docker group: skipped until pablo is in the docker group\n")
+	assert.Contains(t, out, "  pablo is in the docker group... ✗\n      run: sudo usermod -aG docker pablo, then log out and back in\n")
+	assert.Contains(t, out, "  Docker answers... – skipped until pablo is in the docker group\n")
+	assert.Contains(t, out, "  the user manager has the docker group... – skipped until pablo is in the docker group\n")
 	assert.Contains(t, out, "1 thing to fix.")
 }
 
@@ -182,9 +188,9 @@ func TestASessionWithoutTheNewGroupStillChecksTheManager(t *testing.T) {
 
 	out := f.render(t)
 
-	assert.Contains(t, out, "  ✓ pablo is in the docker group\n")
-	assert.Contains(t, out, "  ✗ Docker doesn't answer this session\n")
-	assert.Contains(t, out, "  ✓ the user manager has the docker group\n")
+	assert.Contains(t, out, "  pablo is in the docker group... ✓\n")
+	assert.Contains(t, out, "  Docker answers... ✗ this session doesn't have the docker group yet\n")
+	assert.Contains(t, out, "  the user manager has the docker group... ✓\n")
 }
 
 func TestNoDockerSkipsWhatNeedsIt(t *testing.T) {
@@ -193,9 +199,9 @@ func TestNoDockerSkipsWhatNeedsIt(t *testing.T) {
 
 	out := f.render(t)
 
-	assert.Contains(t, out, "  – pablo is in the docker group: skipped until Docker is installed\n")
-	assert.Contains(t, out, "  – Docker answers: skipped until Docker is installed\n")
-	assert.Contains(t, out, "  – the user manager has the docker group: skipped until Docker is installed\n")
+	assert.Contains(t, out, "  pablo is in the docker group... – skipped until Docker is installed\n")
+	assert.Contains(t, out, "  Docker answers... – skipped until Docker is installed\n")
+	assert.Contains(t, out, "  the user manager has the docker group... – skipped until Docker is installed\n")
 	assert.Contains(t, out, "1 thing to fix.")
 }
 
@@ -205,7 +211,7 @@ func TestAStaleUserManager(t *testing.T) {
 
 	out := f.render(t)
 
-	assert.Contains(t, out, "  ✗ the user manager started before pablo joined the docker group\n      run: sudo systemctl restart user@1000 (or reboot)\n")
+	assert.Contains(t, out, "  the user manager has the docker group... ✗ it started before pablo joined the docker group\n      run: sudo systemctl restart user@1000 (or reboot)\n")
 }
 
 func TestTwoProblems(t *testing.T) {
@@ -228,16 +234,16 @@ func TestAMac(t *testing.T) {
 
 	out := f.render(t)
 
-	assert.Equal(t, `  ✗ git isn't installed
+	assert.Equal(t, `  git... ✗ not installed
       run: xcode-select --install
-  ✓ gh is logged in
-  – git uses gh for github.com: skipped until git is installed
-  ✓ Docker
-  ✗ Docker doesn't answer
+  gh is logged in... ✓
+  git uses gh for github.com... – skipped until git is installed
+  Docker... ✓
+  Docker answers... ✗
       run: start Docker
-  ✗ restic isn't installed
+  restic... ✗ not installed
       run: brew install restic
-  – timers: no systemd here, so nothing runs unattended; run mse update --apply yourself
+  timers... – no systemd here, so nothing runs unattended; run mse update --apply yourself
 
 3 things to fix. Run mse check-machine again afterwards.
 `, out)
@@ -248,7 +254,7 @@ func TestAMacWithoutGh(t *testing.T) {
 	f.env.GOOS = "darwin"
 	f.env.Systemd = false
 
-	assert.Contains(t, f.render(t), "  ✗ gh isn't installed\n      run: brew install gh\n")
+	assert.Contains(t, f.render(t), "  gh is logged in... ✗ gh isn't installed\n      run: brew install gh\n")
 }
 
 func TestAStoppedDockerWhenTheSessionHasTheGroup(t *testing.T) {
@@ -256,22 +262,91 @@ func TestAStoppedDockerWhenTheSessionHasTheGroup(t *testing.T) {
 	f.fails("docker info")
 	f.answers["id -Gn"] = process.Result{Stdout: []byte("pablo adm docker\n")}
 
-	assert.Contains(t, f.render(t), "  ✗ Docker doesn't answer\n      run: sudo systemctl start docker\n")
+	assert.Contains(t, f.render(t), "  Docker answers... ✗ the daemon doesn't answer\n      run: sudo systemctl start docker\n")
 }
 
-func TestAStalledDockerDoesNotHangTheChecks(t *testing.T) {
-	f := newFixture(t)
+func stalling(t *testing.T, f *fixture, call string) {
+	t.Helper()
 	answering := f.env.Runner
 	runner := newMockRunner(t)
 	runner.EXPECT().Output(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, c process.Command) (process.Result, error) {
-		if c.Name == "docker" && c.Args[0] == "info" {
+		if strings.Join(append([]string{c.Name}, c.Args...), " ") == call {
 			<-ctx.Done()
-			return process.Result{Exit: -1}, errors.New("docker was interrupted")
+			return process.Result{Exit: -1}, errors.New(c.Name + " was interrupted")
 		}
 		return answering.Output(ctx, c)
 	}).Maybe()
 	f.env.Runner = runner
 	f.env.Timeout = 20 * time.Millisecond
+}
 
-	assert.Contains(t, f.render(t), "  ✗ Docker didn't answer within 20ms\n      run: sudo systemctl restart docker\n")
+func TestAStalledDockerDoesNotHangTheChecks(t *testing.T) {
+	f := newFixture(t)
+	stalling(t, f, "docker info")
+
+	out := f.render(t)
+
+	assert.Contains(t, out, "  Docker answers... ? no answer within 20ms\n")
+	assert.True(t, strings.HasSuffix(out, "\n1 thing couldn't be checked; the lines above say why. Run mse check-machine again.\n"), out)
+}
+
+func TestACheckThatRunsOutOfTimeIsNotAVerdict(t *testing.T) {
+	f := newFixture(t)
+	stalling(t, f, "loginctl show-user pablo -p Linger")
+	f.fails("restic version")
+
+	out := f.render(t)
+
+	assert.Contains(t, out, "  lingering... ? no answer within 20ms\n")
+	assert.NotContains(t, out, "lingering... ✗")
+	assert.Contains(t, out, "  the user manager has the docker group... – skipped: lingering couldn't be checked\n")
+	assert.True(t, strings.HasSuffix(out, "\n1 thing to fix, and 1 couldn't be checked. Run mse check-machine again afterwards.\n"), out)
+}
+
+type event struct {
+	started string
+	result  *Result
+}
+
+type recorded struct{ events *[]event }
+
+func (r recorded) Started(name string)    { *r.events = append(*r.events, event{started: name}) }
+func (r recorded) Finished(result Result) { *r.events = append(*r.events, event{result: &result}) }
+
+func TestEachCheckStartsBeforeItsProbeAndFinishesBeforeTheNext(t *testing.T) {
+	f := newFixture(t)
+	answering := f.env.Runner
+	var events []event
+	runner := newMockRunner(t)
+	runner.EXPECT().Output(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, c process.Command) (process.Result, error) {
+		if c.Name == "restic" {
+			require.Len(t, events, 13, "six checks started and finished, then restic started")
+			assert.Equal(t, "restic", events[12].started)
+			assert.Equal(t, "Docker answers", events[11].result.Name)
+		}
+		return answering.Output(ctx, c)
+	}).Maybe()
+	f.env.Runner = runner
+
+	report := RunEach(context.Background(), f.env, recorded{&events})
+
+	assert.True(t, report.Ready())
+	assert.Len(t, events, 18)
+}
+
+func TestACheckThatRunsOutOfTimeNeverPasses(t *testing.T) {
+	f := newFixture(t)
+	stalling(t, f, "systemctl show user@1000.service -p MainPID --value")
+
+	out := f.render(t)
+
+	assert.Contains(t, out, "  the user manager has the docker group... ? no answer within 20ms\n")
+	assert.NotContains(t, out, "This machine is ready.")
+}
+
+func TestWhatWaitsOnAnUncheckedCheckSaysSo(t *testing.T) {
+	f := newFixture(t)
+	stalling(t, f, "loginctl show-user pablo -p Linger")
+
+	assert.Contains(t, f.render(t), "  the user manager has the docker group... – skipped: lingering couldn't be checked\n")
 }

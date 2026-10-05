@@ -3,18 +3,21 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/pablovarela/media-server-engine/internal/machine"
+	"github.com/pablovarela/media-server-engine/internal/paint"
 	"github.com/pablovarela/media-server-engine/internal/process"
 )
 
@@ -83,8 +86,8 @@ func TestCheckMachineOnAReadyMachine(t *testing.T) {
 	assert.Equal(t, 0, code)
 	assert.Empty(t, stderr)
 	assert.Equal(t, "Checking this machine...\n"+
-		"  ✓ git\n  ✓ gh is logged in (token on disk)\n  ✓ git uses gh for github.com\n  ✓ Docker\n  ✓ pablo is in the docker group\n"+
-		"  ✓ Docker answers\n  ✓ restic\n  ✓ lingering\n  ✓ the user manager has the docker group\n  ✓ ports 8096, 80 free\n"+
+		"  git... ✓\n  gh is logged in... ✓ token on disk\n  git uses gh for github.com... ✓\n  Docker... ✓\n  pablo is in the docker group... ✓\n"+
+		"  Docker answers... ✓\n  restic... ✓\n  lingering... ✓\n  the user manager has the docker group... ✓\n  ports... ✓ 8096, 80 free\n"+
 		"\nThis machine is ready.\n", stdout)
 }
 
@@ -96,7 +99,7 @@ func TestCheckMachineWithSomethingMissing(t *testing.T) {
 
 	assert.Equal(t, 1, code)
 	assert.Empty(t, stderr)
-	assert.Contains(t, stdout, "  ✗ restic isn't installed\n      run: sudo apt install restic\n")
+	assert.Contains(t, stdout, "  restic... ✗ not installed\n      run: sudo apt install restic\n")
 	assert.True(t, strings.HasSuffix(stdout, "\n1 thing to fix. Run mse check-machine again afterwards.\n"))
 }
 
@@ -106,7 +109,7 @@ func TestCheckMachineUsesTheInstallationsHomepagePort(t *testing.T) {
 	code, stdout, _ := f.check(t)
 
 	assert.Equal(t, 0, code)
-	assert.Contains(t, stdout, "  ✓ ports 8096, 8080 free\n")
+	assert.Contains(t, stdout, "  ports... ✓ 8096, 8080 free\n")
 	assert.Contains(t, f.checked, machine.Port{Number: 8080, Protocol: "tcp"})
 }
 
@@ -115,7 +118,7 @@ func TestCheckMachineWithSeveralInstallations(t *testing.T) {
 
 	_, stdout, _ := f.check(t)
 
-	assert.Contains(t, stdout, "  ✓ ports 8096, 80 free (several installations here; using the default homepage port 80)\n")
+	assert.Contains(t, stdout, "  ports... ✓ 8096, 80 free (several installations here; using the default homepage port 80)\n")
 }
 
 func TestCheckMachineLooksForTheTokenWhereTheTimersWould(t *testing.T) {
@@ -127,7 +130,7 @@ func TestCheckMachineLooksForTheTokenWhereTheTimersWould(t *testing.T) {
 
 	_, stdout, _ := f.check(t)
 
-	assert.Contains(t, stdout, "  ✓ gh is logged in (token on disk)\n")
+	assert.Contains(t, stdout, "  gh is logged in... ✓ token on disk\n")
 }
 
 func TestCheckMachineChecksTheOverridesPortsToo(t *testing.T) {
@@ -137,5 +140,47 @@ func TestCheckMachineChecksTheOverridesPortsToo(t *testing.T) {
 
 	_, stdout, _ := f.check(t)
 
-	assert.Contains(t, stdout, "  ✓ ports 8096, 80, 8443 free\n")
+	assert.Contains(t, stdout, "  ports... ✓ 8096, 80, 8443 free\n")
+}
+
+func TestCheckMachineIsNotReadyWhenSomethingCouldNotBeChecked(t *testing.T) {
+	f := newCheckMachineFixture(t, nil)
+	f.deps.PortFree = func(machine.Port) bool { return false }
+	f.deps.Published = func(context.Context) ([]machine.Published, error) { return nil, errors.New("permission denied") }
+
+	code, stdout, stderr := f.check(t)
+
+	assert.Equal(t, 1, code)
+	assert.Empty(t, stderr)
+	assert.Contains(t, stdout, "  ports... ? 8096, 80 in use, and Docker couldn't say by what (permission denied)\n")
+}
+
+func TestTheChecksDrawADotForEachSecondTheyTake(t *testing.T) {
+	var out bytes.Buffer
+	ticks := make(chan time.Time)
+	stopped := false
+	printer := &printedChecks{out: &out, painter: &paint.Painter{}, ticker: func() (<-chan time.Time, func()) {
+		return ticks, func() { stopped = true }
+	}}
+
+	printer.Started("Docker answers")
+	for range 3 {
+		ticks <- time.Now()
+	}
+	printer.Finished(machine.Result{Name: "Docker answers", Status: machine.Pass})
+	printer.Started("restic")
+	printer.Finished(machine.Result{Name: "restic", Status: machine.Fail, Detail: "not installed", Fix: "sudo apt install restic"})
+
+	assert.Equal(t, "  Docker answers...... ✓\n  restic... ✗ not installed\n      run: sudo apt install restic\n", out.String())
+	assert.True(t, stopped)
+}
+
+func TestWithoutATerminalThereAreNoDots(t *testing.T) {
+	var out bytes.Buffer
+	printer := &printedChecks{out: &out, painter: &paint.Painter{}}
+
+	printer.Started("git")
+	printer.Finished(machine.Result{Name: "git", Status: machine.Pass})
+
+	assert.Equal(t, "  git... ✓\n", out.String())
 }
