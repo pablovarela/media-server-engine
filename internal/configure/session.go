@@ -100,8 +100,19 @@ func (s *session) edit(section Section) error {
 			s.values = updated
 			return nil
 		}
-		entered, problem = answer, err.Error()
+		entered, problem = s.reopened(section, answer), err.Error()
 	}
+}
+
+func (s *session) reopened(section Section, answer map[string]string) map[string]string {
+	entered := map[string]string{}
+	for _, f := range section.Fields {
+		entered[f.Key] = answer[f.Key]
+		if f.Masked && answer[f.Key] == "" {
+			entered[f.Key] = s.values.Get(f.File, f.Key)
+		}
+	}
+	return entered
 }
 
 func (s *session) merged(section Section, answer map[string]string) (Values, error) {

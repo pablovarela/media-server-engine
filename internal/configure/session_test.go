@@ -222,3 +222,20 @@ func TestAB2RepositoryWithoutKeysReopensTheBackupsSection(t *testing.T) {
 	assert.Equal(t, "id", outcome.Values.Get(backupFile, "B2_ACCOUNT_ID"))
 	assert.Equal(t, "current-RESTIC_PASSWORD", outcome.Values.Get(backupFile, "RESTIC_PASSWORD"))
 }
+
+func TestAReopenedSectionStillKeepsTheSecretsLeftEmpty(t *testing.T) {
+	p := newMockPrompter(t)
+	current := complete().With(AppsFile, "PORTAINER_ADMIN_PASSWORD", "too-short")
+	keepAll := map[string]string{"JELLYFIN_ADMIN_PASSWORD": "", "DELUGE_WEB_PASSWORD": "", "PORTAINER_ADMIN_PASSWORD": ""}
+	stored := currentOf(current, sectionNamed("App logins"))
+	expectMenu(p, "App logins", "save")
+	p.EXPECT().Section("App logins", mock.Anything, stored, "").Return(keepAll, nil).Once()
+	p.EXPECT().Section("App logins", mock.Anything, stored, "PORTAINER_ADMIN_PASSWORD: needs at least 12 characters").
+		Return(map[string]string{"JELLYFIN_ADMIN_PASSWORD": "", "DELUGE_WEB_PASSWORD": "", "PORTAINER_ADMIN_PASSWORD": "long-enough-now"}, nil).Once()
+	p.EXPECT().Confirm("Save, commit and push these?", []string{"App logins    PORTAINER_ADMIN_PASSWORD changed"}).Return(true, nil).Once()
+
+	outcome, err := Session(context.Background(), p, "gorgon", current, fixedKey)
+
+	require.NoError(t, err)
+	assert.Equal(t, "current-JELLYFIN_ADMIN_PASSWORD", outcome.Values.Get(AppsFile, "JELLYFIN_ADMIN_PASSWORD"))
+}
