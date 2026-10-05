@@ -2,10 +2,12 @@ package machine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/cli/cli/flags"
@@ -92,16 +94,20 @@ func PortFree(p Port) bool {
 	var config net.ListenConfig
 	if p.Protocol == udp {
 		conn, err := config.ListenPacket(context.Background(), udp, address)
-		if err != nil {
-			return false
+		if err == nil {
+			err = conn.Close()
 		}
-		return conn.Close() == nil
+		return freeAfter(err)
 	}
 	listener, err := config.Listen(context.Background(), tcp, address)
-	if err != nil {
-		return false
+	if err == nil {
+		err = listener.Close()
 	}
-	return listener.Close() == nil
+	return freeAfter(err)
+}
+
+func freeAfter(listening error) bool {
+	return !errors.Is(listening, syscall.EADDRINUSE)
 }
 
 func DockerPublished(ctx context.Context) ([]Published, error) {

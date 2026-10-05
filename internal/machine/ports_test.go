@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -48,15 +49,10 @@ func TestStackPortsOfTheEnginesComposeFile(t *testing.T) {
 	}
 }
 
-func TestPortFree(t *testing.T) {
-	var config net.ListenConfig
-	held, err := config.Listen(context.Background(), "tcp", ":0")
-	require.NoError(t, err)
-	port := Port{held.Addr().(*net.TCPAddr).Port, "tcp"}
-
-	assert.False(t, PortFree(port))
-	require.NoError(t, held.Close())
-	assert.True(t, PortFree(port))
+func TestOnlyAnAddressInUseMakesAPortBusy(t *testing.T) {
+	assert.True(t, freeAfter(nil))
+	assert.False(t, freeAfter(&net.OpError{Op: "listen", Err: os.NewSyscallError("bind", syscall.EADDRINUSE)}))
+	assert.True(t, freeAfter(&net.OpError{Op: "listen", Err: os.NewSyscallError("bind", syscall.EACCES)}))
 }
 
 type portsFixture struct {
