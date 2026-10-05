@@ -12,6 +12,7 @@ import (
 	"golang.org/x/mod/semver"
 
 	"github.com/pablovarela/media-server-engine/internal/files"
+	"github.com/pablovarela/media-server-engine/internal/healthchecks"
 	"github.com/pablovarela/media-server-engine/internal/installation"
 	"github.com/pablovarela/media-server-engine/internal/version"
 )
@@ -82,10 +83,6 @@ func pageFile(engine fs.FS, i *installation.Installation, name string) (string, 
 
 func slugFor(name string, in Inputs) func(job string) string {
 	return func(job string) string {
-		slug := name + "-" + strings.ToLower(job)
-		if job == "UPDATE" && in.Role != "main" {
-			slug += "-" + in.ShortHost
-		}
-		return slug
+		return healthchecks.Slug(name, strings.ToLower(job), in.Role, in.ShortHost)
 	}
 }
