@@ -64,29 +64,6 @@ func TestOperations(t *testing.T) {
 		require.NoError(t, (&Runner{service: service}).Restart(ctx, project, []string{"homepage"}))
 	})
 
-	t.Run("pull pulls the whole project", func(t *testing.T) {
-		service := newMockService(t)
-		service.EXPECT().Pull(ctx, project, api.PullOptions{}).Return(nil)
-
-		require.NoError(t, (&Runner{service: service}).Pull(ctx, project))
-	})
-
-	t.Run("recreate forces only the named services, without their dependencies", func(t *testing.T) {
-		full := &types.Project{Name: "media-server", Services: types.Services{
-			"gluetun": {Name: "gluetun", Image: "g"},
-			"deluge":  {Name: "deluge", Image: "d", NetworkMode: "service:gluetun", DependsOn: types.DependsOnConfig{"gluetun": {Condition: "service_started"}}},
-		}}
-		service := newMockService(t)
-		service.EXPECT().Up(ctx, mock.MatchedBy(func(p *types.Project) bool {
-			return assert.ObjectsAreEqual([]string{"deluge"}, p.ServiceNames())
-		}), mock.MatchedBy(func(o api.UpOptions) bool {
-			return o.Create.Recreate == api.RecreateForce && o.Create.RecreateDependencies == api.RecreateNever &&
-				assert.ObjectsAreEqual([]string{"deluge"}, o.Create.Services) && o.Create.Inherit
-		})).Return(nil)
-
-		require.NoError(t, (&Runner{service: service}).Recreate(ctx, full, []string{"deluge"}))
-	})
-
 	t.Run("ps lists every container with its ports", func(t *testing.T) {
 		service := newMockService(t)
 		service.EXPECT().Ps(ctx, "media-server", api.PsOptions{Project: project, All: true}).Return([]api.ContainerSummary{
@@ -281,4 +258,32 @@ func TestBindSources(t *testing.T) {
 	}}
 
 	assert.Equal(t, []string{"/data/mse/gorgon/volumes/jellyfin", "/data/mse/gorgon/volumes/sonarr"}, BindSources(project, "/data/mse/gorgon"))
+}
+
+func TestPullAndRecreate(t *testing.T) {
+	project := &types.Project{Name: "media-server"}
+	ctx := context.Background()
+
+	t.Run("pull pulls the whole project", func(t *testing.T) {
+		service := newMockService(t)
+		service.EXPECT().Pull(ctx, project, api.PullOptions{}).Return(nil)
+
+		require.NoError(t, (&Runner{service: service}).Pull(ctx, project))
+	})
+
+	t.Run("recreate forces only the named services, without their dependencies", func(t *testing.T) {
+		full := &types.Project{Name: "media-server", Services: types.Services{
+			"gluetun": {Name: "gluetun", Image: "g"},
+			"deluge":  {Name: "deluge", Image: "d", NetworkMode: "service:gluetun", DependsOn: types.DependsOnConfig{"gluetun": {Condition: "service_started"}}},
+		}}
+		service := newMockService(t)
+		service.EXPECT().Up(ctx, mock.MatchedBy(func(p *types.Project) bool {
+			return assert.ObjectsAreEqual([]string{"deluge"}, p.ServiceNames())
+		}), mock.MatchedBy(func(o api.UpOptions) bool {
+			return o.Create.Recreate == api.RecreateForce && o.Create.RecreateDependencies == api.RecreateNever &&
+				assert.ObjectsAreEqual([]string{"deluge"}, o.Create.Services) && o.Create.Inherit
+		})).Return(nil)
+
+		require.NoError(t, (&Runner{service: service}).Recreate(ctx, full, []string{"deluge"}))
+	})
 }

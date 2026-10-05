@@ -14,6 +14,12 @@ const ChecksURL = "https://healthchecks.io/api/v3/checks/"
 
 const hour = 3600
 
+const (
+	backupJob = "backup"
+	updateJob = "update"
+	verifyJob = "verify"
+)
+
 type Facts struct {
 	Name       string
 	TimeZone   string
@@ -34,17 +40,17 @@ type schedule struct {
 }
 
 var schedules = map[string]schedule{
-	"backup": {cron: "30 4 * * *", grace: 2 * hour, unit: "media-backup", command: "mse backup"},
-	"update": {cron: "0 5 * * *", grace: 2 * hour, unit: "media-update", command: "mse update --apply"},
-	"verify": {cron: "30 5 * * 0", grace: 4 * hour, unit: "media-verify", command: "mse verify-backup"},
+	backupJob: {cron: "30 4 * * *", grace: 2 * hour, unit: "media-backup", command: "mse backup"},
+	updateJob: {cron: "0 5 * * *", grace: 2 * hour, unit: "media-update", command: "mse update --apply"},
+	verifyJob: {cron: "30 5 * * 0", grace: 4 * hour, unit: "media-verify", command: "mse verify-backup"},
 }
 
 var weekdays = []string{"Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"}
 
 func ChecksFor(name, role, shortHost string) []Check {
-	jobs := []string{"update"}
+	jobs := []string{updateJob}
 	if role == "main" {
-		jobs = []string{"backup", "verify", "update"}
+		jobs = []string{backupJob, verifyJob, updateJob}
 	}
 	checks := make([]Check, 0, len(jobs))
 	for _, job := range jobs {
@@ -116,10 +122,10 @@ func description(job string, facts Facts) string {
 	timer := fmt.Sprintf("via the %s timer (%s)", s.unit, s.command)
 	login := fmt.Sprintf("If it fails: ssh %s, journalctl -u %s.service", facts.SSH, s.unit)
 	switch job {
-	case "backup":
+	case backupJob:
 		return fmt.Sprintf("Nightly backup of %s's app state (libraries, history, users, settings) to %s with restic. Media files are not included. "+
 			"%s on the main machine %s. %s --since today; mse unlock-backup clears a stale lock.", facts.Name, destination(facts.Repository), runs, timer, login)
-	case "verify":
+	case verifyJob:
 		return fmt.Sprintf("Weekly check that %s's backups in %s can be read back (restic check). %s on the main machine %s. %s --since -7d -n 200.",
 			facts.Name, destination(facts.Repository), runs, timer, login)
 	}
