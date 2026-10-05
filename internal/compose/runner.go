@@ -15,6 +15,7 @@ import (
 
 	"github.com/compose-spec/compose-go/v2/cli"
 	"github.com/compose-spec/compose-go/v2/types"
+	cerrdefs "github.com/containerd/errdefs"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/cli/cli/flags"
 	"github.com/docker/compose/v5/pkg/api"
@@ -41,6 +42,7 @@ type service interface {
 }
 
 type containers interface {
+	ImageInspect(ctx context.Context, image string, options ...client.ImageInspectOption) (client.ImageInspectResult, error)
 	ContainerInspect(ctx context.Context, containerID string, options client.ContainerInspectOptions) (client.ContainerInspectResult, error)
 	ContainerStart(ctx context.Context, containerID string, options client.ContainerStartOptions) (client.ContainerStartResult, error)
 	ContainerLogs(ctx context.Context, containerID string, options client.ContainerLogsOptions) (client.ContainerLogsResult, error)
@@ -241,8 +243,29 @@ func (r *Runner) Start(ctx context.Context, project *types.Project, services []s
 	return r.service.Start(ctx, project.Name, api.StartOptions{Project: selected})
 }
 
-func (r *Runner) Pull(ctx context.Context, project *types.Project) error {
-	return r.service.Pull(ctx, project, api.PullOptions{})
+type Pulled struct {
+	New   int
+	Total int
+}
+
+func (r *Runner) Pull(ctx context.Context, project *types.Project) (Pulled, error) {
+	images := map[string]bool{}
+	for _, service := range project.Services {
+		if service.Image != "" {
+			images[service.Image] = true
+		}
+	}
+	pulled := Pulled{Total: len(images)}
+	for image := range images {
+		_, err := r.docker.ImageInspect(ctx, image)
+		switch {
+		case cerrdefs.IsNotFound(err):
+			pulled.New++
+		case err != nil:
+			return Pulled{}, err
+		}
+	}
+	return pulled, r.service.Pull(ctx, project, api.PullOptions{})
 }
 
 func (r *Runner) Recreate(ctx context.Context, project *types.Project, services []string) error {

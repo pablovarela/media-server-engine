@@ -260,9 +260,9 @@ func TestUpdateApplyReportsFailWhenInterrupted(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	f.composer.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, mock.Anything).Return(f.project, nil)
-	f.composer.EXPECT().Pull(mock.Anything, f.project).RunAndReturn(func(context.Context, *types.Project) error {
+	f.composer.EXPECT().Pull(mock.Anything, f.project).RunAndReturn(func(context.Context, *types.Project) (compose.Pulled, error) {
 		cancel()
-		return context.Canceled
+		return compose.Pulled{}, context.Canceled
 	})
 	deps := f.deps(t, false)
 	deps.Build = released

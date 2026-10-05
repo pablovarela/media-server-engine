@@ -4,6 +4,7 @@ go 1.27
 
 require (
 	github.com/compose-spec/compose-go/v2 v2.16.1
+	github.com/containerd/errdefs v1.0.0
 	github.com/docker/cli v29.8.2+incompatible
 	github.com/docker/compose/v5 v5.6.0
 	github.com/fatih/color v1.19.0
@@ -79,7 +80,6 @@ require (
 	github.com/containerd/containerd/api v1.12.0 // indirect
 	github.com/containerd/containerd/v2 v2.4.1 // indirect
 	github.com/containerd/continuity v0.5.0 // indirect
-	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/log v0.2.0 // indirect
 	github.com/containerd/log/otel v0.1.0 // indirect

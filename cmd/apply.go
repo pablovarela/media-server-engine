@@ -198,7 +198,30 @@ type appliedStack struct {
 func (s appliedStack) BindSources() []string { return compose.BindSources(s.wired, s.data) }
 
 func (s appliedStack) Pull(ctx context.Context) (string, error) {
-	return s.outcome(s.runner.Pull(ctx, s.wired))
+	pulled, err := s.runner.Pull(ctx, s.wired)
+	if _, err := s.outcome(err); err != nil {
+		return "", err
+	}
+	return describePull(pulled), nil
+}
+
+func describePull(pulled compose.Pulled) string {
+	upToDate := pulled.Total - pulled.New
+	switch {
+	case pulled.Total == 0:
+		return "nothing to pull"
+	case pulled.New == 0:
+		return fmt.Sprintf("%d up to date", upToDate)
+	}
+	noun := "images"
+	if pulled.New == 1 {
+		noun = "image"
+	}
+	described := fmt.Sprintf("pulled %d new %s", pulled.New, noun)
+	if upToDate > 0 {
+		described += fmt.Sprintf(", %d up to date", upToDate)
+	}
+	return described
 }
 
 func (s appliedStack) Up(ctx context.Context) (string, error) {

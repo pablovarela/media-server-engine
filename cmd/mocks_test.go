@@ -648,20 +648,29 @@ func (_c *mockComposeRunner_Ps_Call) RunAndReturn(run func(ctx context.Context, 
 }
 
 // Pull provides a mock function for the type mockComposeRunner
-func (_mock *mockComposeRunner) Pull(ctx context.Context, project *types.Project) error {
+func (_mock *mockComposeRunner) Pull(ctx context.Context, project *types.Project) (compose.Pulled, error) {
 	ret := _mock.Called(ctx, project)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Pull")
 	}
 
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project) error); ok {
+	var r0 compose.Pulled
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project) (compose.Pulled, error)); ok {
+		return returnFunc(ctx, project)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project) compose.Pulled); ok {
 		r0 = returnFunc(ctx, project)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(compose.Pulled)
 	}
-	return r0
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *types.Project) error); ok {
+		r1 = returnFunc(ctx, project)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
 }
 
 // mockComposeRunner_Pull_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Pull'
@@ -694,12 +703,12 @@ func (_c *mockComposeRunner_Pull_Call) Run(run func(ctx context.Context, project
 	return _c
 }
 
-func (_c *mockComposeRunner_Pull_Call) Return(err error) *mockComposeRunner_Pull_Call {
-	_c.Call.Return(err)
+func (_c *mockComposeRunner_Pull_Call) Return(pulled compose.Pulled, err error) *mockComposeRunner_Pull_Call {
+	_c.Call.Return(pulled, err)
 	return _c
 }
 
-func (_c *mockComposeRunner_Pull_Call) RunAndReturn(run func(ctx context.Context, project *types.Project) error) *mockComposeRunner_Pull_Call {
+func (_c *mockComposeRunner_Pull_Call) RunAndReturn(run func(ctx context.Context, project *types.Project) (compose.Pulled, error)) *mockComposeRunner_Pull_Call {
 	_c.Call.Return(run)
 	return _c
 }
