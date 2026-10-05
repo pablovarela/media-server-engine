@@ -4,15 +4,11 @@ statusStyle: dot
 hideVersion: true
 disableUpdateCheck: true
 layout:
-  - Healthchecks:
-      style: row
-      columns: 3
-      header: false
   - Coming up:
       style: column
   - Watch:
       style: column
-  - Downloads:
+  - Status:
       style: columns
   - Library:
       style: columns

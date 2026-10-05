@@ -1,61 +1,3 @@
-- Healthchecks:
-    - Backup:
-        id: healthchecks-backup
-        href: https://healthchecks.io/
-        widget:
-          type: customapi
-          url: https://healthchecks.io/api/v3/checks/?slug=@HEALTHCHECK_BACKUP@
-          headers:
-            X-Api-Key: "{{HOMEPAGE_VAR_HEALTHCHECKS_KEY}}"
-          refreshInterval: 60000
-          mappings:
-            - field: checks.0.status
-              label: Status
-              remap:
-                - value: up
-                  to: "🟢 Up"
-                - value: grace
-                  to: "🟠 Late"
-                - value: down
-                  to: "🔴 Down"
-    - Update:
-        id: healthchecks-update
-        href: https://healthchecks.io/
-        widget:
-          type: customapi
-          url: https://healthchecks.io/api/v3/checks/?slug=@HEALTHCHECK_UPDATE@
-          headers:
-            X-Api-Key: "{{HOMEPAGE_VAR_HEALTHCHECKS_KEY}}"
-          refreshInterval: 60000
-          mappings:
-            - field: checks.0.status
-              label: Status
-              remap:
-                - value: up
-                  to: "🟢 Up"
-                - value: grace
-                  to: "🟠 Late"
-                - value: down
-                  to: "🔴 Down"
-    - Verify:
-        id: healthchecks-verify
-        href: https://healthchecks.io/
-        widget:
-          type: customapi
-          url: https://healthchecks.io/api/v3/checks/?slug=@HEALTHCHECK_VERIFY@
-          headers:
-            X-Api-Key: "{{HOMEPAGE_VAR_HEALTHCHECKS_KEY}}"
-          refreshInterval: 60000
-          mappings:
-            - field: checks.0.status
-              label: Status
-              remap:
-                - value: up
-                  to: "🟢 Up"
-                - value: grace
-                  to: "🟠 Late"
-                - value: down
-                  to: "🔴 Down"
 - Coming up:
     - Next up:
         icon: mdi-calendar-clock
@@ -149,7 +91,56 @@
           type: bazarr
           url: http://bazarr:6767
           key: "{{HOMEPAGE_VAR_BAZARR_KEY}}"
-- Downloads:
+- Status:
+    - Healthchecks:
+        icon: mdi-heart-pulse-#e5484d
+        href: https://healthchecks.io/
+        widgets:
+          - type: customapi
+            url: https://healthchecks.io/api/v3/checks/?slug=@HEALTHCHECK_BACKUP@
+            headers:
+              X-Api-Key: "{{HOMEPAGE_VAR_HEALTHCHECKS_KEY}}"
+            refreshInterval: 60000
+            mappings:
+              - field: checks.0.status
+                label: Backup
+                remap:
+                  - value: up
+                    to: "🟢 Up"
+                  - value: grace
+                    to: "🟠 Late"
+                  - value: down
+                    to: "🔴 Down"
+          - type: customapi
+            url: https://healthchecks.io/api/v3/checks/?slug=@HEALTHCHECK_UPDATE@
+            headers:
+              X-Api-Key: "{{HOMEPAGE_VAR_HEALTHCHECKS_KEY}}"
+            refreshInterval: 60000
+            mappings:
+              - field: checks.0.status
+                label: Update
+                remap:
+                  - value: up
+                    to: "🟢 Up"
+                  - value: grace
+                    to: "🟠 Late"
+                  - value: down
+                    to: "🔴 Down"
+          - type: customapi
+            url: https://healthchecks.io/api/v3/checks/?slug=@HEALTHCHECK_VERIFY@
+            headers:
+              X-Api-Key: "{{HOMEPAGE_VAR_HEALTHCHECKS_KEY}}"
+            refreshInterval: 60000
+            mappings:
+              - field: checks.0.status
+                label: Verify
+                remap:
+                  - value: up
+                    to: "🟢 Up"
+                  - value: grace
+                    to: "🟠 Late"
+                  - value: down
+                    to: "🔴 Down"
     - VPN:
         icon: gluetun.png
         widget:

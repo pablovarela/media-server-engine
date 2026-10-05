@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v3"
 )
 
 type checksAnswer struct {
@@ -107,4 +110,90 @@ func TestRenderWidgets(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "- greeting:\n    text: hi\n- datetime:\n    href: https://example.com\n    target: _blank\n", rendered)
+}
+
+const statusGroup = `- Status:
+    - Healthchecks:
+        icon: mdi-heart-pulse-#e5484d
+        href: https://healthchecks.io/
+        widgets:
+          - type: customapi
+            url: https://healthchecks.io/api/v3/checks/?slug=@HEALTHCHECK_BACKUP@
+          - type: customapi
+            url: https://healthchecks.io/api/v3/checks/?slug=@HEALTHCHECK_UPDATE@
+    - VPN:
+        href: http://gorgon.local:8000
+`
+
+func TestTheHealthchecksTileInTheStatusGroup(t *testing.T) {
+	slugFor := func(job string) string { return "gorgon-" + strings.ToLower(job) }
+	vpnOnly := "- Status:\n    - VPN:\n        href: http://gorgon.local:8000\n"
+	type Given struct {
+		key    string
+		checks checksAnswer
+	}
+	tests := map[string]struct {
+		Given Given
+		Then  struct{ yaml string }
+	}{
+		"every check exists": {
+			Given: Given{key: "k", checks: checksAnswer{slugs: map[string]bool{"gorgon-backup": true, "gorgon-update": true}}},
+			Then: struct{ yaml string }{"- Status:\n    - Healthchecks:\n        icon: mdi-heart-pulse-#e5484d\n        href: https://healthchecks.io/\n        widgets:\n" +
+				"          - type: customapi\n            url: https://healthchecks.io/api/v3/checks/?slug=gorgon-backup\n" +
+				"          - type: customapi\n            url: https://healthchecks.io/api/v3/checks/?slug=gorgon-update\n" +
+				"    - VPN:\n        href: http://gorgon.local:8000\n"},
+		},
+		"a missing check drops the tile and keeps the group": {
+			Given: Given{key: "k", checks: checksAnswer{slugs: map[string]bool{"gorgon-backup": true}}},
+			Then:  struct{ yaml string }{vpnOnly},
+		},
+		"no key drops the tile and keeps the group": {
+			Then: struct{ yaml string }{vpnOnly},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			rendered, err := renderServices(context.Background(), statusGroup, slugFor, tt.Given.key, tt.Given.checks, &bytes.Buffer{})
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.Then.yaml, rendered)
+		})
+	}
+}
+
+func TestTheDefaultPageLeadsItsStatusGroupWithTheHealthchecksTile(t *testing.T) {
+	text, err := os.ReadFile("../../homepage/services.yaml")
+	require.NoError(t, err)
+	checks := checksAnswer{slugs: map[string]bool{"gorgon-backup": true, "gorgon-update": true, "gorgon-verify": true}}
+
+	rendered, err := renderServices(context.Background(), string(text), func(job string) string { return "gorgon-" + strings.ToLower(job) }, "k", checks, &bytes.Buffer{})
+
+	require.NoError(t, err)
+	var groups []map[string][]map[string]struct {
+		Href    string `yaml:"href"`
+		Widgets []struct {
+			URL string `yaml:"url"`
+		} `yaml:"widgets"`
+	}
+	require.NoError(t, yaml.Unmarshal([]byte(rendered), &groups))
+	var status []map[string]struct {
+		Href    string `yaml:"href"`
+		Widgets []struct {
+			URL string `yaml:"url"`
+		} `yaml:"widgets"`
+	}
+	for _, group := range groups {
+		if tiles, found := group["Status"]; found {
+			status = tiles
+		}
+	}
+	require.NotEmpty(t, status)
+	tile, found := status[0]["Healthchecks"]
+	require.True(t, found, "the Status group starts with the Healthchecks tile")
+	assert.Equal(t, "https://healthchecks.io/", tile.Href)
+	var slugs []string
+	for _, widget := range tile.Widgets {
+		slugs = append(slugs, strings.SplitN(widget.URL, "slug=", 2)[1])
+	}
+	assert.Equal(t, []string{"gorgon-backup", "gorgon-update", "gorgon-verify"}, slugs)
 }

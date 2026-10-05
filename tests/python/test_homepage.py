@@ -36,13 +36,6 @@ class Page:
     def tiles(self, group):
         return [next(iter(tile)) for tile in self.groups().get(group, [])]
 
-    def health_tiles(self):
-        return [
-            (name, options["widget"]["url"].split("slug=")[1], options["widget"]["mappings"][0]["field"])
-            for tile in self.groups()["Healthchecks"]
-            for name, options in tile.items()
-        ]
-
     def config_file(self, name, text):
         (self.dirs.config / "homepage").mkdir(exist_ok=True)
         (self.dirs.config / "homepage" / name).write_text(text)
@@ -97,57 +90,12 @@ def test_the_default_page_names_the_installation_and_the_engine_version_and_link
         assert not re.search(r"@[A-Z_]+@", page.file(name)), name
 
 
-def test_backup_status_is_shown_only_with_a_read_only_healthchecks_api_key(page, checks, urlopen):
-    page.render()
-    assert "Healthchecks" not in page.file("services.yaml")
-    urlopen.assert_not_called()
-    checks("testinst-backup", "testinst-update", "testinst-verify")
-    page.render()
-    assert page.group_names()[0] == "Healthchecks"
-
-
-def test_each_health_check_has_its_own_tile_which_asks_healthchecks_for_that_check_by_name(page, checks):
-    checks("testinst-update", "other-backup", "testinst-verify", "testinst-backup")
-    page.render()
-    assert page.health_tiles() == [
-        ("Backup", "testinst-backup", "checks.0.status"),
-        ("Update", "testinst-update", "checks.0.status"),
-        ("Verify", "testinst-verify", "checks.0.status"),
-    ]
-
-
 def test_the_checks_are_read_with_the_read_only_key(page, checks, urlopen):
     checks("testinst-backup")
     page.render()
     request = urlopen.call_args.args[0]
     assert request.full_url == "https://healthchecks.io/api/v3/checks/"
     assert request.get_header("X-api-key") == "hc-read"
-
-
-def test_a_check_healthchecks_does_not_have_yet_gets_no_tile(page, checks):
-    checks("testinst-update")
-    page.render()
-    assert page.health_tiles() == [("Update", "testinst-update", "checks.0.status")]
-
-
-def test_a_secondary_machines_page_shows_its_own_update_check(page, checks, monkeypatch):
-    checks("testinst-backup", "testinst-update", "testinst-update-pi2")
-    monkeypatch.setenv("HOMEPAGE_HEALTHCHECK_UPDATE", "testinst-update-pi2")
-    page.render()
-    assert page.health_tiles() == [
-        ("Backup", "testinst-backup", "checks.0.status"),
-        ("Update", "testinst-update-pi2", "checks.0.status"),
-    ]
-
-
-def test_the_health_check_tiles_keep_their_titles_as_links_to_healthchecks(page):
-    page.render()
-    assert ".service-title" not in page.file("custom.css")
-    engine_groups = yaml.safe_load((ENGINE_PAGE / "services.yaml").read_text())
-    health = next(group["Healthchecks"] for group in engine_groups if "Healthchecks" in group)
-    tiles = [options for tile in health for options in tile.values()]
-    assert [options["href"] for options in tiles] == ["https://healthchecks.io/"] * 3
-    assert [options["widget"]["mappings"][0]["label"] for options in tiles] == ["Status"] * 3
 
 
 def test_without_any_of_the_installations_checks_the_health_checks_are_not_on_the_page(page, checks):
@@ -164,17 +112,6 @@ def test_when_healthchecks_cannot_be_reached_the_page_is_drawn_without_the_healt
     assert "could not read the checks from healthchecks" in capsys.readouterr().err
     assert "Healthchecks" not in page.file("services.yaml")
     assert "Sonarr" in page.file("services.yaml")
-
-
-def test_the_health_checks_lead_the_page_without_a_heading_under_a_boxed_header(page, checks):
-    checks("testinst-backup", "testinst-update", "testinst-verify")
-    page.render()
-    settings = page.yaml("settings.yaml")
-    assert settings["headerStyle"] == "boxed"
-    layout = settings["layout"]
-    assert layout[0] == {"Healthchecks": {"style": "row", "columns": 3, "header": False}}
-    assert [next(iter(group)) for group in layout] == ["Healthchecks", "Coming up", "Watch", "Downloads", "Library", "Maintenance"]
-    assert all(next(iter(group.values())).get("style") == "columns" for group in layout[3:])
 
 
 def test_the_pages_environment_holds_the_keys_its_widgets_use_and_nothing_else(page, capsys):
@@ -365,16 +302,6 @@ def test_folders_in_the_configs_images_are_served_and_old_ones_removed(page):
 def redraw_answers(commands):
     commands.on(["git"], done(returncode=1))
     commands.on(["docker", "inspect"], done(returncode=1))
-
-
-@pytest.mark.parametrize("role, update_check", [("main", "testinst-update"), ("secondary", "testinst-update-laptop")])
-def test_a_redraw_shows_the_update_check_this_machine_pings(page, checks, commands, monkeypatch, role, update_check):
-    monkeypatch.setenv("MEDIA_SERVER_HOST", "media.local")
-    monkeypatch.setattr(page.homepage.installation, "short_hostname", lambda: "laptop")
-    redraw_answers(commands)
-    checks("testinst-backup", "testinst-update", "testinst-update-laptop")
-    page.homepage.redraw(role)
-    assert page.health_tiles() == [("Backup", "testinst-backup", "checks.0.status"), ("Update", update_check, "checks.0.status")]
 
 
 def test_the_homepage_command_redraws_the_page_from_the_installations_settings(page, dirs, commands, monkeypatch, tmp_path, capsys):
