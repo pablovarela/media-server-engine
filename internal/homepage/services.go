@@ -8,6 +8,8 @@ import (
 	"regexp"
 
 	"go.yaml.in/yaml/v3"
+
+	"github.com/pablovarela/media-server-engine/internal/paint"
 )
 
 var healthcheckMarker = regexp.MustCompile(`@HEALTHCHECK_([A-Z]+)@`)
@@ -23,7 +25,7 @@ func renderServices(ctx context.Context, text string, slugFor func(job string) s
 	case healthcheckMarker.MatchString(text):
 		existing, err := checks.Slugs(ctx, key)
 		if err != nil {
-			_, _ = fmt.Fprintf(warn, "could not read the checks from healthchecks (%v); the page is drawn without them\n", err)
+			_, _ = fmt.Fprintln(warn, paint.Warning(fmt.Sprintf("could not read the checks from healthchecks (%v); the page is drawn without them", err)))
 			existing = map[string]bool{}
 		}
 		groups.Content = withChecks(groups.Content, existing, slugFor)

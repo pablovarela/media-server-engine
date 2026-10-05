@@ -1,30 +1,32 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"slices"
 	"strings"
-	"text/tabwriter"
+	"time"
 
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/spf13/cobra"
 
 	"github.com/pablovarela/media-server-engine/internal/compose"
 	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/paint"
 	"github.com/pablovarela/media-server-engine/internal/secrets"
 )
 
 type composeRunner interface {
 	Load(ctx context.Context, i *installation.Installation, kind compose.Kind, variables, profiles []string) (*types.Project, error)
-	Up(ctx context.Context, project *types.Project, services []string) error
+	Up(ctx context.Context, project *types.Project, services []string, wait compose.Wait) error
 	Down(ctx context.Context, project *types.Project) error
 	Ps(ctx context.Context, project *types.Project) ([]compose.Container, error)
 	Logs(ctx context.Context, project *types.Project, options compose.LogsOptions, w io.Writer) error
 	Restart(ctx context.Context, project *types.Project, services []string) error
 }
+
+type projectOperation func(cmd *cobra.Command, o opened, args []string) error
 
 type drawing int
 
@@ -84,13 +86,13 @@ func (d Dependencies) drawPageFor(cmd *cobra.Command, i *installation.Installati
 	case draw == drawingAlways:
 		return nil, err
 	}
-	_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "could not draw the landing page (%v); it keeps its previous files\n", err)
+	_, _ = fmt.Fprintln(cmd.ErrOrStderr(), paint.Warning(fmt.Sprintf("could not draw the landing page (%v); it keeps its previous files", err)))
 	return nil, nil
 }
 
 func newProjectCommand(deps Dependencies, use, short string, kind compose.Kind) *cobra.Command {
 	command := &cobra.Command{Use: use, Short: short}
-	operation := func(use, short string, args cobra.PositionalArgs, draw drawing, do func(cmd *cobra.Command, o opened, args []string) error) *cobra.Command {
+	operation := func(use, short string, args cobra.PositionalArgs, draw drawing, do projectOperation) *cobra.Command {
 		return &cobra.Command{Use: use, Short: short, Args: args, RunE: func(cmd *cobra.Command, args []string) error {
 			o, err := deps.openProject(cmd, kind, draw)
 			if err != nil {
@@ -100,12 +102,7 @@ func newProjectCommand(deps Dependencies, use, short string, kind compose.Kind) 
 		}}
 	}
 	command.AddCommand(
-		operation("up [service...]", "Create and start the containers", cobra.ArbitraryArgs, drawingWhenPinned, func(cmd *cobra.Command, o opened, args []string) error {
-			if err := o.runner.Up(cmd.Context(), o.project, args); err != nil {
-				return err
-			}
-			return deps.applyPage(cmd.Context(), o)
-		}),
+		upCommand(deps, use, operation),
 		operation("down", "Stop and remove the containers", cobra.NoArgs, noDrawing, func(cmd *cobra.Command, o opened, _ []string) error {
 			return o.runner.Down(cmd.Context(), o.project)
 		}),
@@ -122,16 +119,37 @@ func newProjectCommand(deps Dependencies, use, short string, kind compose.Kind) 
 			}
 			return printContainers(cmd.OutOrStdout(), containers)
 		}),
-		logsCommand(deps, kind),
+		logsCommand(deps, use, kind),
 	)
 	return command
 }
 
-func logsCommand(deps Dependencies, kind compose.Kind) *cobra.Command {
+func upCommand(deps Dependencies, parent string, operation func(use, short string, args cobra.PositionalArgs, draw drawing, do projectOperation) *cobra.Command) *cobra.Command {
+	var wait bool
+	var timeout time.Duration
+	command := operation("up [service...]", "Create and start the containers", cobra.ArbitraryArgs, drawingWhenPinned, func(cmd *cobra.Command, o opened, args []string) error {
+		waiting := compose.NoWait
+		if wait {
+			waiting = compose.Wait{Enabled: true, Timeout: timeout}
+		}
+		if err := o.runner.Up(cmd.Context(), o.project, args, waiting); err != nil {
+			return err
+		}
+		return deps.applyPage(cmd.Context(), o)
+	})
+	command.Example = "  mse " + parent + " up --wait    start every container and wait until they are healthy"
+	command.Flags().BoolVar(&wait, "wait", false, "wait until the containers are running, and healthy when they have a healthcheck")
+	command.Flags().DurationVar(&timeout, "wait-timeout", 5*time.Minute, "how long --wait waits before failing")
+	return command
+}
+
+func logsCommand(deps Dependencies, parent string, kind compose.Kind) *cobra.Command {
 	var options compose.LogsOptions
 	command := &cobra.Command{
 		Use:   "logs [service...]",
 		Short: "Print the containers' logs",
+		Example: "  mse " + parent + " logs -f <service>    follow a service's logs\n" +
+			"  mse " + parent + " logs --tail 50       the last 50 lines of every service",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o, err := deps.openProject(cmd, kind, noDrawing)
 			if err != nil {
@@ -147,22 +165,53 @@ func logsCommand(deps Dependencies, kind compose.Kind) *cobra.Command {
 }
 
 func printContainers(w io.Writer, containers []compose.Container) error {
-	var aligned bytes.Buffer
-	table := tabwriter.NewWriter(&aligned, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(table, "NAME\tSTATE\tHEALTH\tPORTS")
+	rows := [][]string{{"NAME", "STATE", "HEALTH", "PORTS"}}
 	for _, c := range containers {
-		_, _ = fmt.Fprintf(table, "%s\t%s\t%s\t%s\n", c.Name, c.State, c.Health, strings.Join(c.Ports, ", "))
+		rows = append(rows, []string{c.Name, c.State, c.Health, strings.Join(c.Ports, ", ")})
 	}
-	if err := table.Flush(); err != nil {
-		return err
-	}
+	widths := columnWidths(rows)
 	var out strings.Builder
-	for _, line := range strings.SplitAfter(aligned.String(), "\n") {
-		out.WriteString(strings.TrimRight(line, " \n"))
-		if strings.HasSuffix(line, "\n") {
-			out.WriteString("\n")
-		}
+	for r, row := range rows {
+		writeRow(&out, row, widths, r > 0)
 	}
 	_, err := fmt.Fprint(w, out.String())
 	return err
+}
+
+func columnWidths(rows [][]string) []int {
+	widths := make([]int, len(rows[0]))
+	for _, row := range rows {
+		for n, cell := range row {
+			widths[n] = max(widths[n], len(cell))
+		}
+	}
+	return widths
+}
+
+func writeRow(out *strings.Builder, row []string, widths []int, paintStatuses bool) {
+	last := len(row) - 1
+	for last > 0 && row[last] == "" {
+		last--
+	}
+	for n, cell := range row[:last+1] {
+		if paintStatuses && (n == 1 || n == 2) {
+			out.WriteString(paintStatus(cell))
+		} else {
+			out.WriteString(cell)
+		}
+		if n < last {
+			out.WriteString(strings.Repeat(" ", widths[n]-len(cell)+2))
+		}
+	}
+	out.WriteString("\n")
+}
+
+func paintStatus(status string) string {
+	switch status {
+	case "running", "healthy":
+		return paint.Success(status)
+	case "exited", "dead", "unhealthy":
+		return paint.Failure(status)
+	}
+	return paint.Warning(status)
 }

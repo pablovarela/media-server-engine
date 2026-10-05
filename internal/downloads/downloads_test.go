@@ -81,14 +81,26 @@ func TestClean(t *testing.T) {
 				{"GET", fmt.Sprintf(sonarrQueue, 2), 200, `{"totalRecords":3,"records":[{"id":3,"title":"Also.Fine"}]}`},
 				{"DELETE", "http://localhost:8989/api/v3/queue/1?removeFromClient=true&blocklist=true&skipRedownload=false", 200, ""},
 			}},
-			Then: Then{out: "sonarr: removed and blocklisted Bad.Show\nradarr: queue not reachable, skipped\n"},
+			Then: Then{out: "sonarr: checked 3 queued items, 1 flagged as executable\nsonarr: removed and blocklisted Bad.Show\nradarr: queue not reachable, skipped\n"},
 		},
 		"one removal per download": {
 			Given: Given{exchanges: []exchange{
 				{"GET", fmt.Sprintf(sonarrQueue, 1), 200, `{"totalRecords":2,"records":[` + fmt.Sprintf(flagged, 1, "A", "Pack.E01") + `,` + fmt.Sprintf(flagged, 2, "A", "Pack.E02") + `]}`},
 				{"DELETE", "http://localhost:8989/api/v3/queue/1?removeFromClient=true&blocklist=true&skipRedownload=false", 200, ""},
 			}},
-			Then: Then{out: "sonarr: removed and blocklisted Pack.E01\nradarr: queue not reachable, skipped\n"},
+			Then: Then{out: "sonarr: checked 2 queued items, 1 flagged as executable\nsonarr: removed and blocklisted Pack.E01\nradarr: queue not reachable, skipped\n"},
+		},
+		"nothing flagged": {
+			Given: Given{exchanges: []exchange{
+				{"GET", fmt.Sprintf(sonarrQueue, 1), 200, `{"totalRecords":1,"records":[{"id":3,"title":"Fine"}]}`},
+			}},
+			Then: Then{out: "sonarr: checked 1 queued item, none flagged as executable\nradarr: queue not reachable, skipped\n"},
+		},
+		"empty queue": {
+			Given: Given{exchanges: []exchange{
+				{"GET", fmt.Sprintf(sonarrQueue, 1), 200, `{"totalRecords":0,"records":[]}`},
+			}},
+			Then: Then{out: "sonarr: the queue is empty\nradarr: queue not reachable, skipped\n"},
 		},
 		"unreachable queue": {
 			Given: Given{exchanges: []exchange{{"GET", fmt.Sprintf(sonarrQueue, 1), 0, ""}}},
@@ -99,7 +111,7 @@ func TestClean(t *testing.T) {
 				{"GET", fmt.Sprintf(sonarrQueue, 1), 200, `{"totalRecords":1,"records":[` + fmt.Sprintf(flagged, 1, "A", "Bad.Show") + `]}`},
 				{"DELETE", "http://localhost:8989/api/v3/queue/1?removeFromClient=true&blocklist=true&skipRedownload=false", 500, ""},
 			}},
-			Then: Then{out: "radarr: queue not reachable, skipped\n", errOut: "sonarr: could not remove Bad.Show: Sonarr answered 500 Internal Server Error\n", err: "some flagged downloads could not be removed"},
+			Then: Then{out: "sonarr: checked 1 queued item, 1 flagged as executable\nradarr: queue not reachable, skipped\n", errOut: "sonarr: could not remove Bad.Show: Sonarr answered 500 Internal Server Error\n", err: "some flagged downloads could not be removed"},
 		},
 	}
 	for name, tt := range tests {

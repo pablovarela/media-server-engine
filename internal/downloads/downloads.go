@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/paint"
 )
 
 const flag = "Found executable file"
@@ -43,33 +44,56 @@ func Clean(ctx context.Context, client *http.Client, i *installation.Installatio
 	allRemoved := true
 	for _, app := range apps {
 		q := queue{client: client, base: fmt.Sprintf("http://localhost:%d/api/v3/queue", app.port), title: app.title, key: keyIn(filepath.Join(i.Data, app.config))}
-		found, err := q.flagged(ctx, pageSize)
+		found, total, err := q.flagged(ctx, pageSize)
 		if q.key == "" || err != nil {
 			_, _ = fmt.Fprintf(out, "%s: queue not reachable, skipped\n", app.name)
 			continue
 		}
-		removed := map[string]bool{}
-		for _, r := range found {
-			id := r.DownloadID
-			if id == "" {
-				id = fmt.Sprint(r.ID)
-			}
-			if removed[id] {
-				continue
-			}
-			removed[id] = true
+		downloads := oncePerDownload(found)
+		_, _ = fmt.Fprintf(out, "%s: %s\n", app.name, checked(total, len(downloads)))
+		for _, r := range downloads {
 			if err := q.remove(ctx, r.ID); err != nil {
-				_, _ = fmt.Fprintf(errOut, "%s: could not remove %s: %v\n", app.name, r.Title, err)
+				_, _ = fmt.Fprintln(errOut, paint.Failure(fmt.Sprintf("%s: could not remove %s: %v", app.name, r.Title, err)))
 				allRemoved = false
 				continue
 			}
-			_, _ = fmt.Fprintf(out, "%s: removed and blocklisted %s\n", app.name, r.Title)
+			_, _ = fmt.Fprintln(out, paint.Success(fmt.Sprintf("%s: removed and blocklisted %s", app.name, r.Title)))
 		}
 	}
 	if !allRemoved {
 		return ErrNotAllRemoved
 	}
 	return nil
+}
+
+func oncePerDownload(records []record) []record {
+	seen := map[string]bool{}
+	var downloads []record
+	for _, r := range records {
+		id := r.DownloadID
+		if id == "" {
+			id = fmt.Sprint(r.ID)
+		}
+		if !seen[id] {
+			seen[id] = true
+			downloads = append(downloads, r)
+		}
+	}
+	return downloads
+}
+
+func checked(total, flagged int) string {
+	if total == 0 {
+		return "the queue is empty"
+	}
+	items := "items"
+	if total == 1 {
+		items = "item"
+	}
+	if flagged == 0 {
+		return fmt.Sprintf("checked %d queued %s, none flagged as executable", total, items)
+	}
+	return fmt.Sprintf("checked %d queued %s, %d flagged as executable", total, items, flagged)
 }
 
 func keyIn(path string) string {
@@ -90,9 +114,9 @@ type queue struct {
 	key    string
 }
 
-func (q queue) flagged(ctx context.Context, pageSize int) ([]record, error) {
+func (q queue) flagged(ctx context.Context, pageSize int) ([]record, int, error) {
 	if q.key == "" {
-		return nil, nil
+		return nil, 0, nil
 	}
 	var found []record
 	for page := 1; ; page++ {
@@ -101,7 +125,7 @@ func (q queue) flagged(ctx context.Context, pageSize int) ([]record, error) {
 			Records      []record `json:"records"`
 		}
 		if err := q.call(ctx, http.MethodGet, fmt.Sprintf("%s?page=%d&pageSize=%d", q.base, page, pageSize), &listed); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		for _, r := range listed.Records {
 			if isFlagged(r) {
@@ -109,7 +133,7 @@ func (q queue) flagged(ctx context.Context, pageSize int) ([]record, error) {
 			}
 		}
 		if page*pageSize >= listed.TotalRecords {
-			return found, nil
+			return found, listed.TotalRecords, nil
 		}
 	}
 }

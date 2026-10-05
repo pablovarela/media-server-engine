@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"testing"
+	"time"
 
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/compose/v5/pkg/api"
@@ -11,6 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/pablovarela/media-server-engine/internal/paint"
 )
 
 func TestOperations(t *testing.T) {
@@ -30,7 +33,7 @@ func TestOperations(t *testing.T) {
 				o.Create.RemoveOrphans && o.Create.Inherit
 		})).Return(nil)
 
-		require.NoError(t, (&Runner{service: service}).Up(ctx, full, []string{"jellyfin"}))
+		require.NoError(t, (&Runner{service: service}).Up(ctx, full, []string{"jellyfin"}, NoWait))
 	})
 
 	t.Run("up without services starts every service", func(t *testing.T) {
@@ -39,9 +42,9 @@ func TestOperations(t *testing.T) {
 			"sonarr":   {Name: "sonarr", Image: "s"},
 		}}
 		service := newMockService(t)
-		service.EXPECT().Up(ctx, full, mock.MatchedBy(func(o api.UpOptions) bool { return o.Start.Project == full })).Return(nil)
+		service.EXPECT().Up(ctx, full, mock.MatchedBy(func(o api.UpOptions) bool { return o.Start.Project == full && !o.Start.Wait })).Return(nil)
 
-		require.NoError(t, (&Runner{service: service}).Up(ctx, full, nil))
+		require.NoError(t, (&Runner{service: service}).Up(ctx, full, nil, NoWait))
 	})
 
 	t.Run("down removes orphans", func(t *testing.T) {
@@ -96,4 +99,33 @@ func TestOperations(t *testing.T) {
 
 		assert.Equal(t, "jellyfin | started\njellyfin | warning\n", out.String())
 	})
+}
+
+func TestUpCanWaitForTheContainers(t *testing.T) {
+	project := &types.Project{Name: "media-server"}
+	service := newMockService(t)
+	service.EXPECT().Up(mock.Anything, project, mock.MatchedBy(func(o api.UpOptions) bool {
+		return o.Start.Wait && o.Start.WaitTimeout == 2*time.Minute
+	})).Return(nil)
+
+	require.NoError(t, (&Runner{service: service}).Up(context.Background(), project, nil, Wait{Enabled: true, Timeout: 2 * time.Minute}))
+}
+
+func TestLogsColourEachService(t *testing.T) {
+	paint.Enable(true)
+	t.Cleanup(func() { paint.Enable(false) })
+	project := &types.Project{Name: "media-server"}
+	service := newMockService(t)
+	service.EXPECT().Logs(mock.Anything, "media-server", mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, _ string, consumer api.LogConsumer, _ api.LogOptions) error {
+		consumer.Log("sonarr", "a")
+		consumer.Log("radarr", "b")
+		consumer.Log("sonarr", "c")
+		return nil
+	})
+	var out bytes.Buffer
+
+	require.NoError(t, (&Runner{service: service}).Logs(context.Background(), project, LogsOptions{}, &out))
+
+	cyan, yellow, reset := "\x1b[36m", "\x1b[33m", "\x1b[0m"
+	assert.Equal(t, cyan+"sonarr"+reset+" | a\n"+yellow+"radarr"+reset+" | b\n"+cyan+"sonarr"+reset+" | c\n", out.String())
 }

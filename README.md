@@ -74,6 +74,8 @@ From a clone, `make go-build` builds `dist/mse` for the machine it runs on.
 
 When the config pins a `homepage` image, `mse stack up` and `mse stack restart` draw the landing page into the state directory before starting the containers, from the config's `homepage/` files over the engine's default page, then reload Homepage so it shows it. A page that cannot be drawn is reported and the containers start anyway. `mse homepage` redraws the page on its own.
 
+`mse stack up --wait` returns once every container is running, and healthy when it has a healthcheck (`--wait-timeout`, 5 minutes by default). `mse stack logs -f [service...]` follows the logs, and `--tail N` limits them to the last lines. On a terminal `mse` colours its output; `NO_COLOR` turns that off.
+
 `mse stack` and `mse monitoring` mount the decrypted secrets and the engine's files from the state directory, where the Makefile mounts them from the engine checkout. `mse stack up` therefore recreates containers the Makefile started, and the other way round: manage an installation's containers with one of them.
 
 ## Developing
