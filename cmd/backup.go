@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -186,8 +185,7 @@ func (d Dependencies) shortHost() string {
 }
 
 func healthchecksKey(i *installation.Installation, name string) string {
-	text, _ := os.ReadFile(filepath.Join(i.State, ".secrets", "healthchecks.env")) //nolint:gosec // the installation's decrypted healthchecks keys
-	return secrets.Dotenv(text)[name]
+	return secrets.Dotenv(readSecretsFile(i, "healthchecks.env"))[name]
 }
 
 func tempDir(getenv func(string) string) string {

@@ -30,6 +30,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/secrets"
 	"github.com/pablovarela/media-server-engine/internal/selfupdate"
 	"github.com/pablovarela/media-server-engine/internal/version"
+	"github.com/pablovarela/media-server-engine/internal/wiring"
 )
 
 type Dependencies struct {
@@ -52,6 +53,7 @@ type Dependencies struct {
 	Systemd       func() bool
 	LocalTime     string
 	Exec          func(path string, args []string) error
+	WiringSteps   func(configarr wiring.OneOff, tool io.Writer) ([]wiring.Step, error)
 }
 
 func NewRootCommand(deps Dependencies) *cobra.Command {
@@ -117,10 +119,19 @@ func Execute(engine fs.FS) int {
 		Interactive:   func() bool { return term.IsTerminal(int(os.Stdin.Fd())) }, //nolint:gosec // a file descriptor fits in an int
 		Systemd:       func() bool { _, err := os.Stat("/run/systemd/system"); return err == nil },
 		LocalTime:     "/etc/localtime",
+		WiringSteps:   wiringSteps,
 		Exec:          func(path string, args []string) error { return syscall.Exec(path, args, os.Environ()) }, //nolint:gosec // runs the mse release it just installed
 	}
 	globalLogs := filepath.Join(installation.BasesFrom(os.Getenv, home).State, "mse")
 	return runLogged(ctx, NewRootCommand(deps), os.Args[1:], globalLogs)
+}
+
+func wiringSteps(configarr wiring.OneOff, tool io.Writer) ([]wiring.Step, error) {
+	docker, err := wiring.NewDocker()
+	if err != nil {
+		return nil, err
+	}
+	return wiring.Steps(docker, configarr, tool), nil
 }
 
 func pause(ctx context.Context, d time.Duration) error {

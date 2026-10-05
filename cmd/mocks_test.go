@@ -830,6 +830,78 @@ func (_c *mockComposeRunner_Restart_Call) RunAndReturn(run func(ctx context.Cont
 	return _c
 }
 
+// RunOnce provides a mock function for the type mockComposeRunner
+func (_mock *mockComposeRunner) RunOnce(ctx context.Context, project *types.Project, service string) (int, error) {
+	ret := _mock.Called(ctx, project, service)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RunOnce")
+	}
+
+	var r0 int
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project, string) (int, error)); ok {
+		return returnFunc(ctx, project, service)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project, string) int); ok {
+		r0 = returnFunc(ctx, project, service)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *types.Project, string) error); ok {
+		r1 = returnFunc(ctx, project, service)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// mockComposeRunner_RunOnce_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RunOnce'
+type mockComposeRunner_RunOnce_Call struct {
+	*mock.Call
+}
+
+// RunOnce is a helper method to define mock.On call
+//   - ctx context.Context
+//   - project *types.Project
+//   - service string
+func (_e *mockComposeRunner_Expecter) RunOnce(ctx any, project any, service any) *mockComposeRunner_RunOnce_Call {
+	return &mockComposeRunner_RunOnce_Call{Call: _e.mock.On("RunOnce", ctx, project, service)}
+}
+
+func (_c *mockComposeRunner_RunOnce_Call) Run(run func(ctx context.Context, project *types.Project, service string)) *mockComposeRunner_RunOnce_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *types.Project
+		if args[1] != nil {
+			arg1 = args[1].(*types.Project)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *mockComposeRunner_RunOnce_Call) Return(n int, err error) *mockComposeRunner_RunOnce_Call {
+	_c.Call.Return(n, err)
+	return _c
+}
+
+func (_c *mockComposeRunner_RunOnce_Call) RunAndReturn(run func(ctx context.Context, project *types.Project, service string) (int, error)) *mockComposeRunner_RunOnce_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // RunningServices provides a mock function for the type mockComposeRunner
 func (_mock *mockComposeRunner) RunningServices(ctx context.Context, project *types.Project) ([]string, error) {
 	ret := _mock.Called(ctx, project)

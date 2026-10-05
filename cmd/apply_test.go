@@ -23,6 +23,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/images"
 	"github.com/pablovarela/media-server-engine/internal/installation"
 	"github.com/pablovarela/media-server-engine/internal/process"
+	"github.com/pablovarela/media-server-engine/internal/wiring"
 )
 
 type noImages struct{}
@@ -238,4 +239,52 @@ func TestApplyRefusesARunIDThatIsNotOne(t *testing.T) {
 	assert.Equal(t, 1, code)
 	assert.Contains(t, stderr.String(), "--after-update takes the run id of the update that handed over, six hex digits")
 	assert.Empty(t, *f.requests)
+}
+
+func TestApplyWiresTheAppsAfterStartingThem(t *testing.T) {
+	f := newApplyFixture(t)
+	f.expectApply(nil)
+	f.composer.EXPECT().RunOnce(mock.Anything, f.project, "configarr").Return(0, nil)
+	deps := f.deps(t, false)
+	deps.WiringSteps = func(configarr wiring.OneOff, tool io.Writer) ([]wiring.Step, error) {
+		return []wiring.Step{
+			{Name: "prowlarr", Run: func(_ context.Context, env wiring.Env) error {
+				assert.Equal(t, "gorgon", env.Settings["INSTALLATION_NAME"])
+				assert.Equal(t, "ping-key", env.Secrets["HEALTHCHECKS_PING_KEY"])
+				env.Change("prowlarr", "add tag flaresolverr")
+				return nil
+			}},
+			{Name: "configarr", Run: wiring.Configarr(configarr, tool)},
+		}, nil
+	}
+	root := NewRootCommand(deps)
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+
+	code := run(context.Background(), root, []string{"apply"})
+
+	require.Equal(t, 0, code, stderr.String())
+	assert.Regexp(t, `(?s)Reattaching to gluetun\.\.\. nothing to reattach\.\nWiring the apps\.\.\.\nprowlarr: add tag flaresolverr\n  1 change\.\nReloading Homepage`, stdout.String())
+}
+
+func TestAFailedWiringStepIsNamedAndFailsTheApply(t *testing.T) {
+	f := newApplyFixture(t)
+	f.expectApply(nil)
+	deps := f.deps(t, false)
+	deps.WiringSteps = func(wiring.OneOff, io.Writer) ([]wiring.Step, error) {
+		return []wiring.Step{{Name: "seerr", Run: func(context.Context, wiring.Env) error { return errors.New("jellyfin has no library Cartoons") }}}, nil
+	}
+	root := NewRootCommand(deps)
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+
+	code := run(context.Background(), root, []string{"apply"})
+
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stderr.String(), "seerr: jellyfin has no library Cartoons")
+	assert.Contains(t, stderr.String(), "mse: wiring failed: seerr")
+	assert.Contains(t, stdout.String(), "Reloading Homepage")
+	assert.NotContains(t, stdout.String(), "Removing outdated images")
 }
