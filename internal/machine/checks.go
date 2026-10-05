@@ -80,8 +80,16 @@ func inDockerGroup(ctx context.Context, env Env) outcome {
 }
 
 func dockerAnswers(ctx context.Context, env Env) outcome {
-	_, ok := output(ctx, env.Runner, "docker", "info")
-	return outcome{ok: ok, line: "Docker doesn't answer this session", fix: onOS(env, "log out and back in, so this session has the docker group", "start Docker")}.passing("Docker answers")
+	if _, ok := output(ctx, env.Runner, "docker", "info"); ok {
+		return outcome{ok: true, line: "Docker answers"}
+	}
+	if !linux(env) {
+		return outcome{line: "Docker doesn't answer", fix: "start Docker"}
+	}
+	if session, _ := output(ctx, env.Runner, "id", "-Gn"); slices.Contains(strings.Fields(session), "docker") {
+		return outcome{line: "Docker doesn't answer", fix: "sudo systemctl start docker"}
+	}
+	return outcome{line: "Docker doesn't answer this session", fix: "log out and back in, so this session has the docker group"}
 }
 
 func resticInstalled(ctx context.Context, env Env) outcome {

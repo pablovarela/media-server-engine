@@ -231,7 +231,7 @@ func TestAMac(t *testing.T) {
   ✓ gh is logged in
   – git uses gh for github.com: skipped until git is installed
   ✓ Docker
-  ✗ Docker doesn't answer this session
+  ✗ Docker doesn't answer
       run: start Docker
   ✗ restic isn't installed
       run: brew install restic
@@ -247,4 +247,12 @@ func TestAMacWithoutGh(t *testing.T) {
 	f.env.Systemd = false
 
 	assert.Contains(t, f.render(t), "  ✗ gh isn't installed\n      run: brew install gh\n")
+}
+
+func TestAStoppedDockerWhenTheSessionHasTheGroup(t *testing.T) {
+	f := newFixture(t)
+	f.fails("docker info")
+	f.answers["id -Gn"] = process.Result{Stdout: []byte("pablo adm docker\n")}
+
+	assert.Contains(t, f.render(t), "  ✗ Docker doesn't answer\n      run: sudo systemctl start docker\n")
 }
