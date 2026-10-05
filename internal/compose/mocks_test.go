@@ -385,6 +385,132 @@ func (_c *mockService_Restart_Call) RunAndReturn(run func(ctx context.Context, p
 	return _c
 }
 
+// Start provides a mock function for the type mockService
+func (_mock *mockService) Start(ctx context.Context, projectName string, options api.StartOptions) error {
+	ret := _mock.Called(ctx, projectName, options)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Start")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, api.StartOptions) error); ok {
+		r0 = returnFunc(ctx, projectName, options)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// mockService_Start_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Start'
+type mockService_Start_Call struct {
+	*mock.Call
+}
+
+// Start is a helper method to define mock.On call
+//   - ctx context.Context
+//   - projectName string
+//   - options api.StartOptions
+func (_e *mockService_Expecter) Start(ctx any, projectName any, options any) *mockService_Start_Call {
+	return &mockService_Start_Call{Call: _e.mock.On("Start", ctx, projectName, options)}
+}
+
+func (_c *mockService_Start_Call) Run(run func(ctx context.Context, projectName string, options api.StartOptions)) *mockService_Start_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 api.StartOptions
+		if args[2] != nil {
+			arg2 = args[2].(api.StartOptions)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *mockService_Start_Call) Return(err error) *mockService_Start_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *mockService_Start_Call) RunAndReturn(run func(ctx context.Context, projectName string, options api.StartOptions) error) *mockService_Start_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Stop provides a mock function for the type mockService
+func (_mock *mockService) Stop(ctx context.Context, projectName string, options api.StopOptions) error {
+	ret := _mock.Called(ctx, projectName, options)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Stop")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, api.StopOptions) error); ok {
+		r0 = returnFunc(ctx, projectName, options)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// mockService_Stop_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Stop'
+type mockService_Stop_Call struct {
+	*mock.Call
+}
+
+// Stop is a helper method to define mock.On call
+//   - ctx context.Context
+//   - projectName string
+//   - options api.StopOptions
+func (_e *mockService_Expecter) Stop(ctx any, projectName any, options any) *mockService_Stop_Call {
+	return &mockService_Stop_Call{Call: _e.mock.On("Stop", ctx, projectName, options)}
+}
+
+func (_c *mockService_Stop_Call) Run(run func(ctx context.Context, projectName string, options api.StopOptions)) *mockService_Stop_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 api.StopOptions
+		if args[2] != nil {
+			arg2 = args[2].(api.StopOptions)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *mockService_Stop_Call) Return(err error) *mockService_Stop_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *mockService_Stop_Call) RunAndReturn(run func(ctx context.Context, projectName string, options api.StopOptions) error) *mockService_Stop_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Up provides a mock function for the type mockService
 func (_mock *mockService) Up(ctx context.Context, project *types.Project, options api.UpOptions) error {
 	ret := _mock.Called(ctx, project, options)

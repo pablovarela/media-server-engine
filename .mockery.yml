@@ -9,3 +9,5 @@ packages:
   github.com/pablovarela/media-server-engine/cmd: {}
   github.com/pablovarela/media-server-engine/internal/compose: {}
   github.com/pablovarela/media-server-engine/internal/images: {}
+  github.com/pablovarela/media-server-engine/internal/restic: {}
+  github.com/pablovarela/media-server-engine/internal/backup: {}

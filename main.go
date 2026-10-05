@@ -7,7 +7,7 @@ import (
 	"github.com/pablovarela/media-server-engine/cmd"
 )
 
-//go:embed docker-compose.yml docker-compose.monitoring.yml grafana prometheus homepage
+//go:embed docker-compose.yml docker-compose.monitoring.yml grafana prometheus homepage scripts/backup-excludes.txt
 var engine embed.FS
 
 func main() {

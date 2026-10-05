@@ -129,3 +129,56 @@ func TestLogsColourEachService(t *testing.T) {
 	cyan, yellow, reset := "\x1b[36m", "\x1b[33m", "\x1b[0m"
 	assert.Equal(t, cyan+"sonarr"+reset+" | a\n"+yellow+"radarr"+reset+" | b\n"+cyan+"sonarr"+reset+" | c\n", out.String())
 }
+
+func TestStoppingAndStarting(t *testing.T) {
+	ctx := context.Background()
+	full := &types.Project{Name: "media-server", Services: types.Services{
+		"jellyfin": {Name: "jellyfin", Image: "j"},
+		"sonarr":   {Name: "sonarr", Image: "s"},
+	}}
+
+	t.Run("running services of the project, once each and sorted", func(t *testing.T) {
+		service := newMockService(t)
+		service.EXPECT().Ps(ctx, "media-server", api.PsOptions{Project: full}).Return([]api.ContainerSummary{
+			{Service: "sonarr", State: container.StateRunning},
+			{Service: "jellyfin", State: container.StateRunning},
+			{Service: "configarr", State: container.StateExited},
+			{Service: "sonarr", State: container.StateRunning},
+			{Service: "homepage", State: container.StateRunning},
+		}, nil)
+
+		running, err := (&Runner{service: service}).RunningServices(ctx, full)
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"jellyfin", "sonarr"}, running)
+	})
+
+	t.Run("any running container counts, in the model or not", func(t *testing.T) {
+		service := newMockService(t)
+		service.EXPECT().Ps(ctx, "media-server", api.PsOptions{Project: full}).Return([]api.ContainerSummary{
+			{Service: "configarr", State: container.StateExited},
+			{Service: "homepage", State: container.StateRunning},
+		}, nil)
+
+		running, err := (&Runner{service: service}).AnyRunning(ctx, full)
+
+		require.NoError(t, err)
+		assert.True(t, running)
+	})
+
+	t.Run("stop stops the project", func(t *testing.T) {
+		service := newMockService(t)
+		service.EXPECT().Stop(ctx, "media-server", api.StopOptions{Project: full}).Return(nil)
+
+		require.NoError(t, (&Runner{service: service}).Stop(ctx, full))
+	})
+
+	t.Run("start starts only the services given", func(t *testing.T) {
+		service := newMockService(t)
+		service.EXPECT().Start(ctx, "media-server", mock.MatchedBy(func(o api.StartOptions) bool {
+			return assert.ObjectsAreEqual([]string{"sonarr"}, o.Project.ServiceNames())
+		})).Return(nil)
+
+		require.NoError(t, (&Runner{service: service}).Start(ctx, full, []string{"sonarr"}))
+	})
+}

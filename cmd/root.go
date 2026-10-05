@@ -12,28 +12,35 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/pablovarela/media-server-engine/internal/compose"
 	"github.com/pablovarela/media-server-engine/internal/github"
 	"github.com/pablovarela/media-server-engine/internal/images"
 	"github.com/pablovarela/media-server-engine/internal/installation"
 	"github.com/pablovarela/media-server-engine/internal/paint"
+	"github.com/pablovarela/media-server-engine/internal/process"
 	"github.com/pablovarela/media-server-engine/internal/secrets"
 	"github.com/pablovarela/media-server-engine/internal/selfupdate"
 	"github.com/pablovarela/media-server-engine/internal/version"
 )
 
 type Dependencies struct {
-	Build       version.Build
-	Update      updater
-	Engine      fs.FS
-	Environment func(string) string
-	Home        string
-	Host        installation.Host
-	Decrypt     secrets.Decrypter
-	Compose     func(out, errOut io.Writer) (composeRunner, error)
-	HTTP        *http.Client
-	Images      func() (images.Client, error)
+	Build         version.Build
+	Update        updater
+	Engine        fs.FS
+	Environment   func(string) string
+	Home          string
+	Host          installation.Host
+	Decrypt       secrets.Decrypter
+	Compose       func(out, errOut io.Writer) (composeRunner, error)
+	HTTP          *http.Client
+	Images        func() (images.Client, error)
+	Run           func(out, errOut io.Writer) commandRunner
+	MachineIDFile string
+	Now           func() time.Time
+	Sleep         func(time.Duration)
+	Interactive   func() bool
 }
 
 func NewRootCommand(deps Dependencies) *cobra.Command {
@@ -57,6 +64,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 		newProjectCommand(deps, "stack", "Run the media server's containers", compose.Stack),
 		newProjectCommand(deps, "monitoring", "Run the monitoring containers", compose.Monitoring),
 	)
+	root.AddCommand(newBackupCommands(deps)...)
 	return root
 }
 
@@ -81,19 +89,32 @@ func Execute(engine fs.FS) int {
 		Compose: func(out, errOut io.Writer) (composeRunner, error) {
 			return compose.NewRunner(out, errOut)
 		},
-		HTTP:   &http.Client{Timeout: 30 * time.Second},
-		Images: images.NewDocker,
+		HTTP:          &http.Client{Timeout: 30 * time.Second},
+		Images:        images.NewDocker,
+		Run:           func(out, errOut io.Writer) commandRunner { return process.System{Out: out, ErrOut: errOut} },
+		MachineIDFile: "/etc/machine-id",
+		Now:           time.Now,
+		Sleep:         time.Sleep,
+		Interactive:   func() bool { return term.IsTerminal(int(os.Stdin.Fd())) }, //nolint:gosec // a file descriptor fits in an int
 	}
 	return run(ctx, NewRootCommand(deps), os.Args[1:])
 }
 
+var endingSignals = []os.Signal{os.Interrupt, syscall.SIGTERM, syscall.SIGHUP}
+
 func interruptible() (context.Context, context.CancelFunc) {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(context.Background(), endingSignals...)
 	go func() {
 		<-ctx.Done()
 		stop()
 	}()
 	return ctx, stop
+}
+
+func shieldSignals() (release func()) {
+	ignored := make(chan os.Signal, 1)
+	signal.Notify(ignored, endingSignals...)
+	return func() { signal.Stop(ignored) }
 }
 
 func run(ctx context.Context, root *cobra.Command, args []string) int {
