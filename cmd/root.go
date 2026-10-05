@@ -30,6 +30,7 @@ type Dependencies struct {
 	Host        installation.Host
 	Decrypt     secrets.Decrypter
 	Compose     func(out, errOut io.Writer) (composeRunner, error)
+	HTTP        *http.Client
 }
 
 func NewRootCommand(deps Dependencies) *cobra.Command {
@@ -47,6 +48,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 		newUpdateCommand(deps.Build, deps.Update),
 		newURLsCommand(deps),
 		newLoginsCommand(deps),
+		newHomepageCommand(deps),
 		newProjectCommand(deps, "stack", "Run the media server's containers", compose.Stack),
 		newProjectCommand(deps, "monitoring", "Run the monitoring containers", compose.Monitoring),
 	)
@@ -73,6 +75,7 @@ func Execute(engine fs.FS) int {
 		Compose: func(out, errOut io.Writer) (composeRunner, error) {
 			return compose.NewRunner(out, errOut)
 		},
+		HTTP: &http.Client{Timeout: 30 * time.Second},
 	}
 	return run(ctx, NewRootCommand(deps), os.Args[1:])
 }

@@ -3,7 +3,9 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
+	"net/http"
 	"path/filepath"
 	"testing"
 	"testing/fstest"
@@ -24,14 +26,19 @@ func TestStackCommands(t *testing.T) {
 	type Then struct {
 		expect func(r *mockComposeRunner)
 		stdout string
+		drawn  bool
 	}
 	tests := map[string]struct {
 		When When
 		Then Then
 	}{
+		"stack up draws the page first": {
+			When: When{args: []string{"stack", "up"}},
+			Then: Then{expect: func(r *mockComposeRunner) { r.EXPECT().Up(mock.Anything, project, []string{}).Return(nil) }, drawn: true},
+		},
 		"stack up with services": {
 			When: When{args: []string{"stack", "up", "jellyfin"}},
-			Then: Then{expect: func(r *mockComposeRunner) { r.EXPECT().Up(mock.Anything, project, []string{"jellyfin"}).Return(nil) }},
+			Then: Then{expect: func(r *mockComposeRunner) { r.EXPECT().Up(mock.Anything, project, []string{"jellyfin"}).Return(nil) }, drawn: true},
 		},
 		"stack down": {
 			When: When{args: []string{"stack", "down"}},
@@ -41,7 +48,7 @@ func TestStackCommands(t *testing.T) {
 			When: When{args: []string{"stack", "restart", "homepage"}},
 			Then: Then{expect: func(r *mockComposeRunner) {
 				r.EXPECT().Restart(mock.Anything, project, []string{"homepage"}).Return(nil)
-			}},
+			}, drawn: true},
 		},
 		"stack ps": {
 			When: When{args: []string{"stack", "ps"}},
@@ -98,7 +105,13 @@ func TestStackCommands(t *testing.T) {
 					"docker-compose.monitoring.yml": {Data: []byte("services: {}\n")},
 					"grafana/datasource.yml":        {Data: []byte("# fixture\n")},
 					"prometheus/prometheus.yml":     {Data: []byte("# fixture\n")},
+					"homepage/settings.yaml":        {Data: []byte("title: x\n")},
+					"homepage/services.yaml":        {Data: []byte("[]\n")},
+					"homepage/widgets.yaml":         {Data: []byte("[]\n")},
+					"homepage/bookmarks.yaml":       {Data: []byte("[]\n")},
+					"homepage/custom.css":           {Data: []byte("")},
 				},
+				HTTP:    &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) { return nil, errors.New("no network in tests") })},
 				Compose: func(_, _ io.Writer) (composeRunner, error) { return runner, nil },
 			}
 			root := NewRootCommand(deps)
@@ -113,6 +126,12 @@ func TestStackCommands(t *testing.T) {
 			assert.FileExists(t, filepath.Join(state, ".secrets", "vpn.env"))
 			assert.FileExists(t, filepath.Join(state, "docker-compose.yml"))
 			assert.Equal(t, tt.Then.stdout, stdout.String())
+			drawnPage := filepath.Join(state, ".homepage", "settings.yaml")
+			if tt.Then.drawn {
+				assert.FileExists(t, drawnPage)
+			} else {
+				assert.NoFileExists(t, drawnPage)
+			}
 		})
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"text/tabwriter"
 
@@ -25,77 +26,90 @@ type composeRunner interface {
 	Restart(ctx context.Context, project *types.Project, services []string) error
 }
 
+type opened struct {
+	installation *installation.Installation
+	network      string
+	runner       composeRunner
+	project      *types.Project
+}
+
+func (d Dependencies) openProject(cmd *cobra.Command, kind compose.Kind, draw bool) (opened, error) {
+	i, err := d.installation(cmd)
+	if err != nil {
+		return opened{}, err
+	}
+	if err := secrets.WriteAll(i, d.Decrypt, secrets.RandomKey); err != nil {
+		return opened{}, err
+	}
+	if err := compose.Prepare(d.Engine, i.State); err != nil {
+		return opened{}, err
+	}
+	network, err := i.NetworkName(d.Host)
+	if err != nil {
+		return opened{}, err
+	}
+	profiles, err := compose.Profiles(i, kind, false)
+	if err != nil {
+		return opened{}, err
+	}
+	if draw && slices.Contains(profiles, homepageService) {
+		if _, err := d.drawPage(cmd.Context(), i, network, cmd.ErrOrStderr()); err != nil {
+			return opened{}, err
+		}
+	}
+	runner, err := d.Compose(cmd.OutOrStdout(), cmd.ErrOrStderr())
+	if err != nil {
+		return opened{}, err
+	}
+	project, err := runner.Load(cmd.Context(), i, kind, compose.Variables(i, network, compose.DockerGID()), profiles)
+	return opened{installation: i, network: network, runner: runner, project: project}, err
+}
+
 func newProjectCommand(deps Dependencies, use, short string, kind compose.Kind) *cobra.Command {
 	command := &cobra.Command{Use: use, Short: short}
-	open := func(cmd *cobra.Command) (composeRunner, *types.Project, error) {
-		i, err := deps.installation(cmd)
-		if err != nil {
-			return nil, nil, err
-		}
-		if err := secrets.WriteAll(i, deps.Decrypt, secrets.RandomKey); err != nil {
-			return nil, nil, err
-		}
-		if err := compose.Prepare(deps.Engine, i.State); err != nil {
-			return nil, nil, err
-		}
-		network, err := i.NetworkName(deps.Host)
-		if err != nil {
-			return nil, nil, err
-		}
-		profiles, err := compose.Profiles(i, kind, false)
-		if err != nil {
-			return nil, nil, err
-		}
-		runner, err := deps.Compose(cmd.OutOrStdout(), cmd.ErrOrStderr())
-		if err != nil {
-			return nil, nil, err
-		}
-		project, err := runner.Load(cmd.Context(), i, kind, compose.Variables(i, network, compose.DockerGID()), profiles)
-		return runner, project, err
-	}
-	operation := func(use, short string, args cobra.PositionalArgs, do func(cmd *cobra.Command, runner composeRunner, project *types.Project, args []string) error) *cobra.Command {
+	operation := func(use, short string, args cobra.PositionalArgs, draw bool, do func(cmd *cobra.Command, runner composeRunner, project *types.Project, args []string) error) *cobra.Command {
 		return &cobra.Command{Use: use, Short: short, Args: args, RunE: func(cmd *cobra.Command, args []string) error {
-			runner, project, err := open(cmd)
+			o, err := deps.openProject(cmd, kind, draw)
 			if err != nil {
 				return err
 			}
-			return do(cmd, runner, project, args)
+			return do(cmd, o.runner, o.project, args)
 		}}
 	}
 	command.AddCommand(
-		operation("up [service...]", "Create and start the containers", cobra.ArbitraryArgs, func(cmd *cobra.Command, r composeRunner, p *types.Project, args []string) error {
+		operation("up [service...]", "Create and start the containers", cobra.ArbitraryArgs, true, func(cmd *cobra.Command, r composeRunner, p *types.Project, args []string) error {
 			return r.Up(cmd.Context(), p, args)
 		}),
-		operation("down", "Stop and remove the containers", cobra.NoArgs, func(cmd *cobra.Command, r composeRunner, p *types.Project, _ []string) error {
+		operation("down", "Stop and remove the containers", cobra.NoArgs, false, func(cmd *cobra.Command, r composeRunner, p *types.Project, _ []string) error {
 			return r.Down(cmd.Context(), p)
 		}),
-		operation("restart [service...]", "Restart the containers", cobra.ArbitraryArgs, func(cmd *cobra.Command, r composeRunner, p *types.Project, args []string) error {
+		operation("restart [service...]", "Restart the containers", cobra.ArbitraryArgs, true, func(cmd *cobra.Command, r composeRunner, p *types.Project, args []string) error {
 			return r.Restart(cmd.Context(), p, args)
 		}),
-		operation("ps", "List the containers", cobra.NoArgs, func(cmd *cobra.Command, r composeRunner, p *types.Project, _ []string) error {
+		operation("ps", "List the containers", cobra.NoArgs, false, func(cmd *cobra.Command, r composeRunner, p *types.Project, _ []string) error {
 			containers, err := r.Ps(cmd.Context(), p)
 			if err != nil {
 				return err
 			}
 			return printContainers(cmd.OutOrStdout(), containers)
 		}),
-		logsCommand(open),
+		logsCommand(deps, kind),
 	)
 	return command
 }
 
-func logsCommand(open func(*cobra.Command) (composeRunner, *types.Project, error)) *cobra.Command {
+func logsCommand(deps Dependencies, kind compose.Kind) *cobra.Command {
 	var options compose.LogsOptions
 	command := &cobra.Command{
 		Use:   "logs [service...]",
 		Short: "Print the containers' logs",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runner, project, err := open(cmd)
+			o, err := deps.openProject(cmd, kind, false)
 			if err != nil {
 				return err
 			}
 			options.Services = args
-			return runner.Logs(cmd.Context(), project, options, cmd.OutOrStdout())
+			return o.runner.Logs(cmd.Context(), o.project, options, cmd.OutOrStdout())
 		},
 	}
 	command.Flags().BoolVarP(&options.Follow, "follow", "f", false, "keep printing new lines")

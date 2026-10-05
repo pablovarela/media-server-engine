@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 )
 
 const ChecksURL = "https://healthchecks.io/api/v3/checks/"
@@ -19,6 +20,8 @@ type Healthchecks struct {
 }
 
 func (h Healthchecks) Slugs(ctx context.Context, key string) (map[string]bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, h.URL, nil)
 	if err != nil {
 		return nil, err
