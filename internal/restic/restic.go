@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -62,7 +63,11 @@ func (l Lock) String() string {
 	if host == "" {
 		host = "an unknown host"
 	}
-	return fmt.Sprintf("%s lock from %s (process %d) since %s", kind, host, l.PID, l.Time.Format("2006-01-02 15:04"))
+	process := "?"
+	if l.PID != 0 {
+		process = strconv.Itoa(l.PID)
+	}
+	return fmt.Sprintf("%s lock from %s (process %s) since %s", kind, host, process, l.Time.Format("2006-01-02 15:04"))
 }
 
 type LockedError struct {

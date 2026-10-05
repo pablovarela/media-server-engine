@@ -117,3 +117,40 @@ func TestPingsWarnOnceWithoutAKey(t *testing.T) {
 
 	assert.Equal(t, "no healthchecks ping key configured; gorgon-backup is not reported\n", errOut.String())
 }
+
+func TestPingsTimeOut(t *testing.T) {
+	var errOut bytes.Buffer
+	sleeps := 0
+	pings := &Pings{
+		Client: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			<-r.Context().Done()
+			return nil, r.Context().Err()
+		})},
+		URL: PingURL, Key: "ping-key", ErrOut: &errOut, Timeout: 10 * time.Millisecond,
+		Slug:  func(job string) string { return "gorgon-" + job },
+		Sleep: func(time.Duration) { sleeps++ },
+	}
+
+	pings.Ping(context.Background(), "backup", "")
+
+	assert.Equal(t, 3, sleeps)
+	assert.Equal(t, "healthchecks: could not report gorgon-backup: context deadline exceeded\n", errOut.String())
+}
+
+func TestPingsStopRetryingWhenInterrupted(t *testing.T) {
+	var errOut bytes.Buffer
+	ctx, cancel := context.WithCancel(context.Background())
+	pings := &Pings{
+		Client: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			cancel()
+			return nil, errors.New("no route")
+		})},
+		URL: PingURL, Key: "ping-key", ErrOut: &errOut,
+		Slug:  func(job string) string { return "gorgon-" + job },
+		Sleep: func(time.Duration) { t.Fatal("an interrupted ping does not wait to retry") },
+	}
+
+	pings.Ping(ctx, "backup", "/start")
+
+	assert.Equal(t, "healthchecks: could not report gorgon-backup/start: no route\n", errOut.String())
+}

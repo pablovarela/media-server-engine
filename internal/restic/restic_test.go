@@ -188,12 +188,12 @@ func TestLocks(t *testing.T) {
 	runner.EXPECT().Output(mock.Anything, command("list", "locks", "--no-lock")).Return(process.Result{Stdout: []byte("a1\nb2\nc3\n")}, nil)
 	runner.EXPECT().Output(mock.Anything, command("cat", "lock", "a1", "--no-lock")).Return(process.Result{Stdout: []byte(`{"exclusive":false,"hostname":"pi","pid":7,"time":"2026-10-05T04:30:00Z"}`)}, nil)
 	runner.EXPECT().Output(mock.Anything, command("cat", "lock", "b2", "--no-lock")).Return(process.Result{Exit: 1}, nil)
-	runner.EXPECT().Output(mock.Anything, command("cat", "lock", "c3", "--no-lock")).Return(process.Result{Stdout: []byte(`{"pid":9,"time":"2026-10-05T05:00:00Z"}`)}, nil)
+	runner.EXPECT().Output(mock.Anything, command("cat", "lock", "c3", "--no-lock")).Return(process.Result{Stdout: []byte(`{"time":"2026-10-05T05:00:00Z"}`)}, nil)
 
 	locks, err := Restic{Runner: runner, Env: env}.Locks(context.Background())
 
 	require.NoError(t, err)
 	require.Len(t, locks, 2)
 	assert.Equal(t, "shared lock from pi (process 7) since 2026-10-05 04:30", locks[0].String())
-	assert.Equal(t, "shared lock from an unknown host (process 9) since 2026-10-05 05:00", locks[1].String())
+	assert.Equal(t, "shared lock from an unknown host (process ?) since 2026-10-05 05:00", locks[1].String())
 }

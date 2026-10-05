@@ -38,7 +38,11 @@ func (b *Backups) Restore(ctx context.Context, overwrite bool) error {
 	if err := b.Repository.Unlock(ctx); err != nil {
 		return err
 	}
-	return b.Repository.Restore(ctx, restic.RestoreOptions{Snapshot: "latest:/volumes", Host: b.ownHost(ctx), Target: volumes, Exclude: []string{"configarr"}})
+	host, err := b.ownHost(ctx)
+	if err != nil {
+		return fmt.Errorf("cannot read the backup repository's snapshots (%w); nothing was restored", err)
+	}
+	return b.Repository.Restore(ctx, restic.RestoreOptions{Snapshot: "latest:/volumes", Host: host, Target: volumes, Exclude: []string{"configarr"}})
 }
 
 func hasAppData(volumes string) (bool, error) {

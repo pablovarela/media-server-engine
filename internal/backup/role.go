@@ -41,11 +41,12 @@ func describe(s *restic.Snapshot) string {
 	return fmt.Sprintf("%s, last backup %s", name, s.Time.Format("2006-01-02 15:04"))
 }
 
-func (b *Backups) ownHost(ctx context.Context) string {
-	if snapshots, err := b.Repository.Snapshots(ctx, b.Installation.Name); err == nil && len(snapshots) > 0 {
-		return b.Installation.Name
+func (b *Backups) ownHost(ctx context.Context) (string, error) {
+	snapshots, err := b.Repository.Snapshots(ctx, b.Installation.Name)
+	if err != nil || len(snapshots) == 0 {
+		return "", err
 	}
-	return ""
+	return b.Installation.Name, nil
 }
 
 func (b *Backups) DescribeRole(ctx context.Context) error {

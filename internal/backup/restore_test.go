@@ -84,3 +84,15 @@ func TestRestore(t *testing.T) {
 		})
 	}
 }
+
+func TestRestoreStopsWhenItCannotReadTheSnapshots(t *testing.T) {
+	b, m, _, _ := fixture(t)
+	require.NoError(t, os.RemoveAll(filepath.Join(b.Installation.Data, "volumes")))
+	m.stack.EXPECT().AnyRunning(mock.Anything).Return(false, nil)
+	m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
+	m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(nil, errors.New("restic snapshots failed (exit 1)"))
+
+	err := b.Restore(context.Background(), false)
+
+	assert.EqualError(t, err, "cannot read the backup repository's snapshots (restic snapshots failed (exit 1)); nothing was restored")
+}

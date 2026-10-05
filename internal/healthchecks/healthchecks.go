@@ -25,13 +25,14 @@ func Slug(name, job, role, shortHost string) string {
 }
 
 type Pings struct {
-	Client *http.Client
-	URL    string
-	Key    string
-	Slug   func(job string) string
-	Sleep  func(time.Duration)
-	ErrOut io.Writer
-	warned bool
+	Client  *http.Client
+	URL     string
+	Key     string
+	Slug    func(job string) string
+	Sleep   func(time.Duration)
+	ErrOut  io.Writer
+	Timeout time.Duration
+	warned  bool
 }
 
 func (p *Pings) Ping(ctx context.Context, job, suffix string) {
@@ -46,7 +47,7 @@ func (p *Pings) Ping(ctx context.Context, job, suffix string) {
 		if err == nil {
 			return
 		}
-		if !retry || attempt == len(retryAfter) {
+		if !retry || attempt == len(retryAfter) || ctx.Err() != nil {
 			_, _ = fmt.Fprintln(p.ErrOut, paint.Stderr.Warning(fmt.Sprintf("healthchecks: could not report %s: %v", check, err)))
 			return
 		}
@@ -62,7 +63,11 @@ func (p *Pings) warnOnce(message string) {
 }
 
 func (p *Pings) attempt(ctx context.Context, address string) (bool, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	timeout := p.Timeout
+	if timeout == 0 {
+		timeout = 10 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, address, nil)
 	if err != nil {

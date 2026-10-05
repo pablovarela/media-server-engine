@@ -69,7 +69,7 @@ func TestVerify(t *testing.T) {
 			Given: Given{snapshots: ours, restored: func(t *testing.T, dir string) {
 				corruptDatabase(t, filepath.Join(dir, "volumes", "radarr", "radarr.db"))
 			}},
-			Then: Then{out: "Checking the repository...\nRestoring the databases of the latest snapshot...\nChecking 1 databases...\n", err: "volumes/radarr/radarr.db"},
+			Then: Then{out: "Checking the repository...\nRestoring the databases of the latest snapshot...\nChecking 1 databases...\n", err: "cannot check volumes/radarr/radarr.db: database disk image is malformed (11)"},
 		},
 	}
 	for name, tt := range tests {
@@ -95,7 +95,7 @@ func TestVerify(t *testing.T) {
 			err := b.Verify(context.Background())
 
 			if tt.Then.err != "" {
-				assert.ErrorContains(t, err, tt.Then.err)
+				assert.EqualError(t, err, tt.Then.err)
 			} else {
 				require.NoError(t, err)
 			}
