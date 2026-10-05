@@ -50,6 +50,19 @@ func TestEventsAreCountedAndLogged(t *testing.T) {
 			},
 			Then: Then{outcome: "done", failed: []string{"gluetun: port is already allocated"}},
 		},
+		"a failure without details is named by its text": {
+			Given: []api.Resource{
+				{ID: "Container seerr", Text: "error while creating the container", Status: api.Error},
+			},
+			Then: Then{outcome: "done", failed: []string{"seerr: error while creating the container"}},
+		},
+		"a restart is counted as a restart": {
+			Given: []api.Resource{
+				{ID: "Container homepage", Text: api.StatusRestarting, Status: api.Working},
+				{ID: "Container homepage", Text: api.StatusStarted, Status: api.Done},
+			},
+			Then: Then{outcome: "restarted 1 service"},
+		},
 		"nothing happened": {Then: Then{outcome: "done"}},
 	}
 	for name, tt := range tests {
@@ -71,4 +84,17 @@ func TestEventsAreCountedAndLogged(t *testing.T) {
 			assert.Equal(t, "done", outcomes.Take().String(), "taking resets the count")
 		})
 	}
+}
+
+func TestPullProgressStaysOutOfTheLog(t *testing.T) {
+	var tool bytes.Buffer
+	events := &events{tool: &tool, outcomes: &Outcomes{}}
+
+	events.On(
+		api.Resource{ID: "Image lscr.io/linuxserver/sonarr:4", Text: api.StatusPulling, Status: api.Working},
+		api.Resource{ID: "3f2c1a", ParentID: "Image lscr.io/linuxserver/sonarr:4", Text: api.StatusDownloading, Status: api.Working, Percent: 40},
+		api.Resource{ID: "Image lscr.io/linuxserver/sonarr:4", Text: api.StatusPulled, Status: api.Done},
+	)
+
+	assert.Equal(t, "Image lscr.io/linuxserver/sonarr:4 Pulling\nImage lscr.io/linuxserver/sonarr:4 Pulled\n", tool.String())
 }

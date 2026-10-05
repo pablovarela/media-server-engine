@@ -52,8 +52,9 @@ func (o Outcome) String() string {
 }
 
 type Outcomes struct {
-	mu      sync.Mutex
-	current Outcome
+	mu         sync.Mutex
+	current    Outcome
+	restarting map[string]bool
 }
 
 func (o *Outcomes) Take() Outcome {
@@ -61,19 +62,36 @@ func (o *Outcomes) Take() Outcome {
 	defer o.mu.Unlock()
 	taken := o.current
 	o.current = Outcome{}
+	o.restarting = nil
 	return taken
 }
 
 func (o *Outcomes) count(e api.Resource) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if e.Status == api.Error {
-		o.current.Failed = append(o.current.Failed, strings.TrimPrefix(e.ID, "Container ")+": "+e.Details)
-		return
+	switch {
+	case e.Status == api.Error:
+		o.current.Failed = append(o.current.Failed, strings.TrimPrefix(e.ID, "Container ")+": "+failure(e))
+	case e.Status == api.Working && e.Text == api.StatusRestarting:
+		if o.restarting == nil {
+			o.restarting = map[string]bool{}
+		}
+		o.restarting[e.ID] = true
+	case e.Status == api.Done && e.Text == api.StatusStarted && o.restarting[e.ID]:
+		delete(o.restarting, e.ID)
+		o.current.Restarted++
+	case e.Status == api.Done:
+		if counter := o.counterFor(e); counter != nil {
+			*counter++
+		}
 	}
-	if counter := o.counterFor(e); e.Status == api.Done && counter != nil {
-		*counter++
+}
+
+func failure(e api.Resource) string {
+	if e.Details != "" {
+		return e.Details
 	}
+	return e.Text
 }
 
 func (o *Outcomes) counterFor(e api.Resource) *int {
@@ -102,6 +120,9 @@ func (e *events) Start(context.Context, string) {}
 
 func (e *events) On(resources ...api.Resource) {
 	for _, r := range resources {
+		if r.ParentID != "" && r.Status == api.Working {
+			continue
+		}
 		_, _ = fmt.Fprintln(e.tool, strings.TrimSpace(r.ID+" "+r.Text+" "+r.Details))
 		e.outcomes.count(r)
 	}
