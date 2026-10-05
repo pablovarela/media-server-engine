@@ -3,10 +3,15 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/pablovarela/media-server-engine/internal/installation"
 	"github.com/pablovarela/media-server-engine/internal/paint"
 	"github.com/pablovarela/media-server-engine/internal/version"
 )
@@ -70,4 +75,43 @@ func TestRunPaintsTheErrorRed(t *testing.T) {
 	run(context.Background(), root, []string{"nope"})
 
 	assert.Equal(t, "\x1b[31mmse: unknown command \"nope\" for \"mse\"\x1b[0m\n", stderr.String())
+}
+
+func TestEveryRunIsLogged(t *testing.T) {
+	getenv, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"})
+	root := NewRootCommand(Dependencies{Environment: getenv, Home: home, Update: newMockUpdater(t), Host: installation.Host{GOOS: "linux", Hostname: func() (string, error) { return "gorgon", nil }}})
+	var stdout bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&bytes.Buffer{})
+
+	code := run(context.Background(), root, []string{"urls"})
+
+	assert.Equal(t, 0, code)
+	logged, err := os.ReadFile(filepath.Join(home, ".local", "state", "mse", "gorgon", "logs", "mse.log"))
+	require.NoError(t, err)
+	text := string(logged)
+	assert.Regexp(t, ` urls\[[0-9a-f]{6}\] start urls\n`, text)
+	assert.Contains(t, text, strings.SplitN(stdout.String(), "\n", 2)[0])
+	assert.Regexp(t, `\] finish exit 0 after [0-9.]+[µm]?s\n$`, text)
+}
+
+func TestRunsBeforeAnInstallationLogToTheGlobalLog(t *testing.T) {
+	logs := t.TempDir()
+	root := NewRootCommand(Dependencies{Build: version.Build{Version: "v0.7.0"}, Update: newMockUpdater(t)})
+	root.SetOut(&bytes.Buffer{})
+	root.SetErr(&bytes.Buffer{})
+
+	code := runLogged(context.Background(), root, []string{"version"}, logs)
+
+	assert.Equal(t, 0, code)
+	logged, err := os.ReadFile(filepath.Join(logs, "mse.log"))
+	require.NoError(t, err)
+	assert.Contains(t, string(logged), "] start version\n")
+}
+
+func TestTheVerboseFlagExists(t *testing.T) {
+	root := NewRootCommand(Dependencies{Update: newMockUpdater(t)})
+
+	assert.NotNil(t, root.PersistentFlags().Lookup("verbose"))
+	assert.Equal(t, "v", root.PersistentFlags().Lookup("verbose").Shorthand)
 }

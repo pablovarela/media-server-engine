@@ -2,12 +2,16 @@ package cmd
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -18,8 +22,10 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/github"
 	"github.com/pablovarela/media-server-engine/internal/images"
 	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/logfile"
 	"github.com/pablovarela/media-server-engine/internal/paint"
 	"github.com/pablovarela/media-server-engine/internal/process"
+	"github.com/pablovarela/media-server-engine/internal/report"
 	"github.com/pablovarela/media-server-engine/internal/secrets"
 	"github.com/pablovarela/media-server-engine/internal/selfupdate"
 	"github.com/pablovarela/media-server-engine/internal/version"
@@ -53,6 +59,12 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 	}
 	root.SetVersionTemplate("{{.Version}}\n")
 	root.PersistentFlags().String("installation", "", "the installation to use, when there are several (or MSE_INSTALLATION)")
+	root.PersistentFlags().BoolP("verbose", "v", false, "show the output of restic and Compose too (the log always has it)")
+	root.Long = "Run a media-server installation.\n\nEvery run is logged to ~/.local/state/mse/<installation>/logs/mse.log, or ~/.local/state/mse/mse.log before an installation is known (under $XDG_STATE_HOME when it is set)."
+	root.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		verbose, _ := cmd.Flags().GetBool("verbose")
+		report.From(cmd.Context()).SetVerbose(verbose)
+	}
 	root.AddCommand(
 		newVersionCommand(deps.Build),
 		newUpdateCommand(deps.Build, deps.Update),
@@ -97,7 +109,8 @@ func Execute(engine fs.FS) int {
 		Sleep:         time.Sleep,
 		Interactive:   func() bool { return term.IsTerminal(int(os.Stdin.Fd())) }, //nolint:gosec // a file descriptor fits in an int
 	}
-	return run(ctx, NewRootCommand(deps), os.Args[1:])
+	globalLogs := filepath.Join(installation.BasesFrom(os.Getenv, home).State, "mse")
+	return runLogged(ctx, NewRootCommand(deps), os.Args[1:], globalLogs)
 }
 
 var endingSignals = []os.Signal{os.Interrupt, syscall.SIGTERM, syscall.SIGHUP}
@@ -118,10 +131,47 @@ func shieldSignals() (release func()) {
 }
 
 func run(ctx context.Context, root *cobra.Command, args []string) int {
+	return runLogged(ctx, root, args, "")
+}
+
+func runLogged(ctx context.Context, root *cobra.Command, args []string, globalLogs string) int {
+	started := time.Now()
+	log := logfile.New(logfile.Options{Limit: 10 << 20, Keep: 5, RunID: runID(), Now: time.Now, Warn: root.ErrOrStderr()})
+	defer log.Close()
+	reporter := report.New(root.OutOrStdout(), root.ErrOrStderr(), log)
+	root.SetOut(reporter.Stdout())
+	root.SetErr(reporter.Stderr())
 	root.SetArgs(args)
-	if err := root.ExecuteContext(ctx); err != nil {
-		_, _ = fmt.Fprintln(root.ErrOrStderr(), paint.Stderr.Failure(fmt.Sprintf("mse: %v", err)))
-		return 1
+	if found, _, err := root.Find(args); err == nil {
+		log.SetCommand(strings.TrimPrefix(found.CommandPath(), "mse "))
 	}
-	return 0
+	log.Line("", "start "+strings.Join(args, " "))
+	code := 0
+	if err := root.ExecuteContext(withLog(report.With(ctx, reporter), log)); err != nil {
+		_, _ = fmt.Fprintln(root.ErrOrStderr(), paint.Stderr.Failure(fmt.Sprintf("mse: %v", err)))
+		code = 1
+	}
+	log.Line("", fmt.Sprintf("finish exit %d after %s", code, time.Since(started).Round(time.Millisecond)))
+	if !log.Opened() && globalLogs != "" {
+		log.Open(globalLogs)
+	}
+	return code
+}
+
+func runID() string {
+	random := make([]byte, 3)
+	_, _ = rand.Read(random)
+	return hex.EncodeToString(random)
+}
+
+type logKey struct{}
+
+func withLog(ctx context.Context, log *logfile.File) context.Context {
+	return context.WithValue(ctx, logKey{}, log)
+}
+
+func openInstallationLog(ctx context.Context, state string) {
+	if log, ok := ctx.Value(logKey{}).(*logfile.File); ok {
+		log.Open(filepath.Join(state, "logs"))
+	}
 }

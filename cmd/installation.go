@@ -20,5 +20,6 @@ func (d Dependencies) installation(cmd *cobra.Command) (*installation.Installati
 	if err != nil {
 		return nil, err
 	}
+	openInstallationLog(cmd.Context(), loaded.State)
 	return loaded, loaded.CheckSchema(d.Build.Major())
 }
