@@ -28,22 +28,30 @@ func RewriteEnv(text string, updates []Update, quote bool) string {
 	if text == "" {
 		lines = nil
 	}
+	present := map[string]bool{}
 	for i, line := range lines {
-		key, _, found := assignment(line)
+		key, old, found := assignment(line)
 		value, updated := pending[key]
 		if !found || !updated {
 			continue
 		}
-		lines[i] = exportPrefix(line) + key + "=" + written(value, quote)
-		delete(pending, key)
+		lines[i] = exportPrefix(line) + key + "=" + written(value, quote) + inlineComment(old)
+		present[key] = true
 	}
 	for _, u := range updates {
-		if _, appended := pending[u.Key]; appended {
+		if !present[u.Key] {
 			lines = append(lines, u.Key+"="+written(u.Value, quote))
-			delete(pending, u.Key)
+			present[u.Key] = true
 		}
 	}
 	return strings.Join(lines, "\n") + "\n"
+}
+
+func inlineComment(value string) string {
+	if strings.HasPrefix(value, "'") || strings.HasPrefix(value, `"`) {
+		return ""
+	}
+	return trailingComment.FindString(value)
 }
 
 func assignment(line string) (key, value string, found bool) {
@@ -74,8 +82,11 @@ func unquoted(value string) string {
 }
 
 func written(value string, quote bool) string {
-	if quote && strings.ContainsAny(value, " \t#$\"'") {
+	switch {
+	case !quote || !strings.ContainsAny(value, " \t#\"'"):
+		return value
+	case strings.Contains(value, `"`):
 		return "'" + value + "'"
 	}
-	return value
+	return `"` + value + `"`
 }

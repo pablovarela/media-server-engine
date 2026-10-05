@@ -48,7 +48,7 @@ MEDIA_SERVER_HOST=media.example
 }
 
 func TestRewriteEnvQuotesPlainValuesSoTheyReadBackAsEntered(t *testing.T) {
-	for _, value := range []string{"a.example, b.example", "x#y", "$HOME", `say "hi"`, "plain"} {
+	for _, value := range []string{"a.example, b.example", "x#y", `say "hi"`, "plain"} {
 		t.Run(value, func(t *testing.T) {
 			rewritten := RewriteEnv("TZ=Europe/London\n", []Update{{"HOMEPAGE_ALLOWED_HOSTS", value}}, true)
 
@@ -64,4 +64,29 @@ func TestRewriteEnvLeavesSecretValuesUnquoted(t *testing.T) {
 
 func TestRewriteEnvOnAnEmptyFile(t *testing.T) {
 	assert.Equal(t, "TZ=UTC\n", RewriteEnv("", []Update{{"TZ", "UTC"}}, true))
+}
+
+func TestRewriteEnvWritesADollarAsWrittenSoItStillExpands(t *testing.T) {
+	rewritten := RewriteEnv("RESTIC_REPOSITORY=$HOME/backups\n", []Update{{"RESTIC_REPOSITORY", "$HOME/backups2"}}, true)
+
+	assert.Equal(t, "RESTIC_REPOSITORY=$HOME/backups2\n", rewritten)
+	assert.Equal(t, "/home/me/backups2", installation.ParseEnv(rewritten, func(string) string { return "/home/me" })["RESTIC_REPOSITORY"])
+}
+
+func TestRewriteEnvQuotesASpacedValueWithADollarSoItStillExpands(t *testing.T) {
+	rewritten := RewriteEnv("", []Update{{"RESTIC_REPOSITORY", "$HOME/my backups"}}, true)
+
+	assert.Equal(t, "RESTIC_REPOSITORY=\"$HOME/my backups\"\n", rewritten)
+	assert.Equal(t, "/home/me/my backups", installation.ParseEnv(rewritten, func(string) string { return "/home/me" })["RESTIC_REPOSITORY"])
+}
+
+func TestRewriteEnvChangesEveryLineOfARepeatedKey(t *testing.T) {
+	rewritten := RewriteEnv("TZ=Europe/London\nA=1\nTZ=Europe/Paris\n", []Update{{"TZ", "Europe/Madrid"}}, true)
+
+	assert.Equal(t, "TZ=Europe/Madrid\nA=1\nTZ=Europe/Madrid\n", rewritten)
+	assert.Equal(t, "Europe/Madrid", ReadEnv(rewritten)["TZ"])
+}
+
+func TestRewriteEnvKeepsAnInlineComment(t *testing.T) {
+	assert.Equal(t, "TZ=Europe/Madrid  # home\n", RewriteEnv("TZ=Europe/London  # home\n", []Update{{"TZ", "Europe/Madrid"}}, true))
 }
