@@ -47,7 +47,7 @@ jobs:
           make go-test GO_TEST_FLAGS="--junitfile reports/go.xml"
           go=$?
           if [ -f coverage.out ]; then
-            go tool cover -func=coverage.out | scripts/go-coverage-report.sh > reports/go-coverage.md
+            scripts/go-coverage-report.sh coverage.out > reports/go-coverage.md
             cat reports/go-coverage.md >> "$GITHUB_STEP_SUMMARY"
           fi
           echo "status=$((scripts || python || go))" >> "$GITHUB_OUTPUT"

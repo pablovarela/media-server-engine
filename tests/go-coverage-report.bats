@@ -1,28 +1,41 @@
 REPO="$BATS_TEST_DIRNAME/.."
 
-@test "lists the functions that are not fully covered, with the total" {
-  run bash -c "printf '%b' 'github.com/pablovarela/media-server-engine/cmd/root.go:25:\t\t\tExecute\t\t\t0.0%\ngithub.com/pablovarela/media-server-engine/cmd/root.go:31:\t\t\trun\t\t\t100.0%\ngithub.com/pablovarela/media-server-engine/internal/selfupdate/selfupdate.go:120:\treplace\t\t\t87.5%\ntotal:\t\t\t\t\t\t(statements)\t\t94.7%\n' | '$REPO/scripts/go-coverage-report.sh'"
+M=github.com/pablovarela/media-server-engine
+
+@test "lists the packages that are not fully covered, lowest first, with the total" {
+  printf '%s\n' "mode: set" \
+    "$M/cmd/root.go:10.2,12.3 3 0" \
+    "$M/cmd/root.go:13.2,14.3 1 1" \
+    "$M/internal/process/run.go:5.1,6.2 2 1" \
+    "$M/internal/secrets/sops.go:1.1,2.2 4 1" \
+    "$M/internal/secrets/sops.go:3.1,4.2 1 0" \
+    "$M/internal/secrets/sops.go:3.1,4.2 1 1" \
+    "$M/internal/secrets/sops.go:5.1,6.2 2 0" > "$BATS_TEST_TMPDIR/coverage.out"
+
+  run "$REPO/scripts/go-coverage-report.sh" "$BATS_TEST_TMPDIR/coverage.out"
 
   [ "$status" -eq 0 ]
   [ "$output" = "### Go test coverage
 
-Total: 94.7% of statements.
+Total: 61.5% of statements.
 
-Functions not fully covered:
+Packages not fully covered:
 
-| Function | Where | Coverage |
+| Package | Coverage | Not covered |
 |---|---|---|
-| \`Execute\` | cmd/root.go:25 | 0.0% |
-| \`replace\` | internal/selfupdate/selfupdate.go:120 | 87.5% |" ]
+| cmd | 25.0% | 3 of 4 |
+| internal/secrets | 71.4% | 2 of 7 |" ]
 }
 
-@test "says so when every function is covered" {
-  run bash -c "printf '%b' 'github.com/pablovarela/media-server-engine/cmd/root.go:31:\t\t\trun\t\t\t100.0%\ntotal:\t\t\t\t\t\t(statements)\t\t100.0%\n' | '$REPO/scripts/go-coverage-report.sh'"
+@test "says so when every package is covered" {
+  printf '%s\n' "mode: set" "$M/cmd/root.go:13.2,14.3 1 1" > "$BATS_TEST_TMPDIR/coverage.out"
+
+  run "$REPO/scripts/go-coverage-report.sh" "$BATS_TEST_TMPDIR/coverage.out"
 
   [ "$status" -eq 0 ]
   [ "$output" = "### Go test coverage
 
 Total: 100.0% of statements.
 
-Every function is fully covered." ]
+Every package is fully covered." ]
 }
