@@ -108,9 +108,8 @@ func TestBackupCommandFlows(t *testing.T) {
 			_, _ = io.WriteString(c.Stdout, `[{"keep":[{"short_id":"a"}],"remove":null}]`)
 			return 0, nil
 		})
-		r.EXPECT().Run(mock.Anything, resticCall("prune", "--retry-lock", "2h")).Return(0, nil)
 	}
-	backedUp := "Stopping the stack... done.\nBacking up volumes/... snapshot 40c4a929: 0 new, 0 changed, 0 unchanged files; 0 B added (0 B stored).\nStarting the services again... done.\nRemoving old snapshots... kept 1, removed 0; pruned.\nBackup done.\n"
+	backedUp := "Stopping the stack... done.\nBacking up volumes/... snapshot 40c4a929: 0 new, 0 changed, 0 unchanged files; 0 B added (0 B stored).\nStarting the services again... done.\nRemoving old snapshots... kept 1, removed 0.\nBackup done.\n"
 	tests := map[string]struct {
 		Given Given
 		When  When
@@ -238,7 +237,6 @@ func TestBackupLogsResticButShowsSteps(t *testing.T) {
 			_, _ = io.WriteString(c.Stdout, `[]`)
 			return 0, nil
 		})
-		runner.EXPECT().Run(mock.Anything, resticCall("prune", "--retry-lock", "2h")).Return(0, nil)
 		var pings []string
 		root := NewRootCommand(backupDependencies(t, home, tmp, runner, composer, false, &pings))
 		var stdout bytes.Buffer

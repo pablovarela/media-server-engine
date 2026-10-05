@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -49,10 +50,9 @@ func TestBackup(t *testing.T) {
 				m.repository.EXPECT().Backup(mock.Anything, backupOptions(b)).Return(restic.BackupSummary{SnapshotID: "40c4a929f0d1e2b3"}, nil)
 				m.stack.EXPECT().Start(mock.Anything, []string{"jellyfin", "sonarr"}).Return("started", nil)
 				m.repository.EXPECT().Forget(mock.Anything, "gorgon", mock.Anything).Return(restic.ForgetSummary{Kept: 5}, nil)
-				m.repository.EXPECT().Prune(mock.Anything, mock.Anything).Return(nil)
 				m.pinger.EXPECT().Ping(mock.Anything, "backup", "").Return()
 			}},
-			Then: Then{out: "Stopping the stack... stopped.\nBacking up volumes/... snapshot 40c4a929: 0 new, 0 changed, 0 unchanged files; 0 B added (0 B stored).\nStarting the services again... started.\nRemoving old snapshots... kept 5, removed 0; pruned.\nBackup done.\n", marked: true},
+			Then: Then{out: "Stopping the stack... stopped.\nBacking up volumes/... snapshot 40c4a929: 0 new, 0 changed, 0 unchanged files; 0 B added (0 B stored).\nStarting the services again... started.\nRemoving old snapshots... kept 5, removed 0.\nBackup done.\n", marked: true},
 		},
 		"nothing was running": {
 			Given: Given{expect: func(b *Backups, m mocks, _ context.CancelFunc) {
@@ -63,10 +63,9 @@ func TestBackup(t *testing.T) {
 				m.stack.EXPECT().Stop(mock.Anything).Return("stopped", nil)
 				m.repository.EXPECT().Backup(mock.Anything, backupOptions(b)).Return(restic.BackupSummary{SnapshotID: "40c4a929f0d1e2b3"}, nil)
 				m.repository.EXPECT().Forget(mock.Anything, "gorgon", mock.Anything).Return(restic.ForgetSummary{Kept: 5}, nil)
-				m.repository.EXPECT().Prune(mock.Anything, mock.Anything).Return(nil)
 				m.pinger.EXPECT().Ping(mock.Anything, "backup", "").Return()
 			}},
-			Then: Then{out: "Stopping the stack... stopped.\nBacking up volumes/... snapshot 40c4a929: 0 new, 0 changed, 0 unchanged files; 0 B added (0 B stored).\nRemoving old snapshots... kept 5, removed 0; pruned.\nBackup done.\n", marked: true},
+			Then: Then{out: "Stopping the stack... stopped.\nBacking up volumes/... snapshot 40c4a929: 0 new, 0 changed, 0 unchanged files; 0 B added (0 B stored).\nRemoving old snapshots... kept 5, removed 0.\nBackup done.\n", marked: true},
 		},
 		"another machine is the main": {
 			Given: Given{marker: true, expect: func(b *Backups, m mocks, _ context.CancelFunc) {
@@ -221,10 +220,9 @@ func TestClaim(t *testing.T) {
 		m.stack.EXPECT().Stop(mock.Anything).Return("stopped", nil)
 		m.repository.EXPECT().Backup(mock.Anything, mock.Anything).Return(restic.BackupSummary{SnapshotID: "40c4a929f0d1e2b3"}, nil)
 		m.repository.EXPECT().Forget(mock.Anything, "gorgon", mock.Anything).Return(restic.ForgetSummary{Kept: 5}, nil)
-		m.repository.EXPECT().Prune(mock.Anything, mock.Anything).Return(nil)
 		m.pinger.EXPECT().Ping(mock.Anything, "backup", "").Return()
 	}
-	claimed := "Stopping the stack... stopped.\nBacking up volumes/... snapshot 40c4a929: 0 new, 0 changed, 0 unchanged files; 0 B added (0 B stored).\nRemoving old snapshots... kept 5, removed 0; pruned.\nBackup done.\nThis machine is now gorgon's main; backups from any other machine are refused.\n"
+	claimed := "Stopping the stack... stopped.\nBacking up volumes/... snapshot 40c4a929: 0 new, 0 changed, 0 unchanged files; 0 B added (0 B stored).\nRemoving old snapshots... kept 5, removed 0.\nBackup done.\nThis machine is now gorgon's main; backups from any other machine are refused.\n"
 	type Given struct {
 		yes         bool
 		answer      string
@@ -351,7 +349,6 @@ func TestBackupRunsResticInTheResolvedDataDirectory(t *testing.T) {
 	m.stack.EXPECT().Stop(mock.Anything).Return("stopped", nil)
 	m.repository.EXPECT().Backup(mock.Anything, mock.MatchedBy(func(o restic.BackupOptions) bool { return o.Dir == resolved })).Return(restic.BackupSummary{SnapshotID: "40c4a929f0d1e2b3"}, nil)
 	m.repository.EXPECT().Forget(mock.Anything, "gorgon", mock.Anything).Return(restic.ForgetSummary{Kept: 5}, nil)
-	m.repository.EXPECT().Prune(mock.Anything, mock.Anything).Return(nil)
 	m.pinger.EXPECT().Ping(mock.Anything, "backup", "").Return()
 
 	require.NoError(t, b.Backup(context.Background()))
@@ -379,8 +376,25 @@ func TestBackupFailsWhenItCannotMarkTheMain(t *testing.T) {
 	m.stack.EXPECT().Stop(mock.Anything).Return("stopped", nil)
 	m.repository.EXPECT().Backup(mock.Anything, mock.Anything).Return(restic.BackupSummary{SnapshotID: "40c4a929f0d1e2b3"}, nil)
 	m.repository.EXPECT().Forget(mock.Anything, "gorgon", mock.Anything).Return(restic.ForgetSummary{Kept: 5}, nil)
-	m.repository.EXPECT().Prune(mock.Anything, mock.Anything).Return(nil)
 	m.pinger.EXPECT().Ping(mock.Anything, "backup", "/fail").Return()
 
 	assert.ErrorContains(t, b.Backup(context.Background()), ".backup-main")
+}
+
+func TestOldSnapshotsArePrunedOnlyWhenSomeWereRemoved(t *testing.T) {
+	b, m, out, _ := fixture(t)
+	removed := time.Date(2026, 10, 5, 4, 31, 0, 0, time.UTC)
+	m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+	m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(nil, nil)
+	m.stack.EXPECT().RunningServices(mock.Anything).Return(nil, nil)
+	m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
+	m.stack.EXPECT().Stop(mock.Anything).Return("stopped", nil)
+	m.repository.EXPECT().Backup(mock.Anything, mock.Anything).Return(restic.BackupSummary{SnapshotID: "40c4a929f0d1e2b3"}, nil)
+	m.repository.EXPECT().Forget(mock.Anything, "gorgon", mock.Anything).Return(restic.ForgetSummary{Kept: 5, Removed: []time.Time{removed}}, nil)
+	m.repository.EXPECT().Prune(mock.Anything, mock.Anything).Return(nil)
+	m.pinger.EXPECT().Ping(mock.Anything, "backup", "").Return()
+
+	require.NoError(t, b.Backup(context.Background()))
+
+	assert.Contains(t, out.String(), "Removing old snapshots... kept 5, removed 1 (2026-10-05 04:31); pruned.\n")
 }

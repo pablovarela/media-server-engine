@@ -182,6 +182,10 @@ func (b *Backups) removeOldSnapshots(ctx context.Context, lock *heldLock) error 
 	if err != nil {
 		return step.Fail(err)
 	}
+	if len(summary.Removed) == 0 {
+		step.Done(summary.String())
+		return nil
+	}
 	if err := b.Repository.Prune(ctx, lock.files()); err != nil {
 		return step.Fail(err)
 	}

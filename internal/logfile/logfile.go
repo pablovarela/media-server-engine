@@ -76,12 +76,18 @@ func (f *File) Open(dir string) {
 		return
 	}
 	f.file = file
-	for _, line := range f.buffered {
+	f.flush()
+}
+
+func (f *File) flush() {
+	buffered := f.buffered
+	f.buffered = nil
+	for _, line := range buffered {
 		if warning := f.write(line); warning != "" {
 			_, _ = fmt.Fprintln(f.options.Warn, warning)
+			return
 		}
 	}
-	f.buffered = nil
 }
 
 func (f *File) Opened() bool {

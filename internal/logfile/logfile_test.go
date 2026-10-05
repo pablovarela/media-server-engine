@@ -104,3 +104,18 @@ func TestAWriteFailureIsReturnedOnce(t *testing.T) {
 	assert.Contains(t, first, "; carrying on without it")
 	assert.Empty(t, second)
 }
+
+func TestAFailureWhileFlushingStopsTheFlush(t *testing.T) {
+	var warn bytes.Buffer
+	f := New(Options{Limit: 1 << 20, Keep: 5, RunID: "a1b2c3", Now: noon, Warn: &warn})
+	f.Line("", "start backup")
+	f.Line("", "Stopping the stack...")
+	closed, err := os.Create(filepath.Join(t.TempDir(), "mse.log"))
+	require.NoError(t, err)
+	require.NoError(t, closed.Close())
+	f.file = closed
+
+	assert.NotPanics(t, f.flush)
+
+	assert.Equal(t, 1, strings.Count(warn.String(), "could not write the log "))
+}
