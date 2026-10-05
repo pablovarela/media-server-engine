@@ -1,27 +1,47 @@
 package paint
 
 import (
+	"os"
 	"sync"
 
 	"github.com/fatih/color"
+	"golang.org/x/term"
 )
 
-var enabled bool
+type Painter struct {
+	enabled bool
+}
 
-func Enable(on bool) { enabled = on }
+var (
+	Stdout = &Painter{}
+	Stderr = &Painter{}
+)
 
-func Detect() { Enable(!color.NoColor) }
+func Enable(on bool) {
+	Stdout.enabled = on
+	Stderr.enabled = on
+}
 
-func Success(text string) string { return paint(text, color.FgGreen) }
+func Detect() {
+	detect(os.Getenv, term.IsTerminal(int(os.Stdout.Fd())), term.IsTerminal(int(os.Stderr.Fd())))
+}
 
-func Warning(text string) string { return paint(text, color.FgYellow) }
+func detect(getenv func(string) string, stdoutTTY, stderrTTY bool) {
+	allowed := getenv("NO_COLOR") == "" && getenv("TERM") != "dumb"
+	Stdout.enabled = allowed && stdoutTTY
+	Stderr.enabled = allowed && stderrTTY
+}
 
-func Failure(text string) string { return paint(text, color.FgRed) }
+func (p *Painter) Success(text string) string { return p.paint(text, color.FgGreen) }
 
-func Bold(text string) string { return paint(text, color.Bold) }
+func (p *Painter) Warning(text string) string { return p.paint(text, color.FgYellow) }
 
-func paint(text string, attribute color.Attribute) string {
-	if !enabled || text == "" {
+func (p *Painter) Failure(text string) string { return p.paint(text, color.FgRed) }
+
+func (p *Painter) Bold(text string) string { return p.paint(text, color.Bold) }
+
+func (p *Painter) paint(text string, attribute color.Attribute) string {
+	if !p.enabled || text == "" {
 		return text
 	}
 	c := color.New(attribute)
@@ -47,5 +67,5 @@ func (s *Services) Paint(name string) string {
 		attribute = servicePalette[len(s.assigned)%len(servicePalette)]
 		s.assigned[name] = attribute
 	}
-	return paint(name, attribute)
+	return Stdout.paint(name, attribute)
 }

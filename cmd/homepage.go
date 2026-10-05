@@ -38,7 +38,7 @@ func newHomepageCommand(deps Dependencies) *cobra.Command {
 			if err := deps.applyPage(cmd.Context(), o); err != nil {
 				return err
 			}
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), paint.Success("The landing page is redrawn; an open page reloads itself in a few seconds."))
+			_, err = fmt.Fprintln(cmd.OutOrStdout(), paint.Stdout.Success("The landing page is redrawn; an open page reloads itself in a few seconds."))
 			return err
 		},
 	}

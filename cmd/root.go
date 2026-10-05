@@ -99,7 +99,7 @@ func interruptible() (context.Context, context.CancelFunc) {
 func run(ctx context.Context, root *cobra.Command, args []string) int {
 	root.SetArgs(args)
 	if err := root.ExecuteContext(ctx); err != nil {
-		_, _ = fmt.Fprintln(root.ErrOrStderr(), paint.Failure(fmt.Sprintf("mse: %v", err)))
+		_, _ = fmt.Fprintln(root.ErrOrStderr(), paint.Stderr.Failure(fmt.Sprintf("mse: %v", err)))
 		return 1
 	}
 	return 0

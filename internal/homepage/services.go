@@ -25,7 +25,7 @@ func renderServices(ctx context.Context, text string, slugFor func(job string) s
 	case healthcheckMarker.MatchString(text):
 		existing, err := checks.Slugs(ctx, key)
 		if err != nil {
-			_, _ = fmt.Fprintln(warn, paint.Warning(fmt.Sprintf("could not read the checks from healthchecks (%v); the page is drawn without them", err)))
+			_, _ = fmt.Fprintln(warn, paint.Stderr.Warning(fmt.Sprintf("could not read the checks from healthchecks (%v); the page is drawn without them", err)))
 			existing = map[string]bool{}
 		}
 		groups.Content = withChecks(groups.Content, existing, slugFor)

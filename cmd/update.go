@@ -45,22 +45,22 @@ func (p printedProgress) Checking(current string, force bool) {
 	if force {
 		checking = "a newer release, including ones that need config changes"
 	}
-	_, _ = fmt.Fprintf(p.w, "Current version: %s\nChecking for %s...\n", paint.Bold(current), checking)
+	_, _ = fmt.Fprintf(p.w, "Current version: %s\nChecking for %s...\n", paint.Stdout.Bold(current), checking)
 }
 
 func (p printedProgress) Updating(target string) {
-	_, _ = fmt.Fprintf(p.w, "Updating to %s...\n", paint.Bold(target))
+	_, _ = fmt.Fprintf(p.w, "Updating to %s...\n", paint.Stdout.Bold(target))
 }
 
 func describe(result selfupdate.Result) string {
 	var message strings.Builder
 	if result.To != "" {
-		message.WriteString(paint.Success(fmt.Sprintf("Successfully updated from %s to %s", result.From, result.To)) + "\n")
+		message.WriteString(paint.Stdout.Success(fmt.Sprintf("Successfully updated from %s to %s", result.From, result.To)) + "\n")
 	} else {
-		message.WriteString(paint.Success(fmt.Sprintf("mse is up to date (%s)", result.From)) + "\n")
+		message.WriteString(paint.Stdout.Success(fmt.Sprintf("mse is up to date (%s)", result.From)) + "\n")
 	}
 	if result.NewerMajor != nil {
-		message.WriteString(paint.Warning(fmt.Sprintf("%s is available and needs config changes", paint.Bold(result.NewerMajor.Tag))))
+		message.WriteString(paint.Stdout.Warning(fmt.Sprintf("%s is available and needs config changes", paint.Stdout.Bold(result.NewerMajor.Tag))))
 		fmt.Fprintf(&message, " (release notes: %s)\nInstall it with: mse update --force\n", result.NewerMajor.URL)
 	}
 	return message.String()

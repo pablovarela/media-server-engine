@@ -86,7 +86,7 @@ func (d Dependencies) drawPageFor(cmd *cobra.Command, i *installation.Installati
 	case draw == drawingAlways:
 		return nil, err
 	}
-	_, _ = fmt.Fprintln(cmd.ErrOrStderr(), paint.Warning(fmt.Sprintf("could not draw the landing page (%v); it keeps its previous files", err)))
+	_, _ = fmt.Fprintln(cmd.ErrOrStderr(), paint.Stderr.Warning(fmt.Sprintf("could not draw the landing page (%v); it keeps its previous files", err)))
 	return nil, nil
 }
 
@@ -209,9 +209,9 @@ func writeRow(out *strings.Builder, row []string, widths []int, paintStatuses bo
 func paintStatus(status string) string {
 	switch status {
 	case "running", "healthy":
-		return paint.Success(status)
+		return paint.Stdout.Success(status)
 	case "exited", "dead", "unhealthy":
-		return paint.Failure(status)
+		return paint.Stdout.Failure(status)
 	}
-	return paint.Warning(status)
+	return paint.Stdout.Warning(status)
 }

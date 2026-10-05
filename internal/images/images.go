@@ -120,11 +120,11 @@ func Prune(ctx context.Context, c Client, i *installation.Installation, out io.W
 	for _, reference := range Outdated(pinned, listed.Items) {
 		if _, err := c.ImageRemove(ctx, reference, client.ImageRemoveOptions{}); err != nil {
 			kept++
-			_, _ = fmt.Fprintln(out, paint.Warning(fmt.Sprintf("kept %s (still in use)", reference)))
+			_, _ = fmt.Fprintln(out, paint.Stdout.Warning(fmt.Sprintf("kept %s (still in use)", reference)))
 			continue
 		}
 		removed++
-		_, _ = fmt.Fprintln(out, paint.Success("removed "+reference))
+		_, _ = fmt.Fprintln(out, paint.Stdout.Success("removed "+reference))
 	}
 	_, _ = fmt.Fprintln(out, summary(removed, kept))
 	return nil

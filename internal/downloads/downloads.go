@@ -53,11 +53,11 @@ func Clean(ctx context.Context, client *http.Client, i *installation.Installatio
 		_, _ = fmt.Fprintf(out, "%s: %s\n", app.name, checked(total, len(downloads)))
 		for _, r := range downloads {
 			if err := q.remove(ctx, r.ID); err != nil {
-				_, _ = fmt.Fprintln(errOut, paint.Failure(fmt.Sprintf("%s: could not remove %s: %v", app.name, r.Title, err)))
+				_, _ = fmt.Fprintln(errOut, paint.Stderr.Failure(fmt.Sprintf("%s: could not remove %s: %v", app.name, r.Title, err)))
 				allRemoved = false
 				continue
 			}
-			_, _ = fmt.Fprintln(out, paint.Success(fmt.Sprintf("%s: removed and blocklisted %s", app.name, r.Title)))
+			_, _ = fmt.Fprintln(out, paint.Stdout.Success(fmt.Sprintf("%s: removed and blocklisted %s", app.name, r.Title)))
 		}
 	}
 	if !allRemoved {
