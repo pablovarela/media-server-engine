@@ -5,7 +5,7 @@ There are two ways to change the config, and they can be mixed:
 - `make configure`, run from the installation (`cd ~/<name>`). It shows menus when whiptail is installed and asks plain questions otherwise. It covers the settings and secrets below, and checks them: the time zone must exist, a backup folder must be writable and Backblaze B2 must accept the key, bucket and password.
 - Editing the files in this repository by hand. Every setting is a file here, so nothing needs the configuration tool.
 
-Either way, a change reaches the apps at the next `make update`.
+Either way, a change reaches the apps at the next `make update`, or `mse apply`.
 
 ## Plain files
 
