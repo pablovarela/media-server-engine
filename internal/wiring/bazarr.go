@@ -53,13 +53,19 @@ func Bazarr(ctx context.Context, env Env) error {
 	if err != nil {
 		return err
 	}
+	keys := map[string]string{}
+	for _, arr := range bazarrArrs {
+		if keys[arr.kind], err = env.Secret(arr.key); err != nil {
+			return err
+		}
+	}
 	api := &API{Env: env, Base: env.URL("BAZARR_URL", "http://localhost:6767"), Headers: map[string]string{"X-API-KEY": key}}
 	var settings map[string]any
 	if err := api.Get(ctx, "/api/system/settings", &settings); err != nil {
 		return err
 	}
 	form := bazarrForm{values: url.Values{}}
-	connectArrs(env, section(settings["general"]), settings, form)
+	connectArrs(env, keys, section(settings["general"]), settings, form)
 	declared, err := env.Declared("apps.yml")
 	if err != nil {
 		return err
@@ -94,7 +100,7 @@ func declaredLanguages(ctx context.Context, env Env, api *API, languages []any, 
 	return nil
 }
 
-func connectArrs(env Env, general, settings map[string]any, form bazarrForm) {
+func connectArrs(env Env, keys map[string]string, general, settings map[string]any, form bazarrForm) {
 	for _, arr := range bazarrArrs {
 		current := section(settings[arr.kind])
 		for _, f := range []setting{{"ip", arr.ip}, {portField, arr.port}, {"base_url", ""}} {
@@ -103,7 +109,7 @@ func connectArrs(env Env, general, settings map[string]any, form bazarrForm) {
 				form.set(fmt.Sprintf("settings-%s-%s", arr.kind, f.name), show(f.value))
 			}
 		}
-		if key := env.Secrets[arr.key]; current["apikey"] != key {
+		if key := keys[arr.kind]; current["apikey"] != key {
 			env.Change(bazarrApp, fmt.Sprintf("set %s api key", arr.kind))
 			form.set(fmt.Sprintf("settings-%s-apikey", arr.kind), key)
 		}

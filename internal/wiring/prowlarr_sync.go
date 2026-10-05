@@ -18,7 +18,10 @@ func ProwlarrSync(ctx context.Context, env Env) error {
 		return err
 	}
 	applications := entries(declared["applications"])
-	api := prowlarrAPI(env)
+	api, err := prowlarrAPI(env)
+	if err != nil {
+		return err
+	}
 	wanted, err := wantedIndexers(ctx, api, applications)
 	if err != nil {
 		return err
@@ -95,7 +98,11 @@ func shortOfIndexers(ctx context.Context, env Env, applications []map[string]any
 
 func indexersIn(ctx context.Context, env Env, application map[string]any) (int, error) {
 	name := text(application[nameKey])
-	api := &API{Env: env, Base: addressFromThisMachine(env, name, text(application["url"])), Headers: map[string]string{apiKeyHeader: env.Secrets[text(application["api_key"])]}}
+	key, err := env.Secret(text(application["api_key"]))
+	if err != nil {
+		return 0, err
+	}
+	api := &API{Env: env, Base: addressFromThisMachine(env, name, text(application["url"])), Headers: map[string]string{apiKeyHeader: key}}
 	var indexers []map[string]any
 	if err := api.Get(ctx, "/api/v3/indexer", &indexers); err != nil {
 		return 0, err

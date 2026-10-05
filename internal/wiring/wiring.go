@@ -37,6 +37,20 @@ func (e Env) URL(variable, fallback string) string {
 	return fallback
 }
 
+func (e Env) Secret(name string) (string, error) {
+	if value := e.Secrets[name]; value != "" {
+		return value, nil
+	}
+	return "", Error{Message: name + " is not in the app secrets"}
+}
+
+func (e Env) Setting(name string) (string, error) {
+	if value := e.Settings[name]; value != "" {
+		return value, nil
+	}
+	return "", Error{Message: name + " is not set in installation.env"}
+}
+
 func (e Env) Declared(name string) (map[string]any, error) {
 	content, err := os.ReadFile(filepath.Join(e.Config, name)) //nolint:gosec // the config's own declarations
 	if err != nil {
