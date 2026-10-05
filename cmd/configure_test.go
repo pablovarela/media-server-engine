@@ -284,7 +284,8 @@ func TestConfigureKeepsTheCommitWhenThePushFails(t *testing.T) {
 		"Writing installation.env... done.\n"+
 		"Committing the config... a1b2c3d \"Configure gorgon: General\".\n"+
 		"Pushing to github.com/pablovarela/media-server-config-gorgon... failed.\n"+
-		"The change is committed here but not pushed; push it with: git -C "+f.config+" push\n"+notApplied, stdout)
+		"The change is committed here but not pushed: git push --quiet failed (exit 1): ! [rejected] main -> main (fetch first)\n"+
+		"Push it with: git -C "+f.config+" push\n"+notApplied, stdout)
 	assert.Equal(t, "mse: the config is committed but not pushed: git push --quiet failed (exit 1): ! [rejected] main -> main (fetch first)\n", stderr)
 }
 

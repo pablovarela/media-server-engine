@@ -145,7 +145,8 @@ func push(ctx context.Context, r *report.Reporter, repository gitconfig.Reposito
 	step := r.Step("Pushing to " + gitconfig.DisplayRemote(url))
 	if err := repository.Push(ctx); err != nil {
 		_ = step.FailWithoutTail(err)
-		r.Say("The change is committed here but not pushed; push it with: git -C " + config + " push")
+		r.Say("The change is committed here but not pushed: " + err.Error())
+		r.Say("Push it with: git -C " + config + " push")
 		r.Say(strings.TrimSuffix(notAppliedYet, "\n"))
 		return fmt.Errorf("the config is committed but not pushed: %w", err)
 	}
