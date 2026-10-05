@@ -53,7 +53,7 @@ From then on, run make from the installation, `cd ~/<name>` (its Makefile passes
 
 ## Installing mse
 
-`mse` is the engine's Go binary. It prints its version (`mse version`), updates itself (`mse update`), runs an installation's containers (`mse stack`, `mse monitoring`), draws its landing page (`mse homepage`), prints its addresses and logins (`mse urls`, `mse logins`), and cleans up old images and executable downloads (`mse prune-stack-images`, `mse remove-executable-downloads`). The Makefile runs the Python engine for everything else. It is built for Linux and macOS on amd64 and arm64, and installed from a GitHub release. The repository is private, so installing needs a token that can read it. Where gh is logged in:
+`mse` is the engine's Go binary. It prints its version (`mse version`), updates itself (`mse update`), runs an installation's containers (`mse stack`, `mse monitoring`), draws its landing page (`mse homepage`), prints its addresses and logins (`mse urls`, `mse logins`), cleans up old images and executable downloads (`mse prune-stack-images`, `mse remove-executable-downloads`), and backs up and restores it (`mse backup`, `mse verify-backup`, `mse restore`, `mse backup-role`, `mse claim-backup-main`, `mse unlock-backup`). The Makefile runs the Python engine for everything else. It is built for Linux and macOS on amd64 and arm64, and installed from a GitHub release. The repository is private, so installing needs a token that can read it. Where gh is logged in:
 
     curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
       https://raw.githubusercontent.com/pablovarela/media-server-engine/main/install.sh | sh
@@ -75,6 +75,8 @@ From a clone, `make go-build` builds `dist/mse` for the machine it runs on.
 When the config pins a `homepage` image, `mse stack up` and `mse stack restart` draw the landing page into the state directory before starting the containers, from the config's `homepage/` files over the engine's default page, then reload Homepage so it shows it. A page that cannot be drawn is reported and the containers start anyway. `mse homepage` redraws the page on its own.
 
 `mse stack up --wait` returns once every container is running, and healthy when it has a healthcheck (`--wait-timeout`, 5 minutes by default). `mse stack logs -f [service...]` follows the logs, and `--tail N` limits them to the last lines. On a terminal `mse` colours its output; `NO_COLOR` turns that off.
+
+`mse backup` and `mse verify-backup` run `restic`, which must be on `PATH`, with the repository from the config's `secrets/backup.sops.env`. Only the installation's main backs up: the machine that made the latest snapshot (`mse backup-role` says which; `mse claim-backup-main` takes over). They report to healthchecks.io themselves when the config has a ping key, so a run by hand counts like a timer run.
 
 `mse stack` and `mse monitoring` mount the decrypted secrets and the engine's files from the state directory, where the Makefile mounts them from the engine checkout. `mse stack up` therefore recreates containers the Makefile started, and the other way round: manage an installation's containers with one of them.
 
