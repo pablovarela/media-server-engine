@@ -107,12 +107,37 @@ func withChecks(items []*yaml.Node, existing map[string]bool, slugFor func(strin
 			}
 			value.Content = found
 		}
-		if ok && value.Kind == yaml.MappingNode && !filledWithChecks(value, existing, slugFor) {
+		if ok && value.Kind == yaml.MappingNode && !tileWithChecks(value, existing, slugFor) {
 			continue
 		}
 		kept = append(kept, item)
 	}
 	return kept
+}
+
+func tileWithChecks(tile *yaml.Node, existing map[string]bool, slugFor func(string) string) bool {
+	if widgets := child(tile, "widgets"); widgets != nil && widgets.Kind == yaml.SequenceNode {
+		var kept []*yaml.Node
+		for _, widget := range widgets.Content {
+			if filledWithChecks(widget, existing, slugFor) {
+				kept = append(kept, widget)
+			}
+		}
+		if len(kept) == 0 && len(widgets.Content) > 0 {
+			return false
+		}
+		widgets.Content = kept
+	}
+	return filledWithChecks(tile, existing, slugFor)
+}
+
+func child(mapping *yaml.Node, key string) *yaml.Node {
+	for n := 0; n+1 < len(mapping.Content); n += 2 {
+		if mapping.Content[n].Value == key {
+			return mapping.Content[n+1]
+		}
+	}
+	return nil
 }
 
 func filledWithChecks(tile *yaml.Node, existing map[string]bool, slugFor func(string) string) bool {

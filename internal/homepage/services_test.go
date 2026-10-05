@@ -143,8 +143,14 @@ func TestTheHealthchecksTileInTheStatusGroup(t *testing.T) {
 				"          - type: customapi\n            url: https://healthchecks.io/api/v3/checks/?slug=gorgon-update\n" +
 				"    - VPN:\n        href: http://gorgon.local:8000\n"},
 		},
-		"a missing check drops the tile and keeps the group": {
+		"a missing check drops only its row": {
 			Given: Given{key: "k", checks: checksAnswer{slugs: map[string]bool{"gorgon-backup": true}}},
+			Then: struct{ yaml string }{"- Status:\n    - Healthchecks:\n        icon: mdi-heart-pulse-#e5484d\n        href: https://healthchecks.io/\n        widgets:\n" +
+				"          - type: customapi\n            url: https://healthchecks.io/api/v3/checks/?slug=gorgon-backup\n" +
+				"    - VPN:\n        href: http://gorgon.local:8000\n"},
+		},
+		"no check at all drops the tile and keeps the group": {
+			Given: Given{key: "k", checks: checksAnswer{slugs: map[string]bool{}}},
 			Then:  struct{ yaml string }{vpnOnly},
 		},
 		"no key drops the tile and keeps the group": {
