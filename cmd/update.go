@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/mod/semver"
 
+	"github.com/pablovarela/media-server-engine/internal/paint"
 	"github.com/pablovarela/media-server-engine/internal/selfupdate"
 	"github.com/pablovarela/media-server-engine/internal/version"
 )
@@ -41,26 +41,27 @@ type printedProgress struct {
 }
 
 func (p printedProgress) Checking(current string, force bool) {
-	latest := "the latest " + semver.Major(current) + " release"
+	checking := "a newer compatible release"
 	if force {
-		latest = "the latest release"
+		checking = "a newer release, including ones that need config changes"
 	}
-	_, _ = fmt.Fprintf(p.w, "Current version: %s\nChecking for updates to %s...\n", current, latest)
+	_, _ = fmt.Fprintf(p.w, "Current version: %s\nChecking for %s...\n", paint.Stdout.Bold(current), checking)
 }
 
 func (p printedProgress) Updating(target string) {
-	_, _ = fmt.Fprintf(p.w, "Updating to %s...\n", target)
+	_, _ = fmt.Fprintf(p.w, "Updating to %s...\n", paint.Stdout.Bold(target))
 }
 
 func describe(result selfupdate.Result) string {
 	var message strings.Builder
 	if result.To != "" {
-		fmt.Fprintf(&message, "Successfully updated from %s to %s\n", result.From, result.To)
+		message.WriteString(paint.Stdout.Success(fmt.Sprintf("Successfully updated from %s to %s", result.From, result.To)) + "\n")
 	} else {
-		fmt.Fprintf(&message, "mse is up to date (%s)\n", result.From)
+		message.WriteString(paint.Stdout.Success(fmt.Sprintf("mse is up to date (%s)", result.From)) + "\n")
 	}
 	if result.NewerMajor != nil {
-		fmt.Fprintf(&message, "%s is available and may need config changes: mse update --force (release notes: %s)\n", result.NewerMajor.Tag, result.NewerMajor.URL)
+		message.WriteString(paint.Stdout.Warning(fmt.Sprintf("%s is available and needs config changes", paint.Stdout.Bold(result.NewerMajor.Tag))))
+		fmt.Fprintf(&message, " (release notes: %s)\nInstall it with: mse update --force\n", result.NewerMajor.URL)
 	}
 	return message.String()
 }

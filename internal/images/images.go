@@ -17,6 +17,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/paint"
 )
 
 var imageFiles = []string{"images.yml", "images.monitoring.yml", "compose.override.yml"}
@@ -109,16 +110,39 @@ func unpinnedReferences(summary image.Summary, repositories, pinned map[string]b
 }
 
 func Prune(ctx context.Context, c Client, i *installation.Installation, out io.Writer) error {
+	pinned := Pinned(i)
+	_, _ = fmt.Fprintf(out, "Checking local images against the %d pinned in the config...\n", len(pinned))
 	listed, err := c.ImageList(ctx, client.ImageListOptions{All: true})
 	if err != nil {
 		return err
 	}
-	for _, reference := range Outdated(Pinned(i), listed.Items) {
+	removed, kept := 0, 0
+	for _, reference := range Outdated(pinned, listed.Items) {
 		if _, err := c.ImageRemove(ctx, reference, client.ImageRemoveOptions{}); err != nil {
-			_, _ = fmt.Fprintf(out, "kept %s (still in use)\n", reference)
+			kept++
+			_, _ = fmt.Fprintln(out, paint.Stdout.Warning(fmt.Sprintf("kept %s (still in use)", reference)))
 			continue
 		}
-		_, _ = fmt.Fprintf(out, "removed %s\n", reference)
+		removed++
+		_, _ = fmt.Fprintln(out, paint.Stdout.Success("removed "+reference))
 	}
+	_, _ = fmt.Fprintln(out, summary(removed, kept))
 	return nil
+}
+
+func summary(removed, kept int) string {
+	switch {
+	case removed+kept == 0:
+		return "No outdated images."
+	case kept == 0:
+		return fmt.Sprintf("Removed %d outdated %s.", removed, images(removed))
+	}
+	return fmt.Sprintf("Removed %d outdated %s, kept %d still in use.", removed, images(removed), kept)
+}
+
+func images(n int) string {
+	if n == 1 {
+		return "image"
+	}
+	return "images"
 }

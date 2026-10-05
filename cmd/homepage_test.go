@@ -45,7 +45,9 @@ func TestReload(t *testing.T) {
 		"not running":        {Given: Given{containers: []compose.Container{{Name: "homepage", State: "exited"}}, changes: pageChanges{env: true}}},
 		"env changed recreates it": {
 			Given: Given{containers: running, changes: pageChanges{env: true, images: true}},
-			Then:  Then{expect: func(r *mockComposeRunner) { r.EXPECT().Up(mock.Anything, project, []string{"homepage"}).Return(nil) }},
+			Then: Then{expect: func(r *mockComposeRunner) {
+				r.EXPECT().Up(mock.Anything, project, []string{"homepage"}, compose.NoWait).Return(nil)
+			}},
 		},
 		"images changed restarts it": {
 			Given: Given{containers: running, changes: pageChanges{images: true}},
@@ -92,7 +94,7 @@ func TestHomepageCommand(t *testing.T) {
 			return project, nil
 		})
 	runner.EXPECT().Ps(mock.Anything, project).Return([]compose.Container{{Name: "homepage", State: "running"}}, nil)
-	runner.EXPECT().Up(mock.Anything, project, []string{"homepage"}).Return(nil)
+	runner.EXPECT().Up(mock.Anything, project, []string{"homepage"}, compose.NoWait).Return(nil)
 	deps := Dependencies{
 		Environment: getenv, Home: home, Update: newMockUpdater(t),
 		Decrypt: func(string) ([]byte, error) { return []byte("SONARR_API_KEY=s\n"), nil },

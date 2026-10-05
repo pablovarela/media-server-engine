@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/compose-spec/compose-go/v2/cli"
 	"github.com/compose-spec/compose-go/v2/types"
@@ -19,6 +20,7 @@ import (
 	sdk "github.com/docker/compose/v5/pkg/compose"
 
 	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/paint"
 )
 
 type service interface {
@@ -79,7 +81,14 @@ func (r *Runner) Load(ctx context.Context, i *installation.Installation, kind Ki
 	})
 }
 
-func (r *Runner) Up(ctx context.Context, project *types.Project, services []string) error {
+type Wait struct {
+	Enabled bool
+	Timeout time.Duration
+}
+
+var NoWait = Wait{}
+
+func (r *Runner) Up(ctx context.Context, project *types.Project, services []string, wait Wait) error {
 	if len(services) > 0 {
 		selected, err := project.WithSelectedServices(services)
 		if err != nil {
@@ -89,7 +98,7 @@ func (r *Runner) Up(ctx context.Context, project *types.Project, services []stri
 	}
 	return r.service.Up(ctx, project, api.UpOptions{
 		Create: api.CreateOptions{Services: services, RemoveOrphans: true, Inherit: true},
-		Start:  api.StartOptions{Project: project, Services: services},
+		Start:  api.StartOptions{Project: project, Services: services, Wait: wait.Enabled, WaitTimeout: wait.Timeout},
 	})
 }
 
@@ -126,8 +135,9 @@ func (r *Runner) Logs(ctx context.Context, project *types.Project, options LogsO
 }
 
 type lines struct {
-	mu sync.Mutex
-	w  io.Writer
+	mu       sync.Mutex
+	w        io.Writer
+	services paint.Services
 }
 
 func (l *lines) Log(container, message string) { l.write(container, message) }
@@ -139,7 +149,7 @@ func (l *lines) Status(string, string) {}
 func (l *lines) write(container, message string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	_, _ = fmt.Fprintf(l.w, "%s | %s\n", container, message)
+	_, _ = fmt.Fprintf(l.w, "%s | %s\n", l.services.Paint(container), message)
 }
 
 func publishedPorts(publishers api.PortPublishers) []string {

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/stretchr/testify/assert"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/pablovarela/media-server-engine/internal/compose"
 	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/paint"
 )
 
 func TestStackCommands(t *testing.T) {
@@ -44,7 +46,7 @@ func TestStackCommands(t *testing.T) {
 		"stack up draws the page first": {
 			When: When{args: []string{"stack", "up"}},
 			Then: Then{expect: func(r *mockComposeRunner) {
-				r.EXPECT().Up(mock.Anything, project, []string{}).Return(nil)
+				r.EXPECT().Up(mock.Anything, project, []string{}, compose.NoWait).Return(nil)
 				homepageStopped(r)
 			}, drawn: true},
 		},
@@ -52,7 +54,9 @@ func TestStackCommands(t *testing.T) {
 			Given: Given{configServices: "not: a list\n"},
 			When:  When{args: []string{"stack", "up"}},
 			Then: Then{
-				expect:     func(r *mockComposeRunner) { r.EXPECT().Up(mock.Anything, project, []string{}).Return(nil) },
+				expect: func(r *mockComposeRunner) {
+					r.EXPECT().Up(mock.Anything, project, []string{}, compose.NoWait).Return(nil)
+				},
 				stderr:     "could not draw the landing page (services.yaml: expected a list); it keeps its previous files\n",
 				drawn:      true,
 				envWritten: true,
@@ -60,12 +64,28 @@ func TestStackCommands(t *testing.T) {
 		},
 		"monitoring up draws no page": {
 			When: When{args: []string{"monitoring", "up"}},
-			Then: Then{expect: func(r *mockComposeRunner) { r.EXPECT().Up(mock.Anything, project, []string{}).Return(nil) }},
+			Then: Then{expect: func(r *mockComposeRunner) {
+				r.EXPECT().Up(mock.Anything, project, []string{}, compose.NoWait).Return(nil)
+			}},
+		},
+		"stack up --wait": {
+			When: When{args: []string{"stack", "up", "--wait"}},
+			Then: Then{expect: func(r *mockComposeRunner) {
+				r.EXPECT().Up(mock.Anything, project, []string{}, compose.Wait{Enabled: true, Timeout: 5 * time.Minute}).Return(nil)
+				homepageStopped(r)
+			}, drawn: true},
+		},
+		"stack up --wait-timeout": {
+			When: When{args: []string{"stack", "up", "--wait", "--wait-timeout", "2m"}},
+			Then: Then{expect: func(r *mockComposeRunner) {
+				r.EXPECT().Up(mock.Anything, project, []string{}, compose.Wait{Enabled: true, Timeout: 2 * time.Minute}).Return(nil)
+				homepageStopped(r)
+			}, drawn: true},
 		},
 		"stack up with services": {
 			When: When{args: []string{"stack", "up", "jellyfin"}},
 			Then: Then{expect: func(r *mockComposeRunner) {
-				r.EXPECT().Up(mock.Anything, project, []string{"jellyfin"}).Return(nil)
+				r.EXPECT().Up(mock.Anything, project, []string{"jellyfin"}, compose.NoWait).Return(nil)
 				homepageStopped(r)
 			}, drawn: true},
 		},
@@ -85,7 +105,7 @@ func TestStackCommands(t *testing.T) {
 			Then: Then{expect: func(r *mockComposeRunner) {
 				r.EXPECT().Restart(mock.Anything, project, []string{}).Return(nil)
 				r.EXPECT().Ps(mock.Anything, project).Return([]compose.Container{{Name: "homepage", State: "running"}}, nil)
-				r.EXPECT().Up(mock.Anything, project, []string{"homepage"}).Return(nil)
+				r.EXPECT().Up(mock.Anything, project, []string{"homepage"}, compose.NoWait).Return(nil)
 			}, drawn: true},
 		},
 		"stack ps": {
@@ -183,4 +203,22 @@ func TestStackCommands(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPrintContainersInColourKeepsColumnsAligned(t *testing.T) {
+	paint.Enable(true)
+	t.Cleanup(func() { paint.Enable(false) })
+	var out bytes.Buffer
+
+	require.NoError(t, printContainers(&out, []compose.Container{
+		{Name: "bazarr", State: "running", Ports: []string{"6767->6767/tcp"}},
+		{Name: "gluetun", State: "running", Health: "unhealthy"},
+		{Name: "configarr", State: "exited"},
+	}))
+
+	green, red, reset := "\x1b[32m", "\x1b[31m", "\x1b[0m"
+	assert.Equal(t, "NAME       STATE    HEALTH     PORTS\n"+
+		"bazarr     "+green+"running"+reset+"             6767->6767/tcp\n"+
+		"gluetun    "+green+"running"+reset+"  "+red+"unhealthy"+reset+"\n"+
+		"configarr  "+red+"exited"+reset+"\n", out.String())
 }

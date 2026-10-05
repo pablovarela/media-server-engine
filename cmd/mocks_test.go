@@ -396,16 +396,16 @@ func (_c *mockComposeRunner_Restart_Call) RunAndReturn(run func(ctx context.Cont
 }
 
 // Up provides a mock function for the type mockComposeRunner
-func (_mock *mockComposeRunner) Up(ctx context.Context, project *types.Project, services []string) error {
-	ret := _mock.Called(ctx, project, services)
+func (_mock *mockComposeRunner) Up(ctx context.Context, project *types.Project, services []string, wait compose.Wait) error {
+	ret := _mock.Called(ctx, project, services, wait)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Up")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project, []string) error); ok {
-		r0 = returnFunc(ctx, project, services)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project, []string, compose.Wait) error); ok {
+		r0 = returnFunc(ctx, project, services, wait)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -421,11 +421,12 @@ type mockComposeRunner_Up_Call struct {
 //   - ctx context.Context
 //   - project *types.Project
 //   - services []string
-func (_e *mockComposeRunner_Expecter) Up(ctx any, project any, services any) *mockComposeRunner_Up_Call {
-	return &mockComposeRunner_Up_Call{Call: _e.mock.On("Up", ctx, project, services)}
+//   - wait compose.Wait
+func (_e *mockComposeRunner_Expecter) Up(ctx any, project any, services any, wait any) *mockComposeRunner_Up_Call {
+	return &mockComposeRunner_Up_Call{Call: _e.mock.On("Up", ctx, project, services, wait)}
 }
 
-func (_c *mockComposeRunner_Up_Call) Run(run func(ctx context.Context, project *types.Project, services []string)) *mockComposeRunner_Up_Call {
+func (_c *mockComposeRunner_Up_Call) Run(run func(ctx context.Context, project *types.Project, services []string, wait compose.Wait)) *mockComposeRunner_Up_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -439,10 +440,15 @@ func (_c *mockComposeRunner_Up_Call) Run(run func(ctx context.Context, project *
 		if args[2] != nil {
 			arg2 = args[2].([]string)
 		}
+		var arg3 compose.Wait
+		if args[3] != nil {
+			arg3 = args[3].(compose.Wait)
+		}
 		run(
 			arg0,
 			arg1,
 			arg2,
+			arg3,
 		)
 	})
 	return _c
@@ -453,7 +459,7 @@ func (_c *mockComposeRunner_Up_Call) Return(err error) *mockComposeRunner_Up_Cal
 	return _c
 }
 
-func (_c *mockComposeRunner_Up_Call) RunAndReturn(run func(ctx context.Context, project *types.Project, services []string) error) *mockComposeRunner_Up_Call {
+func (_c *mockComposeRunner_Up_Call) RunAndReturn(run func(ctx context.Context, project *types.Project, services []string, wait compose.Wait) error) *mockComposeRunner_Up_Call {
 	_c.Call.Return(run)
 	return _c
 }

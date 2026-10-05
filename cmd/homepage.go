@@ -15,6 +15,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/compose"
 	"github.com/pablovarela/media-server-engine/internal/homepage"
 	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/paint"
 )
 
 const homepageService = "homepage"
@@ -37,7 +38,7 @@ func newHomepageCommand(deps Dependencies) *cobra.Command {
 			if err := deps.applyPage(cmd.Context(), o); err != nil {
 				return err
 			}
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), "The landing page is redrawn; an open page reloads itself in a few seconds.")
+			_, err = fmt.Fprintln(cmd.OutOrStdout(), paint.Stdout.Success("The landing page is redrawn; an open page reloads itself in a few seconds."))
 			return err
 		},
 	}
@@ -79,7 +80,7 @@ func reload(ctx context.Context, d Dependencies, runner composeRunner, project *
 	}
 	switch {
 	case changes.env:
-		return runner.Up(ctx, project, []string{homepageService})
+		return runner.Up(ctx, project, []string{homepageService}, compose.NoWait)
 	case changes.images:
 		return runner.Restart(ctx, project, []string{homepageService})
 	}

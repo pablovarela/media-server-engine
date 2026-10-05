@@ -6,6 +6,7 @@ require (
 	github.com/compose-spec/compose-go/v2 v2.16.1
 	github.com/docker/cli v29.8.2+incompatible
 	github.com/docker/compose/v5 v5.6.0
+	github.com/fatih/color v1.19.0
 	github.com/getsops/sops/v3 v3.13.3
 	github.com/google/go-github/v92 v92.0.0
 	github.com/moby/moby/api v1.56.1
@@ -14,6 +15,7 @@ require (
 	github.com/stretchr/testify v1.12.1
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/mod v0.41.0
+	golang.org/x/term v0.45.0
 )
 
 require (
@@ -91,7 +93,6 @@ require (
 	github.com/eiannone/keyboard v0.0.0-20220611211555-0d226195f203 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect
-	github.com/fatih/color v1.19.0 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/fsnotify/fsevents v0.2.0 // indirect
 	github.com/fvbommel/sortorder v1.2.0 // indirect
@@ -201,7 +202,6 @@ require (
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/term v0.45.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
 	google.golang.org/api v0.289.0 // indirect

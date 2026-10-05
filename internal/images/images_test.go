@@ -80,5 +80,19 @@ func TestPrune(t *testing.T) {
 
 	require.NoError(t, Prune(context.Background(), docker, &installation.Installation{Config: config}, &out))
 
-	assert.Equal(t, "removed lscr.io/linuxserver/sonarr:3.9\nkept lscr.io/linuxserver/sonarr@sha256:older (still in use)\n", out.String())
+	assert.Equal(t, "Checking local images against the 1 pinned in the config...\nremoved lscr.io/linuxserver/sonarr:3.9\nkept lscr.io/linuxserver/sonarr@sha256:older (still in use)\nRemoved 1 outdated image, kept 1 still in use.\n", out.String())
+}
+
+func TestPruneWithNothingOutdated(t *testing.T) {
+	config := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(config, "images.yml"), []byte("services:\n  sonarr:\n    image: lscr.io/linuxserver/sonarr:4.0@sha256:aaa\n  radarr:\n    image: lscr.io/linuxserver/radarr:5.0@sha256:bbb\n"), 0o644))
+	docker := newMockClient(t)
+	docker.EXPECT().ImageList(mock.Anything, client.ImageListOptions{All: true}).Return(client.ImageListResult{Items: []image.Summary{
+		{RepoTags: []string{"lscr.io/linuxserver/sonarr:4.0"}, RepoDigests: []string{"lscr.io/linuxserver/sonarr@sha256:aaa"}},
+	}}, nil)
+	var out bytes.Buffer
+
+	require.NoError(t, Prune(context.Background(), docker, &installation.Installation{Config: config}, &out))
+
+	assert.Equal(t, "Checking local images against the 2 pinned in the config...\nNo outdated images.\n", out.String())
 }

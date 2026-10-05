@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/pablovarela/media-server-engine/internal/paint"
 	"github.com/pablovarela/media-server-engine/internal/version"
 )
 
@@ -57,4 +58,16 @@ func TestRun(t *testing.T) {
 			assert.Equal(t, tt.Then.stderr, stderr.String())
 		})
 	}
+}
+
+func TestRunPaintsTheErrorRed(t *testing.T) {
+	paint.Enable(true)
+	t.Cleanup(func() { paint.Enable(false) })
+	root := NewRootCommand(Dependencies{Update: newMockUpdater(t)})
+	var stderr bytes.Buffer
+	root.SetErr(&stderr)
+
+	run(context.Background(), root, []string{"nope"})
+
+	assert.Equal(t, "\x1b[31mmse: unknown command \"nope\" for \"mse\"\x1b[0m\n", stderr.String())
 }

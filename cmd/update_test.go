@@ -17,8 +17,8 @@ import (
 func TestUpdateCommand(t *testing.T) {
 	build := version.Build{Version: "v0.8.0", Commit: "1a2b3c4", Date: "2026-10-05"}
 	major := &github.Release{Tag: "v1.0.0", URL: "https://github.com/pablovarela/media-server-engine/releases/tag/v1.0.0"}
-	available := "v1.0.0 is available and may need config changes: mse update --force (release notes: https://github.com/pablovarela/media-server-engine/releases/tag/v1.0.0)\n"
-	checking := "Current version: v0.8.0\nChecking for updates to the latest v0 release...\n"
+	available := "v1.0.0 is available and needs config changes (release notes: https://github.com/pablovarela/media-server-engine/releases/tag/v1.0.0)\nInstall it with: mse update --force\n"
+	checking := "Current version: v0.8.0\nChecking for a newer compatible release...\n"
 
 	type Given struct {
 		updating string
@@ -63,7 +63,7 @@ func TestUpdateCommand(t *testing.T) {
 		"force": {
 			Given: Given{checks: true, updating: "v1.0.0", result: selfupdate.Result{From: "v0.8.0", To: "v1.0.0"}},
 			When:  When{args: []string{"update", "--force"}, force: true},
-			Then:  Then{stdout: "Current version: v0.8.0\nChecking for updates to the latest release...\nUpdating to v1.0.0...\nSuccessfully updated from v0.8.0 to v1.0.0\n"},
+			Then:  Then{stdout: "Current version: v0.8.0\nChecking for a newer release, including ones that need config changes...\nUpdating to v1.0.0...\nSuccessfully updated from v0.8.0 to v1.0.0\n"},
 		},
 		"dev build": {
 			Given: Given{err: selfupdate.ErrDevBuild},

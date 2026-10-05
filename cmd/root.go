@@ -17,6 +17,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/github"
 	"github.com/pablovarela/media-server-engine/internal/images"
 	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/paint"
 	"github.com/pablovarela/media-server-engine/internal/secrets"
 	"github.com/pablovarela/media-server-engine/internal/selfupdate"
 	"github.com/pablovarela/media-server-engine/internal/version"
@@ -60,6 +61,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 }
 
 func Execute(engine fs.FS) int {
+	paint.Detect()
 	ctx, stop := interruptible()
 	defer stop()
 	home, err := os.UserHomeDir()
@@ -97,7 +99,7 @@ func interruptible() (context.Context, context.CancelFunc) {
 func run(ctx context.Context, root *cobra.Command, args []string) int {
 	root.SetArgs(args)
 	if err := root.ExecuteContext(ctx); err != nil {
-		_, _ = fmt.Fprintf(root.ErrOrStderr(), "mse: %v\n", err)
+		_, _ = fmt.Fprintln(root.ErrOrStderr(), paint.Stderr.Failure(fmt.Sprintf("mse: %v", err)))
 		return 1
 	}
 	return 0
