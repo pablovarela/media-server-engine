@@ -13,3 +13,4 @@ packages:
   github.com/pablovarela/media-server-engine/internal/backup: {}
   github.com/pablovarela/media-server-engine/internal/gitconfig: {}
   github.com/pablovarela/media-server-engine/internal/apply: {}
+  github.com/pablovarela/media-server-engine/internal/wiring: {}
