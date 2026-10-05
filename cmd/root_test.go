@@ -115,3 +115,10 @@ func TestTheVerboseFlagExists(t *testing.T) {
 	assert.NotNil(t, root.PersistentFlags().Lookup("verbose"))
 	assert.Equal(t, "v", root.PersistentFlags().Lookup("verbose").Shorthand)
 }
+
+func TestRunIDFrom(t *testing.T) {
+	assert.Equal(t, "a1b2c3", runIDFrom([]string{"apply", "--after-update=a1b2c3"}))
+	assert.Len(t, runIDFrom([]string{"apply", "--after-update=../../x"}), 6)
+	assert.NotEqual(t, "a1b2c3", runIDFrom([]string{"apply", "--after-update=../../x"}))
+	assert.Len(t, runIDFrom([]string{"update"}), 6)
+}

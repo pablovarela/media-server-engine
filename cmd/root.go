@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -71,7 +72,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 	}
 	root.AddCommand(
 		newVersionCommand(deps.Build),
-		newUpdateCommand(deps.Build, deps.Update),
+		newUpdateCommand(deps),
 		newApplyCommand(deps),
 		newURLsCommand(deps),
 		newLoginsCommand(deps),
@@ -145,7 +146,7 @@ func run(ctx context.Context, root *cobra.Command, args []string) int {
 
 func runLogged(ctx context.Context, root *cobra.Command, args []string, globalLogs string) int {
 	started := time.Now()
-	log := logfile.New(logfile.Options{Limit: 10 << 20, Keep: 5, RunID: runID(), Now: time.Now, Warn: root.ErrOrStderr()})
+	log := logfile.New(logfile.Options{Limit: 10 << 20, Keep: 5, RunID: runIDFrom(args), Now: time.Now, Warn: root.ErrOrStderr()})
 	defer log.Close()
 	reporter := report.New(root.OutOrStdout(), root.ErrOrStderr(), log)
 	root.SetOut(reporter.Stdout())
@@ -167,6 +168,24 @@ func runLogged(ctx context.Context, root *cobra.Command, args []string, globalLo
 		log.Open(globalLogs)
 	}
 	return code
+}
+
+var afterUpdateRunID = regexp.MustCompile(`^--after-update=([0-9a-f]{6})$`)
+
+func runIDFrom(args []string) string {
+	for _, arg := range args {
+		if found := afterUpdateRunID.FindStringSubmatch(arg); found != nil {
+			return found[1]
+		}
+	}
+	return runID()
+}
+
+func runIDOf(ctx context.Context) string {
+	if log, ok := ctx.Value(logKey{}).(*logfile.File); ok {
+		return log.RunID()
+	}
+	return runID()
 }
 
 func runID() string {

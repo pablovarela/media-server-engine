@@ -38,6 +38,7 @@ type Progress interface {
 type Result struct {
 	From       string
 	To         string
+	Path       string
 	NewerMajor *github.Release
 }
 
@@ -70,38 +71,39 @@ func (u *Updater) Update(ctx context.Context, current version.Build, force bool,
 		return result, nil
 	}
 	progress.Updating(target.Tag)
-	if err := u.install(ctx, *target); err != nil {
+	path, err := u.install(ctx, *target)
+	if err != nil {
 		return Result{}, err
 	}
-	result.To = target.Tag
+	result.To, result.Path = target.Tag, path
 	return result, nil
 }
 
-func (u *Updater) install(ctx context.Context, target github.Release) error {
+func (u *Updater) install(ctx context.Context, target github.Release) (string, error) {
 	archive, err := u.download(ctx, target, ArchiveName())
 	if err != nil {
-		return err
+		return "", err
 	}
 	checksums, err := u.download(ctx, target, "checksums.txt")
 	if err != nil {
-		return err
+		return "", err
 	}
 	if err := release.VerifyChecksum(archive, checksums, ArchiveName()); err != nil {
-		return fmt.Errorf("release %s: %w", target.Tag, err)
+		return "", fmt.Errorf("release %s: %w", target.Tag, err)
 	}
 	binary, err := release.ExtractBinary(archive)
 	if err != nil {
-		return fmt.Errorf("release %s: %w", target.Tag, err)
+		return "", fmt.Errorf("release %s: %w", target.Tag, err)
 	}
 	path, err := u.executable()
 	if err != nil {
-		return err
+		return "", err
 	}
 	path, err = filepath.EvalSymlinks(path)
 	if err != nil {
-		return err
+		return "", err
 	}
-	return u.replace(ctx, path, binary, target.Tag)
+	return path, u.replace(ctx, path, binary, target.Tag)
 }
 
 func (u *Updater) download(ctx context.Context, target github.Release, name string) ([]byte, error) {

@@ -144,7 +144,11 @@ func TestUpdate(t *testing.T) {
 				assert.Contains(t, err.Error(), strings.ReplaceAll(tt.Then.err, "<dir>", dir))
 			} else {
 				require.NoError(t, err)
-				assert.Equal(t, tt.Then.result, result)
+				want := tt.Then.result
+				if want.To != "" {
+					want.Path = executable
+				}
+				assert.Equal(t, want, result)
 			}
 			binary, err := os.ReadFile(executable)
 			require.NoError(t, err)

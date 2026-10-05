@@ -160,3 +160,11 @@ func TestDerivedValues(t *testing.T) {
 }
 
 func replaceAll(s, old, replacement string) string { return strings.ReplaceAll(s, old, replacement) }
+
+func TestNoInstallationIsRecognisable(t *testing.T) {
+	root := t.TempDir()
+
+	_, err := Load(Bases{Config: filepath.Join(root, "config")}, "", func(string) string { return "" })
+
+	assert.ErrorIs(t, err, ErrNoInstallation)
+}

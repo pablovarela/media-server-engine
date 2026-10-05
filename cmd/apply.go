@@ -48,6 +48,9 @@ func newApplyCommand(deps Dependencies) *cobra.Command {
 func (d Dependencies) reported(cmd *cobra.Command, i *installation.Installation, do func() error) (err error) {
 	finishing := context.WithoutCancel(cmd.Context())
 	defer func() {
+		if errors.Is(err, errHandedOver) {
+			return
+		}
 		defer shieldSignals()()
 		pings := d.pinger(cmd, i)
 		if err != nil {
