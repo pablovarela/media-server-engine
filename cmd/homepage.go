@@ -30,15 +30,11 @@ func newHomepageCommand(deps Dependencies) *cobra.Command {
 		Short: "Redraw the landing page from the config's homepage files",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			opened, err := deps.openProject(cmd, compose.Stack, false)
+			o, err := deps.openProject(cmd, compose.Stack, drawingAlways)
 			if err != nil {
 				return err
 			}
-			changes, err := deps.drawPage(cmd.Context(), opened.installation, opened.network, cmd.ErrOrStderr())
-			if err != nil {
-				return err
-			}
-			if err := reload(cmd.Context(), deps, opened.runner, opened.project, opened.installation.HomepagePort(), changes); err != nil {
+			if err := deps.applyPage(cmd.Context(), o); err != nil {
 				return err
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), "The landing page is redrawn; an open page reloads itself in a few seconds.")
@@ -69,12 +65,16 @@ func (d Dependencies) drawPage(ctx context.Context, i *installation.Installation
 	return pageChanges{env: env, images: images}, err
 }
 
+func (d Dependencies) applyPage(ctx context.Context, o opened) error {
+	if o.page == nil {
+		return nil
+	}
+	return reload(ctx, d, o.runner, o.project, o.installation.HomepagePort(), *o.page)
+}
+
 func reload(ctx context.Context, d Dependencies, runner composeRunner, project *types.Project, port string, changes pageChanges) error {
 	containers, err := runner.Ps(ctx, project)
-	if err != nil {
-		return err
-	}
-	if !slices.ContainsFunc(containers, func(c compose.Container) bool { return c.Name == homepageService && c.State == "running" }) {
+	if err != nil || !slices.ContainsFunc(containers, func(c compose.Container) bool { return c.Name == homepageService && c.State == "running" }) {
 		return nil
 	}
 	switch {

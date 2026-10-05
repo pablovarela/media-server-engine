@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"testing"
 	"testing/fstest"
@@ -13,6 +14,7 @@ import (
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/pablovarela/media-server-engine/internal/compose"
 	"github.com/pablovarela/media-server-engine/internal/installation"
@@ -20,25 +22,50 @@ import (
 
 func TestStackCommands(t *testing.T) {
 	project := &types.Project{Name: "media-server"}
+	homepageStopped := func(r *mockComposeRunner) { r.EXPECT().Ps(mock.Anything, project).Return(nil, nil) }
+	type Given struct {
+		configServices string
+	}
 	type When struct {
 		args []string
 	}
 	type Then struct {
 		expect func(r *mockComposeRunner)
 		stdout string
+		stderr string
 		drawn  bool
 	}
 	tests := map[string]struct {
-		When When
-		Then Then
+		Given Given
+		When  When
+		Then  Then
 	}{
 		"stack up draws the page first": {
 			When: When{args: []string{"stack", "up"}},
-			Then: Then{expect: func(r *mockComposeRunner) { r.EXPECT().Up(mock.Anything, project, []string{}).Return(nil) }, drawn: true},
+			Then: Then{expect: func(r *mockComposeRunner) {
+				r.EXPECT().Up(mock.Anything, project, []string{}).Return(nil)
+				homepageStopped(r)
+			}, drawn: true},
+		},
+		"stack up starts the containers when the page cannot be drawn": {
+			Given: Given{configServices: "not: a list\n"},
+			When:  When{args: []string{"stack", "up"}},
+			Then: Then{
+				expect: func(r *mockComposeRunner) { r.EXPECT().Up(mock.Anything, project, []string{}).Return(nil) },
+				stderr: "could not draw the landing page (services.yaml: expected a list); it keeps its previous files\n",
+				drawn:  true,
+			},
+		},
+		"monitoring up draws no page": {
+			When: When{args: []string{"monitoring", "up"}},
+			Then: Then{expect: func(r *mockComposeRunner) { r.EXPECT().Up(mock.Anything, project, []string{}).Return(nil) }},
 		},
 		"stack up with services": {
 			When: When{args: []string{"stack", "up", "jellyfin"}},
-			Then: Then{expect: func(r *mockComposeRunner) { r.EXPECT().Up(mock.Anything, project, []string{"jellyfin"}).Return(nil) }, drawn: true},
+			Then: Then{expect: func(r *mockComposeRunner) {
+				r.EXPECT().Up(mock.Anything, project, []string{"jellyfin"}).Return(nil)
+				homepageStopped(r)
+			}, drawn: true},
 		},
 		"stack down": {
 			When: When{args: []string{"stack", "down"}},
@@ -48,6 +75,15 @@ func TestStackCommands(t *testing.T) {
 			When: When{args: []string{"stack", "restart", "homepage"}},
 			Then: Then{expect: func(r *mockComposeRunner) {
 				r.EXPECT().Restart(mock.Anything, project, []string{"homepage"}).Return(nil)
+				homepageStopped(r)
+			}, drawn: true},
+		},
+		"stack restart recreates homepage when its environment changed": {
+			When: When{args: []string{"stack", "restart"}},
+			Then: Then{expect: func(r *mockComposeRunner) {
+				r.EXPECT().Restart(mock.Anything, project, []string{}).Return(nil)
+				r.EXPECT().Ps(mock.Anything, project).Return([]compose.Container{{Name: "homepage", State: "running"}}, nil)
+				r.EXPECT().Up(mock.Anything, project, []string{"homepage"}).Return(nil)
 			}, drawn: true},
 		},
 		"stack ps": {
@@ -89,6 +125,11 @@ func TestStackCommands(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			getenv, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"})
+			if tt.Given.configServices != "" {
+				services := filepath.Join(home, ".config", "mse", "gorgon", "homepage", "services.yaml")
+				require.NoError(t, os.MkdirAll(filepath.Dir(services), 0o755))
+				require.NoError(t, os.WriteFile(services, []byte(tt.Given.configServices), 0o644))
+			}
 			runner := newMockComposeRunner(t)
 			kind := compose.Stack
 			if tt.When.args[0] == "monitoring" {
@@ -126,6 +167,7 @@ func TestStackCommands(t *testing.T) {
 			assert.FileExists(t, filepath.Join(state, ".secrets", "vpn.env"))
 			assert.FileExists(t, filepath.Join(state, "docker-compose.yml"))
 			assert.Equal(t, tt.Then.stdout, stdout.String())
+			assert.Equal(t, tt.Then.stderr, stderr.String())
 			drawnPage := filepath.Join(state, ".homepage", "settings.yaml")
 			if tt.Then.drawn {
 				assert.FileExists(t, drawnPage)
