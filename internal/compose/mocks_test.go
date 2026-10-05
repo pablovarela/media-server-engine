@@ -49,6 +49,69 @@ func (_m *mockService) EXPECT() *mockService_Expecter {
 	return &mockService_Expecter{mock: &_m.Mock}
 }
 
+// Create provides a mock function for the type mockService
+func (_mock *mockService) Create(ctx context.Context, project *types.Project, options api.CreateOptions) error {
+	ret := _mock.Called(ctx, project, options)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Create")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project, api.CreateOptions) error); ok {
+		r0 = returnFunc(ctx, project, options)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// mockService_Create_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Create'
+type mockService_Create_Call struct {
+	*mock.Call
+}
+
+// Create is a helper method to define mock.On call
+//   - ctx context.Context
+//   - project *types.Project
+//   - options api.CreateOptions
+func (_e *mockService_Expecter) Create(ctx any, project any, options any) *mockService_Create_Call {
+	return &mockService_Create_Call{Call: _e.mock.On("Create", ctx, project, options)}
+}
+
+func (_c *mockService_Create_Call) Run(run func(ctx context.Context, project *types.Project, options api.CreateOptions)) *mockService_Create_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *types.Project
+		if args[1] != nil {
+			arg1 = args[1].(*types.Project)
+		}
+		var arg2 api.CreateOptions
+		if args[2] != nil {
+			arg2 = args[2].(api.CreateOptions)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *mockService_Create_Call) Return(err error) *mockService_Create_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *mockService_Create_Call) RunAndReturn(run func(ctx context.Context, project *types.Project, options api.CreateOptions) error) *mockService_Create_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Down provides a mock function for the type mockService
 func (_mock *mockService) Down(ctx context.Context, projectName string, options api.DownOptions) error {
 	ret := _mock.Called(ctx, projectName, options)
@@ -449,78 +512,6 @@ func (_c *mockService_Restart_Call) RunAndReturn(run func(ctx context.Context, p
 	return _c
 }
 
-// RunOneOffContainer provides a mock function for the type mockService
-func (_mock *mockService) RunOneOffContainer(ctx context.Context, project *types.Project, options api.RunOptions) (int, error) {
-	ret := _mock.Called(ctx, project, options)
-
-	if len(ret) == 0 {
-		panic("no return value specified for RunOneOffContainer")
-	}
-
-	var r0 int
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project, api.RunOptions) (int, error)); ok {
-		return returnFunc(ctx, project, options)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project, api.RunOptions) int); ok {
-		r0 = returnFunc(ctx, project, options)
-	} else {
-		r0 = ret.Get(0).(int)
-	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, *types.Project, api.RunOptions) error); ok {
-		r1 = returnFunc(ctx, project, options)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// mockService_RunOneOffContainer_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RunOneOffContainer'
-type mockService_RunOneOffContainer_Call struct {
-	*mock.Call
-}
-
-// RunOneOffContainer is a helper method to define mock.On call
-//   - ctx context.Context
-//   - project *types.Project
-//   - options api.RunOptions
-func (_e *mockService_Expecter) RunOneOffContainer(ctx any, project any, options any) *mockService_RunOneOffContainer_Call {
-	return &mockService_RunOneOffContainer_Call{Call: _e.mock.On("RunOneOffContainer", ctx, project, options)}
-}
-
-func (_c *mockService_RunOneOffContainer_Call) Run(run func(ctx context.Context, project *types.Project, options api.RunOptions)) *mockService_RunOneOffContainer_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 *types.Project
-		if args[1] != nil {
-			arg1 = args[1].(*types.Project)
-		}
-		var arg2 api.RunOptions
-		if args[2] != nil {
-			arg2 = args[2].(api.RunOptions)
-		}
-		run(
-			arg0,
-			arg1,
-			arg2,
-		)
-	})
-	return _c
-}
-
-func (_c *mockService_RunOneOffContainer_Call) Return(n int, err error) *mockService_RunOneOffContainer_Call {
-	_c.Call.Return(n, err)
-	return _c
-}
-
-func (_c *mockService_RunOneOffContainer_Call) RunAndReturn(run func(ctx context.Context, project *types.Project, options api.RunOptions) (int, error)) *mockService_RunOneOffContainer_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // Start provides a mock function for the type mockService
 func (_mock *mockService) Start(ctx context.Context, projectName string, options api.StartOptions) error {
 	ret := _mock.Called(ctx, projectName, options)
@@ -710,17 +701,17 @@ func (_c *mockService_Up_Call) RunAndReturn(run func(ctx context.Context, projec
 	return _c
 }
 
-// newMockInspector creates a new instance of mockInspector. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
+// newMockContainers creates a new instance of mockContainers. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
-func newMockInspector(t interface {
+func newMockContainers(t interface {
 	mock.TestingT
 	Cleanup(func())
-}) *mockInspector {
+}) *mockContainers {
 	if helper, ok := t.(interface{ Helper() }); ok {
 		helper.Helper()
 	}
 
-	mock := &mockInspector{}
+	mock := &mockContainers{}
 	mock.Mock.Test(t)
 
 	t.Cleanup(func() {
@@ -733,21 +724,21 @@ func newMockInspector(t interface {
 	return mock
 }
 
-// mockInspector is an autogenerated mock type for the inspector type
-type mockInspector struct {
+// mockContainers is an autogenerated mock type for the containers type
+type mockContainers struct {
 	mock.Mock
 }
 
-type mockInspector_Expecter struct {
+type mockContainers_Expecter struct {
 	mock *mock.Mock
 }
 
-func (_m *mockInspector) EXPECT() *mockInspector_Expecter {
-	return &mockInspector_Expecter{mock: &_m.Mock}
+func (_m *mockContainers) EXPECT() *mockContainers_Expecter {
+	return &mockContainers_Expecter{mock: &_m.Mock}
 }
 
-// ContainerInspect provides a mock function for the type mockInspector
-func (_mock *mockInspector) ContainerInspect(ctx context.Context, containerID string, options client.ContainerInspectOptions) (client.ContainerInspectResult, error) {
+// ContainerInspect provides a mock function for the type mockContainers
+func (_mock *mockContainers) ContainerInspect(ctx context.Context, containerID string, options client.ContainerInspectOptions) (client.ContainerInspectResult, error) {
 	ret := _mock.Called(ctx, containerID, options)
 
 	if len(ret) == 0 {
@@ -772,8 +763,8 @@ func (_mock *mockInspector) ContainerInspect(ctx context.Context, containerID st
 	return r0, r1
 }
 
-// mockInspector_ContainerInspect_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ContainerInspect'
-type mockInspector_ContainerInspect_Call struct {
+// mockContainers_ContainerInspect_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ContainerInspect'
+type mockContainers_ContainerInspect_Call struct {
 	*mock.Call
 }
 
@@ -781,11 +772,11 @@ type mockInspector_ContainerInspect_Call struct {
 //   - ctx context.Context
 //   - containerID string
 //   - options client.ContainerInspectOptions
-func (_e *mockInspector_Expecter) ContainerInspect(ctx any, containerID any, options any) *mockInspector_ContainerInspect_Call {
-	return &mockInspector_ContainerInspect_Call{Call: _e.mock.On("ContainerInspect", ctx, containerID, options)}
+func (_e *mockContainers_Expecter) ContainerInspect(ctx any, containerID any, options any) *mockContainers_ContainerInspect_Call {
+	return &mockContainers_ContainerInspect_Call{Call: _e.mock.On("ContainerInspect", ctx, containerID, options)}
 }
 
-func (_c *mockInspector_ContainerInspect_Call) Run(run func(ctx context.Context, containerID string, options client.ContainerInspectOptions)) *mockInspector_ContainerInspect_Call {
+func (_c *mockContainers_ContainerInspect_Call) Run(run func(ctx context.Context, containerID string, options client.ContainerInspectOptions)) *mockContainers_ContainerInspect_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -808,12 +799,365 @@ func (_c *mockInspector_ContainerInspect_Call) Run(run func(ctx context.Context,
 	return _c
 }
 
-func (_c *mockInspector_ContainerInspect_Call) Return(containerInspectResult client.ContainerInspectResult, err error) *mockInspector_ContainerInspect_Call {
+func (_c *mockContainers_ContainerInspect_Call) Return(containerInspectResult client.ContainerInspectResult, err error) *mockContainers_ContainerInspect_Call {
 	_c.Call.Return(containerInspectResult, err)
 	return _c
 }
 
-func (_c *mockInspector_ContainerInspect_Call) RunAndReturn(run func(ctx context.Context, containerID string, options client.ContainerInspectOptions) (client.ContainerInspectResult, error)) *mockInspector_ContainerInspect_Call {
+func (_c *mockContainers_ContainerInspect_Call) RunAndReturn(run func(ctx context.Context, containerID string, options client.ContainerInspectOptions) (client.ContainerInspectResult, error)) *mockContainers_ContainerInspect_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ContainerLogs provides a mock function for the type mockContainers
+func (_mock *mockContainers) ContainerLogs(ctx context.Context, containerID string, options client.ContainerLogsOptions) (client.ContainerLogsResult, error) {
+	ret := _mock.Called(ctx, containerID, options)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ContainerLogs")
+	}
+
+	var r0 client.ContainerLogsResult
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, client.ContainerLogsOptions) (client.ContainerLogsResult, error)); ok {
+		return returnFunc(ctx, containerID, options)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, client.ContainerLogsOptions) client.ContainerLogsResult); ok {
+		r0 = returnFunc(ctx, containerID, options)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(client.ContainerLogsResult)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string, client.ContainerLogsOptions) error); ok {
+		r1 = returnFunc(ctx, containerID, options)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// mockContainers_ContainerLogs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ContainerLogs'
+type mockContainers_ContainerLogs_Call struct {
+	*mock.Call
+}
+
+// ContainerLogs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - containerID string
+//   - options client.ContainerLogsOptions
+func (_e *mockContainers_Expecter) ContainerLogs(ctx any, containerID any, options any) *mockContainers_ContainerLogs_Call {
+	return &mockContainers_ContainerLogs_Call{Call: _e.mock.On("ContainerLogs", ctx, containerID, options)}
+}
+
+func (_c *mockContainers_ContainerLogs_Call) Run(run func(ctx context.Context, containerID string, options client.ContainerLogsOptions)) *mockContainers_ContainerLogs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 client.ContainerLogsOptions
+		if args[2] != nil {
+			arg2 = args[2].(client.ContainerLogsOptions)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *mockContainers_ContainerLogs_Call) Return(containerLogsResult client.ContainerLogsResult, err error) *mockContainers_ContainerLogs_Call {
+	_c.Call.Return(containerLogsResult, err)
+	return _c
+}
+
+func (_c *mockContainers_ContainerLogs_Call) RunAndReturn(run func(ctx context.Context, containerID string, options client.ContainerLogsOptions) (client.ContainerLogsResult, error)) *mockContainers_ContainerLogs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ContainerRemove provides a mock function for the type mockContainers
+func (_mock *mockContainers) ContainerRemove(ctx context.Context, containerID string, options client.ContainerRemoveOptions) (client.ContainerRemoveResult, error) {
+	ret := _mock.Called(ctx, containerID, options)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ContainerRemove")
+	}
+
+	var r0 client.ContainerRemoveResult
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, client.ContainerRemoveOptions) (client.ContainerRemoveResult, error)); ok {
+		return returnFunc(ctx, containerID, options)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, client.ContainerRemoveOptions) client.ContainerRemoveResult); ok {
+		r0 = returnFunc(ctx, containerID, options)
+	} else {
+		r0 = ret.Get(0).(client.ContainerRemoveResult)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string, client.ContainerRemoveOptions) error); ok {
+		r1 = returnFunc(ctx, containerID, options)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// mockContainers_ContainerRemove_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ContainerRemove'
+type mockContainers_ContainerRemove_Call struct {
+	*mock.Call
+}
+
+// ContainerRemove is a helper method to define mock.On call
+//   - ctx context.Context
+//   - containerID string
+//   - options client.ContainerRemoveOptions
+func (_e *mockContainers_Expecter) ContainerRemove(ctx any, containerID any, options any) *mockContainers_ContainerRemove_Call {
+	return &mockContainers_ContainerRemove_Call{Call: _e.mock.On("ContainerRemove", ctx, containerID, options)}
+}
+
+func (_c *mockContainers_ContainerRemove_Call) Run(run func(ctx context.Context, containerID string, options client.ContainerRemoveOptions)) *mockContainers_ContainerRemove_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 client.ContainerRemoveOptions
+		if args[2] != nil {
+			arg2 = args[2].(client.ContainerRemoveOptions)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *mockContainers_ContainerRemove_Call) Return(containerRemoveResult client.ContainerRemoveResult, err error) *mockContainers_ContainerRemove_Call {
+	_c.Call.Return(containerRemoveResult, err)
+	return _c
+}
+
+func (_c *mockContainers_ContainerRemove_Call) RunAndReturn(run func(ctx context.Context, containerID string, options client.ContainerRemoveOptions) (client.ContainerRemoveResult, error)) *mockContainers_ContainerRemove_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ContainerStart provides a mock function for the type mockContainers
+func (_mock *mockContainers) ContainerStart(ctx context.Context, containerID string, options client.ContainerStartOptions) (client.ContainerStartResult, error) {
+	ret := _mock.Called(ctx, containerID, options)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ContainerStart")
+	}
+
+	var r0 client.ContainerStartResult
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, client.ContainerStartOptions) (client.ContainerStartResult, error)); ok {
+		return returnFunc(ctx, containerID, options)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, client.ContainerStartOptions) client.ContainerStartResult); ok {
+		r0 = returnFunc(ctx, containerID, options)
+	} else {
+		r0 = ret.Get(0).(client.ContainerStartResult)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string, client.ContainerStartOptions) error); ok {
+		r1 = returnFunc(ctx, containerID, options)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// mockContainers_ContainerStart_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ContainerStart'
+type mockContainers_ContainerStart_Call struct {
+	*mock.Call
+}
+
+// ContainerStart is a helper method to define mock.On call
+//   - ctx context.Context
+//   - containerID string
+//   - options client.ContainerStartOptions
+func (_e *mockContainers_Expecter) ContainerStart(ctx any, containerID any, options any) *mockContainers_ContainerStart_Call {
+	return &mockContainers_ContainerStart_Call{Call: _e.mock.On("ContainerStart", ctx, containerID, options)}
+}
+
+func (_c *mockContainers_ContainerStart_Call) Run(run func(ctx context.Context, containerID string, options client.ContainerStartOptions)) *mockContainers_ContainerStart_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 client.ContainerStartOptions
+		if args[2] != nil {
+			arg2 = args[2].(client.ContainerStartOptions)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *mockContainers_ContainerStart_Call) Return(containerStartResult client.ContainerStartResult, err error) *mockContainers_ContainerStart_Call {
+	_c.Call.Return(containerStartResult, err)
+	return _c
+}
+
+func (_c *mockContainers_ContainerStart_Call) RunAndReturn(run func(ctx context.Context, containerID string, options client.ContainerStartOptions) (client.ContainerStartResult, error)) *mockContainers_ContainerStart_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ContainerStop provides a mock function for the type mockContainers
+func (_mock *mockContainers) ContainerStop(ctx context.Context, containerID string, options client.ContainerStopOptions) (client.ContainerStopResult, error) {
+	ret := _mock.Called(ctx, containerID, options)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ContainerStop")
+	}
+
+	var r0 client.ContainerStopResult
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, client.ContainerStopOptions) (client.ContainerStopResult, error)); ok {
+		return returnFunc(ctx, containerID, options)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, client.ContainerStopOptions) client.ContainerStopResult); ok {
+		r0 = returnFunc(ctx, containerID, options)
+	} else {
+		r0 = ret.Get(0).(client.ContainerStopResult)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string, client.ContainerStopOptions) error); ok {
+		r1 = returnFunc(ctx, containerID, options)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// mockContainers_ContainerStop_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ContainerStop'
+type mockContainers_ContainerStop_Call struct {
+	*mock.Call
+}
+
+// ContainerStop is a helper method to define mock.On call
+//   - ctx context.Context
+//   - containerID string
+//   - options client.ContainerStopOptions
+func (_e *mockContainers_Expecter) ContainerStop(ctx any, containerID any, options any) *mockContainers_ContainerStop_Call {
+	return &mockContainers_ContainerStop_Call{Call: _e.mock.On("ContainerStop", ctx, containerID, options)}
+}
+
+func (_c *mockContainers_ContainerStop_Call) Run(run func(ctx context.Context, containerID string, options client.ContainerStopOptions)) *mockContainers_ContainerStop_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 client.ContainerStopOptions
+		if args[2] != nil {
+			arg2 = args[2].(client.ContainerStopOptions)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *mockContainers_ContainerStop_Call) Return(containerStopResult client.ContainerStopResult, err error) *mockContainers_ContainerStop_Call {
+	_c.Call.Return(containerStopResult, err)
+	return _c
+}
+
+func (_c *mockContainers_ContainerStop_Call) RunAndReturn(run func(ctx context.Context, containerID string, options client.ContainerStopOptions) (client.ContainerStopResult, error)) *mockContainers_ContainerStop_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ContainerWait provides a mock function for the type mockContainers
+func (_mock *mockContainers) ContainerWait(ctx context.Context, containerID string, options client.ContainerWaitOptions) client.ContainerWaitResult {
+	ret := _mock.Called(ctx, containerID, options)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ContainerWait")
+	}
+
+	var r0 client.ContainerWaitResult
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, client.ContainerWaitOptions) client.ContainerWaitResult); ok {
+		r0 = returnFunc(ctx, containerID, options)
+	} else {
+		r0 = ret.Get(0).(client.ContainerWaitResult)
+	}
+	return r0
+}
+
+// mockContainers_ContainerWait_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ContainerWait'
+type mockContainers_ContainerWait_Call struct {
+	*mock.Call
+}
+
+// ContainerWait is a helper method to define mock.On call
+//   - ctx context.Context
+//   - containerID string
+//   - options client.ContainerWaitOptions
+func (_e *mockContainers_Expecter) ContainerWait(ctx any, containerID any, options any) *mockContainers_ContainerWait_Call {
+	return &mockContainers_ContainerWait_Call{Call: _e.mock.On("ContainerWait", ctx, containerID, options)}
+}
+
+func (_c *mockContainers_ContainerWait_Call) Run(run func(ctx context.Context, containerID string, options client.ContainerWaitOptions)) *mockContainers_ContainerWait_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 client.ContainerWaitOptions
+		if args[2] != nil {
+			arg2 = args[2].(client.ContainerWaitOptions)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *mockContainers_ContainerWait_Call) Return(containerWaitResult client.ContainerWaitResult) *mockContainers_ContainerWait_Call {
+	_c.Call.Return(containerWaitResult)
+	return _c
+}
+
+func (_c *mockContainers_ContainerWait_Call) RunAndReturn(run func(ctx context.Context, containerID string, options client.ContainerWaitOptions) client.ContainerWaitResult) *mockContainers_ContainerWait_Call {
 	_c.Call.Return(run)
 	return _c
 }

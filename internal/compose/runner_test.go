@@ -3,6 +3,8 @@ package compose
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
+	"io"
 	"testing"
 	"time"
 
@@ -229,14 +231,14 @@ func TestDetached(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			service := newMockService(t)
 			service.EXPECT().Ps(ctx, "media-server", api.PsOptions{Project: project, All: true}).Return(tt.Given.containers, nil)
-			inspect := newMockInspector(t)
+			docker := newMockContainers(t)
 			for id, mode := range tt.Given.modes {
 				result := client.ContainerInspectResult{}
 				result.Container.HostConfig = &container.HostConfig{NetworkMode: container.NetworkMode(mode)}
-				inspect.EXPECT().ContainerInspect(ctx, id, client.ContainerInspectOptions{}).Return(result, nil)
+				docker.EXPECT().ContainerInspect(ctx, id, client.ContainerInspectOptions{}).Return(result, nil)
 			}
 
-			detached, err := (&Runner{service: service, inspect: inspect}).Detached(ctx, project, "gluetun", dependents)
+			detached, err := (&Runner{service: service, docker: docker}).Detached(ctx, project, "gluetun", dependents)
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.Then, detached)
@@ -288,16 +290,65 @@ func TestPullAndRecreate(t *testing.T) {
 	})
 }
 
-func TestRunOnceRunsAThrowawayContainerOfTheService(t *testing.T) {
-	ctx := context.Background()
-	project := &types.Project{Name: "media-server"}
-	service := newMockService(t)
-	service.EXPECT().RunOneOffContainer(ctx, project, mock.MatchedBy(func(o api.RunOptions) bool {
-		return o.Project == project && o.Service == "configarr" && o.AutoRemove && !o.Detach && !o.Tty && !o.Interactive
-	})).Return(3, nil)
+func multiplexedLogs(text string) io.ReadCloser {
+	header := make([]byte, 8)
+	header[0] = 1
+	binary.BigEndian.PutUint32(header[4:], uint32(len(text))) //nolint:gosec // test output is short
+	return io.NopCloser(bytes.NewReader(append(header, text...)))
+}
 
-	exit, err := (&Runner{service: service}).RunOnce(ctx, project, "configarr")
+type configarrRun struct {
+	service *mockService
+	docker  *mockContainers
+	project *types.Project
+}
+
+func newConfigarrRun(t *testing.T) configarrRun {
+	t.Helper()
+	project := &types.Project{Name: "media-server", Services: types.Services{
+		"sonarr":    {Name: "sonarr", Image: "s"},
+		"configarr": {Name: "configarr", Image: "c", DependsOn: types.DependsOnConfig{"sonarr": {Condition: "service_healthy"}}},
+	}}
+	run := configarrRun{service: newMockService(t), docker: newMockContainers(t), project: project}
+	run.service.EXPECT().Create(mock.Anything, mock.MatchedBy(func(p *types.Project) bool {
+		return assert.ObjectsAreEqual([]string{"configarr"}, p.ServiceNames()) && len(p.Services["configarr"].DependsOn) == 0
+	}), mock.MatchedBy(func(o api.CreateOptions) bool {
+		return assert.ObjectsAreEqual([]string{"configarr"}, o.Services) && o.Recreate == api.RecreateForce
+	})).Return(nil)
+	run.service.EXPECT().Ps(mock.Anything, "media-server", mock.MatchedBy(func(o api.PsOptions) bool {
+		return o.All && assert.ObjectsAreEqual([]string{"configarr"}, o.Services)
+	})).Return([]api.ContainerSummary{{ID: "c1", Service: "configarr"}}, nil)
+	run.docker.EXPECT().ContainerStart(mock.Anything, "c1", client.ContainerStartOptions{}).Return(client.ContainerStartResult{}, nil)
+	run.docker.EXPECT().ContainerLogs(mock.Anything, "c1", client.ContainerLogsOptions{ShowStdout: true, ShowStderr: true, Follow: true}).Return(multiplexedLogs("INFO done\n"), nil)
+	run.docker.EXPECT().ContainerRemove(mock.Anything, "c1", client.ContainerRemoveOptions{Force: true}).Return(client.ContainerRemoveResult{}, nil)
+	return run
+}
+
+func TestRunOnceRunsTheServiceAloneAndRemovesItsContainer(t *testing.T) {
+	run := newConfigarrRun(t)
+	exited := make(chan container.WaitResponse, 1)
+	exited <- container.WaitResponse{StatusCode: 3}
+	run.docker.EXPECT().ContainerWait(mock.Anything, "c1", client.ContainerWaitOptions{Condition: container.WaitConditionNotRunning}).Return(client.ContainerWaitResult{Result: exited, Error: make(chan error)})
+	var out bytes.Buffer
+
+	exit, err := (&Runner{service: run.service, docker: run.docker}).RunOnce(context.Background(), run.project, "configarr", &out)
 
 	require.NoError(t, err)
 	assert.Equal(t, 3, exit)
+	assert.Equal(t, "INFO done\n", out.String())
+}
+
+func TestRunOnceStopsTheContainerWhenCancelled(t *testing.T) {
+	run := newConfigarrRun(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	run.docker.EXPECT().ContainerWait(mock.Anything, "c1", client.ContainerWaitOptions{Condition: container.WaitConditionNotRunning}).RunAndReturn(
+		func(context.Context, string, client.ContainerWaitOptions) client.ContainerWaitResult {
+			cancel()
+			return client.ContainerWaitResult{Result: make(chan container.WaitResponse), Error: make(chan error)}
+		})
+	run.docker.EXPECT().ContainerStop(mock.MatchedBy(func(stopping context.Context) bool { return stopping.Err() == nil }), "c1", client.ContainerStopOptions{}).Return(client.ContainerStopResult{}, nil)
+
+	_, err := (&Runner{service: run.service, docker: run.docker}).RunOnce(ctx, run.project, "configarr", io.Discard)
+
+	assert.ErrorIs(t, err, context.Canceled)
 }
