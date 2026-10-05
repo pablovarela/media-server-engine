@@ -20,6 +20,7 @@ type Env struct {
 	GOOS     string
 	Systemd  bool
 	ProcRoot string
+	Ports    PortsCheck
 }
 
 type Status int
@@ -108,10 +109,21 @@ func Run(ctx context.Context, env Env) Report {
 			report.Results = append(report.Results, Result{Status: Fail, Line: result.line, Fix: result.fix})
 		}
 	}
+	report.Results = append(report.Results, portsCheck(ctx, env, passed)...)
 	if !env.Systemd {
 		report.Results = append(report.Results, Result{Status: Skip, Line: noSystemd})
 	}
 	return report
+}
+
+func portsCheck(ctx context.Context, env Env, passed map[string]bool) []Result {
+	switch {
+	case len(env.Ports.Ports) == 0:
+		return nil
+	case !passed[sessionCheck]:
+		return []Result{{Status: Skip, Line: "ports: skipped until " + skipReason(sessionCheck, env)}}
+	}
+	return portsResults(ctx, env.Ports)
 }
 
 func firstUnmet(needs []string, passed map[string]bool) string {
