@@ -56,6 +56,21 @@ func (r *Reporter) Warn(line string) {
 func (r *Reporter) Stdout() io.Writer { return r.stdout }
 func (r *Reporter) Stderr() io.Writer { return r.stderr }
 
+func (r *Reporter) Data() io.Writer {
+	return dataWriter{r: r}
+}
+
+type dataWriter struct {
+	r *Reporter
+}
+
+func (w dataWriter) Write(b []byte) (int, error) {
+	w.r.mu.Lock()
+	defer w.r.mu.Unlock()
+	w.r.endOpenLine()
+	return w.r.out.Write(b)
+}
+
 func (r *Reporter) Tool(name string) io.Writer {
 	return &lineWriter{each: func(line string) { r.toolLine(name, line) }}
 }

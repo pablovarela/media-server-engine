@@ -115,3 +115,14 @@ func TestFromAContextWithoutAReporter(t *testing.T) {
 	assert.NotNil(t, From(t.Context()))
 	assert.True(t, strings.HasPrefix(fmt.Sprintf("%T", From(t.Context())), "*report.Reporter"))
 }
+
+func TestDataIsShownButNotLogged(t *testing.T) {
+	var out bytes.Buffer
+	var log lines
+	r := New(&out, &bytes.Buffer{}, &log)
+
+	_, _ = fmt.Fprintln(r.Data(), "Jellyfin     pablo      secret")
+
+	assert.Equal(t, "Jellyfin     pablo      secret\n", out.String())
+	assert.Empty(t, log)
+}

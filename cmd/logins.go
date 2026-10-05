@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/pablovarela/media-server-engine/internal/report"
 	"github.com/pablovarela/media-server-engine/internal/secrets"
 )
 
@@ -34,7 +35,7 @@ func newLoginsCommand(deps Dependencies) *cobra.Command {
 			for _, app := range []string{"Sonarr", "Radarr", "Prowlarr"} {
 				fmt.Fprintf(&out, "%-12s %s\n", app, noLogin)
 			}
-			_, err = fmt.Fprint(cmd.OutOrStdout(), out.String())
+			_, err = fmt.Fprint(report.From(cmd.Context()).Data(), out.String())
 			return err
 		},
 	}

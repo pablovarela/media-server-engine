@@ -91,7 +91,7 @@ func TestEveryRunIsLogged(t *testing.T) {
 	require.NoError(t, err)
 	text := string(logged)
 	assert.Regexp(t, ` urls\[[0-9a-f]{6}\] start urls\n`, text)
-	assert.Contains(t, text, strings.SplitN(stdout.String(), "\n", 2)[0])
+	assert.NotContains(t, text, strings.SplitN(stdout.String(), "\n", 2)[0], "data commands keep their output out of the log")
 	assert.Regexp(t, `\] finish exit 0 after [0-9.]+[µm]?s\n$`, text)
 }
 

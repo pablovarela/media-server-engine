@@ -222,3 +222,37 @@ func TestPrintContainersInColourKeepsColumnsAligned(t *testing.T) {
 		"gluetun    "+green+"running"+reset+"  "+red+"unhealthy"+reset+"\n"+
 		"configarr  "+red+"exited"+reset+"\n", out.String())
 }
+
+func TestContainerLogsStayOutOfTheLog(t *testing.T) {
+	project := &types.Project{Name: "media-server"}
+	getenv, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"})
+	runner := newMockComposeRunner(t)
+	runner.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, mock.Anything).Return(project, nil)
+	runner.EXPECT().Logs(mock.Anything, project, mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, _ *types.Project, _ compose.LogsOptions, w io.Writer) error {
+		_, err := io.WriteString(w, "jellyfin | a container log line\n")
+		return err
+	})
+	root := NewRootCommand(Dependencies{
+		Environment: getenv, Home: home, Update: newMockUpdater(t),
+		Decrypt: func(string) ([]byte, error) { return []byte("A=1\n"), nil },
+		Host:    installation.Host{GOOS: "linux", Hostname: func() (string, error) { return "gorgon", nil }},
+		Engine: fstest.MapFS{
+			"docker-compose.yml":            {Data: []byte("services: {}\n")},
+			"docker-compose.monitoring.yml": {Data: []byte("services: {}\n")},
+			"grafana/datasource.yml":        {Data: []byte("# fixture\n")},
+			"prometheus/prometheus.yml":     {Data: []byte("# fixture\n")},
+		},
+		Compose: func(io.Writer, *compose.Outcomes) (composeRunner, error) { return runner, nil },
+	})
+	var stdout bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&bytes.Buffer{})
+
+	code := run(context.Background(), root, []string{"stack", "logs"})
+
+	assert.Equal(t, 0, code)
+	assert.Equal(t, "jellyfin | a container log line\n", stdout.String())
+	logged, err := os.ReadFile(filepath.Join(home, ".local", "state", "mse", "gorgon", "logs", "mse.log"))
+	require.NoError(t, err)
+	assert.NotContains(t, string(logged), "a container log line")
+}

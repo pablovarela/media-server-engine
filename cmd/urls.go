@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/pablovarela/media-server-engine/internal/compose"
+	"github.com/pablovarela/media-server-engine/internal/report"
 )
 
 var apps = []struct {
@@ -46,7 +47,7 @@ func newURLsCommand(deps Dependencies) *cobra.Command {
 			for _, app := range apps {
 				fmt.Fprintf(&out, "%-12s http://%s:%d\n", app.name, host, app.port)
 			}
-			_, err = fmt.Fprint(cmd.OutOrStdout(), out.String())
+			_, err = fmt.Fprint(report.From(cmd.Context()).Data(), out.String())
 			return err
 		},
 	}

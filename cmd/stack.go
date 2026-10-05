@@ -149,7 +149,7 @@ func newProjectCommand(deps Dependencies, use, short string, kind compose.Kind) 
 			if err != nil {
 				return err
 			}
-			return printContainers(cmd.OutOrStdout(), containers)
+			return printContainers(report.From(cmd.Context()).Data(), containers)
 		}),
 		logsCommand(deps, use, kind),
 	)
@@ -188,7 +188,7 @@ func logsCommand(deps Dependencies, parent string, kind compose.Kind) *cobra.Com
 				return err
 			}
 			options.Services = args
-			return o.runner.Logs(cmd.Context(), o.project, options, cmd.OutOrStdout())
+			return o.runner.Logs(cmd.Context(), o.project, options, report.From(cmd.Context()).Data())
 		},
 	}
 	command.Flags().BoolVarP(&options.Follow, "follow", "f", false, "keep printing new lines")
