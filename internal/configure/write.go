@@ -1,8 +1,9 @@
 package configure
 
 import (
-	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -10,14 +11,9 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/secrets"
 )
 
-type restorer interface {
-	Restore(ctx context.Context, paths []string) error
-}
-
 type Writer struct {
 	Config  string
 	Encrypt secrets.Encrypter
-	Git     restorer
 }
 
 func Files(changes []Change) (plain bool, secretFiles []string) {
@@ -32,20 +28,20 @@ func Files(changes []Change) (plain bool, secretFiles []string) {
 	return plain, secretFiles
 }
 
-func (w Writer) WritePlain(texts map[string][]byte, changes []Change) error {
-	text := RewriteEnv(string(texts[PlainFile]), updatesTo(PlainFile, changes), true)
+func (w Writer) WritePlain(texts Texts, changes []Change) error {
+	text := RewriteEnv(string(texts.Plain[PlainFile]), updatesTo(PlainFile, changes), true)
 	if err := os.WriteFile(filepath.Join(w.Config, PlainFile), []byte(text), 0o644); err != nil { //nolint:gosec // the config is readable like the rest of the checkout
 		return fmt.Errorf("could not write %s: %w", PlainFile, err)
 	}
 	return nil
 }
 
-func (w Writer) WriteSecrets(texts map[string][]byte, changes []Change) ([]string, error) {
+func (w Writer) WriteSecrets(texts Texts, changes []Change) ([]string, error) {
 	_, files := Files(changes)
 	var written []string
 	for _, file := range files {
 		path := filepath.Join(w.Config, file)
-		plain := RewriteEnv(string(texts[file]), updatesTo(file, changes), false)
+		plain := RewriteEnv(string(texts.Plain[file]), updatesTo(file, changes), false)
 		encrypted, err := w.Encrypt(path, []byte(plain))
 		if err != nil {
 			return written, fmt.Errorf("could not encrypt %s: %w", file, err)
@@ -61,21 +57,24 @@ func (w Writer) WriteSecrets(texts map[string][]byte, changes []Change) ([]strin
 	return written, nil
 }
 
-func (w Writer) Undo(ctx context.Context, texts map[string][]byte, written []string) error {
-	var tracked []string
-	for _, file := range written {
-		if _, existed := texts[file]; existed {
-			tracked = append(tracked, file)
+func (w Writer) Undo(texts Texts, changes []Change) error {
+	plain, secretFiles := Files(changes)
+	if plain {
+		secretFiles = append([]string{PlainFile}, secretFiles...)
+	}
+	var failed []error
+	for _, file := range secretFiles {
+		path := filepath.Join(w.Config, file)
+		raw, existed := texts.Raw[file]
+		if existed {
+			failed = append(failed, os.WriteFile(path, raw, 0o644)) //nolint:gosec // the bytes the file had
 			continue
 		}
-		if err := os.Remove(filepath.Join(w.Config, file)); err != nil {
-			return err
+		if err := os.Remove(path); !errors.Is(err, fs.ErrNotExist) {
+			failed = append(failed, err)
 		}
 	}
-	if len(tracked) == 0 {
-		return nil
-	}
-	return w.Git.Restore(ctx, tracked)
+	return errors.Join(failed...)
 }
 
 func updatesTo(file string, changes []Change) []Update {

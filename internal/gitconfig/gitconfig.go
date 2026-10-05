@@ -90,8 +90,8 @@ func (r Repository) Push(ctx context.Context) error {
 	return err
 }
 
-func (r Repository) Restore(ctx context.Context, paths []string) error {
-	_, err := r.succeeding(ctx, append([]string{"checkout", "--"}, paths...)...)
+func (r Repository) Unstage(ctx context.Context, paths []string) error {
+	_, err := r.succeeding(ctx, append([]string{"reset", "--quiet", "--"}, paths...)...)
 	return err
 }
 

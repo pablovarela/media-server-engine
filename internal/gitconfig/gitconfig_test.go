@@ -194,14 +194,6 @@ func TestPush(t *testing.T) {
 	}
 }
 
-func TestRestore(t *testing.T) {
-	ctx := context.Background()
-	runner := newMockRunner(t)
-	runner.EXPECT().Output(ctx, git("checkout", "--", "installation.env")).Return(answer("", 0), nil).Once()
-
-	require.NoError(t, Repository{Runner: runner, Dir: dir}.Restore(ctx, []string{"installation.env"}))
-}
-
 func TestRemoteURL(t *testing.T) {
 	ctx := context.Background()
 	runner := newMockRunner(t)
@@ -225,4 +217,12 @@ func TestDisplayRemote(t *testing.T) {
 			assert.Equal(t, want, DisplayRemote(given))
 		})
 	}
+}
+
+func TestUnstage(t *testing.T) {
+	ctx := context.Background()
+	runner := newMockRunner(t)
+	runner.EXPECT().Output(ctx, git("reset", "--quiet", "--", "installation.env", "secrets/new.sops.env")).Return(answer("", 0), nil).Once()
+
+	require.NoError(t, Repository{Runner: runner, Dir: dir}.Unstage(ctx, []string{"installation.env", "secrets/new.sops.env"}))
 }

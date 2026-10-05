@@ -303,7 +303,9 @@ func TestConfigureRestoresTheFilesWhenEncryptingFails(t *testing.T) {
 	assert.Equal(t, 1, code)
 	assert.Equal(t, "Updating the config... up to date.\nWriting installation.env... done.\nEncrypting secrets/vpn.sops.env... failed.\n", stdout)
 	assert.Equal(t, "mse: could not encrypt secrets/vpn.sops.env: could not make a data key; the config is back as it was\n", stderr)
-	assert.Contains(t, f.git, "checkout -- installation.env")
+	text, err := os.ReadFile(filepath.Join(f.config, "installation.env"))
+	require.NoError(t, err)
+	assert.Equal(t, configureEnv, string(text))
 	assert.Empty(t, f.committed())
 }
 
@@ -318,4 +320,22 @@ func TestConfigureDiscardedWritesNothing(t *testing.T) {
 	require.Equal(t, 0, code, stderr)
 	assert.Equal(t, "Updating the config... up to date.\n", stdout)
 	assert.Empty(t, f.committed())
+}
+
+func TestConfigurePutsTheConfigBackWhenTheCommitFails(t *testing.T) {
+	f := newConfigureFixture(t)
+	f.answers["commit --quiet -m Configure gorgon: General -- installation.env"] = process.Result{Exit: 1, Stderr: []byte("error: gpg failed to sign the data\n")}
+	f.chooses("General", "save")
+	f.answersSection("General", map[string]string{"TZ": "Europe/Madrid"})
+	f.confirmsSaving()
+
+	code, stdout, stderr := f.configure(t)
+
+	assert.Equal(t, 1, code)
+	assert.Equal(t, "Updating the config... up to date.\nWriting installation.env... done.\nCommitting the config... failed.\n", stdout)
+	assert.Equal(t, "mse: git commit --quiet failed (exit 1): error: gpg failed to sign the data; the config is back as it was\n", stderr)
+	assert.Contains(t, f.git, "reset --quiet -- installation.env")
+	text, err := os.ReadFile(filepath.Join(f.config, "installation.env"))
+	require.NoError(t, err)
+	assert.Equal(t, configureEnv, string(text))
 }

@@ -31,36 +31,38 @@ func (v Values) With(file, key, value string) Values {
 	return copied
 }
 
-func Load(config string, decrypt secrets.Decrypter) (Values, map[string][]byte, error) {
-	plain, err := readIfPresent(filepath.Join(config, PlainFile))
-	if err != nil {
-		return nil, nil, err
-	}
-	values := Values{PlainFile: ReadEnv(string(plain))}
-	texts := map[string][]byte{}
-	if plain != nil {
-		texts[PlainFile] = plain
-	}
-	for _, file := range secretFiles() {
-		path := filepath.Join(config, file)
-		if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
+type Texts struct {
+	Plain map[string][]byte
+	Raw   map[string][]byte
+}
+
+func Load(config string, decrypt secrets.Decrypter) (Values, Texts, error) {
+	values := Values{}
+	texts := Texts{Plain: map[string][]byte{}, Raw: map[string][]byte{}}
+	for _, file := range append([]string{PlainFile}, secretFiles()...) {
+		raw, err := os.ReadFile(filepath.Join(config, file)) //nolint:gosec // a file of the installation's own config
+		if errors.Is(err, fs.ErrNotExist) {
 			values[file] = map[string]string{}
 			continue
 		}
-		text, err := decrypt(path)
 		if err != nil {
-			return nil, nil, fmt.Errorf("could not read %s: %w", file, err)
+			return nil, Texts{}, err
 		}
-		values[file] = secrets.Dotenv(text)
-		texts[file] = text
+		plain := raw
+		if file != PlainFile {
+			if plain, err = decrypt(filepath.Join(config, file)); err != nil {
+				return nil, Texts{}, fmt.Errorf("could not read %s: %w", file, err)
+			}
+		}
+		values[file] = parsed(file, plain)
+		texts.Raw[file], texts.Plain[file] = raw, plain
 	}
 	return values, texts, nil
 }
 
-func readIfPresent(path string) ([]byte, error) {
-	text, err := os.ReadFile(path) //nolint:gosec // a file of the installation's own config
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
+func parsed(file string, plain []byte) map[string]string {
+	if file == PlainFile {
+		return ReadEnv(string(plain))
 	}
-	return text, err
+	return secrets.Dotenv(plain)
 }

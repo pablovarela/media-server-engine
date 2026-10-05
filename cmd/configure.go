@@ -76,27 +76,35 @@ func checkIdentity(ctx context.Context, repository gitconfig.Repository, config 
 		"  git -C %s config user.name \"Your Name\"\n  git -C %s config user.email you@example.com", config, config)
 }
 
-func (d Dependencies) save(ctx context.Context, i *installation.Installation, repository gitconfig.Repository, changes []configure.Change, texts map[string][]byte) error {
+func (d Dependencies) save(ctx context.Context, i *installation.Installation, repository gitconfig.Repository, changes []configure.Change, texts configure.Texts) error {
 	r := report.From(ctx)
-	writer := configure.Writer{Config: i.Config, Encrypt: d.Encrypt(i.Config), Git: repository}
+	writer := configure.Writer{Config: i.Config, Encrypt: d.Encrypt(i.Config)}
 	written, err := writeChanges(r, writer, changes, texts)
 	if err != nil {
-		if undone := writer.Undo(ctx, texts, written); undone != nil {
-			return fmt.Errorf("%w; restoring the config failed too: %w", err, undone)
-		}
-		return fmt.Errorf("%w; the config is back as it was", err)
+		return putBack(writer, texts, changes, err)
 	}
 	step := r.Step("Committing the config")
 	message := configure.CommitMessage(i.Name, changes)
 	sha, err := repository.Commit(ctx, message, written)
 	if err != nil {
-		return step.FailWithoutTail(err)
+		_ = step.FailWithoutTail(err)
+		if unstaged := repository.Unstage(context.WithoutCancel(ctx), written); unstaged != nil {
+			return fmt.Errorf("%w; unstaging the changes failed too: %w", err, unstaged)
+		}
+		return putBack(writer, texts, changes, err)
 	}
 	step.Done(fmt.Sprintf("%s %q", sha, message))
 	return push(ctx, r, repository, i.Config)
 }
 
-func writeChanges(r *report.Reporter, writer configure.Writer, changes []configure.Change, texts map[string][]byte) ([]string, error) {
+func putBack(writer configure.Writer, texts configure.Texts, changes []configure.Change, err error) error {
+	if undone := writer.Undo(texts, changes); undone != nil {
+		return fmt.Errorf("%w; putting the config back failed too: %w", err, undone)
+	}
+	return fmt.Errorf("%w; the config is back as it was", err)
+}
+
+func writeChanges(r *report.Reporter, writer configure.Writer, changes []configure.Change, texts configure.Texts) ([]string, error) {
 	plain, secretFiles := configure.Files(changes)
 	var written []string
 	if plain {

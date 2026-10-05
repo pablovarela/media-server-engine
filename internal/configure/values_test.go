@@ -26,9 +26,11 @@ func TestLoadReadsTheFilesThatExist(t *testing.T) {
 	assert.Equal(t, "~/backups", values.Get(PlainFile, "RESTIC_REPOSITORY"))
 	assert.Equal(t, "pa=ss", values.Get("secrets/apps.sops.env", "JELLYFIN_ADMIN_PASSWORD"))
 	assert.Empty(t, values.Get("secrets/vpn.sops.env", "OPENVPN_PASSWORD"))
-	assert.Equal(t, gorgonEnv, string(texts[PlainFile]))
-	assert.Equal(t, "SONARR_API_KEY=sonarr-key\nJELLYFIN_ADMIN_PASSWORD=pa=ss\n", string(texts["secrets/apps.sops.env"]))
-	assert.Empty(t, texts["secrets/vpn.sops.env"])
+	assert.Equal(t, gorgonEnv, string(texts.Plain[PlainFile]))
+	assert.Equal(t, gorgonEnv, string(texts.Raw[PlainFile]))
+	assert.Equal(t, "encrypted", string(texts.Raw["secrets/apps.sops.env"]))
+	assert.Equal(t, "SONARR_API_KEY=sonarr-key\nJELLYFIN_ADMIN_PASSWORD=pa=ss\n", string(texts.Plain["secrets/apps.sops.env"]))
+	assert.NotContains(t, texts.Raw, "secrets/vpn.sops.env")
 }
 
 func TestLoadNamesTheFileItCannotDecrypt(t *testing.T) {

@@ -1,7 +1,6 @@
 package configure
 
 import (
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -18,7 +17,6 @@ const testRecipient = "age1zxt57qnfrwmcth7uas4mq995ll9rcjdenmcftge67frhhetakejqf
 
 type writeFixture struct {
 	config  string
-	git     *mockRestorer
 	encrypt secrets.Encrypter
 }
 
@@ -35,7 +33,7 @@ func newWriteFixture(t *testing.T) *writeFixture {
 	rules := "creation_rules:\n  - path_regex: (^|/)secrets/[^/]+\\.sops\\.env$\n    age: " + testRecipient + "\n"
 	require.NoError(t, os.WriteFile(filepath.Join(config, ".sops.yaml"), []byte(rules), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(config, PlainFile), []byte(gorgonEnv), 0o644))
-	f := &writeFixture{config: config, git: newMockRestorer(t), encrypt: secrets.SopsEncrypter(t.TempDir(), filepath.Join(config, ".sops.yaml"))}
+	f := &writeFixture{config: config, encrypt: secrets.SopsEncrypter(t.TempDir(), filepath.Join(config, ".sops.yaml"))}
 	f.seal(t, vpnFile, "VPN_SERVICE_PROVIDER=protonvpn\nOPENVPN_USER=me\nOPENVPN_PASSWORD=old-pass\n")
 	return f
 }
@@ -49,7 +47,7 @@ func (f *writeFixture) seal(t *testing.T, file, plain string) {
 	require.NoError(t, os.WriteFile(path, encrypted, 0o644))
 }
 
-func (f *writeFixture) load(t *testing.T) (Values, map[string][]byte) {
+func (f *writeFixture) load(t *testing.T) (Values, Texts) {
 	t.Helper()
 	values, texts, err := Load(f.config, secrets.Sops(t.TempDir()))
 	require.NoError(t, err)
@@ -57,7 +55,7 @@ func (f *writeFixture) load(t *testing.T) (Values, map[string][]byte) {
 }
 
 func (f *writeFixture) writer() Writer {
-	return Writer{Config: f.config, Encrypt: f.encrypt, Git: f.git}
+	return Writer{Config: f.config, Encrypt: f.encrypt}
 }
 
 func TestFilesNamesWhatTheChangesTouch(t *testing.T) {
@@ -113,12 +111,49 @@ func TestASecretFileThatDidNotExistIsCreated(t *testing.T) {
 	assert.Equal(t, "ping", after.Get(healthchecksFile, "HEALTHCHECKS_PING_KEY"))
 }
 
-func TestUndoRestoresTrackedFilesAndRemovesCreatedOnes(t *testing.T) {
+func TestUndoPutsBackTheBytesItReadAndRemovesCreatedFiles(t *testing.T) {
 	f := newWriteFixture(t)
 	before, texts := f.load(t)
+	plainBefore, err := os.ReadFile(filepath.Join(f.config, PlainFile))
+	require.NoError(t, err)
+	vpnBefore, err := os.ReadFile(filepath.Join(f.config, vpnFile))
+	require.NoError(t, err)
 	changes := Diff(before, before.With(PlainFile, "TZ", "Europe/Madrid").
-		With(healthchecksFile, "HEALTHCHECKS_PING_KEY", "ping").
-		With(AppsFile, "DELUGE_WEB_PASSWORD", "deluge"))
+		With(vpnFile, "OPENVPN_PASSWORD", "n3w-pass").
+		With(healthchecksFile, "HEALTHCHECKS_PING_KEY", "ping"))
+	require.NoError(t, f.writer().WritePlain(texts, changes))
+	_, err = f.writer().WriteSecrets(texts, changes)
+	require.NoError(t, err)
+
+	require.NoError(t, f.writer().Undo(texts, changes))
+
+	plainAfter, err := os.ReadFile(filepath.Join(f.config, PlainFile))
+	require.NoError(t, err)
+	assert.Equal(t, string(plainBefore), string(plainAfter))
+	vpnAfter, err := os.ReadFile(filepath.Join(f.config, vpnFile))
+	require.NoError(t, err)
+	assert.Equal(t, string(vpnBefore), string(vpnAfter))
+	assert.NoFileExists(t, filepath.Join(f.config, healthchecksFile))
+}
+
+func TestUndoAlsoRestoresAFileWhoseWriteFailedHalfway(t *testing.T) {
+	f := newWriteFixture(t)
+	before, texts := f.load(t)
+	plainBefore, err := os.ReadFile(filepath.Join(f.config, PlainFile))
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(f.config, PlainFile), []byte("INSTALLATION_NA"), 0o644))
+
+	require.NoError(t, f.writer().Undo(texts, Diff(before, before.With(PlainFile, "TZ", "Europe/Madrid"))))
+
+	plainAfter, err := os.ReadFile(filepath.Join(f.config, PlainFile))
+	require.NoError(t, err)
+	assert.Equal(t, string(plainBefore), string(plainAfter))
+}
+
+func TestAFailingEncryptionStopsAtThatFile(t *testing.T) {
+	f := newWriteFixture(t)
+	before, texts := f.load(t)
+	changes := Diff(before, before.With(healthchecksFile, "HEALTHCHECKS_PING_KEY", "ping").With(AppsFile, "DELUGE_WEB_PASSWORD", "deluge"))
 	failing := f.writer()
 	encrypted := 0
 	failing.Encrypt = func(path string, plain []byte) ([]byte, error) {
@@ -127,13 +162,9 @@ func TestUndoRestoresTrackedFilesAndRemovesCreatedOnes(t *testing.T) {
 		}
 		return f.encrypt(path, plain)
 	}
-	require.NoError(t, failing.WritePlain(texts, changes))
+
 	written, err := failing.WriteSecrets(texts, changes)
+
 	require.EqualError(t, err, "could not encrypt secrets/apps.sops.env: could not make a data key")
 	assert.Equal(t, []string{healthchecksFile}, written)
-	f.git.EXPECT().Restore(context.Background(), []string{PlainFile}).Return(nil).Once()
-
-	require.NoError(t, failing.Undo(context.Background(), texts, append([]string{PlainFile}, written...)))
-
-	assert.NoFileExists(t, filepath.Join(f.config, healthchecksFile))
 }
