@@ -1,0 +1,9 @@
+[Unit]
+Description=Remove downloads Sonarr or Radarr flagged as executables (@NAME@)
+
+[Service]
+Type=oneshot
+@ENVIRONMENT@
+ExecStart=@MSE@ remove-executable-downloads
+Nice=10
+IOSchedulingClass=idle

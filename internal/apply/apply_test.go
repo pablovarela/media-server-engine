@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/pablovarela/media-server-engine/internal/report"
@@ -241,4 +243,100 @@ func TestAFailedWiringDoesNotPrintAnotherToolsLinesAsItsCause(t *testing.T) {
 
 	assert.EqualError(t, err, "wiring failed: seerr")
 	assert.NotContains(t, stderr.String(), "configarr finished")
+}
+
+func succeeding(t *testing.T, ctx context.Context) (*mockStack, *mockPage, *mockImages) {
+	t.Helper()
+	stack := newMockStack(t)
+	stack.EXPECT().BindSources().Return(nil)
+	stack.EXPECT().Pull(ctx).Return("13 up to date", nil)
+	stack.EXPECT().Up(ctx).Return("up to date", nil)
+	stack.EXPECT().Reattach(ctx).Return("nothing to reattach", nil)
+	page, images := newMockPage(t), newMockImages(t)
+	page.EXPECT().Reload(ctx).Return(nil)
+	images.EXPECT().Prune(ctx).Return(nil)
+	return stack, page, images
+}
+
+func TestTheTimersAreSetUpLast(t *testing.T) {
+	ctx := context.Background()
+	stack, page, images := succeeding(t, ctx)
+	timers := newMockTimers(t)
+	timers.EXPECT().Set(ctx).Return("all 4 unchanged", nil, nil)
+	var stdout bytes.Buffer
+
+	err := (&Apply{
+		Stack: stack, Page: page, Images: images, Timers: timers, MkdirAll: func(string) error { return nil },
+		Sleep: func(context.Context, time.Duration) error { return nil }, Report: report.New(&stdout, &stdout, nil),
+	}).Run(ctx)
+
+	require.NoError(t, err)
+	assert.True(t, strings.HasSuffix(stdout.String(), "Setting up the timers... all 4 unchanged.\n"), stdout.String())
+}
+
+func TestAFailedTimersStepFailsTheApply(t *testing.T) {
+	ctx := context.Background()
+	stack, page, images := succeeding(t, ctx)
+	timers := newMockTimers(t)
+	timers.EXPECT().Set(ctx).Return("", nil, errors.New("systemctl --user daemon-reload failed: Failed to connect to bus"))
+	var stdout bytes.Buffer
+
+	err := (&Apply{
+		Stack: stack, Page: page, Images: images, Timers: timers, MkdirAll: func(string) error { return nil },
+		Sleep: func(context.Context, time.Duration) error { return nil }, Report: report.New(&stdout, &stdout, nil),
+	}).Run(ctx)
+
+	assert.EqualError(t, err, "systemctl --user daemon-reload failed: Failed to connect to bus")
+}
+
+func TestTheTimersAreSetUpEvenWhenAnEarlierStepFails(t *testing.T) {
+	ctx := context.Background()
+	stack := newMockStack(t)
+	stack.EXPECT().BindSources().Return(nil)
+	stack.EXPECT().Pull(ctx).Return("", errors.New("manifest unknown"))
+	timers := newMockTimers(t)
+	timers.EXPECT().Set(ctx).Return("all 4 unchanged", nil, nil)
+	var stdout bytes.Buffer
+
+	err := (&Apply{
+		Stack: stack, Timers: timers, MkdirAll: func(string) error { return nil },
+		Sleep: func(context.Context, time.Duration) error { return nil }, Report: report.New(&stdout, &stdout, nil),
+	}).Run(ctx)
+
+	assert.EqualError(t, err, "manifest unknown")
+	assert.Contains(t, stdout.String(), "Setting up the timers... all 4 unchanged.")
+}
+
+func TestAStoppedApplySetsUpNoTimers(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	stack := newMockStack(t)
+	stack.EXPECT().BindSources().Return(nil)
+	stack.EXPECT().Pull(mock.Anything).RunAndReturn(func(context.Context) (string, error) {
+		cancel()
+		return "", context.Canceled
+	})
+	var stdout bytes.Buffer
+
+	err := (&Apply{
+		Stack: stack, Timers: newMockTimers(t), MkdirAll: func(string) error { return nil },
+		Sleep: func(context.Context, time.Duration) error { return nil }, Report: report.New(&stdout, &stdout, nil),
+	}).Run(ctx)
+
+	assert.ErrorIs(t, err, context.Canceled)
+}
+
+func TestTheTimersWarningsFollowTheirResult(t *testing.T) {
+	ctx := context.Background()
+	stack, page, images := succeeding(t, ctx)
+	timers := newMockTimers(t)
+	timers.EXPECT().Set(ctx).Return("all 4 unchanged", []string{"the nightly update can't get a GitHub token"}, nil)
+	var out bytes.Buffer
+
+	err := (&Apply{
+		Stack: stack, Page: page, Images: images, Timers: timers, MkdirAll: func(string) error { return nil },
+		Sleep: func(context.Context, time.Duration) error { return nil }, Report: report.New(&out, &out, nil),
+	}).Run(ctx)
+
+	require.NoError(t, err)
+	assert.True(t, strings.HasSuffix(out.String(), "Setting up the timers... all 4 unchanged.\nthe nightly update can't get a GitHub token\n"), out.String())
 }

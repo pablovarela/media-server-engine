@@ -67,3 +67,16 @@ func (b *Backups) DescribeRole(ctx context.Context) error {
 	b.Report.Say("This machine is the main.")
 	return nil
 }
+
+func (b *Backups) RunsBackups(ctx context.Context) (runs, backedUp bool, err error) {
+	state, latest, err := b.main(ctx)
+	switch {
+	case err != nil:
+		return false, false, err
+	case latest == nil:
+		return b.Installation.Role() == "main", false, nil
+	case state == anotherMachine:
+		return false, true, removeMarker(b.Installation.Data)
+	}
+	return true, true, markMain(b.Installation.Data)
+}

@@ -92,6 +92,7 @@ func (d Dependencies) apply(cmd *cobra.Command) error {
 		Stack:    appliedStack{runner: o.runner, project: o.project, wired: wired, outcomes: o.outcomes, data: o.installation.Data},
 		Checks:   d.checks(o.installation, o.network),
 		Wiring:   wires,
+		Timers:   d.timersOrNil(cmd, o.installation),
 		Page:     pageFunc(func(ctx context.Context) error { return d.applyPage(ctx, o) }),
 		Images:   imagesFunc(func(ctx context.Context) error { return d.pruneImages(ctx, o.installation) }),
 		MkdirAll: func(path string) error { return os.MkdirAll(path, 0o755) }, //nolint:gosec // containers running as other users read these folders

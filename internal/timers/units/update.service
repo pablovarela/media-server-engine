@@ -1,0 +1,10 @@
+[Unit]
+Description=Bring the media server up to date with its config (@NAME@)
+After=mse-@NAME@-backup.service
+
+[Service]
+Type=oneshot
+@ENVIRONMENT@
+ExecStart=@MSE@ update --apply
+Nice=10
+IOSchedulingClass=idle

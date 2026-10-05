@@ -41,18 +41,35 @@ type Images interface {
 	Prune(ctx context.Context) error
 }
 
+type Timers interface {
+	Set(ctx context.Context) (result string, warnings []string, err error)
+}
+
 type Apply struct {
 	Stack    Stack
 	Checks   Checks
 	Wiring   Wiring
 	Page     Page
 	Images   Images
+	Timers   Timers
 	MkdirAll func(path string) error
 	Sleep    func(ctx context.Context, d time.Duration) error
 	Report   *report.Reporter
 }
 
 func (a *Apply) Run(ctx context.Context) error {
+	converged := a.converge(ctx)
+	if ctx.Err() != nil {
+		return converged
+	}
+	timers := a.setUpTimers(ctx)
+	if converged != nil {
+		return converged
+	}
+	return timers
+}
+
+func (a *Apply) converge(ctx context.Context) error {
 	a.setUpChecks(ctx)
 	if err := a.createDataFolders(); err != nil {
 		return err
@@ -71,6 +88,22 @@ func (a *Apply) Run(ctx context.Context) error {
 		return wired
 	}
 	return a.Images.Prune(ctx)
+}
+
+func (a *Apply) setUpTimers(ctx context.Context) error {
+	if a.Timers == nil {
+		return nil
+	}
+	s := a.Report.Step("Setting up the timers")
+	result, warnings, err := a.Timers.Set(ctx)
+	if err != nil {
+		return s.Fail(err)
+	}
+	s.Done(result)
+	for _, warning := range warnings {
+		a.Report.Warn(paint.Stderr.Warning(warning))
+	}
+	return nil
 }
 
 func (a *Apply) step(title string, do func() (string, error)) error {

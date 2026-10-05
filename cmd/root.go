@@ -53,6 +53,9 @@ type Dependencies struct {
 	Systemd       func() bool
 	LocalTime     string
 	Exec          func(path string, args []string) error
+	Executable    func() (string, error)
+	UnitDir       string
+	Account       func() (string, error)
 	WiringSteps   func(configarr wiring.OneOff, tool io.Writer) ([]wiring.Step, error)
 }
 
@@ -119,6 +122,8 @@ func Execute(engine fs.FS) int {
 		Interactive:   func() bool { return term.IsTerminal(int(os.Stdin.Fd())) }, //nolint:gosec // a file descriptor fits in an int
 		Systemd:       func() bool { _, err := os.Stat("/run/systemd/system"); return err == nil },
 		LocalTime:     "/etc/localtime",
+		Executable:    os.Executable,
+		Account:       currentAccount,
 		WiringSteps:   wiringSteps,
 		Exec:          func(path string, args []string) error { return syscall.Exec(path, args, os.Environ()) }, //nolint:gosec // runs the mse release it just installed
 	}
