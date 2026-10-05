@@ -96,14 +96,21 @@ func TestBackupCommandFlows(t *testing.T) {
 		r.EXPECT().Run(mock.Anything, resticCall("unlock")).Return(0, nil)
 		c.EXPECT().Stop(mock.Anything, project).Return(nil)
 		r.EXPECT().Run(mock.Anything, mock.MatchedBy(func(c process.Command) bool {
-			want := []string{"backup", "--retry-lock", "2h", "--host", "gorgon", "--tag", "machine:this-machine", "--tag", "machine-name:gorgon", "--tag", "nightly", "--exclude-file"}
+			want := []string{"backup", "--json", "--retry-lock", "2h", "--host", "gorgon", "--tag", "machine:this-machine", "--tag", "machine-name:gorgon", "--tag", "nightly", "--exclude-file"}
 			return c.Dir == data && len(c.Args) == len(want)+2 && slices.Equal(want, c.Args[:len(want)]) &&
 				filepath.Base(c.Args[len(want)]) == "backup-excludes.txt" && c.Args[len(want)+1] == "volumes" && len(c.ExtraFiles) == 1
-		})).Return(0, nil)
+		})).RunAndReturn(func(_ context.Context, c process.Command) (int, error) {
+			_, _ = io.WriteString(c.Stdout, `{"message_type":"status","percent_done":1}`+"\n"+`{"message_type":"summary","snapshot_id":"40c4a929f0d1e2b3"}`+"\n")
+			return 0, nil
+		})
 		c.EXPECT().Start(mock.Anything, project, []string{"jellyfin"}).Return(nil)
-		r.EXPECT().Run(mock.Anything, resticCall("forget", "--retry-lock", "2h", "--host", "gorgon", "--prune", "--keep-daily", "7", "--keep-weekly", "4", "--keep-monthly", "6")).Return(0, nil)
+		r.EXPECT().Run(mock.Anything, resticCall("forget", "--json", "--retry-lock", "2h", "--host", "gorgon", "--keep-daily", "7", "--keep-weekly", "4", "--keep-monthly", "6")).RunAndReturn(func(_ context.Context, c process.Command) (int, error) {
+			_, _ = io.WriteString(c.Stdout, `[{"keep":[{"short_id":"a"}],"remove":null}]`)
+			return 0, nil
+		})
+		r.EXPECT().Run(mock.Anything, resticCall("prune", "--retry-lock", "2h")).Return(0, nil)
 	}
-	backedUp := "Stopping the stack...\nBacking up volumes/...\nStarting 1 service...\nRemoving old snapshots...\nBackup done.\n"
+	backedUp := "Stopping the stack... done.\nBacking up volumes/... snapshot 40c4a929: 0 new, 0 changed, 0 unchanged files; 0 B added (0 B stored).\nStarting the services again... done.\nRemoving old snapshots... kept 1, removed 0; pruned.\nBackup done.\n"
 	tests := map[string]struct {
 		Given Given
 		When  When
@@ -149,7 +156,7 @@ func TestBackupCommandFlows(t *testing.T) {
 		"restore --overwrite": {
 			When: When{args: []string{"restore", "--overwrite"}},
 			Then: Then{
-				stdout: "previous volumes/ kept in <data>/volumes.before-restore-20261005-043000; delete it once the restore looks right\n",
+				stdout: "previous volumes/ kept in <data>/volumes.before-restore-20261005-043000; delete it once the restore looks right\nRestoring volumes/ from the latest backup... restored.\n",
 				expect: func(r *mockCommandRunner, c *mockComposeRunner, data, _ string) {
 					c.EXPECT().AnyRunning(mock.Anything, project).Return(false, nil)
 					r.EXPECT().Run(mock.Anything, resticCall("unlock")).Return(0, nil)
@@ -182,7 +189,7 @@ func TestBackupCommandFlows(t *testing.T) {
 						return 0, nil
 					})
 				},
-				stdout: "Checking the repository...\nRestoring the databases of the latest snapshot...\nChecking 1 databases...\nThe backups check out.\n",
+				stdout: "Checking the repository... no errors.\nRestoring the databases of the latest snapshot... restored 1 databases.\nChecking the databases... 1 intact.\nThe backups check out.\n",
 				pings:  []string{"/ping-key/gorgon-verify/start", "/ping-key/gorgon-verify"},
 			},
 		},
@@ -209,5 +216,45 @@ func TestBackupCommandFlows(t *testing.T) {
 			assert.Equal(t, tt.Then.stderr, stderr.String())
 			assert.Equal(t, tt.Then.pings, pings)
 		})
+	}
+}
+
+func TestBackupLogsResticButShowsSteps(t *testing.T) {
+	project := &types.Project{Name: "media-server"}
+	for _, verbose := range []bool{false, true} {
+		home, _, resolved, tmp := backupHome(t)
+		runner := newMockCommandRunner(t)
+		composer := newMockComposeRunner(t)
+		composer.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, mock.Anything).Return(project, nil)
+		runner.EXPECT().Output(mock.Anything, resticCall("snapshots", "--no-lock", "--host", "gorgon", "--json")).Return(process.Result{Stdout: []byte(ourSnapshots)}, nil)
+		composer.EXPECT().RunningServices(mock.Anything, project).Return(nil, nil)
+		runner.EXPECT().Run(mock.Anything, resticCall("unlock")).Return(0, nil)
+		composer.EXPECT().Stop(mock.Anything, project).Return(nil)
+		runner.EXPECT().Run(mock.Anything, mock.MatchedBy(func(c process.Command) bool { return slices.Contains(c.Args, "backup") && c.Dir == resolved })).RunAndReturn(func(_ context.Context, c process.Command) (int, error) {
+			_, _ = io.WriteString(c.Stdout, `{"message_type":"summary","snapshot_id":"40c4a929f0d1e2b3"}`+"\n")
+			return 0, nil
+		})
+		runner.EXPECT().Run(mock.Anything, mock.MatchedBy(func(c process.Command) bool { return slices.Contains(c.Args, "forget") })).RunAndReturn(func(_ context.Context, c process.Command) (int, error) {
+			_, _ = io.WriteString(c.Stdout, `[]`)
+			return 0, nil
+		})
+		runner.EXPECT().Run(mock.Anything, resticCall("prune", "--retry-lock", "2h")).Return(0, nil)
+		var pings []string
+		root := NewRootCommand(backupDependencies(t, home, tmp, runner, composer, false, &pings))
+		var stdout bytes.Buffer
+		root.SetOut(&stdout)
+		root.SetErr(&bytes.Buffer{})
+		args := []string{"backup"}
+		if verbose {
+			args = append(args, "--verbose")
+		}
+
+		code := run(context.Background(), root, args)
+
+		assert.Equal(t, 0, code)
+		logged, err := os.ReadFile(filepath.Join(home, ".local", "state", "mse", "gorgon", "logs", "mse.log"))
+		require.NoError(t, err)
+		assert.Contains(t, string(logged), "restic | snapshot 40c4a929")
+		assert.Equal(t, verbose, strings.Contains(stdout.String(), "restic | snapshot 40c4a929"), "verbose %v", verbose)
 	}
 }

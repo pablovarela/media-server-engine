@@ -35,14 +35,23 @@ func (b *Backups) Restore(ctx context.Context, overwrite bool) error {
 			return err
 		}
 	}
+	return b.restoreVolumes(ctx, volumes)
+}
+
+func (b *Backups) restoreVolumes(ctx context.Context, volumes string) error {
+	step := b.Report.Step("Restoring volumes/ from the latest backup")
 	if err := b.Repository.Unlock(ctx); err != nil {
-		return err
+		return step.Fail(err)
 	}
 	host, err := b.ownHost(ctx)
 	if err != nil {
-		return fmt.Errorf("cannot read the backup repository's snapshots (%w); nothing was restored", err)
+		return step.Fail(fmt.Errorf("cannot read the backup repository's snapshots (%w); nothing was restored", err))
 	}
-	return b.Repository.Restore(ctx, restic.RestoreOptions{Snapshot: "latest:/volumes", Host: host, Target: volumes, Exclude: []string{"configarr"}})
+	if err := b.Repository.Restore(ctx, restic.RestoreOptions{Snapshot: "latest:/volumes", Host: host, Target: volumes, Exclude: []string{"configarr"}}); err != nil {
+		return step.Fail(err)
+	}
+	step.Done("restored")
+	return nil
 }
 
 func hasAppData(volumes string) (bool, error) {
@@ -69,6 +78,6 @@ func (b *Backups) moveAside(volumes string) error {
 	if err := os.Mkdir(volumes, 0o755); err != nil { //nolint:gosec // the apps' volumes, read by their containers
 		return err
 	}
-	b.say(fmt.Sprintf("previous volumes/ kept in %s; delete it once the restore looks right", aside))
+	b.Report.Say(fmt.Sprintf("previous volumes/ kept in %s; delete it once the restore looks right", aside))
 	return nil
 }

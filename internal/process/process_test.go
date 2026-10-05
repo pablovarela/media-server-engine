@@ -95,3 +95,13 @@ func TestTheWorkingDirectoryIsThePWD(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, dir, string(result.Stdout))
 }
+
+func TestStdoutCanGoElsewhere(t *testing.T) {
+	var out, own bytes.Buffer
+
+	_, err := System{Out: &out, ErrOut: &bytes.Buffer{}}.Run(context.Background(), Command{Name: "sh", Args: []string{"-c", "echo json"}, Stdout: &own})
+
+	require.NoError(t, err)
+	assert.Equal(t, "json\n", own.String())
+	assert.Empty(t, out.String())
+}

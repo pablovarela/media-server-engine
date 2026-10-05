@@ -60,7 +60,7 @@ func TestBackupCommands(t *testing.T) {
 					r.EXPECT().Run(mock.Anything, resticCall("unlock", "--remove-all")).Return(0, nil)
 					r.EXPECT().Output(mock.Anything, resticCall("list", "locks", "--no-lock")).Return(process.Result{}, nil)
 				},
-				stdout: "no locks left on the backup repository\n",
+				stdout: "Removing every lock... no locks left.\n",
 			},
 		},
 	}

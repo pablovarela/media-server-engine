@@ -74,12 +74,13 @@ func TestRestore(t *testing.T) {
 			aside := filepath.Join(b.Installation.Data, "volumes.before-restore-20261005-043000")
 			if tt.Then.aside {
 				assert.DirExists(t, filepath.Join(aside, "sonarr"))
-				assert.Equal(t, "previous volumes/ kept in "+aside+"; delete it once the restore looks right\n", out.String())
+				assert.Equal(t, "previous volumes/ kept in "+aside+"; delete it once the restore looks right\nRestoring volumes/ from the latest backup... restored.\n", out.String())
 				entries, readErr := os.ReadDir(volumes)
 				require.NoError(t, readErr)
 				assert.Empty(t, entries)
 			} else {
 				assert.NoDirExists(t, aside)
+				assert.Equal(t, "Restoring volumes/ from the latest backup... restored.\n", out.String())
 			}
 		})
 	}

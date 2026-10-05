@@ -49,20 +49,29 @@ func (_m *mockRepository) EXPECT() *mockRepository_Expecter {
 }
 
 // Backup provides a mock function for the type mockRepository
-func (_mock *mockRepository) Backup(ctx context.Context, options restic.BackupOptions) error {
+func (_mock *mockRepository) Backup(ctx context.Context, options restic.BackupOptions) (restic.BackupSummary, error) {
 	ret := _mock.Called(ctx, options)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Backup")
 	}
 
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, restic.BackupOptions) error); ok {
+	var r0 restic.BackupSummary
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, restic.BackupOptions) (restic.BackupSummary, error)); ok {
+		return returnFunc(ctx, options)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, restic.BackupOptions) restic.BackupSummary); ok {
 		r0 = returnFunc(ctx, options)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(restic.BackupSummary)
 	}
-	return r0
+	if returnFunc, ok := ret.Get(1).(func(context.Context, restic.BackupOptions) error); ok {
+		r1 = returnFunc(ctx, options)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
 }
 
 // mockRepository_Backup_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Backup'
@@ -95,12 +104,12 @@ func (_c *mockRepository_Backup_Call) Run(run func(ctx context.Context, options 
 	return _c
 }
 
-func (_c *mockRepository_Backup_Call) Return(err error) *mockRepository_Backup_Call {
-	_c.Call.Return(err)
+func (_c *mockRepository_Backup_Call) Return(backupSummary restic.BackupSummary, err error) *mockRepository_Backup_Call {
+	_c.Call.Return(backupSummary, err)
 	return _c
 }
 
-func (_c *mockRepository_Backup_Call) RunAndReturn(run func(ctx context.Context, options restic.BackupOptions) error) *mockRepository_Backup_Call {
+func (_c *mockRepository_Backup_Call) RunAndReturn(run func(ctx context.Context, options restic.BackupOptions) (restic.BackupSummary, error)) *mockRepository_Backup_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -157,20 +166,29 @@ func (_c *mockRepository_Check_Call) RunAndReturn(run func(ctx context.Context) 
 }
 
 // Forget provides a mock function for the type mockRepository
-func (_mock *mockRepository) Forget(ctx context.Context, host string, inherit []*os.File) error {
+func (_mock *mockRepository) Forget(ctx context.Context, host string, inherit []*os.File) (restic.ForgetSummary, error) {
 	ret := _mock.Called(ctx, host, inherit)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Forget")
 	}
 
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, []*os.File) error); ok {
+	var r0 restic.ForgetSummary
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, []*os.File) (restic.ForgetSummary, error)); ok {
+		return returnFunc(ctx, host, inherit)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, []*os.File) restic.ForgetSummary); ok {
 		r0 = returnFunc(ctx, host, inherit)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(restic.ForgetSummary)
 	}
-	return r0
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string, []*os.File) error); ok {
+		r1 = returnFunc(ctx, host, inherit)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
 }
 
 // mockRepository_Forget_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Forget'
@@ -209,12 +227,12 @@ func (_c *mockRepository_Forget_Call) Run(run func(ctx context.Context, host str
 	return _c
 }
 
-func (_c *mockRepository_Forget_Call) Return(err error) *mockRepository_Forget_Call {
-	_c.Call.Return(err)
+func (_c *mockRepository_Forget_Call) Return(forgetSummary restic.ForgetSummary, err error) *mockRepository_Forget_Call {
+	_c.Call.Return(forgetSummary, err)
 	return _c
 }
 
-func (_c *mockRepository_Forget_Call) RunAndReturn(run func(ctx context.Context, host string, inherit []*os.File) error) *mockRepository_Forget_Call {
+func (_c *mockRepository_Forget_Call) RunAndReturn(run func(ctx context.Context, host string, inherit []*os.File) (restic.ForgetSummary, error)) *mockRepository_Forget_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -388,6 +406,63 @@ func (_c *mockRepository_Locks_Call) Return(locks []restic.Lock, err error) *moc
 }
 
 func (_c *mockRepository_Locks_Call) RunAndReturn(run func(ctx context.Context) ([]restic.Lock, error)) *mockRepository_Locks_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Prune provides a mock function for the type mockRepository
+func (_mock *mockRepository) Prune(ctx context.Context, inherit []*os.File) error {
+	ret := _mock.Called(ctx, inherit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Prune")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []*os.File) error); ok {
+		r0 = returnFunc(ctx, inherit)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// mockRepository_Prune_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Prune'
+type mockRepository_Prune_Call struct {
+	*mock.Call
+}
+
+// Prune is a helper method to define mock.On call
+//   - ctx context.Context
+//   - inherit []*os.File
+func (_e *mockRepository_Expecter) Prune(ctx any, inherit any) *mockRepository_Prune_Call {
+	return &mockRepository_Prune_Call{Call: _e.mock.On("Prune", ctx, inherit)}
+}
+
+func (_c *mockRepository_Prune_Call) Run(run func(ctx context.Context, inherit []*os.File)) *mockRepository_Prune_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 []*os.File
+		if args[1] != nil {
+			arg1 = args[1].([]*os.File)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *mockRepository_Prune_Call) Return(err error) *mockRepository_Prune_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *mockRepository_Prune_Call) RunAndReturn(run func(ctx context.Context, inherit []*os.File) error) *mockRepository_Prune_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -778,20 +853,29 @@ func (_c *mockStack_RunningServices_Call) RunAndReturn(run func(ctx context.Cont
 }
 
 // Start provides a mock function for the type mockStack
-func (_mock *mockStack) Start(ctx context.Context, services []string) error {
+func (_mock *mockStack) Start(ctx context.Context, services []string) (string, error) {
 	ret := _mock.Called(ctx, services)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Start")
 	}
 
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, []string) error); ok {
+	var r0 string
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []string) (string, error)); ok {
+		return returnFunc(ctx, services)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []string) string); ok {
 		r0 = returnFunc(ctx, services)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(string)
 	}
-	return r0
+	if returnFunc, ok := ret.Get(1).(func(context.Context, []string) error); ok {
+		r1 = returnFunc(ctx, services)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
 }
 
 // mockStack_Start_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Start'
@@ -824,31 +908,40 @@ func (_c *mockStack_Start_Call) Run(run func(ctx context.Context, services []str
 	return _c
 }
 
-func (_c *mockStack_Start_Call) Return(err error) *mockStack_Start_Call {
-	_c.Call.Return(err)
+func (_c *mockStack_Start_Call) Return(s string, err error) *mockStack_Start_Call {
+	_c.Call.Return(s, err)
 	return _c
 }
 
-func (_c *mockStack_Start_Call) RunAndReturn(run func(ctx context.Context, services []string) error) *mockStack_Start_Call {
+func (_c *mockStack_Start_Call) RunAndReturn(run func(ctx context.Context, services []string) (string, error)) *mockStack_Start_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // Stop provides a mock function for the type mockStack
-func (_mock *mockStack) Stop(ctx context.Context) error {
+func (_mock *mockStack) Stop(ctx context.Context) (string, error) {
 	ret := _mock.Called(ctx)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Stop")
 	}
 
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context) error); ok {
+	var r0 string
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context) (string, error)); ok {
+		return returnFunc(ctx)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context) string); ok {
 		r0 = returnFunc(ctx)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(string)
 	}
-	return r0
+	if returnFunc, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = returnFunc(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
 }
 
 // mockStack_Stop_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Stop'
@@ -875,12 +968,12 @@ func (_c *mockStack_Stop_Call) Run(run func(ctx context.Context)) *mockStack_Sto
 	return _c
 }
 
-func (_c *mockStack_Stop_Call) Return(err error) *mockStack_Stop_Call {
-	_c.Call.Return(err)
+func (_c *mockStack_Stop_Call) Return(s string, err error) *mockStack_Stop_Call {
+	_c.Call.Return(s, err)
 	return _c
 }
 
-func (_c *mockStack_Stop_Call) RunAndReturn(run func(ctx context.Context) error) *mockStack_Stop_Call {
+func (_c *mockStack_Stop_Call) RunAndReturn(run func(ctx context.Context) (string, error)) *mockStack_Stop_Call {
 	_c.Call.Return(run)
 	return _c
 }

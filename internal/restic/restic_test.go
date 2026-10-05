@@ -1,9 +1,11 @@
 package restic
 
 import (
+	"bytes"
 	"context"
 	"errors"
-	"os"
+	"io"
+	"slices"
 	"testing"
 	"time"
 
@@ -21,7 +23,6 @@ func command(args ...string) process.Command {
 }
 
 func TestCommands(t *testing.T) {
-	held := os.NewFile(3, "held")
 	type When struct {
 		call func(r Restic) error
 	}
@@ -36,18 +37,6 @@ func TestCommands(t *testing.T) {
 		"unlock":     {When: When{call: func(r Restic) error { return r.Unlock(context.Background()) }}, Then: Then{command: command("unlock")}},
 		"unlock all": {When: When{call: func(r Restic) error { return r.UnlockAll(context.Background()) }}, Then: Then{command: command("unlock", "--remove-all")}},
 		"check":      {When: When{call: func(r Restic) error { return r.Check(context.Background()) }}, Then: Then{command: command("check", "--retry-lock", "2h")}},
-		"backup": {
-			When: When{call: func(r Restic) error {
-				return r.Backup(context.Background(), BackupOptions{Host: "gorgon", Tags: []string{"machine:abc", "nightly"}, ExcludeFile: "/state/excludes", Dir: "/data", Paths: []string{"volumes"}, Inherit: []*os.File{held}})
-			}},
-			Then: Then{command: process.Command{Name: "restic", Env: env, Dir: "/data", ExtraFiles: []*os.File{held},
-				Args: []string{"backup", "--retry-lock", "2h", "--host", "gorgon", "--tag", "machine:abc", "--tag", "nightly", "--exclude-file", "/state/excludes", "volumes"}}},
-		},
-		"forget": {
-			When: When{call: func(r Restic) error { return r.Forget(context.Background(), "gorgon", []*os.File{held}) }},
-			Then: Then{command: process.Command{Name: "restic", Env: env, ExtraFiles: []*os.File{held},
-				Args: []string{"forget", "--retry-lock", "2h", "--host", "gorgon", "--prune", "--keep-daily", "7", "--keep-weekly", "4", "--keep-monthly", "6"}}},
-		},
 		"restore with a host and filters": {
 			When: When{call: func(r Restic) error {
 				return r.Restore(context.Background(), RestoreOptions{Snapshot: "latest:/volumes", Host: "gorgon", Target: "/data/volumes", Include: []string{"*.db"}, Exclude: []string{"configarr"}})
@@ -196,4 +185,77 @@ func TestLocks(t *testing.T) {
 	require.Len(t, locks, 2)
 	assert.Equal(t, "shared lock from pi (process 7) since 2026-10-05 04:30", locks[0].String())
 	assert.Equal(t, "shared lock from an unknown host (process ?) since 2026-10-05 05:00", locks[1].String())
+}
+
+func TestBackupSummary(t *testing.T) {
+	type Given struct {
+		stdout string
+	}
+	type Then struct {
+		summary BackupSummary
+		logged  string
+	}
+	tests := map[string]struct {
+		Given Given
+		Then  Then
+	}{
+		"progress is dropped and the summary read": {
+			Given: Given{stdout: `{"message_type":"status","percent_done":0.5}` + "\n" +
+				`{"message_type":"summary","files_new":2,"files_changed":877,"files_unmodified":803,"data_added":21472870,"data_added_packed":2988441,"snapshot_id":"40c4a929f0d1e2b3"}` + "\n"},
+			Then: Then{
+				summary: BackupSummary{SnapshotID: "40c4a929f0d1e2b3", FilesNew: 2, FilesChanged: 877, FilesUnmodified: 803, DataAdded: 21472870, DataAddedPacked: 2988441},
+				logged:  "snapshot 40c4a929: 2 new, 877 changed, 803 unchanged files; 20.5 MiB added (2.8 MiB stored)\n",
+			},
+		},
+		"an error message is kept": {
+			Given: Given{stdout: `{"message_type":"error","error":{"message":"permission denied"},"during":"archival","item":"/data/volumes/x"}` + "\n" +
+				`{"message_type":"summary","snapshot_id":"40c4a929f0d1e2b3"}` + "\n"},
+			Then: Then{
+				summary: BackupSummary{SnapshotID: "40c4a929f0d1e2b3"},
+				logged:  "error during archival: /data/volumes/x: permission denied\nsnapshot 40c4a929: 0 new, 0 changed, 0 unchanged files; 0 B added (0 B stored)\n",
+			},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			var logged bytes.Buffer
+			runner := newMockRunner(t)
+			runner.EXPECT().Run(mock.Anything, mock.MatchedBy(func(c process.Command) bool {
+				return slices.Equal(c.Args, []string{"backup", "--json", "--retry-lock", "2h", "--host", "gorgon", "--tag", "nightly", "--exclude-file", "/state/excludes", "volumes"}) && c.Dir == "/data" && c.Stdout != nil
+			})).RunAndReturn(func(_ context.Context, c process.Command) (int, error) {
+				_, _ = io.WriteString(c.Stdout, tt.Given.stdout)
+				return 0, nil
+			})
+
+			summary, err := Restic{Runner: runner, Env: env, Log: &logged}.Backup(context.Background(), BackupOptions{Host: "gorgon", Tags: []string{"nightly"}, ExcludeFile: "/state/excludes", Dir: "/data", Paths: []string{"volumes"}})
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.Then.summary, summary)
+			assert.Equal(t, tt.Then.logged, logged.String())
+		})
+	}
+}
+
+func TestForgetSummary(t *testing.T) {
+	var logged bytes.Buffer
+	runner := newMockRunner(t)
+	runner.EXPECT().Run(mock.Anything, mock.MatchedBy(func(c process.Command) bool {
+		return slices.Equal(c.Args, []string{"forget", "--json", "--retry-lock", "2h", "--host", "gorgon", "--keep-daily", "7", "--keep-weekly", "4", "--keep-monthly", "6"}) && c.Stdout != nil
+	})).RunAndReturn(func(_ context.Context, c process.Command) (int, error) {
+		_, _ = io.WriteString(c.Stdout, `[{"keep":[{"short_id":"a"},{"short_id":"b"}],"remove":[{"short_id":"c","time":"2026-10-05T04:31:01+01:00"}]}]`)
+		return 0, nil
+	})
+
+	summary, err := Restic{Runner: runner, Env: env, Log: &logged}.Forget(context.Background(), "gorgon", nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, "kept 2, removed 1 (2026-10-05 04:31)", summary.String())
+	assert.Equal(t, "kept 2, removed 1 (2026-10-05 04:31)\n", logged.String())
+}
+
+func TestPrune(t *testing.T) {
+	runner := newMockRunner(t)
+	runner.EXPECT().Run(mock.Anything, command("prune", "--retry-lock", "2h")).Return(0, nil)
+
+	require.NoError(t, Restic{Runner: runner, Env: env}.Prune(context.Background(), nil))
 }

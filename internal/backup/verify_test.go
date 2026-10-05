@@ -59,17 +59,17 @@ func TestVerify(t *testing.T) {
 				goodDatabase(t, filepath.Join(dir, "volumes", "sonarr", "sonarr.db"))
 				require.NoError(t, os.WriteFile(filepath.Join(dir, "volumes", "sonarr", "notes.sqlite"), []byte("not sqlite"), 0o644))
 			}},
-			Then: Then{out: "Checking the repository...\nRestoring the databases of the latest snapshot...\nChecking 2 databases...\nThe backups check out.\n"},
+			Then: Then{out: "Checking the repository... no errors.\nRestoring the databases of the latest snapshot... restored 2 databases.\nChecking the databases... 2 intact.\nThe backups check out.\n"},
 		},
 		"no databases": {
 			Given: Given{snapshots: ours, restored: func(*testing.T, string) {}},
-			Then:  Then{out: "Checking the repository...\nRestoring the databases of the latest snapshot...\n", err: "the latest snapshot holds no databases"},
+			Then:  Then{out: "Checking the repository... no errors.\nRestoring the databases of the latest snapshot... failed.\n", err: "the latest snapshot holds no databases"},
 		},
 		"corrupt database": {
 			Given: Given{snapshots: ours, restored: func(t *testing.T, dir string) {
 				corruptDatabase(t, filepath.Join(dir, "volumes", "radarr", "radarr.db"))
 			}},
-			Then: Then{out: "Checking the repository...\nRestoring the databases of the latest snapshot...\nChecking 1 databases...\n", err: "cannot check volumes/radarr/radarr.db: database disk image is malformed (11)"},
+			Then: Then{out: "Checking the repository... no errors.\nRestoring the databases of the latest snapshot... restored 1 databases.\nChecking the databases... failed.\n", err: "cannot check volumes/radarr/radarr.db: database disk image is malformed (11)"},
 		},
 	}
 	for name, tt := range tests {

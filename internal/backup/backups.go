@@ -2,12 +2,11 @@ package backup
 
 import (
 	"context"
-	"fmt"
-	"io"
 	"os"
 	"time"
 
 	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/report"
 	"github.com/pablovarela/media-server-engine/internal/restic"
 )
 
@@ -18,8 +17,9 @@ type Repository interface {
 	Unlock(ctx context.Context) error
 	UnlockAll(ctx context.Context) error
 	Locks(ctx context.Context) ([]restic.Lock, error)
-	Backup(ctx context.Context, options restic.BackupOptions) error
-	Forget(ctx context.Context, host string, inherit []*os.File) error
+	Backup(ctx context.Context, options restic.BackupOptions) (restic.BackupSummary, error)
+	Forget(ctx context.Context, host string, inherit []*os.File) (restic.ForgetSummary, error)
+	Prune(ctx context.Context, inherit []*os.File) error
 	Check(ctx context.Context) error
 	Restore(ctx context.Context, options restic.RestoreOptions) error
 }
@@ -27,8 +27,8 @@ type Repository interface {
 type Stack interface {
 	RunningServices(ctx context.Context) ([]string, error)
 	AnyRunning(ctx context.Context) (bool, error)
-	Stop(ctx context.Context) error
-	Start(ctx context.Context, services []string) error
+	Stop(ctx context.Context) (string, error)
+	Start(ctx context.Context, services []string) (string, error)
 }
 
 type Pinger interface {
@@ -48,8 +48,7 @@ type Backups struct {
 	Now                func() time.Time
 	Ask                func(question string) (answer string, interactive bool)
 	Shield             func() (release func())
-	Out                io.Writer
-	ErrOut             io.Writer
+	Report             *report.Reporter
 }
 
 func (b *Backups) shielded() (release func()) {
@@ -57,8 +56,4 @@ func (b *Backups) shielded() (release func()) {
 		return func() {}
 	}
 	return b.Shield()
-}
-
-func (b *Backups) say(line string) {
-	_, _ = fmt.Fprintln(b.Out, line)
 }

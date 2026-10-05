@@ -1,9 +1,11 @@
 package restic
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -30,6 +32,7 @@ type Runner interface {
 type Restic struct {
 	Runner Runner
 	Env    []string
+	Log    io.Writer
 }
 
 type Snapshot struct {
@@ -114,19 +117,47 @@ func (r Restic) Check(ctx context.Context) error {
 	return r.run(ctx, process.Command{Args: []string{"check", retryLock, waitForLocks}})
 }
 
-func (r Restic) Backup(ctx context.Context, o BackupOptions) error {
-	args := []string{"backup", retryLock, waitForLocks, "--host", o.Host}
+func (r Restic) Backup(ctx context.Context, o BackupOptions) (BackupSummary, error) {
+	args := []string{"backup", "--json", retryLock, waitForLocks, "--host", o.Host}
 	for _, tag := range o.Tags {
 		args = append(args, "--tag", tag)
 	}
 	args = append(args, "--exclude-file", o.ExcludeFile)
-	return r.run(ctx, process.Command{Args: append(args, o.Paths...), Dir: o.Dir, ExtraFiles: o.Inherit})
+	messages := &backupMessages{log: r.Log}
+	err := r.run(ctx, process.Command{Args: append(args, o.Paths...), Dir: o.Dir, ExtraFiles: o.Inherit, Stdout: messages})
+	return messages.summary, err
 }
 
-func (r Restic) Forget(ctx context.Context, host string, inherit []*os.File) error {
-	return r.run(ctx, process.Command{ExtraFiles: inherit, Args: []string{
-		"forget", retryLock, waitForLocks, "--host", host, "--prune", "--keep-daily", "7", "--keep-weekly", "4", "--keep-monthly", "6",
+func (r Restic) Forget(ctx context.Context, host string, inherit []*os.File) (ForgetSummary, error) {
+	var listed bytes.Buffer
+	err := r.run(ctx, process.Command{ExtraFiles: inherit, Stdout: &listed, Args: []string{
+		"forget", "--json", retryLock, waitForLocks, "--host", host, "--keep-daily", "7", "--keep-weekly", "4", "--keep-monthly", "6",
 	}})
+	if err != nil {
+		return ForgetSummary{}, err
+	}
+	var groups []struct {
+		Keep   []Snapshot `json:"keep"`
+		Remove []Snapshot `json:"remove"`
+	}
+	if err := json.Unmarshal(listed.Bytes(), &groups); err != nil {
+		return ForgetSummary{}, fmt.Errorf("restic forget printed unreadable JSON: %w", err)
+	}
+	var summary ForgetSummary
+	for _, group := range groups {
+		summary.Kept += len(group.Keep)
+		for _, removed := range group.Remove {
+			summary.Removed = append(summary.Removed, removed.Time)
+		}
+	}
+	if r.Log != nil {
+		_, _ = fmt.Fprintln(r.Log, summary.String())
+	}
+	return summary, nil
+}
+
+func (r Restic) Prune(ctx context.Context, inherit []*os.File) error {
+	return r.run(ctx, process.Command{ExtraFiles: inherit, Args: []string{"prune", retryLock, waitForLocks}})
 }
 
 func (r Restic) Restore(ctx context.Context, o RestoreOptions) error {
@@ -219,4 +250,107 @@ func failure(name string, result process.Result) error {
 		return fmt.Errorf("restic %s failed (exit %d): %s", name, result.Exit, reason)
 	}
 	return fmt.Errorf("restic %s failed (exit %d)", name, result.Exit)
+}
+
+type BackupSummary struct {
+	SnapshotID      string `json:"snapshot_id"`
+	FilesNew        int    `json:"files_new"`
+	FilesChanged    int    `json:"files_changed"`
+	FilesUnmodified int    `json:"files_unmodified"`
+	DataAdded       int64  `json:"data_added"`
+	DataAddedPacked int64  `json:"data_added_packed"`
+}
+
+func (s BackupSummary) String() string {
+	id := s.SnapshotID
+	if len(id) > 8 {
+		id = id[:8]
+	}
+	return fmt.Sprintf("snapshot %s: %d new, %d changed, %d unchanged files; %s added (%s stored)", id, s.FilesNew, s.FilesChanged, s.FilesUnmodified, size(s.DataAdded), size(s.DataAddedPacked))
+}
+
+func size(bytes int64) string {
+	value, units := float64(bytes), []string{"B", "KiB", "MiB", "GiB", "TiB"}
+	unit := 0
+	for value >= 1024 && unit < len(units)-1 {
+		value /= 1024
+		unit++
+	}
+	if unit == 0 {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	return fmt.Sprintf("%.1f %s", value, units[unit])
+}
+
+type ForgetSummary struct {
+	Kept    int
+	Removed []time.Time
+}
+
+func (s ForgetSummary) String() string {
+	text := fmt.Sprintf("kept %d, removed %d", s.Kept, len(s.Removed))
+	if len(s.Removed) > 0 {
+		times := make([]string, len(s.Removed))
+		for n, at := range s.Removed {
+			times[n] = at.Format("2006-01-02 15:04")
+		}
+		text += " (" + strings.Join(times, ", ") + ")"
+	}
+	return text
+}
+
+type backupMessages struct {
+	log     io.Writer
+	summary BackupSummary
+	pending strings.Builder
+}
+
+func (m *backupMessages) Write(b []byte) (int, error) {
+	m.pending.Write(b)
+	text := m.pending.String()
+	for {
+		line, rest, found := strings.Cut(text, "\n")
+		if !found {
+			break
+		}
+		m.read(line)
+		text = rest
+	}
+	m.pending.Reset()
+	m.pending.WriteString(text)
+	return len(b), nil
+}
+
+func (m *backupMessages) read(line string) {
+	var message struct {
+		Type   string `json:"message_type"`
+		During string `json:"during"`
+		Item   string `json:"item"`
+		Action string `json:"action"`
+		Error  struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if json.Unmarshal([]byte(line), &message) != nil {
+		m.say(line)
+		return
+	}
+	switch message.Type {
+	case "status":
+	case "summary":
+		_ = json.Unmarshal([]byte(line), &m.summary)
+		m.say(m.summary.String())
+	case "error":
+		m.say(fmt.Sprintf("error during %s: %s: %s", message.During, message.Item, message.Error.Message))
+	case "verbose_status":
+		m.say(message.Action + " " + message.Item)
+	default:
+		m.say(line)
+	}
+}
+
+func (m *backupMessages) say(line string) {
+	if m.log != nil {
+		_, _ = fmt.Fprintln(m.log, line)
+	}
 }
