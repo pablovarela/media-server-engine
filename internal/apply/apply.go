@@ -41,12 +41,17 @@ type Images interface {
 	Prune(ctx context.Context) error
 }
 
+type Timers interface {
+	Set(ctx context.Context) (string, error)
+}
+
 type Apply struct {
 	Stack    Stack
 	Checks   Checks
 	Wiring   Wiring
 	Page     Page
 	Images   Images
+	Timers   Timers
 	MkdirAll func(path string) error
 	Sleep    func(ctx context.Context, d time.Duration) error
 	Report   *report.Reporter
@@ -70,7 +75,13 @@ func (a *Apply) Run(ctx context.Context) error {
 	if wired != nil {
 		return wired
 	}
-	return a.Images.Prune(ctx)
+	if err := a.Images.Prune(ctx); err != nil {
+		return err
+	}
+	if a.Timers == nil {
+		return nil
+	}
+	return a.step("Setting up the timers", func() (string, error) { return a.Timers.Set(ctx) })
 }
 
 func (a *Apply) step(title string, do func() (string, error)) error {

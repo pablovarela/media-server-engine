@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -241,4 +242,63 @@ func TestAFailedWiringDoesNotPrintAnotherToolsLinesAsItsCause(t *testing.T) {
 
 	assert.EqualError(t, err, "wiring failed: seerr")
 	assert.NotContains(t, stderr.String(), "configarr finished")
+}
+
+func succeeding(t *testing.T, ctx context.Context) (*mockStack, *mockPage, *mockImages) {
+	t.Helper()
+	stack := newMockStack(t)
+	stack.EXPECT().BindSources().Return(nil)
+	stack.EXPECT().Pull(ctx).Return("13 up to date", nil)
+	stack.EXPECT().Up(ctx).Return("up to date", nil)
+	stack.EXPECT().Reattach(ctx).Return("nothing to reattach", nil)
+	page, images := newMockPage(t), newMockImages(t)
+	page.EXPECT().Reload(ctx).Return(nil)
+	images.EXPECT().Prune(ctx).Return(nil)
+	return stack, page, images
+}
+
+func TestTheTimersAreSetUpLast(t *testing.T) {
+	ctx := context.Background()
+	stack, page, images := succeeding(t, ctx)
+	timers := newMockTimers(t)
+	timers.EXPECT().Set(ctx).Return("all 4 unchanged", nil)
+	var stdout bytes.Buffer
+
+	err := (&Apply{
+		Stack: stack, Page: page, Images: images, Timers: timers, MkdirAll: func(string) error { return nil },
+		Sleep: func(context.Context, time.Duration) error { return nil }, Report: report.New(&stdout, &stdout, nil),
+	}).Run(ctx)
+
+	require.NoError(t, err)
+	assert.True(t, strings.HasSuffix(stdout.String(), "Setting up the timers... all 4 unchanged.\n"), stdout.String())
+}
+
+func TestAFailedTimersStepFailsTheApply(t *testing.T) {
+	ctx := context.Background()
+	stack, page, images := succeeding(t, ctx)
+	timers := newMockTimers(t)
+	timers.EXPECT().Set(ctx).Return("", errors.New("systemctl --user daemon-reload failed: Failed to connect to bus"))
+	var stdout bytes.Buffer
+
+	err := (&Apply{
+		Stack: stack, Page: page, Images: images, Timers: timers, MkdirAll: func(string) error { return nil },
+		Sleep: func(context.Context, time.Duration) error { return nil }, Report: report.New(&stdout, &stdout, nil),
+	}).Run(ctx)
+
+	assert.EqualError(t, err, "systemctl --user daemon-reload failed: Failed to connect to bus")
+}
+
+func TestAFailedApplyLeavesTheTimersAlone(t *testing.T) {
+	ctx := context.Background()
+	stack := newMockStack(t)
+	stack.EXPECT().BindSources().Return(nil)
+	stack.EXPECT().Pull(ctx).Return("", errors.New("manifest unknown"))
+	var stdout bytes.Buffer
+
+	err := (&Apply{
+		Stack: stack, Timers: newMockTimers(t), MkdirAll: func(string) error { return nil },
+		Sleep: func(context.Context, time.Duration) error { return nil }, Report: report.New(&stdout, &stdout, nil),
+	}).Run(ctx)
+
+	assert.EqualError(t, err, "manifest unknown")
 }
