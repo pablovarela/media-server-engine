@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -19,6 +20,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/healthchecks"
 	"github.com/pablovarela/media-server-engine/internal/installation"
 	"github.com/pablovarela/media-server-engine/internal/process"
+	"github.com/pablovarela/media-server-engine/internal/report"
 	"github.com/pablovarela/media-server-engine/internal/restic"
 	"github.com/pablovarela/media-server-engine/internal/secrets"
 )
@@ -104,9 +106,10 @@ func (d Dependencies) backups(cmd *cobra.Command, needs backupNeeds) (*backup.Ba
 		return nil, err
 	}
 	role := i.Role()
+	tool := report.From(cmd.Context()).Tool("restic")
 	return &backup.Backups{
 		Installation:       i,
-		Repository:         resticFor(d.Run(cmd.OutOrStdout(), cmd.ErrOrStderr()), repository),
+		Repository:         resticFor(d.Run(tool, tool), repository, tool),
 		RepositoryLocation: repository["RESTIC_REPOSITORY"],
 		Stack:              stack,
 		Pinger: &healthchecks.Pings{
@@ -120,8 +123,7 @@ func (d Dependencies) backups(cmd *cobra.Command, needs backupNeeds) (*backup.Ba
 		Now:         d.Now,
 		Ask:         d.asker(cmd),
 		Shield:      shieldSignals,
-		Out:         cmd.OutOrStdout(),
-		ErrOut:      cmd.ErrOrStderr(),
+		Report:      report.From(cmd.Context()),
 	}, nil
 }
 
@@ -145,7 +147,7 @@ func (d Dependencies) backupTarget(cmd *cobra.Command, withStack bool) (*install
 		if err != nil {
 			return nil, nil, err
 		}
-		return o.installation, projectStack{runner: o.runner, project: o.project}, nil
+		return o.installation, projectStack{runner: o.runner, project: o.project, outcomes: o.outcomes}, nil
 	}
 	i, err := d.installation(cmd)
 	if err != nil {
@@ -164,13 +166,13 @@ func (d Dependencies) writeExcludes(i *installation.Installation) (string, error
 	return path, err
 }
 
-func resticFor(runner commandRunner, repository map[string]string) restic.Restic {
+func resticFor(runner commandRunner, repository map[string]string, tool io.Writer) restic.Restic {
 	env := make([]string, 0, len(repository))
 	for key, value := range repository {
 		env = append(env, key+"="+value)
 	}
 	sort.Strings(env)
-	return restic.Restic{Runner: runner, Env: env}
+	return restic.Restic{Runner: runner, Env: env, Log: tool}
 }
 
 func pingKey(i *installation.Installation) string {
@@ -190,15 +192,19 @@ func (d Dependencies) asker(cmd *cobra.Command) func(string) (string, bool) {
 		if d.Interactive == nil || !d.Interactive() {
 			return "", false
 		}
-		_, _ = fmt.Fprint(cmd.ErrOrStderr(), question)
+		r := report.From(cmd.Context())
+		r.Prompt(question)
 		line, _ := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
-		return strings.TrimSpace(line), true
+		answer := strings.TrimSpace(line)
+		r.Note(question + answer)
+		return answer, true
 	}
 }
 
 type projectStack struct {
-	runner  composeRunner
-	project *types.Project
+	runner   composeRunner
+	project  *types.Project
+	outcomes *compose.Outcomes
 }
 
 func (s projectStack) RunningServices(ctx context.Context) ([]string, error) {
@@ -209,10 +215,12 @@ func (s projectStack) AnyRunning(ctx context.Context) (bool, error) {
 	return s.runner.AnyRunning(ctx, s.project)
 }
 
-func (s projectStack) Stop(ctx context.Context) error {
-	return s.runner.Stop(ctx, s.project)
+func (s projectStack) Stop(ctx context.Context) (string, error) {
+	err := s.runner.Stop(ctx, s.project)
+	return s.outcomes.Take().String(), err
 }
 
-func (s projectStack) Start(ctx context.Context, services []string) error {
-	return s.runner.Start(ctx, s.project, services)
+func (s projectStack) Start(ctx context.Context, services []string) (string, error) {
+	err := s.runner.Start(ctx, s.project, services)
+	return s.outcomes.Take().String(), err
 }

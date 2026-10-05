@@ -39,8 +39,7 @@ func (b *Backups) Verify(ctx context.Context) (err error) {
 	if err := b.Repository.Unlock(ctx); err != nil {
 		return err
 	}
-	b.say("Checking the repository...")
-	if err := b.Repository.Check(ctx); err != nil {
+	if err := b.checkRepository(ctx); err != nil {
 		return err
 	}
 	dir, err := os.MkdirTemp(b.TempDir, "mse-verify.")
@@ -51,40 +50,59 @@ func (b *Backups) Verify(ctx context.Context) (err error) {
 		defer b.shielded()()
 		_ = os.RemoveAll(dir)
 	}()
-	b.say("Restoring the databases of the latest snapshot...")
 	host := ""
 	if latest != nil {
 		host = b.Installation.Name
 	}
-	if err := b.Repository.Restore(ctx, restic.RestoreOptions{Snapshot: "latest", Host: host, Target: dir, Include: []string{"*.db", "*.sqlite", "*.sqlite3"}}); err != nil {
-		return err
-	}
-	if err := b.checkDatabases(ctx, dir); err != nil {
-		return err
-	}
-	b.Pinger.Ping(ctx, "verify", "")
-	b.say(paint.Stdout.Success("The backups check out."))
-	return nil
-}
-
-func (b *Backups) checkDatabases(ctx context.Context, dir string) error {
-	found, err := databases(dir)
+	found, err := b.restoreDatabases(ctx, host, dir)
 	if err != nil {
 		return err
 	}
-	if len(found) == 0 {
-		return errors.New("the latest snapshot holds no databases")
+	if err := b.checkDatabases(ctx, dir, found); err != nil {
+		return err
 	}
-	b.say(fmt.Sprintf("Checking %d databases...", len(found)))
+	b.Pinger.Ping(ctx, "verify", "")
+	b.Report.Say(paint.Stdout.Success("The backups check out."))
+	return nil
+}
+
+func (b *Backups) checkRepository(ctx context.Context) error {
+	step := b.Report.Step("Checking the repository")
+	if err := b.Repository.Check(ctx); err != nil {
+		return step.Fail(err)
+	}
+	step.Done("no errors")
+	return nil
+}
+
+func (b *Backups) restoreDatabases(ctx context.Context, host, dir string) ([]string, error) {
+	step := b.Report.Step("Restoring the databases of the latest snapshot")
+	if err := b.Repository.Restore(ctx, restic.RestoreOptions{Snapshot: "latest", Host: host, Target: dir, Include: []string{"*.db", "*.sqlite", "*.sqlite3"}}); err != nil {
+		return nil, step.Fail(err)
+	}
+	found, err := databases(dir)
+	if err != nil {
+		return nil, step.Fail(err)
+	}
+	if len(found) == 0 {
+		return nil, step.Fail(errors.New("the latest snapshot holds no databases"))
+	}
+	step.Done(fmt.Sprintf("restored %d databases", len(found)))
+	return found, nil
+}
+
+func (b *Backups) checkDatabases(ctx context.Context, dir string, found []string) error {
+	step := b.Report.Step("Checking the databases")
 	for _, path := range found {
 		relative, err := filepath.Rel(dir, path)
 		if err != nil {
-			return err
+			return step.Fail(err)
 		}
 		if err := checkDatabase(ctx, path, relative); err != nil {
-			return err
+			return step.Fail(err)
 		}
 	}
+	step.Done(fmt.Sprintf("%d intact", len(found)))
 	return nil
 }
 

@@ -36,28 +36,29 @@ func TestReload(t *testing.T) {
 	type Then struct {
 		expect      func(r *mockComposeRunner)
 		revalidated bool
+		result      string
 	}
 	tests := map[string]struct {
 		Given Given
 		Then  Then
 	}{
-		"docker unreachable": {Given: Given{psErr: errors.New("cannot connect"), changes: pageChanges{env: true}}},
-		"not running":        {Given: Given{containers: []compose.Container{{Name: "homepage", State: "exited"}}, changes: pageChanges{env: true}}},
+		"docker unreachable": {Given: Given{psErr: errors.New("cannot connect"), changes: pageChanges{env: true}}, Then: Then{result: "not running"}},
+		"not running":        {Given: Given{containers: []compose.Container{{Name: "homepage", State: "exited"}}, changes: pageChanges{env: true}}, Then: Then{result: "not running"}},
 		"env changed recreates it": {
 			Given: Given{containers: running, changes: pageChanges{env: true, images: true}},
 			Then: Then{expect: func(r *mockComposeRunner) {
 				r.EXPECT().Up(mock.Anything, project, []string{"homepage"}, compose.NoWait).Return(nil)
-			}},
+			}, result: "recreated"},
 		},
 		"images changed restarts it": {
 			Given: Given{containers: running, changes: pageChanges{images: true}},
 			Then: Then{expect: func(r *mockComposeRunner) {
 				r.EXPECT().Restart(mock.Anything, project, []string{"homepage"}).Return(nil)
-			}},
+			}, result: "restarted"},
 		},
 		"otherwise it revalidates": {
 			Given: Given{containers: running},
-			Then:  Then{revalidated: true},
+			Then:  Then{revalidated: true, result: "asked it to revalidate"},
 		},
 	}
 	for name, tt := range tests {
@@ -74,8 +75,10 @@ func TestReload(t *testing.T) {
 				return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("{}"))}, nil
 			})}}
 
-			require.NoError(t, reload(context.Background(), deps, runner, project, "8080", tt.Given.changes))
+			result, err := reload(context.Background(), deps, runner, project, "8080", tt.Given.changes)
 
+			require.NoError(t, err)
+			assert.Equal(t, tt.Then.result, result)
 			assert.Equal(t, tt.Then.revalidated, revalidated)
 		})
 	}
@@ -110,7 +113,7 @@ func TestHomepageCommand(t *testing.T) {
 			"homepage/bookmarks.yaml":       {Data: []byte("[]\n")},
 			"homepage/custom.css":           {Data: []byte("")},
 		},
-		Compose: func(_, _ io.Writer) (composeRunner, error) { return runner, nil },
+		Compose: func(io.Writer, *compose.Outcomes) (composeRunner, error) { return runner, nil },
 	}
 	root := NewRootCommand(deps)
 	var stdout, stderr bytes.Buffer
@@ -120,7 +123,7 @@ func TestHomepageCommand(t *testing.T) {
 	code := run(context.Background(), root, []string{"homepage"})
 
 	assert.Equal(t, 0, code, stderr.String())
-	assert.Equal(t, "The landing page is redrawn; an open page reloads itself in a few seconds.\n", stdout.String())
+	assert.Equal(t, "Drawing the landing page... done.\nReloading Homepage... recreated.\nThe landing page is redrawn; an open page reloads itself in a few seconds.\n", stdout.String())
 	settings, err := os.ReadFile(filepath.Join(state, ".homepage", "settings.yaml"))
 	require.NoError(t, err)
 	assert.Equal(t, "title: \"gorgon on gorgon.local\"\n", string(settings))

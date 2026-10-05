@@ -56,14 +56,14 @@ func (b *Backups) DescribeRole(ctx context.Context) error {
 	}
 	name := b.Installation.Name
 	if latest == nil {
-		b.say(name + " has no backups yet; the first machine to back up becomes its main.")
+		b.Report.Say(name + " has no backups yet; the first machine to back up becomes its main.")
 		return nil
 	}
-	b.say(fmt.Sprintf("%s's main is %s.", name, describe(latest)))
+	b.Report.Say(fmt.Sprintf("%s's main is %s.", name, describe(latest)))
 	if state == anotherMachine {
-		b.say("This machine is not the main; mse claim-backup-main makes it the main.")
+		b.Report.Say("This machine is not the main; mse claim-backup-main makes it the main.")
 		return nil
 	}
-	b.say("This machine is the main.")
+	b.Report.Say("This machine is the main.")
 	return nil
 }

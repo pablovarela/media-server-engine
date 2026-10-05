@@ -94,7 +94,7 @@ func TestLoad(t *testing.T) {
 			}
 			i := fixtureInstallation(t, images, tt.Given.override)
 			i.Settings["TZ"] = "Europe/London"
-			runner, err := NewRunner(os.Stdout, os.Stderr)
+			runner, err := NewRunner(os.Stderr, &Outcomes{})
 			require.NoError(t, err)
 
 			project, err := runner.Load(context.Background(), i, tt.When.kind, Variables(i, "gorgon.local", 998), tt.When.profiles)
@@ -156,7 +156,7 @@ func TestTheEngineComposeFilesLoad(t *testing.T) {
 	for _, secret := range []string{"vpn.env", "gluetun.env", "sonarr.env", "radarr.env", "prowlarr.env", "homepage.env", "apps.env"} {
 		require.NoError(t, os.WriteFile(filepath.Join(i.State, ".secrets", secret), nil, 0o600))
 	}
-	runner, err := NewRunner(os.Stdout, os.Stderr)
+	runner, err := NewRunner(os.Stderr, &Outcomes{})
 	require.NoError(t, err)
 	variables := Variables(i, "gorgon.local", 998)
 

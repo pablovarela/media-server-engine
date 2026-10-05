@@ -5,6 +5,7 @@ import (
 
 	"github.com/pablovarela/media-server-engine/internal/downloads"
 	"github.com/pablovarela/media-server-engine/internal/images"
+	"github.com/pablovarela/media-server-engine/internal/report"
 )
 
 func newPruneStackImagesCommand(deps Dependencies) *cobra.Command {
@@ -21,7 +22,7 @@ func newPruneStackImagesCommand(deps Dependencies) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return images.Prune(cmd.Context(), docker, i, cmd.OutOrStdout())
+			return images.Prune(cmd.Context(), docker, i, report.From(cmd.Context()))
 		},
 	}
 }

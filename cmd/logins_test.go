@@ -3,9 +3,12 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLogins(t *testing.T) {
@@ -28,4 +31,10 @@ func TestLogins(t *testing.T) {
 		"Sonarr       no login on the local network\n"+
 		"Radarr       no login on the local network\n"+
 		"Prowlarr     no login on the local network\n", stdout.String())
+	logged, err := os.ReadFile(filepath.Join(home, ".local", "state", "mse", "gorgon", "logs", "mse.log"))
+	require.NoError(t, err)
+	for _, password := range []string{"jf", "dl", "pt"} {
+		assert.NotRegexp(t, `\b`+password+`\b`, string(logged), "the log never holds a password")
+	}
+	assert.Contains(t, string(logged), "] finish exit 0")
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/report"
 )
 
 func TestPinned(t *testing.T) {
@@ -78,9 +79,12 @@ func TestPrune(t *testing.T) {
 	docker.EXPECT().ImageRemove(mock.Anything, "lscr.io/linuxserver/sonarr@sha256:older", client.ImageRemoveOptions{}).Return(client.ImageRemoveResult{}, errors.New("in use"))
 	var out bytes.Buffer
 
-	require.NoError(t, Prune(context.Background(), docker, &installation.Installation{Config: config}, &out))
+	var log lines
+	require.NoError(t, Prune(context.Background(), docker, &installation.Installation{Config: config}, report.New(&out, &bytes.Buffer{}, &log)))
 
-	assert.Equal(t, "Checking local images against the 1 pinned in the config...\nremoved lscr.io/linuxserver/sonarr:3.9\nkept lscr.io/linuxserver/sonarr@sha256:older (still in use)\nRemoved 1 outdated image, kept 1 still in use.\n", out.String())
+	assert.Equal(t, "Removing outdated images... removed 1, kept 1 still in use.\n", out.String())
+	assert.Contains(t, []string(log), "docker | removed lscr.io/linuxserver/sonarr:3.9")
+	assert.Contains(t, []string(log), "docker | kept lscr.io/linuxserver/sonarr@sha256:older (still in use)")
 }
 
 func TestPruneWithNothingOutdated(t *testing.T) {
@@ -92,7 +96,17 @@ func TestPruneWithNothingOutdated(t *testing.T) {
 	}}, nil)
 	var out bytes.Buffer
 
-	require.NoError(t, Prune(context.Background(), docker, &installation.Installation{Config: config}, &out))
+	require.NoError(t, Prune(context.Background(), docker, &installation.Installation{Config: config}, report.New(&out, &bytes.Buffer{}, nil)))
 
-	assert.Equal(t, "Checking local images against the 2 pinned in the config...\nNo outdated images.\n", out.String())
+	assert.Equal(t, "Removing outdated images... none outdated (2 pinned).\n", out.String())
+}
+
+type lines []string
+
+func (l *lines) Line(tool, text string) string {
+	if tool != "" {
+		text = tool + " | " + text
+	}
+	*l = append(*l, text)
+	return ""
 }

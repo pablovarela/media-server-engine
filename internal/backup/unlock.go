@@ -1,27 +1,31 @@
 package backup
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 func (b *Backups) Unlock(ctx context.Context, all bool) error {
-	unlock := b.Repository.Unlock
+	title, unlock := "Removing stale locks", b.Repository.Unlock
 	if all {
-		unlock = b.Repository.UnlockAll
+		title, unlock = "Removing every lock", b.Repository.UnlockAll
 	}
+	step := b.Report.Step(title)
 	if err := unlock(ctx); err != nil {
-		return err
+		return step.Fail(err)
 	}
 	locks, err := b.Repository.Locks(ctx)
 	if err != nil {
-		return err
+		return step.Fail(err)
 	}
 	if len(locks) == 0 {
-		b.say("no locks left on the backup repository")
+		step.Done("no locks left")
 		return nil
 	}
-	b.say("Locks left, held by restic processes that may still be running:")
+	step.Done(fmt.Sprintf("%d left", len(locks)))
 	for _, lock := range locks {
-		b.say("  " + lock.String())
+		b.Report.Say("  " + lock.String())
 	}
-	b.say("If none of those machines is running restic now, remove them with: mse unlock-backup --all")
+	b.Report.Say("If none of those machines is running restic now, remove them with: mse unlock-backup --all")
 	return nil
 }

@@ -17,7 +17,6 @@ import (
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/cli/cli/flags"
-	"github.com/docker/compose/v5/cmd/display"
 	"github.com/docker/compose/v5/pkg/api"
 	sdk "github.com/docker/compose/v5/pkg/compose"
 	"github.com/moby/moby/api/types/container"
@@ -54,15 +53,22 @@ type Runner struct {
 	service service
 }
 
-func NewRunner(out, errOut io.Writer) (*Runner, error) {
-	dockerCLI, err := command.NewDockerCli(command.WithOutputStream(out), command.WithErrorStream(errOut))
+func (k Kind) Title() string {
+	if k.Name == Monitoring.Name {
+		return "the monitoring stack"
+	}
+	return "the stack"
+}
+
+func NewRunner(tool io.Writer, outcomes *Outcomes) (*Runner, error) {
+	dockerCLI, err := command.NewDockerCli(command.WithOutputStream(tool), command.WithErrorStream(tool))
 	if err != nil {
 		return nil, err
 	}
 	if err := dockerCLI.Initialize(&flags.ClientOptions{}); err != nil {
 		return nil, err
 	}
-	composeService, err := sdk.NewComposeService(dockerCLI, sdk.WithEventProcessor(display.Plain(errOut)))
+	composeService, err := sdk.NewComposeService(dockerCLI, sdk.WithEventProcessor(&events{tool: tool, outcomes: outcomes}))
 	if err != nil {
 		return nil, err
 	}

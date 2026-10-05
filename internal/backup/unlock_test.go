@@ -23,11 +23,11 @@ func TestUnlock(t *testing.T) {
 		Given Given
 		Then  Then
 	}{
-		"stale locks only, none left": {Then: Then{out: "no locks left on the backup repository\n"}},
-		"every lock":                  {Given: Given{all: true}, Then: Then{out: "no locks left on the backup repository\n"}},
+		"stale locks only, none left": {Then: Then{out: "Removing stale locks... no locks left.\n"}},
+		"every lock":                  {Given: Given{all: true}, Then: Then{out: "Removing every lock... no locks left.\n"}},
 		"locks left": {
 			Given: Given{locks: []restic.Lock{{Exclusive: true, Hostname: "pi", PID: 42, Time: time.Date(2026, 10, 5, 4, 30, 0, 0, time.UTC)}}},
-			Then: Then{out: "Locks left, held by restic processes that may still be running:\n" +
+			Then: Then{out: "Removing stale locks... 1 left.\n" +
 				"  exclusive lock from pi (process 42) since 2026-10-05 04:30\n" +
 				"If none of those machines is running restic now, remove them with: mse unlock-backup --all\n"},
 		},

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/report"
 	"github.com/pablovarela/media-server-engine/internal/restic"
 )
 
@@ -36,8 +37,7 @@ func fixture(t *testing.T) (*Backups, mocks, *bytes.Buffer, *bytes.Buffer) {
 		ExcludeFile:        "/state/backup-excludes.txt",
 		TempDir:            t.TempDir(),
 		Now:                func() time.Time { return time.Date(2026, 10, 5, 4, 30, 0, 0, time.UTC) },
-		Out:                &out,
-		ErrOut:             &errOut,
+		Report:             report.New(&out, &errOut, nil),
 	}
 	return b, m, &out, &errOut
 }

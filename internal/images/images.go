@@ -3,7 +3,6 @@ package images
 import (
 	"context"
 	"fmt"
-	"io"
 	"maps"
 	"os"
 	"path/filepath"
@@ -17,7 +16,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/pablovarela/media-server-engine/internal/installation"
-	"github.com/pablovarela/media-server-engine/internal/paint"
+	"github.com/pablovarela/media-server-engine/internal/report"
 )
 
 var imageFiles = []string{"images.yml", "images.monitoring.yml", "compose.override.yml"}
@@ -109,40 +108,34 @@ func unpinnedReferences(summary image.Summary, repositories, pinned map[string]b
 	return references
 }
 
-func Prune(ctx context.Context, c Client, i *installation.Installation, out io.Writer) error {
+func Prune(ctx context.Context, c Client, i *installation.Installation, r *report.Reporter) error {
 	pinned := Pinned(i)
-	_, _ = fmt.Fprintf(out, "Checking local images against the %d pinned in the config...\n", len(pinned))
+	step := r.Step("Removing outdated images")
 	listed, err := c.ImageList(ctx, client.ImageListOptions{All: true})
 	if err != nil {
-		return err
+		return step.Fail(err)
 	}
+	tool := r.Tool("docker")
 	removed, kept := 0, 0
 	for _, reference := range Outdated(pinned, listed.Items) {
 		if _, err := c.ImageRemove(ctx, reference, client.ImageRemoveOptions{}); err != nil {
 			kept++
-			_, _ = fmt.Fprintln(out, paint.Stdout.Warning(fmt.Sprintf("kept %s (still in use)", reference)))
+			_, _ = fmt.Fprintf(tool, "kept %s (still in use)\n", reference)
 			continue
 		}
 		removed++
-		_, _ = fmt.Fprintln(out, paint.Stdout.Success("removed "+reference))
+		_, _ = fmt.Fprintf(tool, "removed %s\n", reference)
 	}
-	_, _ = fmt.Fprintln(out, summary(removed, kept))
+	step.Done(result(removed, kept, len(pinned)))
 	return nil
 }
 
-func summary(removed, kept int) string {
+func result(removed, kept, pinned int) string {
 	switch {
 	case removed+kept == 0:
-		return "No outdated images."
+		return fmt.Sprintf("none outdated (%d pinned)", pinned)
 	case kept == 0:
-		return fmt.Sprintf("Removed %d outdated %s.", removed, images(removed))
+		return fmt.Sprintf("removed %d", removed)
 	}
-	return fmt.Sprintf("Removed %d outdated %s, kept %d still in use.", removed, images(removed), kept)
-}
-
-func images(n int) string {
-	if n == 1 {
-		return "image"
-	}
-	return "images"
+	return fmt.Sprintf("removed %d, kept %d still in use", removed, kept)
 }

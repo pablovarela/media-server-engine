@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -45,7 +46,7 @@ func TestStackCommands(t *testing.T) {
 	}{
 		"stack up draws the page first": {
 			When: When{args: []string{"stack", "up"}},
-			Then: Then{expect: func(r *mockComposeRunner) {
+			Then: Then{stdout: "Drawing the landing page... done.\nStarting the stack... done.\nReloading Homepage... not running.\n", expect: func(r *mockComposeRunner) {
 				r.EXPECT().Up(mock.Anything, project, []string{}, compose.NoWait).Return(nil)
 				homepageStopped(r)
 			}, drawn: true},
@@ -53,7 +54,7 @@ func TestStackCommands(t *testing.T) {
 		"stack up starts the containers when the page cannot be drawn": {
 			Given: Given{configServices: "not: a list\n"},
 			When:  When{args: []string{"stack", "up"}},
-			Then: Then{
+			Then: Then{stdout: "Drawing the landing page... failed.\nStarting the stack... done.\n",
 				expect: func(r *mockComposeRunner) {
 					r.EXPECT().Up(mock.Anything, project, []string{}, compose.NoWait).Return(nil)
 				},
@@ -64,45 +65,45 @@ func TestStackCommands(t *testing.T) {
 		},
 		"monitoring up draws no page": {
 			When: When{args: []string{"monitoring", "up"}},
-			Then: Then{expect: func(r *mockComposeRunner) {
+			Then: Then{stdout: "Starting the monitoring stack... done.\n", expect: func(r *mockComposeRunner) {
 				r.EXPECT().Up(mock.Anything, project, []string{}, compose.NoWait).Return(nil)
 			}},
 		},
 		"stack up --wait": {
 			When: When{args: []string{"stack", "up", "--wait"}},
-			Then: Then{expect: func(r *mockComposeRunner) {
+			Then: Then{stdout: "Drawing the landing page... done.\nStarting the stack... done.\nReloading Homepage... not running.\n", expect: func(r *mockComposeRunner) {
 				r.EXPECT().Up(mock.Anything, project, []string{}, compose.Wait{Enabled: true, Timeout: 5 * time.Minute}).Return(nil)
 				homepageStopped(r)
 			}, drawn: true},
 		},
 		"stack up --wait-timeout": {
 			When: When{args: []string{"stack", "up", "--wait", "--wait-timeout", "2m"}},
-			Then: Then{expect: func(r *mockComposeRunner) {
+			Then: Then{stdout: "Drawing the landing page... done.\nStarting the stack... done.\nReloading Homepage... not running.\n", expect: func(r *mockComposeRunner) {
 				r.EXPECT().Up(mock.Anything, project, []string{}, compose.Wait{Enabled: true, Timeout: 2 * time.Minute}).Return(nil)
 				homepageStopped(r)
 			}, drawn: true},
 		},
 		"stack up with services": {
 			When: When{args: []string{"stack", "up", "jellyfin"}},
-			Then: Then{expect: func(r *mockComposeRunner) {
+			Then: Then{stdout: "Drawing the landing page... done.\nStarting jellyfin... done.\nReloading Homepage... not running.\n", expect: func(r *mockComposeRunner) {
 				r.EXPECT().Up(mock.Anything, project, []string{"jellyfin"}, compose.NoWait).Return(nil)
 				homepageStopped(r)
 			}, drawn: true},
 		},
 		"stack down": {
 			When: When{args: []string{"stack", "down"}},
-			Then: Then{expect: func(r *mockComposeRunner) { r.EXPECT().Down(mock.Anything, project).Return(nil) }},
+			Then: Then{stdout: "Stopping the stack... done.\n", expect: func(r *mockComposeRunner) { r.EXPECT().Down(mock.Anything, project).Return(nil) }},
 		},
 		"stack restart": {
 			When: When{args: []string{"stack", "restart", "homepage"}},
-			Then: Then{expect: func(r *mockComposeRunner) {
+			Then: Then{stdout: "Drawing the landing page... done.\nRestarting homepage... done.\nReloading Homepage... not running.\n", expect: func(r *mockComposeRunner) {
 				r.EXPECT().Restart(mock.Anything, project, []string{"homepage"}).Return(nil)
 				homepageStopped(r)
 			}, drawn: true},
 		},
 		"stack restart recreates homepage when its environment changed": {
 			When: When{args: []string{"stack", "restart"}},
-			Then: Then{expect: func(r *mockComposeRunner) {
+			Then: Then{stdout: "Drawing the landing page... done.\nRestarting the stack... done.\nReloading Homepage... recreated.\n", expect: func(r *mockComposeRunner) {
 				r.EXPECT().Restart(mock.Anything, project, []string{}).Return(nil)
 				r.EXPECT().Ps(mock.Anything, project).Return([]compose.Container{{Name: "homepage", State: "running"}}, nil)
 				r.EXPECT().Up(mock.Anything, project, []string{"homepage"}, compose.NoWait).Return(nil)
@@ -175,7 +176,7 @@ func TestStackCommands(t *testing.T) {
 					"homepage/custom.css":           {Data: []byte("")},
 				},
 				HTTP:    &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) { return nil, errors.New("no network in tests") })},
-				Compose: func(_, _ io.Writer) (composeRunner, error) { return runner, nil },
+				Compose: func(io.Writer, *compose.Outcomes) (composeRunner, error) { return runner, nil },
 			}
 			root := NewRootCommand(deps)
 			var stdout, stderr bytes.Buffer
@@ -221,4 +222,99 @@ func TestPrintContainersInColourKeepsColumnsAligned(t *testing.T) {
 		"bazarr     "+green+"running"+reset+"             6767->6767/tcp\n"+
 		"gluetun    "+green+"running"+reset+"  "+red+"unhealthy"+reset+"\n"+
 		"configarr  "+red+"exited"+reset+"\n", out.String())
+}
+
+func TestContainerLogsStayOutOfTheLog(t *testing.T) {
+	project := &types.Project{Name: "media-server"}
+	getenv, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"})
+	runner := newMockComposeRunner(t)
+	runner.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, mock.Anything).Return(project, nil)
+	runner.EXPECT().Logs(mock.Anything, project, mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, _ *types.Project, _ compose.LogsOptions, w io.Writer) error {
+		_, err := io.WriteString(w, "jellyfin | a container log line\n")
+		return err
+	})
+	root := NewRootCommand(Dependencies{
+		Environment: getenv, Home: home, Update: newMockUpdater(t),
+		Decrypt: func(string) ([]byte, error) { return []byte("A=1\n"), nil },
+		Host:    installation.Host{GOOS: "linux", Hostname: func() (string, error) { return "gorgon", nil }},
+		Engine: fstest.MapFS{
+			"docker-compose.yml":            {Data: []byte("services: {}\n")},
+			"docker-compose.monitoring.yml": {Data: []byte("services: {}\n")},
+			"grafana/datasource.yml":        {Data: []byte("# fixture\n")},
+			"prometheus/prometheus.yml":     {Data: []byte("# fixture\n")},
+		},
+		Compose: func(io.Writer, *compose.Outcomes) (composeRunner, error) { return runner, nil },
+	})
+	var stdout bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&bytes.Buffer{})
+
+	code := run(context.Background(), root, []string{"stack", "logs"})
+
+	assert.Equal(t, 0, code)
+	assert.Equal(t, "jellyfin | a container log line\n", stdout.String())
+	logged, err := os.ReadFile(filepath.Join(home, ".local", "state", "mse", "gorgon", "logs", "mse.log"))
+	require.NoError(t, err)
+	assert.NotContains(t, string(logged), "a container log line")
+}
+
+func TestComposeEventsReachTheLogAndOnlyVerboseScreens(t *testing.T) {
+	project := &types.Project{Name: "media-server"}
+	for _, verbose := range []bool{false, true} {
+		getenv, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"})
+		runner := newMockComposeRunner(t)
+		var tool io.Writer
+		runner.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, mock.Anything).Return(project, nil)
+		runner.EXPECT().Down(mock.Anything, project).RunAndReturn(func(context.Context, *types.Project) error {
+			_, err := io.WriteString(tool, "Container seerr Stopped\n")
+			return err
+		})
+		root := NewRootCommand(Dependencies{
+			Environment: getenv, Home: home, Update: newMockUpdater(t),
+			Decrypt: func(string) ([]byte, error) { return []byte("A=1\n"), nil },
+			Host:    installation.Host{GOOS: "linux", Hostname: func() (string, error) { return "gorgon", nil }},
+			Engine: fstest.MapFS{
+				"docker-compose.yml":            {Data: []byte("services: {}\n")},
+				"docker-compose.monitoring.yml": {Data: []byte("services: {}\n")},
+				"grafana/datasource.yml":        {Data: []byte("# fixture\n")},
+				"prometheus/prometheus.yml":     {Data: []byte("# fixture\n")},
+			},
+			Compose: func(w io.Writer, _ *compose.Outcomes) (composeRunner, error) {
+				tool = w
+				return runner, nil
+			},
+		})
+		var stdout bytes.Buffer
+		root.SetOut(&stdout)
+		root.SetErr(&bytes.Buffer{})
+		args := []string{"stack", "down"}
+		if verbose {
+			args = append(args, "-v")
+		}
+
+		code := run(context.Background(), root, args)
+
+		assert.Equal(t, 0, code)
+		logged, err := os.ReadFile(filepath.Join(home, ".local", "state", "mse", "gorgon", "logs", "mse.log"))
+		require.NoError(t, err)
+		assert.Contains(t, string(logged), "compose | Container seerr Stopped")
+		assert.Equal(t, verbose, strings.Contains(stdout.String(), "compose | Container seerr Stopped"), "verbose %v", verbose)
+	}
+}
+
+func TestAnUnwritableLogDoesNotStopACommand(t *testing.T) {
+	getenv, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"})
+	state := filepath.Join(home, ".local", "state", "mse", "gorgon")
+	require.NoError(t, os.MkdirAll(state, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(state, "logs"), nil, 0o644))
+	root := NewRootCommand(Dependencies{Environment: getenv, Home: home, Update: newMockUpdater(t), Host: installation.Host{GOOS: "linux", Hostname: func() (string, error) { return "gorgon", nil }}})
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+
+	code := run(context.Background(), root, []string{"urls"})
+
+	assert.Equal(t, 0, code)
+	assert.Contains(t, stdout.String(), "http://")
+	assert.Equal(t, 1, strings.Count(stderr.String(), "could not write the log "))
 }
