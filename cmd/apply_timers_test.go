@@ -34,7 +34,7 @@ func newTimersFixture(t *testing.T) *timersFixture {
 	t.Helper()
 	tf := &timersFixture{
 		f: newApplyFixture(t), snapshots: process.Result{Stdout: []byte(ourSnapshots)},
-		linger: "Linger=yes\n", token: "gho_not_shown\n", environment: map[string]string{},
+		linger: "Linger=yes\n", token: "gho_not_shown\n", environment: map[string]string{"XDG_RUNTIME_DIR": "/run/user/1000"},
 	}
 	installed := filepath.Join(t.TempDir(), "opt", "mse")
 	require.NoError(t, os.MkdirAll(filepath.Dir(installed), 0o755))
@@ -271,4 +271,16 @@ func TestAFailedSystemctlDoesNotShowResticAsItsCause(t *testing.T) {
 	assert.Equal(t, 1, code)
 	assert.Contains(t, stderr, "systemctl --user daemon-reload failed: Failed to connect to bus")
 	assert.NotContains(t, stderr, "restic")
+}
+
+func TestWithoutAUserSessionTheTimersAreSkipped(t *testing.T) {
+	tf := newTimersFixture(t)
+	delete(tf.environment, "XDG_RUNTIME_DIR")
+
+	code, stdout, stderr := tf.apply(t)
+
+	require.Equal(t, 0, code, stderr)
+	assert.Contains(t, stdout, "Setting up the timers... skipped: no user session here (XDG_RUNTIME_DIR isn't set); run mse apply from a login or let the timers run it.\n")
+	assert.NoDirExists(t, tf.units)
+	assert.Empty(t, tf.systemctl)
 }

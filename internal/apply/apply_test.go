@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/pablovarela/media-server-engine/internal/report"
@@ -288,11 +289,32 @@ func TestAFailedTimersStepFailsTheApply(t *testing.T) {
 	assert.EqualError(t, err, "systemctl --user daemon-reload failed: Failed to connect to bus")
 }
 
-func TestAFailedApplyLeavesTheTimersAlone(t *testing.T) {
+func TestTheTimersAreSetUpEvenWhenAnEarlierStepFails(t *testing.T) {
 	ctx := context.Background()
 	stack := newMockStack(t)
 	stack.EXPECT().BindSources().Return(nil)
 	stack.EXPECT().Pull(ctx).Return("", errors.New("manifest unknown"))
+	timers := newMockTimers(t)
+	timers.EXPECT().Set(ctx).Return("all 4 unchanged", nil, nil)
+	var stdout bytes.Buffer
+
+	err := (&Apply{
+		Stack: stack, Timers: timers, MkdirAll: func(string) error { return nil },
+		Sleep: func(context.Context, time.Duration) error { return nil }, Report: report.New(&stdout, &stdout, nil),
+	}).Run(ctx)
+
+	assert.EqualError(t, err, "manifest unknown")
+	assert.Contains(t, stdout.String(), "Setting up the timers... all 4 unchanged.")
+}
+
+func TestAStoppedApplySetsUpNoTimers(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	stack := newMockStack(t)
+	stack.EXPECT().BindSources().Return(nil)
+	stack.EXPECT().Pull(mock.Anything).RunAndReturn(func(context.Context) (string, error) {
+		cancel()
+		return "", context.Canceled
+	})
 	var stdout bytes.Buffer
 
 	err := (&Apply{
@@ -300,7 +322,7 @@ func TestAFailedApplyLeavesTheTimersAlone(t *testing.T) {
 		Sleep: func(context.Context, time.Duration) error { return nil }, Report: report.New(&stdout, &stdout, nil),
 	}).Run(ctx)
 
-	assert.EqualError(t, err, "manifest unknown")
+	assert.ErrorIs(t, err, context.Canceled)
 }
 
 func TestTheTimersWarningsFollowTheirResult(t *testing.T) {

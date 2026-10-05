@@ -58,6 +58,18 @@ type Apply struct {
 }
 
 func (a *Apply) Run(ctx context.Context) error {
+	converged := a.converge(ctx)
+	if ctx.Err() != nil {
+		return converged
+	}
+	timers := a.setUpTimers(ctx)
+	if converged != nil {
+		return converged
+	}
+	return timers
+}
+
+func (a *Apply) converge(ctx context.Context) error {
 	a.setUpChecks(ctx)
 	if err := a.createDataFolders(); err != nil {
 		return err
@@ -75,10 +87,7 @@ func (a *Apply) Run(ctx context.Context) error {
 	if wired != nil {
 		return wired
 	}
-	if err := a.Images.Prune(ctx); err != nil {
-		return err
-	}
-	return a.setUpTimers(ctx)
+	return a.Images.Prune(ctx)
 }
 
 func (a *Apply) setUpTimers(ctx context.Context) error {

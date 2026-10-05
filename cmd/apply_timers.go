@@ -51,6 +51,9 @@ func (t *appliedTimers) Set(ctx context.Context) (string, []string, error) {
 	if !t.lingering(ctx, account) {
 		return "skipped: they need lingering, once: sudo loginctl enable-linger " + account, nil, nil
 	}
+	if t.d.Environment("XDG_RUNTIME_DIR") == "" {
+		return "skipped: no user session here (XDG_RUNTIME_DIR isn't set); run mse apply from a login or let the timers run it", nil, nil
+	}
 	if t.d.Environment("SOPS_AGE_KEY") != "" {
 		return "skipped: SOPS_AGE_KEY can't reach the timers; keep the key in a file and set SOPS_AGE_KEY_FILE", nil, nil
 	}
