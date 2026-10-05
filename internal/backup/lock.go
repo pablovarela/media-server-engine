@@ -1,12 +1,58 @@
 package backup
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
+
+var ErrStillRunning = errors.New("a backup is still running; run mse update --apply again once it has finished")
+
+type Waiting struct {
+	Timeout  time.Duration
+	Poll     time.Duration
+	Now      func() time.Time
+	Sleep    func(time.Duration)
+	Announce func()
+}
+
+func LockPath(data string) string {
+	return filepath.Join(data, ".backup.lock")
+}
+
+func WaitWhileRunning(path string, w Waiting) error {
+	deadline := w.Now().Add(w.Timeout)
+	for announced := false; ; announced = true {
+		running, err := backupRunning(path)
+		if err != nil || !running {
+			return err
+		}
+		if !w.Now().Before(deadline) {
+			return ErrStillRunning
+		}
+		if !announced {
+			w.Announce()
+		}
+		w.Sleep(w.Poll)
+	}
+}
+
+func backupRunning(path string) (bool, error) {
+	file, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE, 0o644) //nolint:gosec // the installation's backup lock
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = file.Close() }()
+	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil { //nolint:gosec // a file descriptor fits in an int
+		return true, nil
+	}
+	return false, syscall.Flock(int(file.Fd()), syscall.LOCK_UN) //nolint:gosec // a file descriptor fits in an int
+}
 
 type heldLock struct {
 	file *os.File

@@ -60,7 +60,7 @@ func (b *Backups) backup(ctx context.Context, claiming bool) error {
 	if err := os.MkdirAll(b.Installation.Data, 0o755); err != nil { //nolint:gosec // the installation's data directory, read by its containers
 		return err
 	}
-	lock, err := takeLock(filepath.Join(b.Installation.Data, ".backup.lock"))
+	lock, err := takeLock(LockPath(b.Installation.Data))
 	if err != nil {
 		return err
 	}
