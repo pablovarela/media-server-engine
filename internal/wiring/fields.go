@@ -84,9 +84,37 @@ func sortedKeys(values map[string]any) []string {
 }
 
 func same(a, b any) bool {
-	left, errLeft := json.Marshal(a)
-	right, errRight := json.Marshal(b)
+	left, errLeft := json.Marshal(numeric(a))
+	right, errRight := json.Marshal(numeric(b))
 	return errLeft == nil && errRight == nil && string(left) == string(right)
+}
+
+func numeric(value any) any {
+	switch v := value.(type) {
+	case pythonNumber:
+		parsed, err := strconv.ParseFloat(string(v), 64)
+		if err != nil {
+			return string(v)
+		}
+		return parsed
+	case pythonFloat:
+		return float64(v)
+	case int:
+		return float64(v)
+	case []any:
+		converted := make([]any, len(v))
+		for n, item := range v {
+			converted[n] = numeric(item)
+		}
+		return converted
+	case map[string]any:
+		converted := make(map[string]any, len(v))
+		for key, item := range v {
+			converted[key] = numeric(item)
+		}
+		return converted
+	}
+	return value
 }
 
 func contains(items []any, value any) bool {
