@@ -3,8 +3,10 @@ package configure
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
+	"charm.land/bubbles/v2/key"
 	"charm.land/huh/v2"
 )
 
@@ -18,11 +20,7 @@ func (h Huh) Menu(title string, items []MenuItem) (string, error) {
 	var choice string
 	options := make([]huh.Option[string], 0, len(items))
 	for _, item := range items {
-		label := item.Title
-		if item.Summary != "" {
-			label += "  " + item.Summary
-		}
-		options = append(options, huh.NewOption(label, item.ID))
+		options = append(options, huh.NewOption(menuLabel(item), item.ID))
 	}
 	err := h.run(huh.NewGroup(huh.NewSelect[string]().Title(title).Options(options...).Value(&choice)))
 	return choice, err
@@ -42,9 +40,29 @@ func (h Huh) Section(title string, fields []Field, current map[string]string, pr
 	}
 	answer := make(map[string]string, len(fields))
 	for key, value := range entered {
-		answer[key] = strings.TrimSpace(*value)
+		answer[key] = *value
+	}
+	for _, f := range fields {
+		answer[f.Key] = answered(f, answer[f.Key])
 	}
 	return answer, nil
+}
+
+func menuLabel(item MenuItem) string {
+	return strings.TrimRight(fmt.Sprintf("%-14s%s", item.Title, item.Summary), " ")
+}
+
+func answered(f Field, value string) string {
+	if f.Masked {
+		return value
+	}
+	return strings.TrimSpace(value)
+}
+
+func keys() *huh.KeyMap {
+	keyMap := huh.NewDefaultKeyMap()
+	keyMap.Quit = key.NewBinding(key.WithKeys("ctrl+c", "esc"))
+	return keyMap
 }
 
 func input(f Field, current string, entered map[string]*string) *huh.Input {
@@ -65,7 +83,7 @@ func input(f Field, current string, entered map[string]*string) *huh.Input {
 		}
 	}
 	entered[f.Key] = &value
-	return field.Value(&value).Validate(func(v string) error { return validate(strings.TrimSpace(v)) })
+	return field.Value(&value).Validate(func(v string) error { return validate(answered(f, v)) })
 }
 
 func (h Huh) Rotate(apps []App) ([]App, error) {
@@ -97,7 +115,7 @@ func (h Huh) Confirm(question string, lines []string) (bool, error) {
 }
 
 func (h Huh) run(group *huh.Group) error {
-	err := huh.NewForm(group).RunWithContext(h.Ctx)
+	err := huh.NewForm(group).WithKeyMap(keys()).RunWithContext(h.Ctx)
 	if errors.Is(err, huh.ErrUserAborted) {
 		return ErrAborted
 	}

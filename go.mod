@@ -3,6 +3,7 @@ module github.com/pablovarela/media-server-engine
 go 1.27
 
 require (
+	charm.land/bubbles/v2 v2.0.0
 	charm.land/huh/v2 v2.0.3
 	github.com/compose-spec/compose-go/v2 v2.16.1
 	github.com/containerd/errdefs v1.0.0
@@ -23,7 +24,6 @@ require (
 
 require (
 	cel.dev/expr v0.25.2 // indirect
-	charm.land/bubbles/v2 v2.0.0 // indirect
 	charm.land/bubbletea/v2 v2.0.2 // indirect
 	charm.land/lipgloss/v2 v2.0.1 // indirect
 	cloud.google.com/go v0.123.0 // indirect
