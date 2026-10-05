@@ -88,6 +88,12 @@ func (d Dependencies) backups(cmd *cobra.Command, needs backupNeeds) (*backup.Ba
 		return nil, fmt.Errorf("decrypt backup.sops.env: %w", err)
 	}
 	repository := secrets.Dotenv(decrypted)
+	if repository["RESTIC_REPOSITORY"] == "" {
+		repository["RESTIC_REPOSITORY"] = i.Settings["RESTIC_REPOSITORY"]
+	}
+	if repository["RESTIC_REPOSITORY"] == "" {
+		return nil, fmt.Errorf("%s has no backup repository: set RESTIC_REPOSITORY in installation.env", i.Name)
+	}
 	hostname, err := d.Host.Hostname()
 	if err != nil {
 		return nil, err

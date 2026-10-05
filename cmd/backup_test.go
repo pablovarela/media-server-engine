@@ -66,7 +66,7 @@ func TestBackupCommands(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			getenv, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"})
+			getenv, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\nRESTIC_REPOSITORY=b2:bucket\n"})
 			machineID := filepath.Join(t.TempDir(), "machine-id")
 			if tt.Given.machineID != "" {
 				require.NoError(t, os.WriteFile(machineID, []byte(tt.Given.machineID), 0o644))
@@ -76,7 +76,7 @@ func TestBackupCommands(t *testing.T) {
 			deps := Dependencies{
 				Environment: getenv, Home: home, Update: newMockUpdater(t),
 				Decrypt: func(string) ([]byte, error) {
-					return []byte("RESTIC_REPOSITORY=b2:bucket\nRESTIC_PASSWORD=secret\n"), nil
+					return []byte("RESTIC_PASSWORD=secret\n"), nil
 				},
 				Host:          installation.Host{GOOS: "linux", Hostname: func() (string, error) { return "gorgon.local", nil }},
 				Engine:        fstest.MapFS{"scripts/backup-excludes.txt": {Data: []byte("logs\n")}},
@@ -95,4 +95,21 @@ func TestBackupCommands(t *testing.T) {
 			assert.NoFileExists(t, filepath.Join(home, ".local", "share", "mse", "gorgon", ".machine-id"), "only the commands that need it read the machine's identity")
 		})
 	}
+}
+
+func TestBackupCommandsNeedARepository(t *testing.T) {
+	getenv, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"})
+	root := NewRootCommand(Dependencies{
+		Environment: getenv, Home: home, Update: newMockUpdater(t),
+		Decrypt: func(string) ([]byte, error) { return []byte("RESTIC_PASSWORD=secret\n"), nil },
+		Host:    installation.Host{GOOS: "linux", Hostname: func() (string, error) { return "gorgon", nil }},
+		Run:     func(_, _ io.Writer) commandRunner { return newMockCommandRunner(t) },
+	})
+	var stderr bytes.Buffer
+	root.SetErr(&stderr)
+
+	code := run(context.Background(), root, []string{"unlock-backup"})
+
+	assert.Equal(t, 1, code)
+	assert.Equal(t, "mse: gorgon has no backup repository: set RESTIC_REPOSITORY in installation.env\n", stderr.String())
 }
