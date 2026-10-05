@@ -3,6 +3,7 @@ package homepage
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -36,15 +37,18 @@ func (h Healthchecks) Slugs(ctx context.Context, key string) (map[string]bool, e
 		return nil, fmt.Errorf("healthchecks answered %s", response.Status)
 	}
 	var listed struct {
-		Checks []struct {
+		Checks *[]struct {
 			Slug string `json:"slug"`
 		} `json:"checks"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&listed); err != nil {
 		return nil, err
 	}
+	if listed.Checks == nil {
+		return nil, errors.New("healthchecks listed no checks")
+	}
 	slugs := map[string]bool{}
-	for _, check := range listed.Checks {
+	for _, check := range *listed.Checks {
 		slugs[check.Slug] = true
 	}
 	return slugs, nil

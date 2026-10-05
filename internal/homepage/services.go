@@ -49,7 +49,7 @@ func sequence(text string) (*yaml.Node, error) {
 	if err := yaml.Unmarshal([]byte(text), &document); err != nil {
 		return nil, err
 	}
-	if len(document.Content) == 0 {
+	if len(document.Content) == 0 || document.Content[0].Tag == "!!null" {
 		return &yaml.Node{Kind: yaml.SequenceNode}, nil
 	}
 	root := document.Content[0]

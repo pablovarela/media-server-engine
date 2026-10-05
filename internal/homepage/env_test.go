@@ -67,3 +67,17 @@ func TestWriteEnv(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, changed)
 }
+
+func TestWriteEnvTightensAnExistingFile(t *testing.T) {
+	i := fixture(t, "main")
+	path := filepath.Join(i.State, ".secrets", "homepage.env")
+	write(t, path, "HOMEPAGE_VAR_X=1\n")
+	require.NoError(t, os.Chmod(path, 0o644))
+
+	_, err := WriteEnv(i, "HOMEPAGE_VAR_X=1\n")
+
+	require.NoError(t, err)
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+}

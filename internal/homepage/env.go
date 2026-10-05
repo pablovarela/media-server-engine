@@ -67,5 +67,10 @@ func bazarrKey(i *installation.Installation) string {
 }
 
 func WriteEnv(i *installation.Installation, text string) (bool, error) {
-	return files.WriteIfChanged(filepath.Join(i.State, ".secrets", "homepage.env"), []byte(text), 0o600)
+	path := filepath.Join(i.State, ".secrets", "homepage.env")
+	changed, err := files.WriteIfChanged(path, []byte(text), 0o600)
+	if err != nil {
+		return false, err
+	}
+	return changed, os.Chmod(path, 0o600)
 }

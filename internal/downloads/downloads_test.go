@@ -99,7 +99,7 @@ func TestClean(t *testing.T) {
 				{"GET", fmt.Sprintf(sonarrQueue, 1), 200, `{"totalRecords":1,"records":[` + fmt.Sprintf(flagged, 1, "A", "Bad.Show") + `]}`},
 				{"DELETE", "http://localhost:8989/api/v3/queue/1?removeFromClient=true&blocklist=true&skipRedownload=false", 500, ""},
 			}},
-			Then: Then{out: "radarr: queue not reachable, skipped\n", errOut: "sonarr: could not remove Bad.Show: Sonarr answered 500\n", err: "some flagged downloads could not be removed"},
+			Then: Then{out: "radarr: queue not reachable, skipped\n", errOut: "sonarr: could not remove Bad.Show: Sonarr answered 500 Internal Server Error\n", err: "some flagged downloads could not be removed"},
 		},
 	}
 	for name, tt := range tests {

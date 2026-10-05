@@ -30,7 +30,7 @@ type Inputs struct {
 }
 
 func EngineURL(b version.Build) string {
-	if semver.IsValid(b.Version) {
+	if semver.IsValid(b.Version) && semver.Prerelease(b.Version) == "" && semver.Build(b.Version) == "" {
 		return repositoryURL + "/releases/tag/" + b.Version
 	}
 	if commit := strings.TrimSuffix(b.Commit, "-dirty"); commit != "" {

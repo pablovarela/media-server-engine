@@ -72,7 +72,7 @@ From a clone, `make go-build` builds `dist/mse` for the machine it runs on.
 
 `mse` keeps an installation in the XDG base directories: its config (the clone of the config repository) in `~/.config/mse/<name>`, its data in `~/.local/share/mse/<name>`, and the files it generates, decrypted secrets included, in `~/.local/state/mse/<name>`. `XDG_CONFIG_HOME`, `XDG_DATA_HOME` and `XDG_STATE_HOME` move them. With one installation on the machine `mse` uses it; with several, `--installation <name>` or `MSE_INSTALLATION` chooses. It reads the age key from `SOPS_AGE_KEY_FILE`, `SOPS_AGE_KEY` or `SOPS_AGE_KEY_CMD`, else from `~/.config/sops/age/keys.txt` (under `XDG_CONFIG_HOME`), and talks to the Docker daemon directly: no `sops` or `docker compose` command is needed.
 
-`mse stack up` and `mse stack restart` draw the landing page into the state directory before starting the containers, from the config's `homepage/` files over the engine's default page.
+When the config pins a `homepage` image, `mse stack up` and `mse stack restart` draw the landing page into the state directory before starting the containers, from the config's `homepage/` files over the engine's default page, then reload Homepage so it shows it. A page that cannot be drawn is reported and the containers start anyway. `mse homepage` redraws the page on its own.
 
 `mse stack` and `mse monitoring` mount the decrypted secrets and the engine's files from the state directory, where the Makefile mounts them from the engine checkout. `mse stack up` therefore recreates containers the Makefile started, and the other way round: manage an installation's containers with one of them.
 

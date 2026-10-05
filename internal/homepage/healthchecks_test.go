@@ -30,8 +30,9 @@ func TestHealthchecksSlugs(t *testing.T) {
 		Given Given
 		Then  Then
 	}{
-		"the slugs": {Given: Given{status: 200, body: `{"checks":[{"slug":"gorgon-backup"},{"slug":"gorgon-update"}]}`}, Then: Then{slugs: map[string]bool{"gorgon-backup": true, "gorgon-update": true}}},
-		"refused":   {Given: Given{status: 401, body: `{}`}, Then: Then{err: "healthchecks answered 401 Unauthorized"}},
+		"the slugs":        {Given: Given{status: 200, body: `{"checks":[{"slug":"gorgon-backup"},{"slug":"gorgon-update"}]}`}, Then: Then{slugs: map[string]bool{"gorgon-backup": true, "gorgon-update": true}}},
+		"no checks listed": {Given: Given{status: 200, body: `{"error":"x"}`}, Then: Then{err: "healthchecks listed no checks"}},
+		"refused":          {Given: Given{status: 401, body: `{}`}, Then: Then{err: "healthchecks answered 401 Unauthorized"}},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -60,6 +61,7 @@ func TestEngineURL(t *testing.T) {
 	}{
 		"release":           {Given: struct{ build version.Build }{version.Build{Version: "v0.9.1", Commit: "513f464"}}, Then: struct{ url string }{"https://github.com/pablovarela/media-server-engine/releases/tag/v0.9.1"}},
 		"dev with a commit": {Given: struct{ build version.Build }{version.Build{Version: "dev", Commit: "513f464-dirty"}}, Then: struct{ url string }{"https://github.com/pablovarela/media-server-engine/commit/513f464"}},
+		"snapshot":          {Given: struct{ build version.Build }{version.Build{Version: "v0.9.2-SNAPSHOT-abc1234", Commit: "abc1234"}}, Then: struct{ url string }{"https://github.com/pablovarela/media-server-engine/commit/abc1234"}},
 		"dev without":       {Given: struct{ build version.Build }{version.Build{Version: "dev"}}, Then: struct{ url string }{""}},
 	}
 	for name, tt := range tests {

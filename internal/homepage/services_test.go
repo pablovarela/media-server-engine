@@ -78,6 +78,14 @@ func TestRenderServices(t *testing.T) {
 			Given: Given{text: "# nothing yet\n"},
 			Then:  Then{yaml: "[]\n"},
 		},
+		"empty document": {
+			Given: Given{text: "---\n# nothing yet\n"},
+			Then:  Then{yaml: "[]\n"},
+		},
+		"null document": {
+			Given: Given{text: "~\n"},
+			Then:  Then{yaml: "[]\n"},
+		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {

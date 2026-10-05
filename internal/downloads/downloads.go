@@ -141,7 +141,7 @@ func (q queue) call(ctx context.Context, method, url string, into any) error {
 	}
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode < 200 || response.StatusCode > 299 {
-		return fmt.Errorf("%s answered %d", q.title, response.StatusCode)
+		return fmt.Errorf("%s answered %d %s", q.title, response.StatusCode, http.StatusText(response.StatusCode))
 	}
 	if into == nil {
 		return nil
