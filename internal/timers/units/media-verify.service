@@ -1,0 +1,13 @@
+[Unit]
+Description=Verify the latest media-server backup restores cleanly
+Wants=network-online.target
+After=network-online.target media-backup.service
+
+[Service]
+Type=oneshot
+User=@USER@
+Group=@GROUP@
+Environment=MSE_INSTALLATION=@INSTALLATION@
+ExecStart=@MSE@ verify-backup
+Nice=10
+IOSchedulingClass=idle
