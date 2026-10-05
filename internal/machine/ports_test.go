@@ -8,6 +8,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -181,7 +182,22 @@ func TestBusyPortsWhenDockerCannotSay(t *testing.T) {
 	f.busy = map[Port]bool{{7359, "udp"}: true}
 	f.err = errors.New("permission denied")
 
-	assert.Contains(t, f.render(t), "  ✗ port 7359/udp is in use (Docker couldn't say by what)\n")
+	assert.Contains(t, f.render(t), "  ? ports 7359/udp: in use, and Docker couldn't say by what (permission denied)\n")
+}
+
+func TestBusyPortsWhenDockerRunsOutOfTime(t *testing.T) {
+	f := newPortsFixture(t)
+	f.busy = map[Port]bool{{8096, "tcp"}: true, {80, "tcp"}: true}
+	f.env.Timeout = 20 * time.Millisecond
+	f.env.Ports.Published = func(ctx context.Context) ([]Published, error) {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+
+	out := f.render(t)
+
+	assert.Contains(t, out, "  ? ports 8096, 80: in use, and Docker couldn't say by what (no answer within 20ms)\n")
+	assert.NotContains(t, out, "✗")
 }
 
 func TestPortsWaitForDocker(t *testing.T) {

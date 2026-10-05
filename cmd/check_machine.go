@@ -39,7 +39,7 @@ func (d Dependencies) checkMachine(cmd *cobra.Command) error {
 	out := cmd.OutOrStdout()
 	_, _ = fmt.Fprintln(out, "Checking this machine...")
 	report := machine.RunEach(cmd.Context(), env, func(line string) { _, _ = fmt.Fprint(out, line) }, paint.Stdout)
-	if report.Problems() > 0 {
+	if !report.Ready() {
 		return errAlreadyReported
 	}
 	return nil

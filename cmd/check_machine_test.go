@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -138,4 +139,16 @@ func TestCheckMachineChecksTheOverridesPortsToo(t *testing.T) {
 	_, stdout, _ := f.check(t)
 
 	assert.Contains(t, stdout, "  ✓ ports 8096, 80, 8443 free\n")
+}
+
+func TestCheckMachineIsNotReadyWhenSomethingCouldNotBeChecked(t *testing.T) {
+	f := newCheckMachineFixture(t, nil)
+	f.deps.PortFree = func(machine.Port) bool { return false }
+	f.deps.Published = func(context.Context) ([]machine.Published, error) { return nil, errors.New("permission denied") }
+
+	code, stdout, stderr := f.check(t)
+
+	assert.Equal(t, 1, code)
+	assert.Empty(t, stderr)
+	assert.Contains(t, stdout, "  ? ports 8096, 80: in use, and Docker couldn't say by what (permission denied)\n")
 }

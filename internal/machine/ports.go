@@ -229,7 +229,7 @@ func firstOr(names []string, fallback string) string {
 	return fallback
 }
 
-func portsResults(ctx context.Context, check PortsCheck) []Result {
+func portsResults(ctx context.Context, check PortsCheck, noAnswer string) []Result {
 	unreadable := make([]Result, 0, len(check.Unreadable))
 	for _, entry := range check.Unreadable {
 		unreadable = append(unreadable, Result{Status: Fail, Line: fmt.Sprintf("the stack's port %q can't be read", entry), Fix: "correct it in compose.override.yml, or HOMEPAGE_PORT in installation.env"})
@@ -237,10 +237,10 @@ func portsResults(ctx context.Context, check PortsCheck) []Result {
 	if len(check.Ports) == 0 {
 		return unreadable
 	}
-	return append(unreadable, busyResults(ctx, check)...)
+	return append(unreadable, busyResults(ctx, check, noAnswer)...)
 }
 
-func busyResults(ctx context.Context, check PortsCheck) []Result {
+func busyResults(ctx context.Context, check PortsCheck, noAnswer string) []Result {
 	var busy []Port
 	for _, p := range check.Ports {
 		if !check.Free(p) {
@@ -251,14 +251,19 @@ func busyResults(ctx context.Context, check PortsCheck) []Result {
 		return []Result{{Status: Pass, Line: freeLine(check)}}
 	}
 	published, err := check.Published(ctx)
+	if err != nil {
+		reason := noAnswer
+		if ctx.Err() == nil {
+			reason = "(" + err.Error() + ")"
+		}
+		return []Result{{Status: Unchecked, Line: portList(busy) + ": in use, and Docker couldn't say by what " + reason}}
+	}
 	var results []Result
 	for _, p := range busy {
 		holder, ours := holderOf(p, published, check.Project)
 		switch {
 		case ours:
 			continue
-		case err != nil:
-			results = append(results, Result{Status: Fail, Line: "port " + p.String() + " is in use (Docker couldn't say by what)", Fix: freeIt})
 		default:
 			results = append(results, Result{Status: Fail, Line: "port " + p.String() + " is in use by " + holder, Fix: freeIt})
 		}
@@ -280,12 +285,16 @@ func holderOf(p Port, published []Published, project string) (holder string, our
 	return "something outside Docker", false
 }
 
-func freeLine(check PortsCheck) string {
-	names := make([]string, 0, len(check.Ports))
-	for _, p := range check.Ports {
+func portList(ports []Port) string {
+	names := make([]string, 0, len(ports))
+	for _, p := range ports {
 		names = append(names, p.String())
 	}
-	line := "ports " + strings.Join(names, ", ") + " free"
+	return "ports " + strings.Join(names, ", ")
+}
+
+func freeLine(check PortsCheck) string {
+	line := portList(check.Ports) + " free"
 	if check.Note != "" {
 		line += " (" + check.Note + ")"
 	}

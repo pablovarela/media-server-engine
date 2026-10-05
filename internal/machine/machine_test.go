@@ -259,21 +259,42 @@ func TestAStoppedDockerWhenTheSessionHasTheGroup(t *testing.T) {
 	assert.Contains(t, f.render(t), "  ✗ Docker doesn't answer\n      run: sudo systemctl start docker\n")
 }
 
-func TestAStalledDockerDoesNotHangTheChecks(t *testing.T) {
-	f := newFixture(t)
+func stalling(t *testing.T, f *fixture, call string) {
+	t.Helper()
 	answering := f.env.Runner
 	runner := newMockRunner(t)
 	runner.EXPECT().Output(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, c process.Command) (process.Result, error) {
-		if c.Name == "docker" && c.Args[0] == "info" {
+		if strings.Join(append([]string{c.Name}, c.Args...), " ") == call {
 			<-ctx.Done()
-			return process.Result{Exit: -1}, errors.New("docker was interrupted")
+			return process.Result{Exit: -1}, errors.New(c.Name + " was interrupted")
 		}
 		return answering.Output(ctx, c)
 	}).Maybe()
 	f.env.Runner = runner
 	f.env.Timeout = 20 * time.Millisecond
+}
 
-	assert.Contains(t, f.render(t), "  ✗ Docker didn't answer within 20ms\n      run: sudo systemctl restart docker\n")
+func TestAStalledDockerDoesNotHangTheChecks(t *testing.T) {
+	f := newFixture(t)
+	stalling(t, f, "docker info")
+
+	out := f.render(t)
+
+	assert.Contains(t, out, "  ? Docker answers: couldn't check (no answer within 20ms)\n")
+	assert.True(t, strings.HasSuffix(out, "\n1 thing couldn't be checked; the lines above say why. Run mse check-machine again.\n"), out)
+}
+
+func TestACheckThatRunsOutOfTimeIsNotAVerdict(t *testing.T) {
+	f := newFixture(t)
+	stalling(t, f, "loginctl show-user pablo -p Linger")
+	f.fails("restic version")
+
+	out := f.render(t)
+
+	assert.Contains(t, out, "  ? lingering: couldn't check (no answer within 20ms)\n")
+	assert.NotContains(t, out, "lingering is off")
+	assert.Contains(t, out, "  – the user manager has the docker group: skipped until lingering is on\n")
+	assert.True(t, strings.HasSuffix(out, "\n1 thing to fix, and 1 couldn't be checked. Run mse check-machine again afterwards.\n"), out)
 }
 
 func TestEachLineIsHandedOutBeforeTheNextCheckRuns(t *testing.T) {
