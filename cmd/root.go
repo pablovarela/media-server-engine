@@ -52,6 +52,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 		newLoginsCommand(deps),
 		newHomepageCommand(deps),
 		newPruneStackImagesCommand(deps),
+		newRemoveExecutableDownloadsCommand(deps),
 		newProjectCommand(deps, "stack", "Run the media server's containers", compose.Stack),
 		newProjectCommand(deps, "monitoring", "Run the monitoring containers", compose.Monitoring),
 	)
