@@ -35,14 +35,13 @@ type Check struct {
 type schedule struct {
 	cron    string
 	grace   int
-	unit    string
 	command string
 }
 
 var schedules = map[string]schedule{
-	backupJob: {cron: "30 4 * * *", grace: 2 * hour, unit: "media-backup", command: "mse backup"},
-	updateJob: {cron: "0 5 * * *", grace: 2 * hour, unit: "media-update", command: "mse update --apply"},
-	verifyJob: {cron: "30 5 * * 0", grace: 4 * hour, unit: "media-verify", command: "mse verify-backup"},
+	backupJob: {cron: "30 4 * * *", grace: 2 * hour, command: "mse backup"},
+	updateJob: {cron: "0 5 * * *", grace: 2 * hour, command: "mse update --apply"},
+	verifyJob: {cron: "30 5 * * 0", grace: 4 * hour, command: "mse verify-backup"},
 }
 
 var weekdays = []string{"Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"}
@@ -119,8 +118,9 @@ func payload(check Check, facts Facts) map[string]any {
 func description(job string, facts Facts) string {
 	s := schedules[job]
 	runs := "Runs " + when(s.cron)
-	timer := fmt.Sprintf("via the %s timer (%s)", s.unit, s.command)
-	login := fmt.Sprintf("If it fails: ssh %s, journalctl -u %s.service", facts.SSH, s.unit)
+	unit := "mse-" + facts.Name + "-" + job
+	timer := fmt.Sprintf("via the %s timer (%s)", unit, s.command)
+	login := fmt.Sprintf("If it fails: ssh %s, journalctl --user -u %s.service", facts.SSH, unit)
 	switch job {
 	case backupJob:
 		return fmt.Sprintf("Nightly backup of %s's app state (libraries, history, users, settings) to %s with restic. Media files are not included. "+
@@ -130,8 +130,8 @@ func description(job string, facts Facts) string {
 			facts.Name, destination(facts.Repository), runs, timer, login)
 	}
 	return fmt.Sprintf("Daily update of %s: pulls the config and the newest compatible mse, pulls images and brings the apps up. %s %s. "+
-		"It refuses to run while the config has uncommitted changes. %s --since today, then sudo systemctl start %s.service to retry.",
-		facts.Name, runs, timer, login, s.unit)
+		"It refuses to run while the config has uncommitted changes. %s --since today, then systemctl --user start %s.service to retry.",
+		facts.Name, runs, timer, login, unit)
 }
 
 func when(cron string) string {
