@@ -8,3 +8,4 @@ packages:
   github.com/pablovarela/media-server-engine/internal/selfupdate: {}
   github.com/pablovarela/media-server-engine/cmd: {}
   github.com/pablovarela/media-server-engine/internal/compose: {}
+  github.com/pablovarela/media-server-engine/internal/images: {}
