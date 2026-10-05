@@ -140,12 +140,14 @@ def test_a_secondary_machines_page_shows_its_own_update_check(page, checks, monk
     ]
 
 
-def test_the_health_check_tiles_show_only_their_status_with_the_tile_titles_hidden(page):
+def test_the_health_check_tiles_keep_their_titles_as_links_to_healthchecks(page):
     page.render()
-    assert 'li[id^="healthchecks-"] .service-title' in page.file("custom.css")
+    assert ".service-title" not in page.file("custom.css")
     engine_groups = yaml.safe_load((ENGINE_PAGE / "services.yaml").read_text())
     health = next(group["Healthchecks"] for group in engine_groups if "Healthchecks" in group)
-    assert [options["id"] for tile in health for options in tile.values()] == ["healthchecks-backup", "healthchecks-update", "healthchecks-verify"]
+    tiles = [options for tile in health for options in tile.values()]
+    assert [options["href"] for options in tiles] == ["https://healthchecks.io/"] * 3
+    assert [options["widget"]["mappings"][0]["label"] for options in tiles] == ["Status"] * 3
 
 
 def test_without_any_of_the_installations_checks_the_health_checks_are_not_on_the_page(page, checks):
