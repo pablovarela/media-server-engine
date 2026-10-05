@@ -239,8 +239,8 @@ func (_c *mockPrompter_Rotate_Call) RunAndReturn(run func(apps []App) ([]App, er
 }
 
 // Section provides a mock function for the type mockPrompter
-func (_mock *mockPrompter) Section(title string, fields []Field, current map[string]string, problem string) (map[string]string, error) {
-	ret := _mock.Called(title, fields, current, problem)
+func (_mock *mockPrompter) Section(title string, fields []Field, form Form) (map[string]string, error) {
+	ret := _mock.Called(title, fields, form)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Section")
@@ -248,18 +248,18 @@ func (_mock *mockPrompter) Section(title string, fields []Field, current map[str
 
 	var r0 map[string]string
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(string, []Field, map[string]string, string) (map[string]string, error)); ok {
-		return returnFunc(title, fields, current, problem)
+	if returnFunc, ok := ret.Get(0).(func(string, []Field, Form) (map[string]string, error)); ok {
+		return returnFunc(title, fields, form)
 	}
-	if returnFunc, ok := ret.Get(0).(func(string, []Field, map[string]string, string) map[string]string); ok {
-		r0 = returnFunc(title, fields, current, problem)
+	if returnFunc, ok := ret.Get(0).(func(string, []Field, Form) map[string]string); ok {
+		r0 = returnFunc(title, fields, form)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(map[string]string)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(string, []Field, map[string]string, string) error); ok {
-		r1 = returnFunc(title, fields, current, problem)
+	if returnFunc, ok := ret.Get(1).(func(string, []Field, Form) error); ok {
+		r1 = returnFunc(title, fields, form)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -274,13 +274,12 @@ type mockPrompter_Section_Call struct {
 // Section is a helper method to define mock.On call
 //   - title string
 //   - fields []Field
-//   - current map[string]string
-//   - problem string
-func (_e *mockPrompter_Expecter) Section(title any, fields any, current any, problem any) *mockPrompter_Section_Call {
-	return &mockPrompter_Section_Call{Call: _e.mock.On("Section", title, fields, current, problem)}
+//   - form Form
+func (_e *mockPrompter_Expecter) Section(title any, fields any, form any) *mockPrompter_Section_Call {
+	return &mockPrompter_Section_Call{Call: _e.mock.On("Section", title, fields, form)}
 }
 
-func (_c *mockPrompter_Section_Call) Run(run func(title string, fields []Field, current map[string]string, problem string)) *mockPrompter_Section_Call {
+func (_c *mockPrompter_Section_Call) Run(run func(title string, fields []Field, form Form)) *mockPrompter_Section_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 string
 		if args[0] != nil {
@@ -290,19 +289,14 @@ func (_c *mockPrompter_Section_Call) Run(run func(title string, fields []Field, 
 		if args[1] != nil {
 			arg1 = args[1].([]Field)
 		}
-		var arg2 map[string]string
+		var arg2 Form
 		if args[2] != nil {
-			arg2 = args[2].(map[string]string)
-		}
-		var arg3 string
-		if args[3] != nil {
-			arg3 = args[3].(string)
+			arg2 = args[2].(Form)
 		}
 		run(
 			arg0,
 			arg1,
 			arg2,
-			arg3,
 		)
 	})
 	return _c
@@ -313,7 +307,7 @@ func (_c *mockPrompter_Section_Call) Return(stringToString map[string]string, er
 	return _c
 }
 
-func (_c *mockPrompter_Section_Call) RunAndReturn(run func(title string, fields []Field, current map[string]string, problem string) (map[string]string, error)) *mockPrompter_Section_Call {
+func (_c *mockPrompter_Section_Call) RunAndReturn(run func(title string, fields []Field, form Form) (map[string]string, error)) *mockPrompter_Section_Call {
 	_c.Call.Return(run)
 	return _c
 }

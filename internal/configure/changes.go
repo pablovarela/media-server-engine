@@ -43,6 +43,8 @@ func described(c Change) string {
 		return fmt.Sprintf("%s: %s -> %s", c.Key, orNone(c.Before), orNone(c.After))
 	case c.Section == rotateSection || c.Before == "":
 		return c.Key + " new"
+	case c.After == "":
+		return c.Key + " removed"
 	}
 	return c.Key + " changed"
 }

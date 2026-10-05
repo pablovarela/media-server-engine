@@ -111,10 +111,10 @@ func (f *configureFixture) chooses(choices ...string) {
 }
 
 func (f *configureFixture) answersSection(name string, answer map[string]string) {
-	f.prompter.EXPECT().Section(name, mock.Anything, mock.Anything, "").RunAndReturn(
-		func(_ string, _ []configure.Field, current map[string]string, _ string) (map[string]string, error) {
+	f.prompter.EXPECT().Section(name, mock.Anything, mock.Anything).RunAndReturn(
+		func(_ string, _ []configure.Field, form configure.Form) (map[string]string, error) {
 			merged := map[string]string{}
-			for key, value := range current {
+			for key, value := range form.Values {
 				merged[key] = value
 			}
 			for key, value := range answer {

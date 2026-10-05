@@ -10,7 +10,7 @@ import (
 	"charm.land/huh/v2"
 )
 
-const keepsTheCurrentValue = "unchanged (Enter keeps it)"
+const keepsTheCurrentValue = "unchanged (Enter keeps it"
 
 type Huh struct {
 	Ctx context.Context
@@ -26,26 +26,50 @@ func (h Huh) Menu(title string, items []MenuItem) (string, error) {
 	return choice, err
 }
 
-func (h Huh) Section(title string, fields []Field, current map[string]string, problem string) (map[string]string, error) {
+func (h Huh) Section(title string, fields []Field, form Form) (map[string]string, error) {
 	entered := make(map[string]*string, len(fields))
 	inputs := make([]huh.Field, 0, len(fields)+1)
-	if problem != "" {
-		inputs = append(inputs, huh.NewNote().Title(problem))
+	if form.Problem != "" {
+		inputs = append(inputs, huh.NewNote().Title(form.Problem))
 	}
 	for _, f := range fields {
-		inputs = append(inputs, input(f, current[f.Key], entered))
+		inputs = append(inputs, input(f, form, entered))
 	}
 	if err := h.run(huh.NewGroup(inputs...).Title(title)); err != nil {
 		return nil, err
 	}
 	answer := make(map[string]string, len(fields))
-	for key, value := range entered {
-		answer[key] = *value
-	}
 	for _, f := range fields {
-		answer[f.Key] = answered(f, answer[f.Key])
+		answer[f.Key] = answered(f, *entered[f.Key])
 	}
 	return answer, nil
+}
+
+func input(f Field, form Form, entered map[string]*string) *huh.Input {
+	value, placeholder := shown(f, form)
+	entered[f.Key] = &value
+	field := huh.NewInput().Title(f.Title).Description(f.Key).Placeholder(placeholder)
+	if f.Masked {
+		field = field.EchoMode(huh.EchoModePassword)
+	}
+	return field.Value(&value).Validate(func(v string) error {
+		v = answered(f, v)
+		if f.Masked && (v == "" && form.Stored[f.Key] || v == removeSecret && f.Optional) {
+			return nil
+		}
+		return f.Validate(v)
+	})
+}
+
+func shown(f Field, form Form) (value, placeholder string) {
+	value = form.Values[f.Key]
+	if !f.Masked || !form.Stored[f.Key] {
+		return value, ""
+	}
+	if f.Optional {
+		return value, keepsTheCurrentValue + ", " + removeSecret + " removes it)"
+	}
+	return value, keepsTheCurrentValue + ")"
 }
 
 func menuLabel(item MenuItem) string {
@@ -63,27 +87,6 @@ func keys() *huh.KeyMap {
 	keyMap := huh.NewDefaultKeyMap()
 	keyMap.Quit = key.NewBinding(key.WithKeys("ctrl+c", "esc"))
 	return keyMap
-}
-
-func input(f Field, current string, entered map[string]*string) *huh.Input {
-	value := current
-	field := huh.NewInput().Title(f.Title).Description(f.Key)
-	validate := f.Validate
-	if f.Masked {
-		value = ""
-		field = field.EchoMode(huh.EchoModePassword)
-		if current != "" {
-			field = field.Placeholder(keepsTheCurrentValue)
-			validate = func(v string) error {
-				if v == "" {
-					return nil
-				}
-				return f.Validate(v)
-			}
-		}
-	}
-	entered[f.Key] = &value
-	return field.Value(&value).Validate(func(v string) error { return validate(answered(f, v)) })
 }
 
 func (h Huh) Rotate(apps []App) ([]App, error) {

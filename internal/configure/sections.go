@@ -52,12 +52,12 @@ func Sections() []Section {
 		}},
 		{Name: "VPN", Summary: "provider, user, password, countries", Fields: []Field{
 			{Key: "VPN_SERVICE_PROVIDER", Title: "VPN provider (as gluetun names it)", File: vpnFile},
-			{Key: "OPENVPN_USER", Title: "OpenVPN user (empty for WireGuard)", File: vpnFile, Masked: true, Optional: true},
-			{Key: "OPENVPN_PASSWORD", Title: "OpenVPN password (empty for WireGuard)", File: vpnFile, Masked: true, Optional: true},
+			{Key: "OPENVPN_USER", Title: "OpenVPN user (none for WireGuard)", File: vpnFile, Masked: true, Optional: true},
+			{Key: "OPENVPN_PASSWORD", Title: "OpenVPN password (none for WireGuard)", File: vpnFile, Masked: true, Optional: true},
 			{Key: "SERVER_COUNTRIES", Title: "Server countries, comma-separated", File: vpnFile, Optional: true},
 		}},
 		{Name: "Healthchecks", Summary: "ping, API and manage keys", Fields: []Field{
-			{Key: "HEALTHCHECKS_PING_KEY", Title: "Ping key (empty turns the pings off)", File: healthchecksFile, Masked: true, Optional: true},
+			{Key: "HEALTHCHECKS_PING_KEY", Title: "Ping key (without one there are no pings)", File: healthchecksFile, Masked: true, Optional: true},
 			{Key: "HEALTHCHECKS_API_KEY", Title: "Read-only API key (shows the checks on the landing page)", File: healthchecksFile, Masked: true, Optional: true},
 			{Key: "HEALTHCHECKS_MANAGE_KEY", Title: "Read-write API key (sets up the checks)", File: healthchecksFile, Masked: true, Optional: true},
 		}},

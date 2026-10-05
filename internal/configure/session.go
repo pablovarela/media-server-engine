@@ -81,14 +81,12 @@ func sectionNamed(name string) Section {
 	return Section{}
 }
 
+const removeSecret = "-"
+
 func (s *session) edit(section Section) error {
-	entered := map[string]string{}
-	for _, f := range section.Fields {
-		entered[f.Key] = s.values.Get(f.File, f.Key)
-	}
-	problem := ""
+	form := s.form(section)
 	for {
-		answer, err := s.prompter.Section(section.Name, section.Fields, entered, problem)
+		answer, err := s.prompter.Section(section.Name, section.Fields, form)
 		if errors.Is(err, ErrAborted) {
 			return nil
 		}
@@ -100,29 +98,30 @@ func (s *session) edit(section Section) error {
 			s.values = updated
 			return nil
 		}
-		entered, problem = s.reopened(section, answer), err.Error()
+		form = Form{Values: map[string]string{}, Stored: form.Stored, Problem: err.Error()}
+		for _, f := range section.Fields {
+			form.Values[f.Key] = answer[f.Key]
+		}
 	}
 }
 
-func (s *session) reopened(section Section, answer map[string]string) map[string]string {
-	entered := map[string]string{}
+func (s *session) form(section Section) Form {
+	form := Form{Values: map[string]string{}, Stored: map[string]bool{}}
 	for _, f := range section.Fields {
-		entered[f.Key] = answer[f.Key]
-		if f.Masked && answer[f.Key] == "" {
-			entered[f.Key] = s.values.Get(f.File, f.Key)
+		value := s.values.Get(f.File, f.Key)
+		if f.Masked {
+			form.Stored[f.Key] = value != ""
+			value = ""
 		}
+		form.Values[f.Key] = value
 	}
-	return entered
+	return form
 }
 
 func (s *session) merged(section Section, answer map[string]string) (Values, error) {
 	updated := s.values
 	for _, f := range section.Fields {
-		value := answer[f.Key]
-		if f.Masked && value == "" {
-			value = s.values.Get(f.File, f.Key)
-		}
-		updated = updated.With(f.File, f.Key, value)
+		updated = updated.With(f.File, f.Key, s.entered(f, answer[f.Key]))
 	}
 	for _, f := range section.Fields {
 		if err := f.ValidateIn(updated); err != nil {
@@ -130,6 +129,18 @@ func (s *session) merged(section Section, answer map[string]string) (Values, err
 		}
 	}
 	return updated, nil
+}
+
+func (s *session) entered(f Field, value string) string {
+	switch {
+	case !f.Masked:
+		return value
+	case value == "":
+		return s.values.Get(f.File, f.Key)
+	case value == removeSecret && f.Optional:
+		return ""
+	}
+	return value
 }
 
 func (s *session) rotate() error {
