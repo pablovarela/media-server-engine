@@ -9,15 +9,14 @@ import (
 )
 
 func ManagerWithoutDocker(ctx context.Context, r runner, procRoot, account string) (uid string, stale bool) {
-	env := Env{Runner: r}
-	groups, _ := output(ctx, env, "id", "-Gn", account)
+	groups, _ := output(ctx, r, "id", "-Gn", account)
 	if !slices.Contains(strings.Fields(groups), "docker") {
 		return "", false
 	}
-	entry, _ := output(ctx, env, "getent", "group", "docker")
+	entry, _ := output(ctx, r, "getent", "group", "docker")
 	docker := strings.Split(entry, ":")
-	uid, _ = output(ctx, env, "id", "-u", account)
-	pid, _ := output(ctx, env, "systemctl", "show", "user@"+uid+".service", "-p", "MainPID", "--value")
+	uid, _ = output(ctx, r, "id", "-u", account)
+	pid, _ := output(ctx, r, "systemctl", "show", "user@"+uid+".service", "-p", "MainPID", "--value")
 	if len(docker) < 3 || uid == "" || pid == "" || pid == "0" {
 		return "", false
 	}

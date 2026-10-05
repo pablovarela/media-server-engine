@@ -116,7 +116,40 @@ func TestGhNotLoggedIn(t *testing.T) {
 	out := f.render(t)
 
 	assert.Contains(t, out, "  ✗ gh isn't logged in\n      run: gh auth login\n")
-	assert.Contains(t, out, "  – git uses gh for github.com: skipped until gh is logged in\n")
+	assert.Contains(t, out, "  ✓ git uses gh for github.com\n")
+}
+
+func TestGhOffTheTimersPath(t *testing.T) {
+	f := newFixture(t)
+	f.answers[bareToken] = process.Result{Exit: 127, Stderr: []byte("env: 'gh': No such file or directory\n")}
+	f.answers["gh --version"] = process.Result{Stdout: []byte("gh version 2.83.0\n")}
+
+	assert.Contains(t, f.render(t), "  ✗ gh isn't on the timers' PATH (/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin)\n      run: sudo ln -s \"$(command -v gh)\" /usr/local/bin/gh\n")
+}
+
+func TestGhNotInstalled(t *testing.T) {
+	f := newFixture(t)
+	f.answers[bareToken] = process.Result{Exit: 127}
+
+	assert.Contains(t, f.render(t), "  ✗ gh isn't installed\n      run: sudo apt install gh\n")
+}
+
+func TestATokenFromTheEnvironmentIsCaught(t *testing.T) {
+	f := newFixture(t)
+	f.fails(bareToken)
+	f.answers["gh auth token"] = process.Result{Stdout: []byte("ghp_from_env\n")}
+	f.env.Getenv = func(name string) string { return map[string]string{"GITHUB_TOKEN": "ghp_from_env"}[name] }
+
+	assert.Contains(t, f.render(t), "  ✗ gh's token comes from GITHUB_TOKEN, which the timers can't read\n      run: unset GITHUB_TOKEN, then gh auth login --insecure-storage\n")
+}
+
+func TestTheTokenProbeCarriesTheUnitsVariables(t *testing.T) {
+	f := newFixture(t)
+	f.env.Carried = []string{"XDG_CONFIG_HOME=/home/pablo/cfg"}
+	f.fails(bareToken)
+	f.answers["env -i HOME=/home/pablo USER=pablo PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin XDG_CONFIG_HOME=/home/pablo/cfg gh auth token"] = process.Result{Stdout: []byte("gho_token\n")}
+
+	assert.Contains(t, f.render(t), "  ✓ gh is logged in (token on disk)\n")
 }
 
 func TestATokenOnlyInAKeyringIsCaught(t *testing.T) {
@@ -126,7 +159,7 @@ func TestATokenOnlyInAKeyringIsCaught(t *testing.T) {
 
 	out := f.render(t)
 
-	assert.Contains(t, out, "  ✗ gh's token is only in a keyring or GITHUB_TOKEN, which the timers can't read\n      run: gh auth login --insecure-storage\n")
+	assert.Contains(t, out, "  ✗ gh's token is only in a keyring, which the timers can't read\n      run: gh auth login --insecure-storage\n")
 }
 
 func TestNotInTheDockerGroup(t *testing.T) {
@@ -185,6 +218,8 @@ func TestAMac(t *testing.T) {
 	f := newFixture(t)
 	f.env.GOOS = "darwin"
 	f.env.Systemd = false
+	delete(f.answers, bareToken)
+	f.answers["gh auth token"] = process.Result{Stdout: []byte("gho_keychain\n")}
 	f.fails("git --version")
 	f.fails("docker info")
 	f.fails("restic version")
@@ -193,7 +228,7 @@ func TestAMac(t *testing.T) {
 
 	assert.Equal(t, `  ✗ git isn't installed
       run: xcode-select --install
-  ✓ gh is logged in (token on disk)
+  ✓ gh is logged in
   – git uses gh for github.com: skipped until git is installed
   ✓ Docker
   ✗ Docker doesn't answer this session
@@ -204,4 +239,12 @@ func TestAMac(t *testing.T) {
 
 3 things to fix. Run mse check-machine again afterwards.
 `, out)
+}
+
+func TestAMacWithoutGh(t *testing.T) {
+	f := newFixture(t)
+	f.env.GOOS = "darwin"
+	f.env.Systemd = false
+
+	assert.Contains(t, f.render(t), "  ✗ gh isn't installed\n      run: brew install gh\n")
 }

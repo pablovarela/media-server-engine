@@ -21,6 +21,8 @@ type Env struct {
 	Systemd  bool
 	ProcRoot string
 	Ports    PortsCheck
+	Carried  []string
+	Getenv   func(string) string
 }
 
 type Status int

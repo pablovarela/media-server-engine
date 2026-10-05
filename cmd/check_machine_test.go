@@ -114,3 +114,15 @@ func TestCheckMachineWithSeveralInstallations(t *testing.T) {
 
 	assert.Contains(t, stdout, "  ✓ ports 8096, 80 free (several installations here; using the default homepage port 80)\n")
 }
+
+func TestCheckMachineLooksForTheTokenWhereTheTimersWould(t *testing.T) {
+	f := newCheckMachineFixture(t, nil)
+	cfg := f.deps.Home + "/cfg"
+	f.deps.Environment = func(name string) string { return map[string]string{"XDG_CONFIG_HOME": cfg}[name] }
+	delete(f.answers, "env -i HOME="+f.deps.Home+" USER=pablo PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin gh auth token")
+	f.answers["env -i HOME="+f.deps.Home+" USER=pablo PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin XDG_CONFIG_HOME="+cfg+" gh auth token"] = process.Result{Stdout: []byte("gho_token\n")}
+
+	_, stdout, _ := f.check(t)
+
+	assert.Contains(t, stdout, "  ✓ gh is logged in (token on disk)\n")
+}

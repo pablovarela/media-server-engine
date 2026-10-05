@@ -61,6 +61,8 @@ func (d Dependencies) machineEnv(cmd *cobra.Command) (machine.Env, error) {
 		Systemd:  d.Systemd != nil && d.Systemd(),
 		ProcRoot: d.procRoot(),
 		Ports:    ports,
+		Carried:  d.carriedVariables(),
+		Getenv:   d.Environment,
 	}, nil
 }
 
@@ -85,4 +87,14 @@ func (d Dependencies) portsCheck(cmd *cobra.Command) (machine.PortsCheck, error)
 		return machine.PortsCheck{}, err
 	}
 	return machine.PortsCheck{Ports: ports, Project: compose.Stack.Name, Free: d.PortFree, Published: d.Published, Note: note}, nil
+}
+
+func (d Dependencies) carriedVariables() []string {
+	var carried []string
+	for _, variable := range carriedIntoUnits {
+		if value := d.Environment(variable); value != "" {
+			carried = append(carried, variable+"="+value)
+		}
+	}
+	return carried
 }
