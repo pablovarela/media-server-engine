@@ -60,9 +60,10 @@ func TestMissing(t *testing.T) {
 	for _, section := range Missing(Values{}) {
 		all = append(all, section.Name)
 	}
-	assert.Equal(t, []string{"General", "Backups", "VPN", "Healthchecks", "App logins"}, all)
+	assert.Equal(t, []string{"General", "Backups", "VPN", "App logins"}, all)
 
-	full := complete().With(PlainFile, "HOMEPAGE_PORT", "").With("secrets/vpn.sops.env", "SERVER_COUNTRIES", "")
+	full := complete().With(PlainFile, "HOMEPAGE_PORT", "").With("secrets/vpn.sops.env", "SERVER_COUNTRIES", "").
+		With(healthchecksFile, "HEALTHCHECKS_PING_KEY", "").With(healthchecksFile, "HEALTHCHECKS_API_KEY", "").With(healthchecksFile, "HEALTHCHECKS_MANAGE_KEY", "")
 	assert.Empty(t, Missing(full))
 
 	var vpn []string

@@ -36,18 +36,21 @@ func TestTheChecks(t *testing.T) {
 	tests := map[string]struct {
 		key, value, err string
 	}{
-		"a time zone":           {key: "TZ", value: "Europe/Madrid"},
-		"not a time zone":       {key: "TZ", value: "Europe/Madird", err: "TZ: Europe/Madird isn't a time zone"},
-		"an empty time zone":    {key: "TZ", value: "", err: "TZ: can't be empty"},
-		"a port":                {key: "HOMEPAGE_PORT", value: "8080"},
-		"no port":               {key: "HOMEPAGE_PORT", value: ""},
-		"port 0":                {key: "HOMEPAGE_PORT", value: "0", err: "HOMEPAGE_PORT: must be a number from 1 to 65535"},
-		"port 70000":            {key: "HOMEPAGE_PORT", value: "70000", err: "HOMEPAGE_PORT: must be a number from 1 to 65535"},
-		"a port that's a word":  {key: "HOMEPAGE_PORT", value: "abc", err: "HOMEPAGE_PORT: must be a number from 1 to 65535"},
-		"no Jellyfin user":      {key: "JELLYFIN_ADMIN_USER", value: "", err: "JELLYFIN_ADMIN_USER: can't be empty"},
-		"a quote in plain text": {key: "MEDIA_SERVER_HOST", value: "it's", err: "MEDIA_SERVER_HOST: can't contain '"},
-		"a quote in a secret":   {key: "OPENVPN_PASSWORD", value: "it's"},
-		"a newline":             {key: "OPENVPN_PASSWORD", value: "a\nb", err: "OPENVPN_PASSWORD: can't contain a line break"},
+		"a time zone":                {key: "TZ", value: "Europe/Madrid"},
+		"not a time zone":            {key: "TZ", value: "Europe/Madird", err: "TZ: Europe/Madird isn't a time zone"},
+		"an empty time zone":         {key: "TZ", value: "", err: "TZ: can't be empty"},
+		"a port":                     {key: "HOMEPAGE_PORT", value: "8080"},
+		"no port":                    {key: "HOMEPAGE_PORT", value: ""},
+		"port 0":                     {key: "HOMEPAGE_PORT", value: "0", err: "HOMEPAGE_PORT: must be a number from 1 to 65535"},
+		"port 70000":                 {key: "HOMEPAGE_PORT", value: "70000", err: "HOMEPAGE_PORT: must be a number from 1 to 65535"},
+		"a port that's a word":       {key: "HOMEPAGE_PORT", value: "abc", err: "HOMEPAGE_PORT: must be a number from 1 to 65535"},
+		"no Jellyfin user":           {key: "JELLYFIN_ADMIN_USER", value: "", err: "JELLYFIN_ADMIN_USER: can't be empty"},
+		"a quote in plain text":      {key: "MEDIA_SERVER_HOST", value: "it's", err: "MEDIA_SERVER_HOST: can't contain '"},
+		"a quote in a secret":        {key: "OPENVPN_PASSWORD", value: "it's"},
+		"a newline":                  {key: "OPENVPN_PASSWORD", value: "a\nb", err: "OPENVPN_PASSWORD: can't contain a line break"},
+		"a short Portainer password": {key: "PORTAINER_ADMIN_PASSWORD", value: "elevenchars", err: "PORTAINER_ADMIN_PASSWORD: needs at least 12 characters"},
+		"a Portainer password":       {key: "PORTAINER_ADMIN_PASSWORD", value: "twelve-chars"},
+		"no ping key":                {key: "HEALTHCHECKS_PING_KEY", value: ""},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {

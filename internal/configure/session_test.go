@@ -79,7 +79,7 @@ func TestSavingWithNothingChangedAsksNothing(t *testing.T) {
 	outcome, err := Session(context.Background(), p, "gorgon", complete(), fixedKey)
 
 	require.NoError(t, err)
-	assert.False(t, outcome.Save)
+	assert.Equal(t, Outcome{NothingChanged: true}, outcome)
 }
 
 func TestDecliningToSaveGoesBackToTheMenu(t *testing.T) {
@@ -171,14 +171,14 @@ func TestAFreshInstallationWalksTheMissingSectionsFirst(t *testing.T) {
 	p.EXPECT().Section(mock.Anything, mock.Anything, mock.Anything, "").RunAndReturn(func(title string, _ []Field, _ map[string]string, _ string) (map[string]string, error) {
 		asked = append(asked, title)
 		return currentOf(full, sectionNamed(title)), nil
-	}).Times(5)
+	}).Times(4)
 	expectMenu(p, "save")
 	p.EXPECT().Confirm("Save, commit and push these?", mock.Anything).Return(true, nil).Once()
 
 	outcome, err := Session(context.Background(), p, "gorgon", Values{}, fixedKey)
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"General", "Backups", "VPN", "Healthchecks", "App logins"}, asked)
+	assert.Equal(t, []string{"General", "Backups", "VPN", "App logins"}, asked)
 	assert.True(t, outcome.Save)
 }
 

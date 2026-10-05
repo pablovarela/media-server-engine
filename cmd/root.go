@@ -20,6 +20,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/pablovarela/media-server-engine/internal/compose"
+	"github.com/pablovarela/media-server-engine/internal/configure"
 	"github.com/pablovarela/media-server-engine/internal/github"
 	"github.com/pablovarela/media-server-engine/internal/images"
 	"github.com/pablovarela/media-server-engine/internal/installation"
@@ -58,6 +59,10 @@ type Dependencies struct {
 	ProcRoot      string
 	Account       func() (string, error)
 	WiringSteps   func(configarr wiring.OneOff, tool io.Writer) ([]wiring.Step, error)
+	Terminal      func() bool
+	Prompter      func(ctx context.Context) prompter
+	Encrypt       func(config string) secrets.Encrypter
+	RandomKey     func() (string, error)
 }
 
 func NewRootCommand(deps Dependencies) *cobra.Command {
@@ -79,6 +84,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 	root.AddCommand(
 		newVersionCommand(deps.Build),
 		newUpdateCommand(deps),
+		newConfigureCommand(deps),
 		newApplyCommand(deps),
 		newURLsCommand(deps),
 		newLoginsCommand(deps),
@@ -126,10 +132,20 @@ func Execute(engine fs.FS) int {
 		Executable:    os.Executable,
 		Account:       currentAccount,
 		WiringSteps:   wiringSteps,
-		Exec:          func(path string, args []string) error { return syscall.Exec(path, args, os.Environ()) }, //nolint:gosec // runs the mse release it just installed
+		Terminal:      bothTerminals,
+		Prompter:      func(ctx context.Context) prompter { return configure.Huh{Ctx: ctx} },
+		Encrypt: func(config string) secrets.Encrypter {
+			return secrets.SopsEncrypter(installation.BasesFrom(os.Getenv, home).Config, filepath.Join(config, ".sops.yaml"))
+		},
+		RandomKey: secrets.RandomKey,
+		Exec:      func(path string, args []string) error { return syscall.Exec(path, args, os.Environ()) }, //nolint:gosec // runs the mse release it just installed
 	}
 	globalLogs := filepath.Join(installation.BasesFrom(os.Getenv, home).State, "mse")
 	return runLogged(ctx, NewRootCommand(deps), os.Args[1:], globalLogs)
+}
+
+func bothTerminals() bool {
+	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd())) //nolint:gosec // file descriptors fit in an int
 }
 
 func wiringSteps(configarr wiring.OneOff, tool io.Writer) ([]wiring.Step, error) {

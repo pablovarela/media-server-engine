@@ -16,7 +16,7 @@ An installation is three folders side by side in `~/<name>`, with a Makefile the
 | `config/` | the installation's settings, image versions and encrypted secrets | its own git repository, `media-server-config-<name>`, local or on GitHub |
 | `data/` | app state, media and downloads | created on the machine; app state is backed up with restic |
 
-Everything an installation declares lives in its config: change it with `make configure` or by editing the files, and `make update` applies it. The engine never holds anything specific to one installation.
+Everything an installation declares lives in its config: change it with `mse configure` or by editing the files, and `make update` applies it. The engine never holds anything specific to one installation.
 
 ## Quick start
 
@@ -34,7 +34,7 @@ From then on, run make from the installation, `cd ~/<name>` (its Makefile passes
 
 | Command | Does |
 |---|---|
-| `make configure` | change settings and secrets (menus with whiptail, plain questions otherwise) |
+| `mse configure` | change settings and secrets from a menu, then commit and push them |
 | `make update` | apply config changes, update images and the engine, wire the apps |
 | `make urls`, `make logins` | the apps' addresses, and their logins |
 | `make version` | the engine release running, and the one the config pins |
@@ -67,6 +67,8 @@ Elsewhere, such as a Raspberry Pi without gh, export a token (a fine-grained tok
 `install.sh` takes the token from `GITHUB_TOKEN`, or from `gh auth token` when gh is installed. It installs the latest release into `~/.local/bin`. Settings for `install.sh` go on its side of the pipe: `… | MSE_VERSION=v0.7.0 sh` picks a release, and `MSE_INSTALL_DIR` another directory. It checks the archive against the release's `checksums.txt` before installing, and leaves the installed `mse` in place when the download or the check fails.
 
 `mse update` fast-forwards the config from its remote, then replaces the installed `mse` with the newest release of its major version, after checking it against `checksums.txt` and running it once; it takes the token the same way as `install.sh`. It refuses to run while the config has changes that are not committed. A newer major version can need config changes, so `mse update` only says it is available; `mse update --force` installs it.
+
+`mse configure` changes the installation's settings and secrets from a menu in the terminal: General (time zone, Jellyfin admin user, homepage port and host names), Backups, VPN, Healthchecks, App logins, and new random internal API keys for Sonarr, Radarr and Prowlarr. It updates the config first and refuses while the config has uncommitted changes. Saving shows what changed (secrets only as "changed"), writes `installation.env` and re-encrypts only the secret files that changed with the config's `.sops.yaml`, commits and pushes. Nothing is applied on the machine it runs on: it ends by saying so, with `mse apply` to apply it now; every machine applies it at its next nightly update. Lines it doesn't manage, comments included, stay as they are. It needs a terminal and a git name and email for the config.
 
 `mse apply` applies the config on disk to the machine, uncommitted changes included: it writes the secrets, draws the landing page, sets up the healthchecks.io checks (under systemd, with `HEALTHCHECKS_MANAGE_KEY`), pulls the stack's images (trying again when a registry limits requests), starts the stack, puts Prowlarr, FlareSolverr and Deluge back on gluetun's network if they lost it, wires the apps as the config's `apps.yml` and `prowlarr.yml` declare (Prowlarr, Jellyfin, Sonarr's and Radarr's library updates, Deluge, Configarr, Seerr, Bazarr, Maintainerr), reloads Homepage and removes outdated images. A failed pull stops it before anything restarts. Each change the wiring makes is one line; an app that fails or doesn't answer within five minutes is named, the others are still wired, and the command fails. `mse update --apply` does both: it waits for a running backup, updates, then applies with the updated `mse`, and reports to healthchecks.io as the update check; it is what the nightly timer runs.
 

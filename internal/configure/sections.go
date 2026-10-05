@@ -56,14 +56,14 @@ func Sections() []Section {
 			{Key: "SERVER_COUNTRIES", Title: "Server countries, comma-separated", File: vpnFile, Optional: true},
 		}},
 		{Name: "Healthchecks", Summary: "ping, API and manage keys", Fields: []Field{
-			{Key: "HEALTHCHECKS_PING_KEY", Title: "Ping key", File: healthchecksFile, Masked: true},
-			{Key: "HEALTHCHECKS_API_KEY", Title: "Read-only API key", File: healthchecksFile, Masked: true},
-			{Key: "HEALTHCHECKS_MANAGE_KEY", Title: "API key", File: healthchecksFile, Masked: true},
+			{Key: "HEALTHCHECKS_PING_KEY", Title: "Ping key (empty turns the pings off)", File: healthchecksFile, Masked: true, Optional: true},
+			{Key: "HEALTHCHECKS_API_KEY", Title: "Read-only API key (shows the checks on the landing page)", File: healthchecksFile, Masked: true, Optional: true},
+			{Key: "HEALTHCHECKS_MANAGE_KEY", Title: "Read-write API key (sets up the checks)", File: healthchecksFile, Masked: true, Optional: true},
 		}},
 		{Name: "App logins", Summary: "Jellyfin, Deluge, Portainer passwords", Fields: []Field{
 			{Key: "JELLYFIN_ADMIN_PASSWORD", Title: "Jellyfin admin password", File: AppsFile, Masked: true},
 			{Key: "DELUGE_WEB_PASSWORD", Title: "Deluge web password", File: AppsFile, Masked: true},
-			{Key: "PORTAINER_ADMIN_PASSWORD", Title: "Portainer admin password", File: AppsFile, Masked: true},
+			{Key: "PORTAINER_ADMIN_PASSWORD", Title: "Portainer admin password (at least 12 characters)", File: AppsFile, Masked: true, check: atLeast12},
 		}},
 	}
 }
@@ -89,6 +89,13 @@ func (f Field) Validate(value string) error {
 func timeZone(value string) error {
 	if _, err := time.LoadLocation(value); err != nil {
 		return fmt.Errorf("%s isn't a time zone", value)
+	}
+	return nil
+}
+
+func atLeast12(value string) error {
+	if len([]rune(value)) < 12 {
+		return errors.New("needs at least 12 characters")
 	}
 	return nil
 }

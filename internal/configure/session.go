@@ -13,8 +13,9 @@ const (
 )
 
 type Outcome struct {
-	Values Values
-	Save   bool
+	Values         Values
+	Save           bool
+	NothingChanged bool
 }
 
 type session struct {
@@ -136,7 +137,7 @@ func (s *session) rotate() error {
 func (s *session) save() (Outcome, bool, error) {
 	changes := Diff(s.before, s.values)
 	if len(changes) == 0 {
-		return Outcome{}, true, nil
+		return Outcome{NothingChanged: true}, true, nil
 	}
 	confirmed, err := s.prompter.Confirm("Save, commit and push these?", Summary(changes))
 	if err != nil && !errors.Is(err, ErrAborted) {
