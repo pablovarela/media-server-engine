@@ -30,7 +30,7 @@ type session struct {
 func Session(ctx context.Context, p Prompter, name string, current Values, randomKey func() (string, error)) (Outcome, error) {
 	s := &session{ctx: ctx, prompter: p, title: "Configure " + name, before: current, values: current, randomKey: randomKey}
 	for _, section := range Missing(current) {
-		if err := s.edit(section); err != nil {
+		if err := notAborted(s.edit(section)); err != nil {
 			return Outcome{}, err
 		}
 	}
@@ -57,7 +57,7 @@ func (s *session) choose() (Outcome, bool, error) {
 	case choice == rotateItem:
 		return Outcome{}, false, s.rotate()
 	}
-	return Outcome{}, false, s.edit(sectionNamed(choice))
+	return Outcome{}, false, notAborted(s.edit(sectionNamed(choice)))
 }
 
 func menu() []MenuItem {
@@ -87,9 +87,6 @@ func (s *session) edit(section Section) error {
 	form := s.form(section)
 	for {
 		answer, err := s.prompter.Section(section.Name, section.Fields, form)
-		if errors.Is(err, ErrAborted) {
-			return nil
-		}
 		if err != nil {
 			return err
 		}
@@ -103,6 +100,33 @@ func (s *session) edit(section Section) error {
 			form.Values[f.Key] = answer[f.Key]
 		}
 	}
+}
+
+func notAborted(err error) error {
+	if errors.Is(err, ErrAborted) {
+		return nil
+	}
+	return err
+}
+
+func Guided(ctx context.Context, p Prompter, before, start Values) (Outcome, error) {
+	s := &session{ctx: ctx, prompter: p, before: before, values: start}
+	for _, section := range Sections() {
+		if err := ctx.Err(); err != nil {
+			return Outcome{}, err
+		}
+		if err := s.edit(section); err != nil {
+			return Outcome{}, err
+		}
+	}
+	confirmed, err := p.Confirm("Save these, commit and push them to a new repository?", Summary(Diff(before, s.values)))
+	switch {
+	case err != nil:
+		return Outcome{}, err
+	case !confirmed:
+		return Outcome{}, ErrAborted
+	}
+	return Outcome{Values: s.values, Save: true}, nil
 }
 
 func (s *session) form(section Section) Form {

@@ -124,3 +124,16 @@ func (h Huh) run(group *huh.Group) error {
 	}
 	return err
 }
+
+func (h Huh) Acknowledge(title, text, word string) error {
+	var typed string
+	return h.run(huh.NewGroup(
+		huh.NewNote().Title(title).Description(text),
+		huh.NewInput().Title("Type "+word+" once it is saved").Value(&typed).Validate(func(v string) error {
+			if strings.TrimSpace(v) != word {
+				return fmt.Errorf("type %s to go on, or esc to stop", word)
+			}
+			return nil
+		}),
+	))
+}
