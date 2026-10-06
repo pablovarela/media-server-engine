@@ -31,6 +31,7 @@ type createFixture struct {
 	repositories *mockConfigRepositories
 	prompter     *mockPrompter
 	config, keys string
+	homepagePort string
 }
 
 func newCreateFixture(t *testing.T) *createFixture {
@@ -99,8 +100,12 @@ func (f *createFixture) savesTheKey() {
 }
 
 func (f *createFixture) answersEverySection() {
+	general := map[string]string{"TZ": "Europe/London", "JELLYFIN_ADMIN_USER": "pablo"}
+	if f.homepagePort != "" {
+		general["HOMEPAGE_PORT"] = f.homepagePort
+	}
 	answers := map[string]map[string]string{
-		"General":    {"TZ": "Europe/London", "JELLYFIN_ADMIN_USER": "pablo"},
+		"General":    general,
 		"Backups":    {"RESTIC_REPOSITORY": "/backups", "RESTIC_PASSWORD": "restic"},
 		"VPN":        {"VPN_SERVICE_PROVIDER": "protonvpn"},
 		"App logins": {"JELLYFIN_ADMIN_PASSWORD": "j", "DELUGE_WEB_PASSWORD": "d", "PORTAINER_ADMIN_PASSWORD": "twelve-chars"},
@@ -180,7 +185,7 @@ func TestCreateRefusesATakenName(t *testing.T) {
 				f.repositories.EXPECT().Login(mock.Anything).Return("pablovarela", nil).Once()
 				f.repositories.EXPECT().RepositoryExists(mock.Anything, "pablovarela", "media-server-config-gorgon").Return(true, nil).Once()
 			},
-			err: "pablovarela/media-server-config-gorgon already exists on GitHub; to add this machine to it, run mse join gorgon",
+			err: "pablovarela/media-server-config-gorgon already exists on GitHub; to add this machine to it, run make join-installation NAME=gorgon from a clone of the engine",
 		},
 		"git identity": {
 			given: func(_ *testing.T, f *createFixture) { delete(f.answers, "git -C "+f.deps.Home+" config user.email") },
@@ -209,7 +214,8 @@ func TestCreateUndoesWhenTheKeyIsNotSaved(t *testing.T) {
 	code, _, stderr := f.create(t, "gorgon")
 
 	assert.Equal(t, 1, code)
-	assert.Equal(t, "mse: stopped before gorgon was created. Nothing was kept; run mse create gorgon again.\n", stderr)
+	assert.Equal(t, "mse: stopped before gorgon was created. Nothing was kept; run mse create gorgon again.\n"+
+		"The secrets key shown for gorgon was removed; if you saved it, delete it from your password manager.\n", stderr)
 	f.nothingKept(t)
 }
 
@@ -222,7 +228,7 @@ func TestCreateUndoesWhenSettingsAreQuit(t *testing.T) {
 	code, _, stderr := f.create(t, "gorgon")
 
 	assert.Equal(t, 1, code)
-	assert.Contains(t, stderr, "Nothing was kept; run mse create gorgon again.")
+	assert.Contains(t, stderr, "Nothing was kept apart from this run's log in "+filepath.Join(f.deps.Home, ".local", "state", "mse", "gorgon", "logs")+"; run mse create gorgon again.")
 	f.nothingKept(t)
 }
 
@@ -366,7 +372,7 @@ func TestCreateDiscardsWhenTheRepositoryWasNotCreated(t *testing.T) {
 	code, _, stderr := f.create(t, "gorgon")
 
 	assert.Equal(t, 1, code)
-	assert.Contains(t, stderr, "Nothing was kept; run mse create gorgon again.")
+	assert.Contains(t, stderr, "; run mse create gorgon again.")
 	f.nothingKept(t)
 }
 
@@ -379,7 +385,7 @@ func TestCreatePointsATakenRepositoryAtJoin(t *testing.T) {
 	code, _, stderr := f.create(t, "gorgon")
 
 	assert.Equal(t, 1, code)
-	assert.Contains(t, stderr, "To add this machine to that installation, run mse join gorgon; otherwise choose another name")
+	assert.Contains(t, stderr, "To add this machine to that installation, run make join-installation NAME=gorgon from a clone of the engine; otherwise choose another name.")
 	f.nothingKept(t)
 }
 
@@ -409,4 +415,38 @@ func TestCreateSummary(t *testing.T) {
 
 	assert.Equal(t, "gorgon is ready: its config is in "+filepath.Join(home, ".config", "mse", "gorgon")+" (github.com/pablovarela/media-server-config-gorgon), "+
 		"its data in "+filepath.Join(home, ".local", "share", "mse", "gorgon")+" and its landing page at http://pi.local:8080. mse urls lists every app.", summary)
+}
+
+func TestCreateKeepsEverythingWhenGitHubCannotSay(t *testing.T) {
+	f := newCreateFixture(t)
+	f.reachesPublishing()
+	f.repositories.EXPECT().CreatePrivateRepository(mock.Anything, "", "media-server-config-gorgon").Return("", errors.New("timeout")).Once()
+	f.repositories.EXPECT().RepositoryExists(mock.Anything, "pablovarela", "media-server-config-gorgon").Return(false, errors.New("no network")).Once()
+
+	code, _, stderr := f.create(t, "gorgon")
+
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stderr, "mse: timeout\nGitHub didn't say whether github.com/pablovarela/media-server-config-gorgon was created (no network). "+
+		"If it wasn't, create it first: gh repo create pablovarela/media-server-config-gorgon --private\n"+
+		"Add its remote: git -C "+f.config+" remote add origin https://github.com/pablovarela/media-server-config-gorgon.git\n")
+	assert.DirExists(t, f.config)
+	assert.FileExists(t, f.keys)
+}
+
+func TestCreateChecksAHomepagePortChangedInTheSettings(t *testing.T) {
+	f := newCreateFixture(t)
+	f.homepagePort = "8443"
+	f.nameIsFree()
+	f.savesTheKey()
+	f.answersEverySection()
+	f.prompter.EXPECT().Confirm(mock.Anything, mock.Anything).Return(true, nil).Once()
+	f.deps.PortFree = func(p machine.Port) bool { return p.String() != "8443" }
+	f.deps.Published = func(context.Context) ([]machine.Published, error) { return nil, nil }
+
+	code, stdout, stderr := f.create(t, "gorgon")
+
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stdout, "Checking the landing page's port 8443... failed.")
+	assert.Contains(t, stderr, "8443 is in use")
+	f.nothingKept(t)
 }

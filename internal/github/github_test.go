@@ -102,7 +102,7 @@ func TestReleases(t *testing.T) {
 		},
 		"expired token": {
 			Given: Given{status: http.StatusUnauthorized, body: `{"message": "Bad credentials"}`},
-			Then:  Then{err: "list the releases of pablovarela/media-server-engine: GitHub answered 401 Unauthorized: check the token from GITHUB_TOKEN can read pablovarela/media-server-engine"},
+			Then:  Then{err: "list the releases of pablovarela/media-server-engine: GitHub answered 401 Unauthorized: Bad credentials; check the token from GITHUB_TOKEN can read pablovarela/media-server-engine"},
 		},
 	}
 	for name, tt := range tests {

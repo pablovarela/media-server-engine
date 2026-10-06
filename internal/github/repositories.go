@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	gh "github.com/google/go-github/v92/github"
 )
@@ -18,7 +19,7 @@ func (c *Client) Login(ctx context.Context) (string, error) {
 	}
 	user, _, err := api.Users.Get(ctx, "")
 	if err != nil {
-		return "", fmt.Errorf("find the GitHub user: %w", c.answered(err))
+		return "", fmt.Errorf("find the GitHub user: %w", c.explain(err, "can read its user"))
 	}
 	return user.GetLogin(), nil
 }
@@ -35,7 +36,7 @@ func (c *Client) RepositoryExists(ctx context.Context, owner, repo string) (bool
 	case response != nil && response.StatusCode == http.StatusNotFound:
 		return false, nil
 	}
-	return false, fmt.Errorf("look up %s/%s: %w", owner, repo, c.answered(err))
+	return false, fmt.Errorf("look up %s/%s: %w", owner, repo, c.explain(err, "can read "+owner+"/"+repo))
 }
 
 func (c *Client) CreatePrivateRepository(ctx context.Context, org, repo string) (string, error) {
@@ -44,25 +45,25 @@ func (c *Client) CreatePrivateRepository(ctx context.Context, org, repo string) 
 		return "", err
 	}
 	private := true
-	created, response, err := api.Repositories.Create(ctx, org, &gh.Repository{Name: &repo, Private: &private})
+	created, _, err := api.Repositories.Create(ctx, org, &gh.Repository{Name: &repo, Private: &private})
 	switch {
 	case err == nil:
 		return created.GetCloneURL(), nil
-	case response != nil && response.StatusCode == http.StatusUnprocessableEntity:
+	case taken(err):
 		return "", fmt.Errorf("create %s: %w", repo, ErrRepositoryTaken)
 	}
-	return "", fmt.Errorf("create %s: %w", repo, c.answered(err))
+	return "", fmt.Errorf("create %s: %w", repo, c.explain(err, "can create repositories"))
 }
 
-func (c *Client) answered(err error) error {
+func taken(err error) bool {
 	var answer *gh.ErrorResponse
-	if !errors.As(err, &answer) || answer.Response == nil {
-		return err
+	if !errors.As(err, &answer) || answer.Response == nil || answer.Response.StatusCode != http.StatusUnprocessableEntity {
+		return false
 	}
-	switch answer.Response.StatusCode {
-	case http.StatusUnauthorized, http.StatusForbidden:
-		return fmt.Errorf("GitHub answered %s: check the token from %s (gh auth login)", answer.Response.Status, c.tokenSource)
-	default:
-		return fmt.Errorf("GitHub answered %s", answer.Response.Status)
+	for _, e := range answer.Errors {
+		if e.Field == "name" && strings.Contains(e.Message, "already exists") {
+			return true
+		}
 	}
+	return false
 }

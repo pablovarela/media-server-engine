@@ -1,6 +1,7 @@
 package create
 
 import (
+	"bytes"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -8,7 +9,7 @@ import (
 
 const sopsRules = "creation_rules:\n  - path_regex: (^|/)secrets/[^/]+\\.sops\\.env$\n    age: "
 
-func WriteConfig(template fs.FS, dir, name, recipient string) (Undo, error) {
+func WriteConfig(template fs.FS, dir, name, recipient, engine string) (Undo, error) {
 	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil { //nolint:gosec // the XDG config folder
 		return nil, err
 	}
@@ -16,7 +17,7 @@ func WriteConfig(template fs.FS, dir, name, recipient string) (Undo, error) {
 		return nil, err
 	}
 	undo := func() error { return os.RemoveAll(dir) }
-	if err := copyTemplate(template, dir); err != nil {
+	if err := copyTemplate(template, dir, engine); err != nil {
 		return undo, err
 	}
 	generated := map[string]string{
@@ -31,7 +32,7 @@ func WriteConfig(template fs.FS, dir, name, recipient string) (Undo, error) {
 	return undo, nil
 }
 
-func copyTemplate(template fs.FS, dir string) error {
+func copyTemplate(template fs.FS, dir, engine string) error {
 	return fs.WalkDir(template, ".", func(path string, entry fs.DirEntry, err error) error {
 		if err != nil || path == "." {
 			return err
@@ -44,6 +45,7 @@ func copyTemplate(template fs.FS, dir string) error {
 		if err != nil {
 			return err
 		}
-		return os.WriteFile(target, content, 0o644) //nolint:gosec // committed config
+		filled := bytes.ReplaceAll(content, []byte("ENGINE_REPOSITORY"), []byte(engine))
+		return os.WriteFile(target, filled, 0o644) //nolint:gosec // committed config
 	})
 }

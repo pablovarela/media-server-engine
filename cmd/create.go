@@ -8,15 +8,18 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/pablovarela/media-server-engine/internal/compose"
 	"github.com/pablovarela/media-server-engine/internal/configure"
 	"github.com/pablovarela/media-server-engine/internal/create"
 	"github.com/pablovarela/media-server-engine/internal/gitconfig"
 	"github.com/pablovarela/media-server-engine/internal/github"
 	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/machine"
 	"github.com/pablovarela/media-server-engine/internal/report"
 )
 
@@ -46,7 +49,7 @@ func newCreateCommand(deps Dependencies) *cobra.Command {
 			}
 			c := deps.creation(cmd, args[0], owner)
 			c.homepagePort = homepagePort
-			return create.Run(cmd.Context(), create.Installation{Name: c.name, Config: c.config}, c, report.From(cmd.Context()), shieldSignals)
+			return create.Run(cmd.Context(), create.Installation{Name: c.name, Config: c.config, Logs: filepath.Join(c.state, "logs")}, c, report.From(cmd.Context()), shieldSignals)
 		},
 	}
 	command.Flags().StringVar(&owner, "owner", "", "the GitHub organisation that owns the config repository (default: the user gh is logged in as)")
@@ -122,13 +125,13 @@ func (c *creation) CheckMachine(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	machine, err := c.d.checkedMachine(c.cmd, ports)
+	checked, err := c.d.checkedMachine(c.cmd, ports)
 	switch {
 	case err != nil:
 		return err
-	case machine.Ready():
+	case checked.Ready():
 		return nil
-	case machine.PortsTaken() && c.homepagePort == "":
+	case checked.PortsTaken() && c.homepagePort == "":
 		report.From(ctx).Say("If port 80 is in use by something you keep, give the landing page another port: mse create " + c.name + " --homepage-port <port>")
 	}
 	return errAlreadyReported
@@ -158,7 +161,7 @@ func (c *creation) CheckName(ctx context.Context) error {
 	}
 	exists, err := c.d.Repositories.RepositoryExists(ctx, c.owner, c.repo)
 	if err == nil && exists {
-		return fmt.Errorf("%s/%s already exists on GitHub; to add this machine to it, run mse join %s", c.owner, c.repo, c.name)
+		return fmt.Errorf("%s/%s already exists on GitHub; to add this machine to it, run make join-installation NAME=%s from a clone of the engine", c.owner, c.repo, c.name)
 	}
 	return err
 }
@@ -188,7 +191,7 @@ func (c *creation) WriteConfig(ctx context.Context) (create.Undo, error) {
 		return nil, err
 	}
 	step := report.From(ctx).Step("Writing the config in " + c.config)
-	undo, err := create.WriteConfig(template, c.config, c.name, c.recipient)
+	undo, err := create.WriteConfig(template, c.config, c.name, c.recipient, github.EngineRepository)
 	if err != nil {
 		return undo, step.FailWithoutTail(err)
 	}
@@ -213,9 +216,34 @@ func (c *creation) Configure(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if err := c.checkHomepagePort(ctx, outcome.Values.Get(configure.PlainFile, homepagePortKey)); err != nil {
+		return err
+	}
 	writer := configure.Writer{Config: c.config, Encrypt: c.d.Encrypt(c.config)}
 	_, err = writeChanges(report.From(ctx), writer, configure.Diff(current, outcome.Values), texts)
 	return err
+}
+
+func (c *creation) checkHomepagePort(ctx context.Context, chosen string) error {
+	if chosen == "" {
+		chosen = "80"
+	}
+	if checked := c.homepagePort; chosen == checked || checked == "" && chosen == "80" {
+		return nil
+	}
+	step := report.From(ctx).Step("Checking the landing page's port " + chosen)
+	number, err := strconv.Atoi(chosen)
+	if err != nil {
+		return step.FailWithoutTail(err)
+	}
+	result := machine.CheckPorts(ctx, machine.PortsCheck{
+		Ports: []machine.Port{{Number: number, Protocol: "tcp"}}, Project: compose.Stack.Name, Free: c.d.PortFree, Published: c.d.Published,
+	})
+	if result.Status != machine.Pass {
+		return step.FailWithoutTail(fmt.Errorf("%s; run mse create %s again with a free port", result.Detail, c.name))
+	}
+	step.Done("free")
+	return nil
 }
 
 func (c *creation) Commit(ctx context.Context) error {
@@ -255,11 +283,17 @@ func (c *creation) afterFailedCreate(ctx context.Context, err error) (bool, erro
 	if errors.Is(err, github.ErrRepositoryTaken) {
 		return false, create.NameTaken(err)
 	}
+	url := "https://github.com/" + c.owner + "/" + c.repo + ".git"
 	exists, lookup := c.d.Repositories.RepositoryExists(context.WithoutCancel(ctx), c.owner, c.repo)
-	if lookup != nil || !exists {
+	switch {
+	case lookup != nil:
+		unknown := fmt.Errorf("%w\nGitHub didn't say whether github.com/%s/%s was created (%w). If it wasn't, create it first: gh repo create %s/%s --private",
+			err, c.owner, c.repo, lookup, c.owner, c.repo)
+		return true, c.addRemoteBy(unknown, url)
+	case !exists:
 		return false, err
 	}
-	return true, c.addRemoteBy(err, "https://github.com/"+c.owner+"/"+c.repo+".git")
+	return true, c.addRemoteBy(err, url)
 }
 
 func (c *creation) addRemoteBy(err error, url string) error {

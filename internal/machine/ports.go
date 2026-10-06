@@ -243,6 +243,10 @@ func unreadablePorts(entries []string) Result {
 		Fix: "correct it in compose.override.yml, or HOMEPAGE_PORT in installation.env"}
 }
 
+func CheckPorts(ctx context.Context, check PortsCheck) Result {
+	return portsResult(ctx, check, "no answer")
+}
+
 func portsResult(ctx context.Context, check PortsCheck, noAnswer string) Result {
 	var busy []Port
 	for _, p := range check.Ports {

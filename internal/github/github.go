@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	gh "github.com/google/go-github/v92/github"
 )
@@ -14,6 +15,11 @@ const (
 	owner      = "pablovarela"
 	name       = "media-server-engine"
 	repository = owner + "/" + name
+)
+
+const (
+	EngineRepository = repository
+	canRead          = "can read " + repository
 )
 
 type Asset struct {
@@ -45,7 +51,7 @@ func (c *Client) Releases(ctx context.Context) ([]Release, error) {
 	}
 	all, _, err := api.Repositories.ListReleases(ctx, owner, name, &gh.ListOptions{PerPage: 100})
 	if err != nil {
-		return nil, fmt.Errorf("list the releases of %s: %w", repository, c.explain(err))
+		return nil, fmt.Errorf("list the releases of %s: %w", repository, c.explain(err, canRead))
 	}
 	var published []Release
 	for _, release := range all {
@@ -63,7 +69,7 @@ func (c *Client) Download(ctx context.Context, assetID int64, w io.Writer) error
 	}
 	body, _, err := api.Repositories.DownloadReleaseAsset(ctx, owner, name, assetID, c.http)
 	if err != nil {
-		return fmt.Errorf("download asset %d: %w", assetID, c.explain(err))
+		return fmt.Errorf("download asset %d: %w", assetID, c.explain(err, canRead))
 	}
 	defer func() { _ = body.Close() }()
 	if _, err := io.Copy(w, body); err != nil {
@@ -88,17 +94,43 @@ func (c *Client) authenticated(ctx context.Context) (*gh.Client, error) {
 	return api, nil
 }
 
-func (c *Client) explain(err error) error {
+func (c *Client) explain(err error, can string) error {
 	var answer *gh.ErrorResponse
 	if !errors.As(err, &answer) || answer.Response == nil {
 		return err
 	}
+	said := "GitHub answered " + answer.Response.Status
+	reason := reasonOf(answer)
+	if strings.Contains(answer.Response.Status, reason) {
+		reason = ""
+	}
+	if reason != "" {
+		said += ": " + reason
+	}
 	switch answer.Response.StatusCode {
 	case http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound:
-		return fmt.Errorf("GitHub answered %s: check the token from %s can read %s", answer.Response.Status, c.tokenSource, repository)
+		separator := ": "
+		if reason != "" {
+			separator = "; "
+		}
+		return fmt.Errorf("%s%scheck the token from %s %s", said, separator, c.tokenSource, can)
 	default:
-		return fmt.Errorf("GitHub answered %s", answer.Response.Status)
+		return errors.New(said)
 	}
+}
+
+func reasonOf(answer *gh.ErrorResponse) string {
+	reason := answer.Message
+	var details []string
+	for _, e := range answer.Errors {
+		if e.Message != "" {
+			details = append(details, e.Message)
+		}
+	}
+	if len(details) > 0 {
+		reason = strings.TrimSpace(reason + " (" + strings.Join(details, "; ") + ")")
+	}
+	return reason
 }
 
 func releaseOf(release *gh.RepositoryRelease) Release {

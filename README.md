@@ -31,18 +31,18 @@ mse create <name>
 
 `mse check-machine` says what the machine still needs; run it until it says the machine is ready. `mse create` makes the installation's secrets key (save it in your password manager), asks for the settings, pushes the config to a new private GitHub repository, makes this machine the main, brings the apps up and wires them. To add another machine to an existing installation, or to rebuild one after losing a machine, use `make join-installation NAME=<name>` from a clone of this repository.
 
-From then on, run make from the installation, `cd ~/<name>` (its Makefile passes every target to the engine):
+From then on, `mse` runs the installation from anywhere on the machine:
 
 | Command | Does |
 |---|---|
 | `mse configure` | change settings and secrets from a menu, then commit and push them |
-| `make update` | apply config changes, update images and the engine, wire the apps |
-| `make urls`, `make logins` | the apps' addresses, and their logins |
-| `make version` | the engine release running, and the one the config pins |
-| `make backup-now`, `make verify-backup-now` | back up now, check the backups now |
-| `make media-stop`, `make media-start` | stop and start the apps |
+| `mse update --apply` | update the config and `mse`, then apply: images, containers, wiring (the nightly timer runs it) |
+| `mse urls`, `mse logins` | the apps' addresses, and their logins |
+| `mse version` | the `mse` release running |
+| `mse backup`, `mse verify-backup` | back up now, check the backups now |
+| `mse stack down`, `mse stack up` | stop and start the apps |
 
-`make help` lists every target.
+`mse help` lists every command.
 
 ## Documentation
 

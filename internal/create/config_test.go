@@ -16,15 +16,17 @@ var template = fstest.MapFS{
 	".gitignore":           {Data: []byte("secrets/*\n!secrets/*.sops.env\n")},
 	"config.yml":           {Data: []byte("config: 0\n")},
 	"configarr/config.yml": {Data: []byte("sonarr: {}\n")},
+	"README.md":            {Data: []byte("Used by [media-server-engine](https://github.com/ENGINE_REPOSITORY).\n")},
 }
 
 func TestWriteConfig(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "mse", "gorgon")
 
-	undo, err := WriteConfig(template, dir, "gorgon", "age1recipient")
+	undo, err := WriteConfig(template, dir, "gorgon", "age1recipient", "pablovarela/media-server-engine")
 
 	require.NoError(t, err)
 	for file, want := range map[string]string{
+		"README.md":            "Used by [media-server-engine](https://github.com/pablovarela/media-server-engine).\n",
 		".gitignore":           "secrets/*\n!secrets/*.sops.env\n",
 		"config.yml":           "config: 0\n",
 		"configarr/config.yml": "sonarr: {}\n",
@@ -42,7 +44,7 @@ func TestWriteConfig(t *testing.T) {
 func TestWriteConfigRefusesAnExistingFolder(t *testing.T) {
 	dir := t.TempDir()
 
-	undo, err := WriteConfig(template, dir, "gorgon", "age1recipient")
+	undo, err := WriteConfig(template, dir, "gorgon", "age1recipient", "pablovarela/media-server-engine")
 
 	assert.Nil(t, undo)
 	assert.ErrorContains(t, err, dir)
@@ -53,7 +55,7 @@ func TestTheSopsRulesEncryptForTheNewKey(t *testing.T) {
 	key, err := NewKey()
 	require.NoError(t, err)
 	dir := filepath.Join(t.TempDir(), "gorgon")
-	_, err = WriteConfig(template, dir, "gorgon", key.Public)
+	_, err = WriteConfig(template, dir, "gorgon", key.Public, "pablovarela/media-server-engine")
 	require.NoError(t, err)
 	path := filepath.Join(dir, "secrets", "apps.sops.env")
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
