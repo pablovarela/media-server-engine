@@ -52,3 +52,7 @@ assert paths and all(p.startswith("/data/") for p in paths), paths
 assert set(paths) >= {"/data/media/tvshows", "/data/media/movies", "/data/downloads"}, paths
 ' "$REPO/config-template"
 }
+
+@test "the template is config schema 1, the first with the shared /data layout" {
+  [ "$(cat "$REPO/config-template/config.yml")" = "config: 1" ]
+}
