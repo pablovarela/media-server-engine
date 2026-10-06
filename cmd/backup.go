@@ -80,6 +80,10 @@ func newBackupCommands(deps Dependencies) []*cobra.Command {
 }
 
 func (d Dependencies) backups(cmd *cobra.Command, needs backupNeeds) (*backup.Backups, error) {
+	binary, err := d.ResticBinary(cmd.Context())
+	if err != nil {
+		return nil, err
+	}
 	i, stack, err := d.backupTarget(cmd, needs.stack)
 	if err != nil {
 		return nil, err
@@ -101,10 +105,6 @@ func (d Dependencies) backups(cmd *cobra.Command, needs backupNeeds) (*backup.Ba
 	}
 	short, _, _ := strings.Cut(hostname, ".")
 	machine, excludes, err := d.backupFiles(i, needs)
-	if err != nil {
-		return nil, err
-	}
-	binary, err := d.ResticBinary(cmd.Context())
 	if err != nil {
 		return nil, err
 	}

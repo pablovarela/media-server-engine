@@ -279,3 +279,19 @@ func TestBackupStopsWhenResticCannotBeFetched(t *testing.T) {
 	assert.Equal(t, 1, code)
 	assert.Contains(t, stderr.String(), "could not download restic 0.19.1 from github.com/restic/restic (no route to host)")
 }
+
+func TestBackupFetchesResticBeforeWritingAnything(t *testing.T) {
+	home, _, _, tmp := backupHome(t)
+	var pings []string
+	composer := newMockComposeRunner(t)
+	composer.EXPECT().Load(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&types.Project{Name: "media-server"}, nil).Maybe()
+	deps := backupDependencies(t, home, tmp, newMockCommandRunner(t), composer, false, &pings)
+	deps.ResticBinary = func(context.Context) (string, error) { return "", errors.New("offline") }
+	root := NewRootCommand(deps)
+	root.SetOut(io.Discard)
+	root.SetErr(io.Discard)
+
+	run(context.Background(), root, []string{"backup"})
+
+	assert.NoFileExists(t, filepath.Join(home, ".local", "state", "mse", "gorgon", "backup-excludes.txt"))
+}

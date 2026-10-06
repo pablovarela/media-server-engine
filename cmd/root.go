@@ -119,11 +119,6 @@ func Execute(engine fs.FS) int {
 		_, _ = fmt.Fprintf(os.Stderr, "mse: %v\n", err)
 		return 1
 	}
-	release, err := restic.Pinned()
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "mse: %v\n", err)
-		return 1
-	}
 	client := github.NewClient(github.SystemTokenSource(), &http.Client{Timeout: 5 * time.Minute})
 	deps := Dependencies{
 		Build:       version.Current(),
@@ -160,6 +155,10 @@ func Execute(engine fs.FS) int {
 		Published:    machine.DockerPublished,
 		Repositories: client,
 		ResticBinary: func(ctx context.Context) (string, error) {
+			release, err := restic.Pinned()
+			if err != nil {
+				return "", err
+			}
 			return restic.Binary(ctx, restic.Fetch{
 				Release: release,
 				Cache:   filepath.Join(installation.BasesFrom(os.Getenv, home).Cache, "mse", "restic"),

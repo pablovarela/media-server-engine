@@ -1,7 +1,6 @@
 package restic
 
 import (
-	"bytes"
 	"compress/bzip2"
 	"context"
 	"crypto/sha256"
@@ -11,18 +10,21 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/pablovarela/media-server-engine/internal/report"
 )
 
-const releases = "https://github.com/restic/restic/releases/download/"
-
 const (
-	defaultMaxArchive = 64 << 20
-	staleDownload     = time.Hour
+	releases      = "https://github.com/restic/restic/releases/download/"
+	staleDownload = time.Hour
+	keepRecent    = 30 * 24 * time.Hour
+	checksumFile  = ".sha256"
 )
+
+var maxArchive int64 = 64 << 20
 
 type Fetch struct {
 	Release      Release
@@ -30,13 +32,12 @@ type Fetch struct {
 	GOOS, GOARCH string
 	HTTP         *http.Client
 	Report       *report.Reporter
-	MaxArchive   int64
 }
 
 func Binary(ctx context.Context, f Fetch) (string, error) {
 	folder := filepath.Join(f.Cache, f.Release.Version)
 	path := filepath.Join(folder, "restic")
-	if _, err := os.Stat(path); err == nil {
+	if intact(path) {
 		return path, nil
 	}
 	name, sum, err := f.Release.Archive(f.GOOS, f.GOARCH)
@@ -45,7 +46,6 @@ func Binary(ctx context.Context, f Fetch) (string, error) {
 	}
 	step := f.Report.Step("Downloading restic " + f.Release.Version)
 	if err := f.install(ctx, folder, path, name, sum); err != nil {
-		_ = os.Remove(folder)
 		return "", step.FailWithoutTail(err)
 	}
 	removeStaleDownloads(folder)
@@ -54,65 +54,114 @@ func Binary(ctx context.Context, f Fetch) (string, error) {
 	return path, nil
 }
 
-func (f Fetch) install(ctx context.Context, folder, path, name, sum string) error {
-	archive, err := f.download(ctx, name)
+func intact(path string) bool {
+	recorded, err := os.ReadFile(path + checksumFile) //nolint:gosec // the checksum mse wrote next to its restic
 	if err != nil {
-		return err
+		return false
 	}
-	got := sha256.Sum256(archive)
-	if hex.EncodeToString(got[:]) != sum {
-		return fmt.Errorf("%s doesn't match its pinned checksum; nothing was installed", name)
+	got, err := fileSum(path)
+	return err == nil && got == strings.TrimSpace(string(recorded))
+}
+
+func fileSum(path string) (string, error) {
+	f, err := os.Open(path) //nolint:gosec // the cached restic
+	if err != nil {
+		return "", err
 	}
+	defer func() { _ = f.Close() }()
+	hash := sha256.New()
+	if _, err := io.Copy(hash, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(hash.Sum(nil)), nil
+}
+
+func (f Fetch) install(ctx context.Context, folder, path, name, sum string) error {
 	if err := os.MkdirAll(folder, 0o755); err != nil { //nolint:gosec // a cache folder of downloaded tools
 		return err
 	}
-	temporary, err := os.CreateTemp(folder, "restic-*.part")
+	archive, err := os.CreateTemp(folder, "restic-*.bz2.part")
 	if err != nil {
 		return err
 	}
-	defer func() { _ = os.Remove(temporary.Name()) }()
-	_, copied := io.Copy(temporary, bzip2.NewReader(bytes.NewReader(archive)))
-	closed := temporary.Close()
-	if copied != nil {
-		return fmt.Errorf("%s isn't a bzip2 archive (%w)", name, copied)
+	defer func() { _ = os.Remove(archive.Name()) }()
+	got, err := f.download(ctx, name, archive)
+	if closed := archive.Close(); err == nil {
+		err = closed
 	}
-	if closed != nil {
-		return closed
-	}
-	if err := os.Chmod(temporary.Name(), 0o755); err != nil { //nolint:gosec // an executable
+	if err != nil {
 		return err
 	}
-	return os.Rename(temporary.Name(), path)
+	if got != sum {
+		return fmt.Errorf("%s doesn't match its pinned checksum; nothing was installed", name)
+	}
+	binary, err := decompress(archive.Name(), folder, name)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.Remove(binary) }()
+	binarySum, err := fileSum(binary)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(path+checksumFile, []byte(binarySum+"\n"), 0o644); err != nil { //nolint:gosec // a checksum, not a secret
+		return err
+	}
+	return os.Rename(binary, path)
 }
 
-func (f Fetch) download(ctx context.Context, name string) ([]byte, error) {
+func decompress(archive, folder, name string) (string, error) {
+	in, err := os.Open(archive) //nolint:gosec // the archive this call downloaded
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = in.Close() }()
+	out, err := os.CreateTemp(folder, "restic-*.part")
+	if err != nil {
+		return "", err
+	}
+	_, copied := io.Copy(out, bzip2.NewReader(in))
+	closed := out.Close()
+	switch {
+	case copied != nil:
+		_ = os.Remove(out.Name())
+		return "", fmt.Errorf("%s isn't a bzip2 archive (%w)", name, copied)
+	case closed != nil:
+		_ = os.Remove(out.Name())
+		return "", closed
+	}
+	if err := os.Chmod(out.Name(), 0o755); err != nil { //nolint:gosec // an executable
+		_ = os.Remove(out.Name())
+		return "", err
+	}
+	return out.Name(), nil
+}
+
+func (f Fetch) download(ctx context.Context, name string, to io.Writer) (string, error) {
 	failed := func(reason error) error {
 		return fmt.Errorf("could not download restic %s from github.com/restic/restic (%w)", f.Release.Version, reason)
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, releases+"v"+f.Release.Version+"/"+name, nil)
 	if err != nil {
-		return nil, failed(err)
+		return "", failed(err)
 	}
 	response, err := f.HTTP.Do(request)
 	if err != nil {
-		return nil, failed(err)
+		return "", failed(err)
 	}
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
-		return nil, failed(fmt.Errorf("GitHub answered %d %s", response.StatusCode, http.StatusText(response.StatusCode)))
+		return "", failed(fmt.Errorf("GitHub answered %d %s", response.StatusCode, http.StatusText(response.StatusCode)))
 	}
-	limit := f.MaxArchive
-	if limit == 0 {
-		limit = defaultMaxArchive
-	}
-	body, err := io.ReadAll(io.LimitReader(response.Body, limit+1))
+	hash := sha256.New()
+	written, err := io.Copy(io.MultiWriter(to, hash), io.LimitReader(response.Body, maxArchive+1))
 	switch {
 	case err != nil:
-		return nil, failed(err)
-	case int64(len(body)) > limit:
-		return nil, failed(fmt.Errorf("the archive is larger than %d bytes", limit))
+		return "", failed(err)
+	case written > maxArchive:
+		return "", failed(fmt.Errorf("the archive is larger than %d bytes", maxArchive))
 	}
-	return body, nil
+	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
 func (f Fetch) removeOlderVersions() {
@@ -120,24 +169,41 @@ func (f Fetch) removeOlderVersions() {
 	if err != nil {
 		return
 	}
-	var others []os.DirEntry
+	newest := ""
 	for _, entry := range entries {
-		if entry.IsDir() && entry.Name() != f.Release.Version {
-			others = append(others, entry)
+		if entry.IsDir() && entry.Name() != f.Release.Version && newer(entry.Name(), newest) {
+			newest = entry.Name()
 		}
 	}
-	sort.Slice(others, func(a, b int) bool { return modified(others[a]).After(modified(others[b])) })
-	for _, older := range others[min(1, len(others)):] {
-		_ = os.RemoveAll(filepath.Join(f.Cache, older.Name()))
+	for _, entry := range entries {
+		if !entry.IsDir() || entry.Name() == f.Release.Version || entry.Name() == newest || recentlyTouched(entry) {
+			continue
+		}
+		_ = os.RemoveAll(filepath.Join(f.Cache, entry.Name()))
 	}
 }
 
-func modified(entry os.DirEntry) time.Time {
+func recentlyTouched(entry os.DirEntry) bool {
 	info, err := entry.Info()
-	if err != nil {
-		return time.Time{}
+	return err != nil || time.Since(info.ModTime()) < keepRecent
+}
+
+func newer(version, than string) bool {
+	if than == "" {
+		return true
 	}
-	return info.ModTime()
+	a, b := strings.Split(version, "."), strings.Split(than, ".")
+	for n := 0; n < len(a) && n < len(b); n++ {
+		x, errX := strconv.Atoi(a[n])
+		y, errY := strconv.Atoi(b[n])
+		if errX != nil || errY != nil {
+			return version > than
+		}
+		if x != y {
+			return x > y
+		}
+	}
+	return len(a) > len(b)
 }
 
 func removeStaleDownloads(folder string) {

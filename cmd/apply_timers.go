@@ -153,7 +153,7 @@ func (d Dependencies) backupRole(ctx context.Context, i *installation.Installati
 	if err != nil {
 		return nil, true, err
 	}
-	binary, err := d.ResticBinary(ctx)
+	binary, err := d.ResticBinary(report.With(ctx, report.New(io.Discard, io.Discard, nil)))
 	if err != nil {
 		return nil, true, err
 	}

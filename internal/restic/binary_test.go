@@ -70,8 +70,9 @@ func TestBinaryDownloadsVerifiesAndPlacesRestic(t *testing.T) {
 	assert.DirExists(t, filepath.Join(cache, "0.18.0"), "the most recent other version stays for an older mse")
 	assert.Equal(t, 1, *requests)
 	assert.Equal(t, "Downloading restic 0.19.1... done.\n", out.String())
-	entries, _ := os.ReadDir(filepath.Join(cache, "0.19.1"))
-	assert.Len(t, entries, 1, "no temporary file left")
+	parts, _ := filepath.Glob(filepath.Join(cache, "0.19.1", "*.part"))
+	assert.Empty(t, parts, "no temporary file left")
+	assert.FileExists(t, path+".sha256")
 }
 
 func TestBinaryUsesTheCachedRestic(t *testing.T) {
@@ -79,6 +80,7 @@ func TestBinaryUsesTheCachedRestic(t *testing.T) {
 	path := filepath.Join(cache, "0.19.1", "restic")
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 	require.NoError(t, os.WriteFile(path, []byte("cached"), 0o755))
+	require.NoError(t, os.WriteFile(path+".sha256", []byte(hexSum([]byte("cached"))+"\n"), 0o644))
 	fetch, requests, out := fetchServing(t, cache, http.StatusOK, nil, "unused")
 
 	got, err := Binary(context.Background(), fetch)
@@ -130,7 +132,8 @@ func TestBinaryKeepsTheMostRecentOtherVersion(t *testing.T) {
 		require.NoError(t, os.MkdirAll(folder, 0o755))
 		require.NoError(t, os.WriteFile(filepath.Join(folder, "restic"), []byte("old"), 0o755))
 	}
-	require.NoError(t, os.Chtimes(older, time.Now().Add(-48*time.Hour), time.Now().Add(-48*time.Hour)))
+	require.NoError(t, os.Chtimes(older, time.Now().Add(-40*24*time.Hour), time.Now().Add(-40*24*time.Hour)))
+	require.NoError(t, os.Chtimes(old, time.Now().Add(-40*24*time.Hour), time.Now().Add(-40*24*time.Hour)))
 	archive, sum := testArchive(t)
 	fetch, _, _ := fetchServing(t, cache, http.StatusOK, archive, sum)
 
@@ -175,12 +178,14 @@ func TestBinaryLeavesAFolderAnotherProcessFilled(t *testing.T) {
 func TestBinaryRefusesAnOversizedDownload(t *testing.T) {
 	cache := t.TempDir()
 	fetch, _, _ := fetchServing(t, cache, http.StatusOK, bytes.Repeat([]byte("x"), 2048), "x")
-	fetch.MaxArchive = 1024
+	limit := maxArchive
+	maxArchive = 1024
+	t.Cleanup(func() { maxArchive = limit })
 
 	_, err := Binary(context.Background(), fetch)
 
 	assert.EqualError(t, err, "could not download restic 0.19.1 from github.com/restic/restic (the archive is larger than 1024 bytes)")
-	assert.NoDirExists(t, filepath.Join(cache, "0.19.1"))
+	assertNothingInstalled(t, cache)
 }
 
 func TestBinaryFailures(t *testing.T) {
@@ -211,7 +216,7 @@ func TestBinaryFailures(t *testing.T) {
 			_, err := Binary(context.Background(), fetch)
 
 			assert.EqualError(t, err, tt.err)
-			assert.NoDirExists(t, filepath.Join(cache, "0.19.1"))
+			assertNothingInstalled(t, cache)
 		})
 	}
 }
@@ -225,10 +230,62 @@ func TestBinaryWhenTheNetworkFails(t *testing.T) {
 
 	assert.ErrorContains(t, err, "could not download restic 0.19.1 from github.com/restic/restic (")
 	assert.ErrorContains(t, err, "no route to host")
-	assert.NoDirExists(t, filepath.Join(cache, "0.19.1"))
+	assertNothingInstalled(t, cache)
 }
 
 func hexSum(b []byte) string {
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
+}
+
+func assertNothingInstalled(t *testing.T, cache string) {
+	t.Helper()
+	folder := filepath.Join(cache, "0.19.1")
+	assert.NoFileExists(t, filepath.Join(folder, "restic"))
+	parts, _ := filepath.Glob(filepath.Join(folder, "*.part"))
+	assert.Empty(t, parts, "no temporary file left")
+}
+
+func TestBinaryKeepsAFolderAnotherProcessIsInstallingInto(t *testing.T) {
+	cache := t.TempDir()
+	month := time.Now().Add(-40 * 24 * time.Hour)
+	folders := map[string]time.Time{"0.18.0": month, "0.17.0": time.Now(), "0.16.0": month}
+	for name, modified := range folders {
+		folder := filepath.Join(cache, name)
+		require.NoError(t, os.MkdirAll(folder, 0o755))
+		require.NoError(t, os.Chtimes(folder, modified, modified))
+	}
+	archive, sum := testArchive(t)
+	fetch, _, _ := fetchServing(t, cache, http.StatusOK, archive, sum)
+
+	_, err := Binary(context.Background(), fetch)
+
+	require.NoError(t, err)
+	assert.DirExists(t, filepath.Join(cache, "0.18.0"), "the newest other version")
+	assert.DirExists(t, filepath.Join(cache, "0.17.0"), "touched within the month, maybe being installed")
+	assert.NoDirExists(t, filepath.Join(cache, "0.16.0"))
+}
+
+func TestBinaryRepairsADamagedCache(t *testing.T) {
+	tests := map[string]func(path string){
+		"truncated":   func(path string) { require.NoError(t, os.WriteFile(path, []byte("trunc"), 0o755)) },
+		"no checksum": func(path string) { require.NoError(t, os.Remove(path+".sha256")) },
+	}
+	for name, damage := range tests {
+		t.Run(name, func(t *testing.T) {
+			cache := t.TempDir()
+			archive, sum := testArchive(t)
+			fetch, requests, _ := fetchServing(t, cache, http.StatusOK, archive, sum)
+			path, err := Binary(context.Background(), fetch)
+			require.NoError(t, err)
+			damage(path)
+
+			_, err = Binary(context.Background(), fetch)
+
+			require.NoError(t, err)
+			assert.Equal(t, 2, *requests, "downloaded again")
+			content, _ := os.ReadFile(path)
+			assert.Equal(t, "#!/bin/sh\necho \"restic 0.19.1\"\n", string(content))
+		})
+	}
 }
