@@ -38,9 +38,9 @@ func MatchKey(pasted, config string) (create.Key, error) {
 }
 
 func secretLine(pasted string) string {
-	for _, line := range strings.Split(pasted, "\n") {
-		if line = strings.TrimSpace(line); strings.HasPrefix(line, "AGE-SECRET-KEY-") {
-			return line
+	for _, word := range strings.Fields(pasted) {
+		if strings.HasPrefix(word, "AGE-SECRET-KEY-") {
+			return word
 		}
 	}
 	return strings.TrimSpace(pasted)

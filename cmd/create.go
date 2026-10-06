@@ -53,7 +53,7 @@ func newCreateCommand(deps Dependencies) *cobra.Command {
 	return command
 }
 
-func (d Dependencies) canInstall(cmd *cobra.Command, verb, name string) error {
+func (d Dependencies) canInstall(cmd *cobra.Command, verb, name string, more ...func() error) error {
 	switch {
 	case !d.Terminal():
 		return fmt.Errorf("mse %s needs a terminal; run it from an interactive shell (over ssh: ssh -t)", verb)
@@ -63,14 +63,16 @@ func (d Dependencies) canInstall(cmd *cobra.Command, verb, name string) error {
 	if err := create.ValidName(name); err != nil {
 		return err
 	}
+	for _, check := range more {
+		if err := check(); err != nil {
+			return err
+		}
+	}
 	return d.noOtherInstallation(name)
 }
 
 func (d Dependencies) canCreate(cmd *cobra.Command, name, homepagePort string) error {
-	if err := d.canInstall(cmd, "create", name); err != nil {
-		return err
-	}
-	return validHomepagePort(homepagePort)
+	return d.canInstall(cmd, "create", name, func() error { return validHomepagePort(homepagePort) })
 }
 
 func (d Dependencies) machineReadyFor(cmd *cobra.Command, homepagePort, hint string) error {

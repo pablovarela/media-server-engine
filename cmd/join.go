@@ -31,11 +31,14 @@ func newJoinCommand(deps Dependencies) *cobra.Command {
 			"clones the config, takes the secrets key, restores the latest backup, asks whether this machine becomes the main and applies it.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := deps.canInstall(cmd, "join", args[0]); err != nil {
-				return err
+			bothRoles := func() error {
+				if flags.Main && flags.Secondary {
+					return errBothRoles
+				}
+				return nil
 			}
-			if flags.Main && flags.Secondary {
-				return errBothRoles
+			if err := deps.canInstall(cmd, "join", args[0], bothRoles); err != nil {
+				return err
 			}
 			j := deps.joining(cmd, args[0], owner)
 			j.flags, j.restoreOver = flags, restoreOver
@@ -106,6 +109,7 @@ func (j *joining) Clone(ctx context.Context) (create.Undo, error) {
 		return nil, step.FailWithoutTail(failed)
 	}
 	step.Done("done")
+	openInstallationLog(ctx, j.state)
 	if err := j.cmd.Flags().Set("installation", j.name); err != nil {
 		return j.removeClone(), err
 	}
@@ -128,12 +132,14 @@ func (j *joining) AddKey(ctx context.Context) (create.Undo, error) {
 	if err != nil {
 		return nil, err
 	}
-	var key create.Key
-	_, err = j.d.Prompter(ctx).Secret(j.name+"'s secrets key", "Paste it from your password manager (the line starting AGE-SECRET-KEY-1).", func(pasted string) error {
-		found, err := join.MatchKey(pasted, j.config)
-		key = found
+	pasted, err := j.d.Prompter(ctx).Secret(j.name+"'s secrets key", "Paste it from your password manager (the line starting AGE-SECRET-KEY-1).", func(pasted string) error {
+		_, err := join.MatchKey(pasted, j.config)
 		return err
 	})
+	if err != nil {
+		return nil, err
+	}
+	key, err := join.MatchKey(pasted, j.config)
 	if err != nil {
 		return nil, err
 	}

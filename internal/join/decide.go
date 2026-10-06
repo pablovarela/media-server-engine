@@ -29,6 +29,8 @@ type Decision struct {
 
 func Decide(name string, current *backup.Main, now time.Time, flags Flags) Decision {
 	switch {
+	case current != nil && current.ThisMachine && flags.Secondary:
+		return Decision{Say: "This machine made " + name + "'s latest backup, so it stays the main (--secondary doesn't apply; claim the main from another machine first).", Role: Primary}
 	case flags.Main:
 		return Decision{Role: Primary}
 	case flags.Secondary:

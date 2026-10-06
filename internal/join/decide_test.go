@@ -62,3 +62,11 @@ func TestPlanData(t *testing.T) {
 		})
 	}
 }
+
+func TestDecideKeepsTheMainThatMadeTheLatestBackup(t *testing.T) {
+	this := &backup.Main{Machine: "pi", Time: now, ThisMachine: true}
+
+	decision := Decide("gorgon", this, now, Flags{Secondary: true})
+
+	assert.Equal(t, Decision{Say: "This machine made gorgon's latest backup, so it stays the main (--secondary doesn't apply; claim the main from another machine first).", Role: Primary}, decision)
+}

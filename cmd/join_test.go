@@ -297,3 +297,20 @@ func TestJoinRestoresIntoAFreshDataFolder(t *testing.T) {
 	assert.Contains(t, stderr, "stop at the pull")
 	assert.Contains(t, stderr, "Finish with:\n  mse apply --installation gorgon")
 }
+
+func TestJoinKeepsTheLogOfAConfigItCannotLoad(t *testing.T) {
+	f := newJoinFixture(t)
+	f.repositoryExists()
+	f.effects["git clone --quiet -- "+joinCloneURL+" "+f.config] = func() {
+		writeClonedConfig(t, f.config)
+		require.NoError(t, os.WriteFile(filepath.Join(f.config, "installation.env"), []byte("INSTALLATION_NAME=medusa\n"), 0o644))
+	}
+	logs := filepath.Join(f.deps.Home, ".local", "state", "mse", "gorgon", "logs")
+
+	code, _, stderr := f.join(t, "gorgon")
+
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stderr, "Nothing was kept apart from this run's log in "+logs+"; run mse join gorgon again.")
+	assert.FileExists(t, filepath.Join(logs, "mse.log"))
+	assert.NoDirExists(t, f.config)
+}

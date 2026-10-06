@@ -450,3 +450,14 @@ func TestCreateChecksAHomepagePortChangedInTheSettings(t *testing.T) {
 	assert.Contains(t, stderr, "8443 is in use")
 	f.nothingKept(t)
 }
+
+func TestCreateChecksTheHomepagePortBeforeOtherInstallations(t *testing.T) {
+	f := newCreateFixture(t)
+	other := filepath.Join(f.deps.Home, ".config", "mse", "medusa")
+	require.NoError(t, os.MkdirAll(other, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(other, "installation.env"), []byte("INSTALLATION_NAME=medusa\n"), 0o644))
+
+	_, _, stderr := f.create(t, "gorgon", "--homepage-port", "eighty")
+
+	assert.Contains(t, stderr, "mse: --homepage-port: ")
+}

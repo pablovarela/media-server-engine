@@ -87,3 +87,12 @@ func TestMatchKeyFindsTheSecretLineInAPastedBlock(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, testSecret(t), key.Secret)
 }
+
+func TestMatchKeyFindsTheSecretInABlockPastedAsOneLine(t *testing.T) {
+	pasted := "# media server gorgon, created 2026-10-01 # public key: " + testRecipient + " " + testSecret(t)
+
+	key, err := MatchKey(pasted, configWithSecrets(t))
+
+	require.NoError(t, err)
+	assert.Equal(t, testSecret(t), key.Secret)
+}
