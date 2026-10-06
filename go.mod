@@ -5,6 +5,7 @@ go 1.27
 require (
 	charm.land/bubbles/v2 v2.2.1
 	charm.land/huh/v2 v2.0.3
+	filippo.io/age v1.3.1
 	github.com/compose-spec/compose-go/v2 v2.16.1
 	github.com/containerd/errdefs v1.0.0
 	github.com/docker/cli v29.8.2+incompatible
@@ -35,7 +36,6 @@ require (
 	cloud.google.com/go/longrunning v1.2.0 // indirect
 	cloud.google.com/go/monitoring v1.30.0 // indirect
 	cloud.google.com/go/storage v1.63.1 // indirect
-	filippo.io/age v1.3.1 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
 	filippo.io/hpke v0.4.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.22.0 // indirect
