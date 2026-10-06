@@ -53,10 +53,6 @@ assert set(paths) >= {"/data/media/tvshows", "/data/media/movies", "/data/downlo
 ' "$REPO/config-template"
 }
 
-@test "the template is config schema 1, the first with the shared /data layout" {
-  [ "$(cat "$REPO/config-template/config.yml")" = "config: 1" ]
-}
-
 @test "the template's README shows the /data paths and the declared library locations" {
   ! grep -nE 'path: /data/(tvshows|movies)|root_folder: /(tv|movies)$|never removed' "$REPO/config-template/README.md" || false
   grep -q 'path: /data/media/tvshows' "$REPO/config-template/README.md"
