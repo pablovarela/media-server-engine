@@ -62,7 +62,7 @@ import json, os, sys
 data = os.environ["DATA_DIR"]
 outside = [(n, m["source"]) for n, s in json.load(sys.stdin)["services"].items()
            for m in s.get("volumes", []) if m.get("type") == "bind"
-           and any(part in m["source"] for part in ("/volumes/", "/data"))
+           and ("/volumes/" in m["source"] or m["target"].split("/")[1] in ("data", "media"))
            and not m["source"].startswith(data)]
 assert not outside, outside'
 }
