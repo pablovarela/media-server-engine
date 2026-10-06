@@ -3,6 +3,7 @@ package backup
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/pablovarela/media-server-engine/internal/restic"
 )
@@ -34,11 +35,28 @@ func (b *Backups) main(ctx context.Context) (mainState, *restic.Snapshot, error)
 }
 
 func describe(s *restic.Snapshot) string {
-	name := s.Tag("machine-name")
-	if name == "" {
-		name = "machine " + s.Tag("machine")
+	return fmt.Sprintf("%s, last backup %s", machineName(s), s.Time.Format("2006-01-02 15:04"))
+}
+
+func machineName(s *restic.Snapshot) string {
+	if name := s.Tag("machine-name"); name != "" {
+		return name
 	}
-	return fmt.Sprintf("%s, last backup %s", name, s.Time.Format("2006-01-02 15:04"))
+	return "machine " + s.Tag("machine")
+}
+
+type Main struct {
+	Machine     string
+	Time        time.Time
+	ThisMachine bool
+}
+
+func (b *Backups) CurrentMain(ctx context.Context) (*Main, error) {
+	state, latest, err := b.main(ctx)
+	if err != nil || latest == nil {
+		return nil, err
+	}
+	return &Main{Machine: machineName(latest), Time: latest.Time, ThisMachine: state == thisMachine}, nil
 }
 
 func (b *Backups) ownHost(ctx context.Context) (string, error) {

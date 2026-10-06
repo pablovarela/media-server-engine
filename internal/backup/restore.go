@@ -54,6 +54,10 @@ func (b *Backups) restoreVolumes(ctx context.Context, volumes string) error {
 	return nil
 }
 
+func (b *Backups) HasAppData() (bool, error) {
+	return hasAppData(filepath.Join(b.Installation.Data, "volumes"))
+}
+
 func hasAppData(volumes string) (bool, error) {
 	entries, err := os.ReadDir(volumes)
 	if errors.Is(err, os.ErrNotExist) {

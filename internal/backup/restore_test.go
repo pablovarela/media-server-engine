@@ -97,3 +97,21 @@ func TestRestoreStopsWhenItCannotReadTheSnapshots(t *testing.T) {
 
 	assert.EqualError(t, err, "cannot read the backup repository's snapshots (restic snapshots failed (exit 1)); nothing was restored")
 }
+
+func TestHasAppData(t *testing.T) {
+	b, _, _, _ := fixture(t)
+	held, err := b.HasAppData()
+	require.NoError(t, err)
+	assert.True(t, held, "the fixture has volumes/jellyfin")
+
+	require.NoError(t, os.RemoveAll(filepath.Join(b.Installation.Data, "volumes", "jellyfin")))
+	require.NoError(t, os.MkdirAll(filepath.Join(b.Installation.Data, "volumes", "configarr"), 0o755))
+	held, err = b.HasAppData()
+	require.NoError(t, err)
+	assert.False(t, held, "configarr alone is not app data")
+
+	b.Installation.Data = filepath.Join(t.TempDir(), "missing")
+	held, err = b.HasAppData()
+	require.NoError(t, err)
+	assert.False(t, held)
+}
