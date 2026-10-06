@@ -58,14 +58,15 @@ func newCheckMachineFixture(t *testing.T, installations map[string]string) *chec
 		return answer, nil
 	}).Maybe()
 	f.deps = Dependencies{
-		Environment: func(string) string { return "" },
-		Home:        home,
-		Engine:      fstest.MapFS{"docker-compose.yml": {Data: []byte(machineCompose)}},
-		Run:         func(_, _ io.Writer) commandRunner { return runner },
-		Account:     func() (string, error) { return "pablo", nil },
-		GOOS:        "linux",
-		Systemd:     func() bool { return true },
-		ProcRoot:    t.TempDir(),
+		ResticBinary: localRestic,
+		Environment:  func(string) string { return "" },
+		Home:         home,
+		Engine:       fstest.MapFS{"docker-compose.yml": {Data: []byte(machineCompose)}},
+		Run:          func(_, _ io.Writer) commandRunner { return runner },
+		Account:      func() (string, error) { return "pablo", nil },
+		GOOS:         "linux",
+		Systemd:      func() bool { return true },
+		ProcRoot:     t.TempDir(),
 		PortFree: func(p machine.Port) bool {
 			f.checked = append(f.checked, p)
 			return true

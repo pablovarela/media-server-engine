@@ -18,6 +18,7 @@ type Bases struct {
 	Config string
 	Data   string
 	State  string
+	Cache  string
 }
 
 type Installation struct {
@@ -39,6 +40,7 @@ func BasesFrom(getenv func(string) string, home string) Bases {
 		Config: base("XDG_CONFIG_HOME", ".config"),
 		Data:   base("XDG_DATA_HOME", filepath.Join(".local", "share")),
 		State:  base("XDG_STATE_HOME", filepath.Join(".local", "state")),
+		Cache:  base("XDG_CACHE_HOME", ".cache"),
 	}
 }
 

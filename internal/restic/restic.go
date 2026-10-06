@@ -30,6 +30,7 @@ type Runner interface {
 }
 
 type Restic struct {
+	Binary string
 	Runner Runner
 	Env    []string
 	Log    io.Writer
@@ -226,7 +227,7 @@ func (r Restic) Locks(ctx context.Context) ([]Lock, error) {
 }
 
 func (r Restic) run(ctx context.Context, c process.Command) error {
-	c.Name, c.Env = "restic", r.Env
+	c.Name, c.Env = r.Binary, r.Env
 	exit, err := r.Runner.Run(ctx, c)
 	switch {
 	case err != nil:
@@ -241,7 +242,7 @@ func (r Restic) run(ctx context.Context, c process.Command) error {
 }
 
 func (r Restic) output(ctx context.Context, args ...string) (process.Result, error) {
-	return r.Runner.Output(ctx, process.Command{Name: "restic", Args: args, Env: r.Env})
+	return r.Runner.Output(ctx, process.Command{Name: r.Binary, Args: args, Env: r.Env})
 }
 
 func failure(name string, result process.Result) error {

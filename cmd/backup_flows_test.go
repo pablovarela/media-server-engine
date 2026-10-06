@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -45,6 +46,7 @@ func backupDependencies(t *testing.T, home, tmp string, runner commandRunner, co
 	machineID := filepath.Join(t.TempDir(), "machine-id")
 	require.NoError(t, os.WriteFile(machineID, []byte("this-machine\n"), 0o644))
 	return Dependencies{
+		ResticBinary: localRestic,
 		Environment: func(key string) string {
 			if key == "TMPDIR" {
 				return tmp
@@ -255,4 +257,25 @@ func TestBackupLogsResticButShowsSteps(t *testing.T) {
 		assert.Contains(t, string(logged), "restic | snapshot 40c4a929")
 		assert.Equal(t, verbose, strings.Contains(stdout.String(), "restic | snapshot 40c4a929"), "verbose %v", verbose)
 	}
+}
+
+func TestBackupStopsWhenResticCannotBeFetched(t *testing.T) {
+	home, _, _, tmp := backupHome(t)
+	var pings []string
+	runner := newMockCommandRunner(t)
+	composer := newMockComposeRunner(t)
+	composer.EXPECT().Load(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&types.Project{Name: "media-server"}, nil).Maybe()
+	deps := backupDependencies(t, home, tmp, runner, composer, false, &pings)
+	deps.ResticBinary = func(context.Context) (string, error) {
+		return "", errors.New("could not download restic 0.19.1 from github.com/restic/restic (no route to host)")
+	}
+	root := NewRootCommand(deps)
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+
+	code := run(context.Background(), root, []string{"backup"})
+
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stderr.String(), "could not download restic 0.19.1 from github.com/restic/restic (no route to host)")
 }

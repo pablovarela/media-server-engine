@@ -204,11 +204,13 @@ func TestAKeyGivenByValueSetsUpNoTimers(t *testing.T) {
 func TestTheCarriedVariablesReachTheUnitsAndTheTokenCheck(t *testing.T) {
 	tf := newTimersFixture(t)
 	tf.environment["SOPS_AGE_KEY_FILE"] = "/keys/age.txt"
+	tf.environment["XDG_CACHE_HOME"] = "/cache"
 
 	code, _, stderr := tf.apply(t)
 
 	require.Equal(t, 0, code, stderr)
 	assert.Contains(t, tf.unit(t, "mse-gorgon-backup.service"), "Environment=\"SOPS_AGE_KEY_FILE=/keys/age.txt\"\n")
+	assert.Contains(t, tf.unit(t, "mse-gorgon-backup.service"), "Environment=\"XDG_CACHE_HOME=/cache\"\n")
 	assert.Contains(t, tf.tokenCall, "SOPS_AGE_KEY_FILE=/keys/age.txt")
 }
 

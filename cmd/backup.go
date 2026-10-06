@@ -104,10 +104,14 @@ func (d Dependencies) backups(cmd *cobra.Command, needs backupNeeds) (*backup.Ba
 	if err != nil {
 		return nil, err
 	}
+	binary, err := d.ResticBinary(cmd.Context())
+	if err != nil {
+		return nil, err
+	}
 	tool := report.From(cmd.Context()).Tool("restic")
 	return &backup.Backups{
 		Installation:       i,
-		Repository:         resticFor(d.Run(tool, tool), repository, tool),
+		Repository:         resticFor(binary, d.Run(tool, tool), repository, tool),
 		RepositoryLocation: repository["RESTIC_REPOSITORY"],
 		Stack:              stack,
 		Pinger:             d.pinger(cmd, i),
@@ -161,13 +165,13 @@ func (d Dependencies) writeExcludes(i *installation.Installation) (string, error
 	return path, err
 }
 
-func resticFor(runner commandRunner, repository map[string]string, tool io.Writer) restic.Restic {
+func resticFor(binary string, runner commandRunner, repository map[string]string, tool io.Writer) restic.Restic {
 	env := make([]string, 0, len(repository))
 	for key, value := range repository {
 		env = append(env, key+"="+value)
 	}
 	sort.Strings(env)
-	return restic.Restic{Runner: runner, Env: env, Log: tool}
+	return restic.Restic{Binary: binary, Runner: runner, Env: env, Log: tool}
 }
 
 func (d Dependencies) pinger(cmd *cobra.Command, i *installation.Installation) *healthchecks.Pings {
