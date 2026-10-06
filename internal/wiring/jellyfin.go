@@ -215,6 +215,9 @@ func (j *jellyfin) wireLibrary(ctx context.Context, library, existing map[string
 		}
 		added = true
 	}
+	if err := j.removeUndeclared(ctx, name, path, list(existing["Locations"])); err != nil {
+		return false, err
+	}
 	options := section(existing["LibraryOptions"])
 	if options["EnableRealtimeMonitor"] != true {
 		j.env.Change(jellyfinApp, "turn on real-time monitoring for library "+name)
@@ -224,6 +227,20 @@ func (j *jellyfin) wireLibrary(ctx context.Context, library, existing map[string
 		}
 	}
 	return added, nil
+}
+
+func (j *jellyfin) removeUndeclared(ctx context.Context, name, declared string, locations []any) error {
+	for _, location := range locations {
+		if text(location) == declared {
+			continue
+		}
+		j.env.Change(jellyfinApp, fmt.Sprintf("remove %s from library %s", text(location), name))
+		query := "name=" + url.QueryEscape(name) + "&path=" + url.QueryEscape(text(location)) + "&refreshLibrary=false"
+		if err := j.api.Send(ctx, "DELETE", "/Library/VirtualFolders/Paths?"+query, nil, nil); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func jellyfinKey(env Env) (string, error) {

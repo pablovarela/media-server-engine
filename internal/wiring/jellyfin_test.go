@@ -219,3 +219,35 @@ func TestWithoutADeclaredServerNameJellyfinsOwnIsLeftAlone(t *testing.T) {
 
 	assert.Empty(t, r.writes())
 }
+
+const (
+	removeOldShows  = "/Library/VirtualFolders/Paths?name=Shows&path=%2Fdata%2Ftvshows&refreshLibrary=false"
+	removeOldMovies = "/Library/VirtualFolders/Paths?name=Movies&path=%2Fdata%2Fmovies&refreshLibrary=false"
+)
+
+func TestALocationALibraryNoLongerDeclaresIsRemovedWithoutAScan(t *testing.T) {
+	libraries := strings.Replace(jellyfinLibraries, `"Locations": ["/data/media/tvshows"]`, `"Locations": ["/data/tvshows", "/data/media/tvshows"]`, 1)
+	r := jellyfinWired(newRoutes(t), "", libraries, "")
+	r.on("DELETE", removeOldShows)
+	env, out := jellyfinEnv(t, r)
+	storeJellyfinKey(t, env, "stored-key")
+
+	require.NoError(t, Jellyfin(context.Background(), env))
+
+	assert.Equal(t, []string{"DELETE " + removeOldShows}, r.writes())
+	assert.Contains(t, out.lines, "jellyfin: remove /data/tvshows from library Shows")
+}
+
+func TestAMovedLibraryGetsItsNewPathThenLosesTheOldOneAndIsScanned(t *testing.T) {
+	libraries := strings.Replace(jellyfinLibraries, `"Locations": ["/data/media/movies"]`, `"Locations": ["/data/movies"]`, 1)
+	r := jellyfinWired(newRoutes(t), "", libraries, "")
+	r.on("DELETE", removeOldMovies)
+	r.on("POST", "/Library/Refresh")
+	env, out := jellyfinEnv(t, r)
+	storeJellyfinKey(t, env, "stored-key")
+
+	require.NoError(t, Jellyfin(context.Background(), env))
+
+	assert.Equal(t, []string{"POST /Library/VirtualFolders/Paths?refreshLibrary=false", "DELETE " + removeOldMovies, "POST /Library/Refresh"}, r.writes())
+	assert.Equal(t, []string{"jellyfin: add /data/media/movies to library Movies", "jellyfin: remove /data/movies from library Movies", "jellyfin: scan the libraries for what was added"}, out.lines)
+}
