@@ -44,13 +44,14 @@ applications:
 ```yaml
 jellyfin:
   server_name: Media
-  libraries:                         # created, or given a missing path; never removed
+  libraries:                         # created; a library's locations become exactly its path
     - name: Shows
       type: tvshows
-      path: /data/tvshows
+      path: /data/media/tvshows
 deluge:
   core:                              # any core.conf setting
     max_upload_speed: 2000.0
+    download_location: /data/downloads
   plugins:                           # enabled; plugins enabled by hand stay enabled
     - name: Label                    # Sonarr and Radarr need it for categories
     - name: AutoRemovePlus
@@ -62,11 +63,11 @@ seerr:
   jellyfin_external_url: http://...  # optional, the Jellyfin link Seerr gives users
   sonarr:
     quality_profile: WEB-1080p       # by name, as Configarr creates it
-    root_folder: /tv
+    root_folder: /data/media/tvshows
     season_folders: false            # optional, used when Sonarr is added
   radarr:
     quality_profile: HD Bluray + WEB
-    root_folder: /movies
+    root_folder: /data/media/movies
     minimum_availability: released
 bazarr:
   languages: [en]                    # subtitle languages
