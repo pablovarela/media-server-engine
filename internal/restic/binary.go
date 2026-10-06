@@ -11,11 +11,18 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
+	"time"
 
 	"github.com/pablovarela/media-server-engine/internal/report"
 )
 
 const releases = "https://github.com/restic/restic/releases/download/"
+
+const (
+	defaultMaxArchive = 64 << 20
+	staleDownload     = time.Hour
+)
 
 type Fetch struct {
 	Release      Release
@@ -23,6 +30,7 @@ type Fetch struct {
 	GOOS, GOARCH string
 	HTTP         *http.Client
 	Report       *report.Reporter
+	MaxArchive   int64
 }
 
 func Binary(ctx context.Context, f Fetch) (string, error) {
@@ -36,14 +44,12 @@ func Binary(ctx context.Context, f Fetch) (string, error) {
 		return "", err
 	}
 	step := f.Report.Step("Downloading restic " + f.Release.Version)
-	_, existed := os.Stat(folder)
 	if err := f.install(ctx, folder, path, name, sum); err != nil {
-		if existed != nil {
-			_ = os.RemoveAll(folder)
-		}
+		_ = os.Remove(folder)
 		return "", step.FailWithoutTail(err)
 	}
-	f.removeOtherVersions()
+	removeStaleDownloads(folder)
+	f.removeOlderVersions()
 	step.Done("done")
 	return path, nil
 }
@@ -95,21 +101,50 @@ func (f Fetch) download(ctx context.Context, name string) ([]byte, error) {
 	if response.StatusCode != http.StatusOK {
 		return nil, failed(fmt.Errorf("GitHub answered %d %s", response.StatusCode, http.StatusText(response.StatusCode)))
 	}
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
+	limit := f.MaxArchive
+	if limit == 0 {
+		limit = defaultMaxArchive
+	}
+	body, err := io.ReadAll(io.LimitReader(response.Body, limit+1))
+	switch {
+	case err != nil:
 		return nil, failed(err)
+	case int64(len(body)) > limit:
+		return nil, failed(fmt.Errorf("the archive is larger than %d bytes", limit))
 	}
 	return body, nil
 }
 
-func (f Fetch) removeOtherVersions() {
+func (f Fetch) removeOlderVersions() {
 	entries, err := os.ReadDir(f.Cache)
 	if err != nil {
 		return
 	}
+	var others []os.DirEntry
 	for _, entry := range entries {
 		if entry.IsDir() && entry.Name() != f.Release.Version {
-			_ = os.RemoveAll(filepath.Join(f.Cache, entry.Name()))
+			others = append(others, entry)
+		}
+	}
+	sort.Slice(others, func(a, b int) bool { return modified(others[a]).After(modified(others[b])) })
+	for _, older := range others[min(1, len(others)):] {
+		_ = os.RemoveAll(filepath.Join(f.Cache, older.Name()))
+	}
+}
+
+func modified(entry os.DirEntry) time.Time {
+	info, err := entry.Info()
+	if err != nil {
+		return time.Time{}
+	}
+	return info.ModTime()
+}
+
+func removeStaleDownloads(folder string) {
+	parts, _ := filepath.Glob(filepath.Join(folder, "restic-*.part"))
+	for _, part := range parts {
+		if info, err := os.Stat(part); err == nil && time.Since(info.ModTime()) > staleDownload {
+			_ = os.Remove(part)
 		}
 	}
 }

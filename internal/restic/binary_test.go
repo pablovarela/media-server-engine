@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -66,7 +67,7 @@ func TestBinaryDownloadsVerifiesAndPlacesRestic(t *testing.T) {
 	info, err := os.Stat(path)
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0o755), info.Mode().Perm())
-	assert.NoDirExists(t, filepath.Join(cache, "0.18.0"))
+	assert.DirExists(t, filepath.Join(cache, "0.18.0"), "the most recent other version stays for an older mse")
 	assert.Equal(t, 1, *requests)
 	assert.Equal(t, "Downloading restic 0.19.1... done.\n", out.String())
 	entries, _ := os.ReadDir(filepath.Join(cache, "0.19.1"))
@@ -103,18 +104,83 @@ func TestBinaryDownloadsIntoAnEmptyVersionFolder(t *testing.T) {
 
 func TestBinaryUsesItsOwnTemporaryFile(t *testing.T) {
 	cache := t.TempDir()
-	stale := filepath.Join(cache, "0.19.1", "restic.download")
-	require.NoError(t, os.MkdirAll(filepath.Dir(stale), 0o755))
-	require.NoError(t, os.WriteFile(stale, []byte("another process's half-written file"), 0o644))
+	folder := filepath.Join(cache, "0.19.1")
+	require.NoError(t, os.MkdirAll(folder, 0o755))
+	others := []string{"restic.part", "restic-1.part", "restic-12345.part"}
+	for _, name := range others {
+		require.NoError(t, os.WriteFile(filepath.Join(folder, name), []byte("another process's half-written file"), 0o644))
+	}
 	archive, sum := testArchive(t)
 	fetch, _, _ := fetchServing(t, cache, http.StatusOK, archive, sum)
 
 	_, err := Binary(context.Background(), fetch)
 
 	require.NoError(t, err)
-	content, err := os.ReadFile(stale)
+	for _, name := range others {
+		content, err := os.ReadFile(filepath.Join(folder, name))
+		require.NoError(t, err, name)
+		assert.Equal(t, "another process's half-written file", string(content), name)
+	}
+}
+
+func TestBinaryKeepsTheMostRecentOtherVersion(t *testing.T) {
+	cache := t.TempDir()
+	old, older := filepath.Join(cache, "0.18.0"), filepath.Join(cache, "0.17.0")
+	for _, folder := range []string{older, old} {
+		require.NoError(t, os.MkdirAll(folder, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(folder, "restic"), []byte("old"), 0o755))
+	}
+	require.NoError(t, os.Chtimes(older, time.Now().Add(-48*time.Hour), time.Now().Add(-48*time.Hour)))
+	archive, sum := testArchive(t)
+	fetch, _, _ := fetchServing(t, cache, http.StatusOK, archive, sum)
+
+	_, err := Binary(context.Background(), fetch)
+
 	require.NoError(t, err)
-	assert.Equal(t, "another process's half-written file", string(content), "the other process's file is untouched")
+	assert.FileExists(t, filepath.Join(old, "restic"), "an older mse may still be running it")
+	assert.NoDirExists(t, older)
+}
+
+func TestBinaryRemovesStaleTemporaryFiles(t *testing.T) {
+	cache := t.TempDir()
+	stale := filepath.Join(cache, "0.19.1", "restic-999.part")
+	require.NoError(t, os.MkdirAll(filepath.Dir(stale), 0o755))
+	require.NoError(t, os.WriteFile(stale, []byte("killed mid-download"), 0o644))
+	require.NoError(t, os.Chtimes(stale, time.Now().Add(-2*time.Hour), time.Now().Add(-2*time.Hour)))
+	archive, sum := testArchive(t)
+	fetch, _, _ := fetchServing(t, cache, http.StatusOK, archive, sum)
+
+	_, err := Binary(context.Background(), fetch)
+
+	require.NoError(t, err)
+	assert.NoFileExists(t, stale)
+}
+
+func TestBinaryLeavesAFolderAnotherProcessFilled(t *testing.T) {
+	cache := t.TempDir()
+	installed := filepath.Join(cache, "0.19.1", "restic")
+	fetch, _, _ := fetchServing(t, cache, http.StatusNotFound, nil, "x")
+	fetch.HTTP = &http.Client{Transport: roundTrip(func(r *http.Request) (*http.Response, error) {
+		require.NoError(t, os.MkdirAll(filepath.Dir(installed), 0o755))
+		require.NoError(t, os.WriteFile(installed, []byte("installed by another process"), 0o755))
+		return &http.Response{StatusCode: http.StatusNotFound, Body: io.NopCloser(strings.NewReader("")), Request: r}, nil
+	})}
+
+	_, err := Binary(context.Background(), fetch)
+
+	require.Error(t, err)
+	assert.FileExists(t, installed)
+}
+
+func TestBinaryRefusesAnOversizedDownload(t *testing.T) {
+	cache := t.TempDir()
+	fetch, _, _ := fetchServing(t, cache, http.StatusOK, bytes.Repeat([]byte("x"), 2048), "x")
+	fetch.MaxArchive = 1024
+
+	_, err := Binary(context.Background(), fetch)
+
+	assert.EqualError(t, err, "could not download restic 0.19.1 from github.com/restic/restic (the archive is larger than 1024 bytes)")
+	assert.NoDirExists(t, filepath.Join(cache, "0.19.1"))
 }
 
 func TestBinaryFailures(t *testing.T) {
