@@ -165,22 +165,29 @@ func (f Fetch) download(ctx context.Context, name string, to io.Writer) (string,
 }
 
 func (f Fetch) removeOlderVersions() {
-	entries, err := os.ReadDir(f.Cache)
-	if err != nil {
-		return
-	}
+	others := f.otherVersions()
 	newest := ""
-	for _, entry := range entries {
-		if entry.IsDir() && entry.Name() != f.Release.Version && newer(entry.Name(), newest) {
+	for _, entry := range others {
+		if newer(entry.Name(), newest) {
 			newest = entry.Name()
 		}
 	}
-	for _, entry := range entries {
-		if !entry.IsDir() || entry.Name() == f.Release.Version || entry.Name() == newest || recentlyTouched(entry) {
-			continue
+	for _, entry := range others {
+		if entry.Name() != newest && !recentlyTouched(entry) {
+			_ = os.RemoveAll(filepath.Join(f.Cache, entry.Name()))
 		}
-		_ = os.RemoveAll(filepath.Join(f.Cache, entry.Name()))
 	}
+}
+
+func (f Fetch) otherVersions() []os.DirEntry {
+	entries, _ := os.ReadDir(f.Cache)
+	var others []os.DirEntry
+	for _, entry := range entries {
+		if entry.IsDir() && entry.Name() != f.Release.Version {
+			others = append(others, entry)
+		}
+	}
+	return others
 }
 
 func recentlyTouched(entry os.DirEntry) bool {
