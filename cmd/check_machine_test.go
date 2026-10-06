@@ -41,7 +41,6 @@ func newCheckMachineFixture(t *testing.T, installations map[string]string) *chec
 		"docker --version":                   {Stdout: []byte("Docker version 29.1.0\n")},
 		"id -Gn pablo":                       {Stdout: []byte("pablo docker\n")},
 		"docker info":                        {Stdout: []byte("ok\n")},
-		"restic version":                     {Stdout: []byte("restic 0.18.1\n")},
 		"loginctl show-user pablo -p Linger": {Stdout: []byte("Linger=yes\n")},
 	}}
 	runner := newMockCommandRunner(t)
@@ -95,19 +94,19 @@ func TestCheckMachineOnAReadyMachine(t *testing.T) {
 	assert.Empty(t, stderr)
 	assert.Equal(t, "Checking this machine...\n"+
 		"  git... ✓\n  gh is logged in... ✓ token on disk\n  git uses gh for github.com... ✓\n  Docker... ✓\n  pablo is in the docker group... ✓\n"+
-		"  Docker answers... ✓\n  restic... ✓\n  lingering... ✓\n  the user manager has the docker group... ✓\n  ports... ✓ 8096, 80 free\n"+
+		"  Docker answers... ✓\n  lingering... ✓\n  the user manager has the docker group... ✓\n  ports... ✓ 8096, 80 free\n"+
 		"\nThis machine is ready.\n", stdout)
 }
 
 func TestCheckMachineWithSomethingMissing(t *testing.T) {
 	f := newCheckMachineFixture(t, nil)
-	delete(f.answers, "restic version")
+	delete(f.answers, "loginctl show-user pablo -p Linger")
 
 	code, stdout, stderr := f.check(t)
 
 	assert.Equal(t, 1, code)
 	assert.Empty(t, stderr)
-	assert.Contains(t, stdout, "  restic... ✗ not installed\n      run: sudo apt install restic\n")
+	assert.Contains(t, stdout, "  lingering... ✗ off\n      run: sudo loginctl enable-linger pablo\n")
 	assert.True(t, strings.HasSuffix(stdout, "\n1 thing to fix. Run mse check-machine again afterwards.\n"))
 }
 
@@ -176,10 +175,10 @@ func TestTheChecksDrawADotForEachSecondTheyTake(t *testing.T) {
 		ticks <- time.Now()
 	}
 	printer.Finished(machine.Result{Name: "Docker answers", Status: machine.Pass})
-	printer.Started("restic")
-	printer.Finished(machine.Result{Name: "restic", Status: machine.Fail, Detail: "not installed", Fix: "sudo apt install restic"})
+	printer.Started("lingering")
+	printer.Finished(machine.Result{Name: "lingering", Status: machine.Fail, Detail: "off", Fix: "sudo loginctl enable-linger pablo"})
 
-	assert.Equal(t, "  Docker answers...... ✓\n  restic... ✗ not installed\n      run: sudo apt install restic\n", out.String())
+	assert.Equal(t, "  Docker answers...... ✓\n  lingering... ✗ off\n      run: sudo loginctl enable-linger pablo\n", out.String())
 	assert.True(t, stopped)
 }
 

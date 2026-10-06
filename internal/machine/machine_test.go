@@ -33,7 +33,6 @@ func newFixture(t *testing.T) *fixture {
 		"docker --version":                   {Stdout: []byte("Docker version 29.1.0\n")},
 		"id -Gn pablo":                       {Stdout: []byte("pablo adm docker\n")},
 		"docker info":                        {Stdout: []byte("Server Version: 29.1.0\n")},
-		"restic version":                     {Stdout: []byte("restic 0.18.1\n")},
 		"loginctl show-user pablo -p Linger": {Stdout: []byte("Linger=yes\n")},
 		"getent group docker":                {Stdout: []byte("docker:x:995:pablo\n")},
 		"id -u pablo":                        {Stdout: []byte("1000\n")},
@@ -78,7 +77,6 @@ const readyLinux = `  git... ✓
   Docker... ✓
   pablo is in the docker group... ✓
   Docker answers... ✓
-  restic... ✓
   lingering... ✓
   the user manager has the docker group... ✓
 
@@ -100,7 +98,6 @@ func TestEachMissingPieceSaysHowToFixIt(t *testing.T) {
 		"helper":    {"git config --global --get-all credential.https://github.com.helper", "  git uses gh for github.com... ✗\n      run: gh auth setup-git\n"},
 		"docker":    {"docker --version", "  Docker... ✗ not installed\n      run: curl -fsSL https://get.docker.com | sudo sh\n"},
 		"session":   {"docker info", "  Docker answers... ✗ this session doesn't have the docker group yet\n      run: log out and back in\n"},
-		"restic":    {"restic version", "  restic... ✗ not installed\n      run: sudo apt install restic\n"},
 		"lingering": {"loginctl show-user pablo -p Linger", "  lingering... ✗ off\n      run: sudo loginctl enable-linger pablo\n"},
 	}
 	for name, tt := range tests {
@@ -216,7 +213,7 @@ func TestAStaleUserManager(t *testing.T) {
 
 func TestTwoProblems(t *testing.T) {
 	f := newFixture(t)
-	f.fails("restic version")
+	f.fails("git --version")
 	f.fails("loginctl show-user pablo -p Linger")
 
 	assert.True(t, strings.HasSuffix(f.render(t), "\n2 things to fix. Run mse check-machine again afterwards.\n"))
@@ -230,7 +227,6 @@ func TestAMac(t *testing.T) {
 	f.answers["gh auth token"] = process.Result{Stdout: []byte("gho_keychain\n")}
 	f.fails("git --version")
 	f.fails("docker info")
-	f.fails("restic version")
 
 	out := f.render(t)
 
@@ -241,11 +237,9 @@ func TestAMac(t *testing.T) {
   Docker... ✓
   Docker answers... ✗
       run: start Docker
-  restic... ✗ not installed
-      run: brew install restic
   timers... – no systemd here, so nothing runs unattended; run mse update --apply yourself
 
-3 things to fix. Run mse check-machine again afterwards.
+2 things to fix. Run mse check-machine again afterwards.
 `, out)
 }
 
@@ -293,7 +287,7 @@ func TestAStalledDockerDoesNotHangTheChecks(t *testing.T) {
 func TestACheckThatRunsOutOfTimeIsNotAVerdict(t *testing.T) {
 	f := newFixture(t)
 	stalling(t, f, "loginctl show-user pablo -p Linger")
-	f.fails("restic version")
+	f.fails("git --version")
 
 	out := f.render(t)
 
@@ -319,9 +313,9 @@ func TestEachCheckStartsBeforeItsProbeAndFinishesBeforeTheNext(t *testing.T) {
 	var events []event
 	runner := newMockRunner(t)
 	runner.EXPECT().Output(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, c process.Command) (process.Result, error) {
-		if c.Name == "restic" {
-			require.Len(t, events, 13, "six checks started and finished, then restic started")
-			assert.Equal(t, "restic", events[12].started)
+		if c.Name == "loginctl" {
+			require.Len(t, events, 13, "six checks started and finished, then lingering started")
+			assert.Equal(t, "lingering", events[12].started)
 			assert.Equal(t, "Docker answers", events[11].result.Name)
 		}
 		return answering.Output(ctx, c)
@@ -331,7 +325,7 @@ func TestEachCheckStartsBeforeItsProbeAndFinishesBeforeTheNext(t *testing.T) {
 	report := RunEach(context.Background(), f.env, recorded{&events})
 
 	assert.True(t, report.Ready())
-	assert.Len(t, events, 18)
+	assert.Len(t, events, 16)
 }
 
 func TestACheckThatRunsOutOfTimeNeverPasses(t *testing.T) {

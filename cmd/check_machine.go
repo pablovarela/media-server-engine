@@ -24,7 +24,7 @@ func newCheckMachineCommand(deps Dependencies) *cobra.Command {
 		Use:   "check-machine",
 		Short: "Check this machine has what an installation needs, and say how to fix what's missing",
 		Long: "Check this machine has what an installation needs: git, gh logged in for git, Docker and the docker group, " +
-			"restic, lingering, and the stack's ports. It changes nothing; for each missing piece it prints the command that fixes it.",
+			"lingering, and the stack's ports. It changes nothing; for each missing piece it prints the command that fixes it.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return deps.checkMachine(cmd)
