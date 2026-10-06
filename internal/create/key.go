@@ -41,7 +41,7 @@ type KeyFileChangedError struct {
 }
 
 func (e *KeyFileChangedError) Error() string {
-	return fmt.Sprintf("the new key stays in %s, which changed while mse create ran; remove its lines (# media server %s) by hand", e.Path, e.Name)
+	return fmt.Sprintf("the new key stays in %s, which changed while mse ran; remove its lines (# media server %s) by hand", e.Path, e.Name)
 }
 
 func AppendKey(path, name, verb string, key Key, today time.Time) (Undo, error) {

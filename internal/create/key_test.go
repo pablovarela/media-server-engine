@@ -114,7 +114,7 @@ func TestUndoLeavesAKeyFileThatChanged(t *testing.T) {
 	var changed *KeyFileChangedError
 	require.ErrorAs(t, err, &changed)
 	assert.Equal(t, path, changed.Path)
-	assert.EqualError(t, err, "the new key stays in "+path+", which changed while mse create ran; remove its lines (# media server gorgon) by hand")
+	assert.EqualError(t, err, "the new key stays in "+path+", which changed while mse ran; remove its lines (# media server gorgon) by hand")
 	written, _ := os.ReadFile(path)
 	assert.True(t, bytes.HasSuffix(written, []byte("AGE-SECRET-KEY-1OTHER\n")))
 	assert.True(t, strings.HasPrefix(string(written), block(key)))

@@ -164,7 +164,7 @@ func TestRunNamesAKeyItCouldNotRemove(t *testing.T) {
 
 	err := Run(context.Background(), gorgon, steps, report.New(&out, &out, nil), func() func() { return func() {} })
 
-	assert.EqualError(t, err, "broken\nThe rest was removed, but the new key stays in /k/keys.txt, which changed while mse create ran; remove its lines (# media server gorgon) by hand. Then run mse create gorgon again.")
+	assert.EqualError(t, err, "broken\nThe rest was removed, but the new key stays in /k/keys.txt, which changed while mse ran; remove its lines (# media server gorgon) by hand. Then run mse create gorgon again.")
 }
 
 func TestRunUndoesWithACancelledContext(t *testing.T) {

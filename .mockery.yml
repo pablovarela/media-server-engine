@@ -18,3 +18,4 @@ packages:
   github.com/pablovarela/media-server-engine/internal/configure: {}
   github.com/pablovarela/media-server-engine/internal/machine: {}
   github.com/pablovarela/media-server-engine/internal/create: {}
+  github.com/pablovarela/media-server-engine/internal/join: {}
