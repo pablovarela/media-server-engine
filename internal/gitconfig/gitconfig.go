@@ -16,6 +16,8 @@ var (
 	ErrNoUpstream = errors.New("the config's branch tracks no remote branch")
 )
 
+const quiet = "--quiet"
+
 type runner interface {
 	Output(ctx context.Context, c process.Command) (process.Result, error)
 }
@@ -43,7 +45,7 @@ func (r Repository) FastForward(ctx context.Context) (int, error) {
 	if tracking.Exit != 0 {
 		return 0, ErrNoUpstream
 	}
-	if _, err := r.succeeding(ctx, "fetch", "--quiet"); err != nil {
+	if _, err := r.succeeding(ctx, "fetch", quiet); err != nil {
 		return 0, err
 	}
 	ahead, err := r.count(ctx, "@{upstream}..HEAD")
@@ -57,7 +59,7 @@ func (r Repository) FastForward(ctx context.Context) (int, error) {
 	if ahead > 0 {
 		return 0, ErrDiverged
 	}
-	_, err = r.succeeding(ctx, "merge", "--ff-only", "--quiet", "@{upstream}")
+	_, err = r.succeeding(ctx, "merge", "--ff-only", quiet, "@{upstream}")
 	return behind, err
 }
 
@@ -78,7 +80,7 @@ func (r Repository) Commit(ctx context.Context, message string, paths []string) 
 	if _, err := r.succeeding(ctx, append([]string{"add", "--"}, paths...)...); err != nil {
 		return "", err
 	}
-	if _, err := r.succeeding(ctx, append([]string{"commit", "--quiet", "-m", message, "--"}, paths...)...); err != nil {
+	if _, err := r.succeeding(ctx, append([]string{"commit", quiet, "-m", message, "--"}, paths...)...); err != nil {
 		return "", err
 	}
 	sha, err := r.succeeding(ctx, "rev-parse", "--short", "HEAD")
@@ -86,12 +88,12 @@ func (r Repository) Commit(ctx context.Context, message string, paths []string) 
 }
 
 func (r Repository) Push(ctx context.Context) error {
-	_, err := r.succeeding(ctx, "push", "--quiet")
+	_, err := r.succeeding(ctx, "push", quiet)
 	return err
 }
 
 func (r Repository) Init(ctx context.Context) error {
-	_, err := r.succeeding(ctx, "init", "--quiet", "--initial-branch=main")
+	_, err := r.succeeding(ctx, "init", quiet, "--initial-branch=main")
 	return err
 }
 
@@ -101,12 +103,12 @@ func (r Repository) AddRemote(ctx context.Context, url string) error {
 }
 
 func (r Repository) PushNew(ctx context.Context) error {
-	_, err := r.succeeding(ctx, "push", "--quiet", "--set-upstream", "origin", "main")
+	_, err := r.succeeding(ctx, "push", quiet, "--set-upstream", "origin", "main")
 	return err
 }
 
 func (r Repository) Unstage(ctx context.Context, paths []string) error {
-	_, err := r.succeeding(ctx, append([]string{"reset", "--quiet", "--"}, paths...)...)
+	_, err := r.succeeding(ctx, append([]string{"reset", quiet, "--"}, paths...)...)
 	return err
 }
 
@@ -140,13 +142,29 @@ func (r Repository) succeeding(ctx context.Context, args ...string) (string, err
 		return "", err
 	}
 	if result.Exit != 0 {
-		message := fmt.Sprintf("git %s failed (exit %d)", strings.Join(args[:min(2, len(args))], " "), result.Exit)
-		if detail := strings.TrimSpace(string(result.Stderr)); detail != "" {
-			message += ": " + detail
-		}
-		return "", errors.New(message)
+		return "", failure(args, result)
 	}
 	return string(result.Stdout), nil
+}
+
+func failure(args []string, result process.Result) error {
+	message := fmt.Sprintf("git %s failed (exit %d)", strings.Join(args[:min(2, len(args))], " "), result.Exit)
+	if detail := strings.TrimSpace(string(result.Stderr)); detail != "" {
+		message += ": " + detail
+	}
+	return errors.New(message)
+}
+
+func Clone(ctx context.Context, r runner, url, dir string) error {
+	args := []string{"clone", quiet, "--", url, dir}
+	result, err := r.Output(ctx, process.Command{Name: "git", Args: args, Env: []string{"GIT_TERMINAL_PROMPT=0"}})
+	if err != nil {
+		return err
+	}
+	if result.Exit != 0 {
+		return failure(args[:1], result)
+	}
+	return nil
 }
 
 func (r Repository) git(ctx context.Context, args ...string) (process.Result, error) {

@@ -250,3 +250,22 @@ func TestNewRepository(t *testing.T) {
 		})
 	}
 }
+
+func TestClone(t *testing.T) {
+	ctx := context.Background()
+	clone := process.Command{Name: "git", Args: []string{"clone", "--quiet", "--", "https://github.com/p/c.git", "/config/c"}, Env: []string{"GIT_TERMINAL_PROMPT=0"}}
+	for name, exit := range map[string]int{"cloned": 0, "refused": 128} {
+		t.Run(name, func(t *testing.T) {
+			runner := newMockRunner(t)
+			runner.EXPECT().Output(ctx, clone).Return(process.Result{Exit: exit, Stderr: []byte("fatal: repository not found\n")}, nil)
+
+			err := Clone(ctx, runner, "https://github.com/p/c.git", "/config/c")
+
+			if exit == 0 {
+				assert.NoError(t, err)
+				return
+			}
+			assert.EqualError(t, err, "git clone failed (exit 128): fatal: repository not found")
+		})
+	}
+}
