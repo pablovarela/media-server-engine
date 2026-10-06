@@ -104,7 +104,7 @@ def wire_once(setup_deluge, docker):
 def test_a_fresh_deluge_gets_its_plugins_settings_and_web_password_with_one_restart(deluge, deluge_config, docker, web, capsys):
     deluge.wire()
     _, core = read_conf(deluge_config / "core.conf")
-    assert (core["enabled_plugins"], core["download_location"]) == (["Label", "AutoRemovePlus"], "/downloads")
+    assert (core["enabled_plugins"], core["download_location"]) == (["Label", "AutoRemovePlus"], "/data/downloads")
     assert password_matches(deluge_config, "web pass")
     header, body = read_conf(deluge_config / "web.conf")
     assert (header, body["first_login"]) == ({"file": 2, "format": 1}, False)

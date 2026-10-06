@@ -8,8 +8,8 @@ from conftest import REPO, http_error
 CONFIGURATION = {"ServerName": "Media", "EnableMetrics": False, "UICulture": "en-US"}
 LIBRARIES = [
     {"Name": "Collections", "Locations": [], "CollectionType": "boxsets", "ItemId": "c1", "LibraryOptions": {"EnableRealtimeMonitor": False, "Enabled": True}},
-    {"Name": "Movies", "Locations": ["/data/movies"], "CollectionType": "movies", "ItemId": "m1", "LibraryOptions": {"EnableRealtimeMonitor": True, "Enabled": True}},
-    {"Name": "Shows", "Locations": ["/data/tvshows"], "CollectionType": "tvshows", "ItemId": "s1", "LibraryOptions": {"EnableRealtimeMonitor": True, "Enabled": True}},
+    {"Name": "Movies", "Locations": ["/data/media/movies"], "CollectionType": "movies", "ItemId": "m1", "LibraryOptions": {"EnableRealtimeMonitor": True, "Enabled": True}},
+    {"Name": "Shows", "Locations": ["/data/media/tvshows"], "CollectionType": "tvshows", "ItemId": "s1", "LibraryOptions": {"EnableRealtimeMonitor": True, "Enabled": True}},
 ]
 STORED_KEY = {"AppName": "media-server", "AccessToken": "stored-key"}
 
@@ -58,7 +58,7 @@ def test_a_fresh_jellyfin_completes_the_wizard_then_gets_its_server_name_librari
     http.on("GET", "/Library/VirtualFolders", [])
     for path in ("/Startup/Configuration", "/Startup/User", "/Startup/RemoteAccess", "/Startup/Complete", "/Auth/Keys?app=media-server", "/System/Configuration", "/Library/Refresh"):
         http.on("POST", path, None)
-    for query in ("name=Shows&collectionType=tvshows&paths=%2Fdata%2Ftvshows", "name=Movies&collectionType=movies&paths=%2Fdata%2Fmovies"):
+    for query in ("name=Shows&collectionType=tvshows&paths=%2Fdata%2Fmedia%2Ftvshows", "name=Movies&collectionType=movies&paths=%2Fdata%2Fmedia%2Fmovies"):
         http.on("POST", f"/Library/VirtualFolders?{query}&refreshLibrary=false", None)
 
     jellyfin.wire()
@@ -71,14 +71,14 @@ def test_a_fresh_jellyfin_completes_the_wizard_then_gets_its_server_name_librari
         "POST /Users/AuthenticateByName",
         "POST /Auth/Keys?app=media-server",
         "POST /System/Configuration",
-        "POST /Library/VirtualFolders?name=Shows&collectionType=tvshows&paths=%2Fdata%2Ftvshows&refreshLibrary=false",
-        "POST /Library/VirtualFolders?name=Movies&collectionType=movies&paths=%2Fdata%2Fmovies&refreshLibrary=false",
+        "POST /Library/VirtualFolders?name=Shows&collectionType=tvshows&paths=%2Fdata%2Fmedia%2Ftvshows&refreshLibrary=false",
+        "POST /Library/VirtualFolders?name=Movies&collectionType=movies&paths=%2Fdata%2Fmedia%2Fmovies&refreshLibrary=false",
         "POST /Library/Refresh",
     ]
     assert http.body("POST", "/Startup/Configuration")["ServerName"] == "Media"
     assert http.body("POST", "/Startup/User") == {"Name": "admin", "Password": "admin pass"}
     assert http.body("POST", "/Users/AuthenticateByName") == {"Username": "admin", "Pw": "admin pass"}
-    assert http.body("POST", "/Library/VirtualFolders?name=Shows&collectionType=tvshows&paths=%2Fdata%2Ftvshows&refreshLibrary=false") == {"LibraryOptions": {"EnableRealtimeMonitor": True}}
+    assert http.body("POST", "/Library/VirtualFolders?name=Shows&collectionType=tvshows&paths=%2Fdata%2Fmedia%2Ftvshows&refreshLibrary=false") == {"LibraryOptions": {"EnableRealtimeMonitor": True}}
     assert (dirs.data / "volumes" / ".wiring" / "jellyfin.key").read_text() == "new-key\n"
     assert "jellyfin: add library Shows" in capsys.readouterr().out
 
@@ -131,7 +131,7 @@ def test_a_declared_path_missing_from_a_library_is_added_to_it_and_scanned(jelly
     http.on("POST", "/Library/Refresh", None)
     jellyfin.wire()
     assert http.writes() == ["POST /Library/VirtualFolders/Paths?refreshLibrary=false", "POST /Library/Refresh"]
-    assert http.body("POST", "/Library/VirtualFolders/Paths?refreshLibrary=false") == {"Name": "Shows", "PathInfo": {"Path": "/data/tvshows"}}
+    assert http.body("POST", "/Library/VirtualFolders/Paths?refreshLibrary=false") == {"Name": "Shows", "PathInfo": {"Path": "/data/media/tvshows"}}
 
 
 def test_a_library_with_real_time_monitoring_off_gets_it_on_keeping_its_other_options(jellyfin, http, stored_key, capsys):
