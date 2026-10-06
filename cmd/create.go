@@ -175,7 +175,7 @@ func (c *creation) AddKey(ctx context.Context) (create.Undo, error) {
 	if err != nil {
 		return nil, err
 	}
-	undo, err := create.AppendKey(path, c.name, key, c.d.Now())
+	undo, err := create.AppendKey(path, c.name, "created", key, c.d.Now())
 	if err != nil {
 		return nil, err
 	}
