@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	sonarrTest = `{"profiles": [{"id": 4, "name": "Any"}, {"id": 7, "name": "WEB-1080p"}], "rootFolders": [{"id": 1, "path": "/tv"}]}`
-	radarrTest = `{"profiles": [{"id": 7, "name": "HD Bluray + WEB"}], "rootFolders": [{"id": 1, "path": "/movies"}]}`
+	sonarrTest = `{"profiles": [{"id": 4, "name": "Any"}, {"id": 7, "name": "WEB-1080p"}], "rootFolders": [{"id": 1, "path": "/data/media/tvshows"}]}`
+	radarrTest = `{"profiles": [{"id": 7, "name": "HD Bluray + WEB"}], "rootFolders": [{"id": 1, "path": "/data/media/movies"}]}`
 )
 
 var (
@@ -29,8 +29,8 @@ var (
 func seerrSonarr(changes map[string]any) map[string]any {
 	entry := map[string]any{
 		"id": 0, "name": "Sonarr", "hostname": "sonarr", "port": 8989, "apiKey": "sonarr-key", "useSsl": false, "baseUrl": "",
-		"activeProfileId": 7, "activeProfileName": "WEB-1080p", "activeDirectory": "/tv",
-		"activeAnimeProfileId": 7, "activeAnimeProfileName": "WEB-1080p", "activeAnimeDirectory": "/tv",
+		"activeProfileId": 7, "activeProfileName": "WEB-1080p", "activeDirectory": "/data/media/tvshows",
+		"activeAnimeProfileId": 7, "activeAnimeProfileName": "WEB-1080p", "activeAnimeDirectory": "/data/media/tvshows",
 		"is4k": false, "isDefault": true, "enableSeasonFolders": false, "syncEnabled": true, "preventSearch": false, "tags": []any{}, "animeTags": []any{},
 	}
 	for key, value := range changes {
@@ -42,7 +42,7 @@ func seerrSonarr(changes map[string]any) map[string]any {
 func seerrRadarr(changes map[string]any) map[string]any {
 	entry := map[string]any{
 		"id": 0, "name": "Radarr", "hostname": "radarr", "port": 7878, "apiKey": "radarr-key", "useSsl": false, "baseUrl": "",
-		"activeProfileId": 7, "activeProfileName": "HD Bluray + WEB", "activeDirectory": "/movies",
+		"activeProfileId": 7, "activeProfileName": "HD Bluray + WEB", "activeDirectory": "/data/media/movies",
 		"is4k": false, "minimumAvailability": "released", "isDefault": true, "syncEnabled": true, "preventSearch": false, "tags": []any{},
 	}
 	for key, value := range changes {
@@ -159,10 +159,10 @@ func TestAFreshSeerrSignsInWithJellyfinGetsLibrariesSonarrAndRadarrThenIsInitial
 	auth := r.sentBody("POST", "/api/v1/auth/jellyfin")
 	assert.Equal(t, []any{"admin", "admin pass", "jellyfin", float64(8096), float64(2)}, []any{auth["username"], auth["password"], auth["hostname"], auth["port"], auth["serverType"]})
 	sonarr := r.sentBody("POST", "/api/v1/settings/sonarr")
-	assert.Equal(t, []any{float64(7), "/tv", "sonarr-key", true}, []any{sonarr["activeProfileId"], sonarr["activeDirectory"], sonarr["apiKey"], sonarr["isDefault"]})
-	assert.Equal(t, []any{float64(7), "/tv", false}, []any{sonarr["activeAnimeProfileId"], sonarr["activeAnimeDirectory"], sonarr["enableSeasonFolders"]})
+	assert.Equal(t, []any{float64(7), "/data/media/tvshows", "sonarr-key", true}, []any{sonarr["activeProfileId"], sonarr["activeDirectory"], sonarr["apiKey"], sonarr["isDefault"]})
+	assert.Equal(t, []any{float64(7), "/data/media/tvshows", false}, []any{sonarr["activeAnimeProfileId"], sonarr["activeAnimeDirectory"], sonarr["enableSeasonFolders"]})
 	radarr := r.sentBody("POST", "/api/v1/settings/radarr")
-	assert.Equal(t, []any{float64(7), "/movies", "released"}, []any{radarr["activeProfileId"], radarr["activeDirectory"], radarr["minimumAvailability"]})
+	assert.Equal(t, []any{float64(7), "/data/media/movies", "released"}, []any{radarr["activeProfileId"], radarr["activeDirectory"], radarr["minimumAvailability"]})
 	assert.Equal(t, map[string]any{"enabled": true}, r.sentBody("PUT", "/api/v1/settings/jellyfin/library/s1"))
 }
 
@@ -319,7 +319,7 @@ func TestAPortChangedByHandInSeerrIsPutBack(t *testing.T) {
 
 func TestAChangedRootFolderIsAppliedToSeriesAndAnime(t *testing.T) {
 	r := seerrWired(t, newRoutes(t), seerrWiredWith{})
-	r.on("POST", "/api/v1/settings/sonarr/test", ok(strings.Replace(sonarrTest, `[{"id": 1, "path": "/tv"}]`, `[{"id": 1, "path": "/tv"}, {"id": 2, "path": "/series"}]`, 1)))
+	r.on("POST", "/api/v1/settings/sonarr/test", ok(strings.Replace(sonarrTest, `[{"id": 1, "path": "/data/media/tvshows"}]`, `[{"id": 1, "path": "/data/media/tvshows"}, {"id": 2, "path": "/series"}]`, 1)))
 	env, out := seerrEnv(t, r, nil)
 	changeApps(t, env, func(apps map[string]any) {
 		apps["seerr"].(map[string]any)["sonarr"].(map[string]any)["root_folder"] = "/series"
@@ -329,5 +329,5 @@ func TestAChangedRootFolderIsAppliedToSeriesAndAnime(t *testing.T) {
 
 	body := r.sentBody("PUT", "/api/v1/settings/sonarr/0")
 	assert.Equal(t, []any{"/series", "/series"}, []any{body["activeDirectory"], body["activeAnimeDirectory"]})
-	assert.Contains(t, out.lines, "seerr: set sonarr root folder /tv -> /series")
+	assert.Contains(t, out.lines, "seerr: set sonarr root folder /data/media/tvshows -> /series")
 }

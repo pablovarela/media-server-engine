@@ -15,7 +15,7 @@ sonarr:
       type: series
 
     root_folders:
-      - /tv
+      - /data/media/tvshows
 
     download_clients:
       data:
@@ -65,7 +65,7 @@ radarr:
       type: movie
 
     root_folders:
-      - /movies
+      - /data/media/movies
 
     download_clients:
       data:

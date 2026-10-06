@@ -13,8 +13,7 @@ services:
       - UMASK=022
     volumes:
       - ${DATA_DIR}/volumes/jellyfin/config:/config
-      - ${DATA_DIR}/media/tvshows:/data/tvshows
-      - ${DATA_DIR}/media/movies:/data/movies
+      - ${DATA_DIR}/data:/data
     restart: unless-stopped
 
   gluetun:
@@ -54,8 +53,7 @@ services:
       - SONARR__AUTH__REQUIRED=DisabledForLocalAddresses
     volumes:
       - ${DATA_DIR}/volumes/sonarr/data:/config
-      - ${DATA_DIR}/media/tvshows:/tv
-      - ${DATA_DIR}/downloads:/downloads
+      - ${DATA_DIR}/data:/data
     depends_on:
       - prowlarr
     healthcheck:
@@ -81,8 +79,7 @@ services:
       - RADARR__AUTH__REQUIRED=DisabledForLocalAddresses
     volumes:
       - ${DATA_DIR}/volumes/radarr/config:/config
-      - ${DATA_DIR}/media/movies:/movies
-      - ${DATA_DIR}/downloads:/downloads
+      - ${DATA_DIR}/data:/data
     depends_on:
       - prowlarr
     healthcheck:
@@ -104,8 +101,7 @@ services:
       - UMASK=022
     volumes:
       - ${DATA_DIR}/volumes/bazarr/config:/config
-      - ${DATA_DIR}/media/movies:/movies
-      - ${DATA_DIR}/media/tvshows:/tv
+      - ${DATA_DIR}/data:/data
     restart: unless-stopped
 
   prowlarr:
@@ -144,7 +140,7 @@ services:
       - DELUGE_LOGLEVEL=error
     volumes:
       - ${DATA_DIR}/volumes/deluge/config:/config
-      - ${DATA_DIR}/downloads:/downloads
+      - ${DATA_DIR}/data:/data
     network_mode: service:gluetun
     depends_on:
         - gluetun
@@ -218,5 +214,5 @@ services:
     volumes:
       - ./.homepage:/app/config
       - ./.homepage-images:/app/public/images:ro
-      - ${DATA_DIR}/media:/media:ro
+      - ${DATA_DIR}/data/media:/media:ro
     restart: unless-stopped
