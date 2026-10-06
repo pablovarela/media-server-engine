@@ -7,6 +7,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -23,10 +25,14 @@ type configRepositories interface {
 	CreatePrivateRepository(ctx context.Context, org, repo string) (string, error)
 }
 
+const homepagePortKey = "HOMEPAGE_PORT"
+
 var errCreateNeedsTerminal = errors.New("mse create needs a terminal; run it from an interactive shell (over ssh: ssh -t)")
 
+var errCreateTakesTheName = errors.New("mse create takes the installation's name as its argument; it has no --installation")
+
 func newCreateCommand(deps Dependencies) *cobra.Command {
-	var owner string
+	var owner, homepagePort string
 	command := &cobra.Command{
 		Use:   "create <name>",
 		Short: "Create a new installation on this machine: key, config, GitHub repository, backups and the stack",
@@ -34,30 +40,68 @@ func newCreateCommand(deps Dependencies) *cobra.Command {
 			"asks for its settings, pushes it to a new private repository media-server-config-<name>, makes this machine the main and applies it.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !deps.Terminal() {
-				return errCreateNeedsTerminal
-			}
-			if err := cmd.Flags().Set("installation", ""); err != nil {
-				return err
-			}
-			if err := create.ValidName(args[0]); err != nil {
+			if err := deps.canCreate(cmd, args[0], homepagePort); err != nil {
 				return err
 			}
 			c := deps.creation(cmd, args[0], owner)
+			c.homepagePort = homepagePort
 			return create.Run(cmd.Context(), create.Installation{Name: c.name, Config: c.config, Data: c.data}, c, report.From(cmd.Context()), shieldSignals)
 		},
 	}
 	command.Flags().StringVar(&owner, "owner", "", "the GitHub organisation that owns the config repository (default: the user gh is logged in as)")
+	command.Flags().StringVar(&homepagePort, "homepage-port", "", "the landing page's port, when something else on this machine uses port 80")
 	return command
 }
 
+func (d Dependencies) canCreate(cmd *cobra.Command, name, homepagePort string) error {
+	switch {
+	case !d.Terminal():
+		return errCreateNeedsTerminal
+	case cmd.Flags().Changed("installation"):
+		return errCreateTakesTheName
+	}
+	if err := create.ValidName(name); err != nil {
+		return err
+	}
+	if err := validHomepagePort(homepagePort); err != nil {
+		return err
+	}
+	return d.noOtherInstallation(name)
+}
+
+func validHomepagePort(port string) error {
+	for _, section := range configure.Sections() {
+		for _, field := range section.Fields {
+			if field.Key != homepagePortKey {
+				continue
+			}
+			if err := field.Validate(port); err != nil {
+				return fmt.Errorf("--homepage-port: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+func (d Dependencies) noOtherInstallation(name string) error {
+	names, err := installation.Names(installation.BasesFrom(d.Environment, d.Home))
+	if err != nil {
+		return err
+	}
+	others := slices.DeleteFunc(names, func(n string) bool { return n == name })
+	if len(others) > 0 {
+		return fmt.Errorf("this machine already runs the installation %s, and a machine runs one installation's stack", strings.Join(others, ", "))
+	}
+	return nil
+}
+
 type creation struct {
-	d                      Dependencies
-	cmd                    *cobra.Command
-	name, owner, org, repo string
-	config, data, state    string
-	recipient              string
-	repository             gitconfig.Repository
+	d                       Dependencies
+	cmd                     *cobra.Command
+	name, owner, org, repo  string
+	config, data, state     string
+	recipient, homepagePort string
+	repository              gitconfig.Repository
 }
 
 func (d Dependencies) creation(cmd *cobra.Command, name, owner string) *creation {
@@ -71,12 +115,21 @@ func (d Dependencies) creation(cmd *cobra.Command, name, owner string) *creation
 	}
 }
 
-func (c *creation) CheckMachine(context.Context) error {
-	ready, err := c.d.machineReady(c.cmd)
-	if err == nil && !ready {
-		return errAlreadyReported
+func (c *creation) CheckMachine(ctx context.Context) error {
+	ports, err := c.d.stackPortsCheck(nil, c.homepagePort)
+	if err != nil {
+		return err
 	}
-	return err
+	machine, err := c.d.checkedMachine(c.cmd, ports)
+	switch {
+	case err != nil:
+		return err
+	case machine.Ready():
+		return nil
+	case machine.PortsTaken() && c.homepagePort == "":
+		report.From(ctx).Say("If port 80 is in use by something you keep, give the landing page another port: mse create " + c.name + " --homepage-port <port>")
+	}
+	return errAlreadyReported
 }
 
 func (c *creation) CheckName(ctx context.Context) error {
@@ -150,6 +203,9 @@ func (c *creation) Configure(ctx context.Context) error {
 	seeded, err := configure.Rotate(current, configure.Rotatable, c.d.RandomKey)
 	if err != nil {
 		return err
+	}
+	if c.homepagePort != "" {
+		seeded = seeded.With(configure.PlainFile, homepagePortKey, c.homepagePort)
 	}
 	outcome, err := configure.Guided(ctx, c.d.Prompter(ctx), current, seeded)
 	if err != nil {

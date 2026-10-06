@@ -74,6 +74,15 @@ func (r Report) Unchecked() int { return r.count(Unchecked) }
 
 func (r Report) Ready() bool { return r.Problems() == 0 && r.Unchecked() == 0 }
 
+func (r Report) PortsTaken() bool {
+	for _, result := range r.Results {
+		if result.Name == portsName && result.Status == Fail {
+			return true
+		}
+	}
+	return false
+}
+
 func (r Report) count(status Status) int {
 	n := 0
 	for _, result := range r.Results {

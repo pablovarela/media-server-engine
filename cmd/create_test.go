@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/pablovarela/media-server-engine/internal/configure"
+	"github.com/pablovarela/media-server-engine/internal/machine"
 	"github.com/pablovarela/media-server-engine/internal/process"
 	"github.com/pablovarela/media-server-engine/internal/secrets"
 )
@@ -238,13 +239,78 @@ func TestCreateWritesCommitsAndPublishes(t *testing.T) {
 	assert.True(t, strings.HasPrefix(string(keys), "# media server gorgon, created 2026-10-06\n"))
 }
 
-func TestCreateChecksPortsBeforeTheInstallationExists(t *testing.T) {
+func TestCreateRefusesTheInstallationFlag(t *testing.T) {
 	f := newCreateFixture(t)
+
+	code, stdout, stderr := f.create(t, "gorgon", "--installation", "gorgon")
+
+	assert.Equal(t, 1, code)
+	assert.Empty(t, stdout)
+	assert.Equal(t, "mse: mse create takes the installation's name as its argument; it has no --installation\n", stderr)
+}
+
+func TestCreateRefusesASecondInstallationOnThisMachine(t *testing.T) {
+	f := newCreateFixture(t)
+	other := filepath.Join(f.deps.Home, ".config", "mse", "gorgon")
+	require.NoError(t, os.MkdirAll(other, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(other, "installation.env"), []byte("INSTALLATION_NAME=gorgon\n"), 0o644))
+
+	code, stdout, stderr := f.create(t, "medusa")
+
+	assert.Equal(t, 1, code)
+	assert.Empty(t, stdout)
+	assert.Equal(t, "mse: this machine already runs the installation gorgon, and a machine runs one installation's stack\n", stderr)
+	assert.NoFileExists(t, f.keys)
+}
+
+func TestCreateIgnoresTheDefaultInstallation(t *testing.T) {
+	f := newCreateFixture(t)
+	f.deps.Environment = func(key string) string { return map[string]string{"MSE_INSTALLATION": "gorgon"}[key] }
 	f.repositories.EXPECT().Login(mock.Anything).Return("", errors.New("stop here")).Once()
 
-	_, stdout, stderr := f.create(t, "gorgon", "--installation", "gorgon")
+	_, stdout, stderr := f.create(t, "gorgon")
 
 	assert.Contains(t, stdout, "This machine is ready.")
-	assert.Contains(t, stderr, "stop here")
-	assert.NotContains(t, stderr, "no installation gorgon")
+	assert.Equal(t, "mse: stop here\n", stderr)
+}
+
+func TestCreateChecksAndSetsTheHomepagePortItIsGiven(t *testing.T) {
+	f := newCreateFixture(t)
+	f.nameIsFree()
+	f.savesTheKey()
+	f.prompter.EXPECT().Section("General", mock.Anything, mock.Anything).RunAndReturn(
+		func(_ string, _ []configure.Field, form configure.Form) (map[string]string, error) {
+			assert.Equal(t, "8080", form.Values["HOMEPAGE_PORT"])
+			return nil, configure.ErrAborted
+		}).Once()
+
+	code, _, _ := f.create(t, "gorgon", "--homepage-port", "8080")
+
+	assert.Equal(t, 1, code)
+	var checked []string
+	for _, p := range f.checked {
+		checked = append(checked, p.String())
+	}
+	assert.Contains(t, checked, "8080")
+	assert.NotContains(t, checked, "80")
+}
+
+func TestCreateRefusesABadHomepagePort(t *testing.T) {
+	f := newCreateFixture(t)
+
+	code, stdout, stderr := f.create(t, "gorgon", "--homepage-port", "eighty")
+
+	assert.Equal(t, 1, code)
+	assert.Empty(t, stdout)
+	assert.Contains(t, stderr, "mse: --homepage-port: ")
+}
+
+func TestCreateSuggestsAnotherHomepagePortWhenThePortsAreTaken(t *testing.T) {
+	f := newCreateFixture(t)
+	f.deps.PortFree = func(p machine.Port) bool { return p.String() != "80" }
+
+	code, stdout, _ := f.create(t, "gorgon")
+
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stdout, "If port 80 is in use by something you keep, give the landing page another port: mse create gorgon --homepage-port <port>\n")
 }

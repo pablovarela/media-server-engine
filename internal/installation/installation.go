@@ -74,6 +74,10 @@ func Load(bases Bases, requested string, lookup func(string) string) (*Installat
 	}, nil
 }
 
+func Names(bases Bases) ([]string, error) {
+	return installationsIn(filepath.Join(bases.Config, "mse"))
+}
+
 func installationsIn(root string) ([]string, error) {
 	entries, err := os.ReadDir(root)
 	if errors.Is(err, os.ErrNotExist) {
