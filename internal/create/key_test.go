@@ -38,7 +38,7 @@ func TestKeyFile(t *testing.T) {
 
 	for _, variable := range []string{"SOPS_AGE_KEY", "SOPS_AGE_KEY_CMD"} {
 		_, err = KeyFile(env(map[string]string{variable: "x"}), "/home/p/.config")
-		assert.EqualError(t, err, "mse create adds the new key to a key file, and "+variable+" is set: unset SOPS_AGE_KEY and SOPS_AGE_KEY_CMD (SOPS_AGE_KEY_FILE chooses the file)")
+		assert.EqualError(t, err, "the key goes into a key file, and "+variable+" is set: unset SOPS_AGE_KEY and SOPS_AGE_KEY_CMD (SOPS_AGE_KEY_FILE chooses the file)")
 	}
 }
 
@@ -50,7 +50,7 @@ func TestAppendKeyToAMissingFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "sops", "age", "keys.txt")
 	key := Key{Public: "age1pub", Secret: "AGE-SECRET-KEY-1X"}
 
-	undo, err := AppendKey(path, "gorgon", key, today)
+	undo, err := AppendKey(path, "gorgon", "created", key, today)
 
 	require.NoError(t, err)
 	written, err := os.ReadFile(path)
@@ -73,7 +73,7 @@ func TestAppendKeyToAFileWithOtherKeys(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, []byte(original), 0o600))
 	key := Key{Public: "age1pub", Secret: "AGE-SECRET-KEY-1X"}
 
-	undo, err := AppendKey(path, "gorgon", key, today)
+	undo, err := AppendKey(path, "gorgon", "created", key, today)
 
 	require.NoError(t, err)
 	written, _ := os.ReadFile(path)
@@ -89,7 +89,7 @@ func TestAppendKeyToAFileWithoutTrailingNewline(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, []byte(original), 0o600))
 	key := Key{Public: "age1pub", Secret: "AGE-SECRET-KEY-1X"}
 
-	undo, err := AppendKey(path, "gorgon", key, today)
+	undo, err := AppendKey(path, "gorgon", "created", key, today)
 
 	require.NoError(t, err)
 	written, _ := os.ReadFile(path)
@@ -102,7 +102,7 @@ func TestAppendKeyToAFileWithoutTrailingNewline(t *testing.T) {
 func TestUndoLeavesAKeyFileThatChanged(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "keys.txt")
 	key := Key{Public: "age1pub", Secret: "AGE-SECRET-KEY-1X"}
-	undo, err := AppendKey(path, "gorgon", key, today)
+	undo, err := AppendKey(path, "gorgon", "created", key, today)
 	require.NoError(t, err)
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
 	require.NoError(t, err)
@@ -114,8 +114,18 @@ func TestUndoLeavesAKeyFileThatChanged(t *testing.T) {
 	var changed *KeyFileChangedError
 	require.ErrorAs(t, err, &changed)
 	assert.Equal(t, path, changed.Path)
-	assert.EqualError(t, err, "the new key stays in "+path+", which changed while mse create ran; remove its lines (# media server gorgon) by hand")
+	assert.EqualError(t, err, "the new key stays in "+path+", which changed while mse ran; remove its lines (# media server gorgon) by hand")
 	written, _ := os.ReadFile(path)
 	assert.True(t, bytes.HasSuffix(written, []byte("AGE-SECRET-KEY-1OTHER\n")))
 	assert.True(t, strings.HasPrefix(string(written), block(key)))
+}
+
+func TestAppendKeyNamesHowTheKeyCame(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "keys.txt")
+
+	_, err := AppendKey(path, "gorgon", "added", Key{Public: "age1pub", Secret: "AGE-SECRET-KEY-1X"}, today)
+
+	require.NoError(t, err)
+	written, _ := os.ReadFile(path)
+	assert.True(t, strings.HasPrefix(string(written), "# media server gorgon, added 2026-10-06\n"))
 }

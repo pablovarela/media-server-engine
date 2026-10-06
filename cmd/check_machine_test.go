@@ -26,13 +26,15 @@ const machineCompose = "services:\n  jellyfin:\n    ports:\n      - \"8096:8096\
 type checkMachineFixture struct {
 	deps    Dependencies
 	answers map[string]process.Result
+	effects map[string]func()
 	checked []machine.Port
+	runner  *mockCommandRunner
 }
 
 func newCheckMachineFixture(t *testing.T, installations map[string]string) *checkMachineFixture {
 	t.Helper()
 	_, home := xdgHome(t, installations)
-	f := &checkMachineFixture{answers: map[string]process.Result{
+	f := &checkMachineFixture{effects: map[string]func(){}, answers: map[string]process.Result{
 		"git --version": {Stdout: []byte("git version 2.47.3\n")},
 		"env -i HOME=" + home + " USER=pablo PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin gh auth token": {Stdout: []byte("gho_token\n")},
 		"git config --global --get-all credential.https://github.com.helper":                                                  {Stdout: []byte("!/usr/bin/gh auth git-credential\n")},
@@ -43,8 +45,13 @@ func newCheckMachineFixture(t *testing.T, installations map[string]string) *chec
 		"loginctl show-user pablo -p Linger": {Stdout: []byte("Linger=yes\n")},
 	}}
 	runner := newMockCommandRunner(t)
+	f.runner = runner
 	runner.EXPECT().Output(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, c process.Command) (process.Result, error) {
-		answer, known := f.answers[strings.Join(append([]string{c.Name}, c.Args...), " ")]
+		command := strings.Join(append([]string{c.Name}, c.Args...), " ")
+		if effect := f.effects[command]; effect != nil {
+			effect()
+		}
+		answer, known := f.answers[command]
 		if !known {
 			return process.Result{Exit: 1}, nil
 		}

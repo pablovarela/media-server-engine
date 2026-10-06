@@ -185,7 +185,7 @@ func TestCreateRefusesATakenName(t *testing.T) {
 				f.repositories.EXPECT().Login(mock.Anything).Return("pablovarela", nil).Once()
 				f.repositories.EXPECT().RepositoryExists(mock.Anything, "pablovarela", "media-server-config-gorgon").Return(true, nil).Once()
 			},
-			err: "pablovarela/media-server-config-gorgon already exists on GitHub; to add this machine to it, run make join-installation NAME=gorgon from a clone of the engine",
+			err: "pablovarela/media-server-config-gorgon already exists on GitHub; to add this machine to it, run mse join gorgon",
 		},
 		"git identity": {
 			given: func(_ *testing.T, f *createFixture) { delete(f.answers, "git -C "+f.deps.Home+" config user.email") },
@@ -385,7 +385,7 @@ func TestCreatePointsATakenRepositoryAtJoin(t *testing.T) {
 	code, _, stderr := f.create(t, "gorgon")
 
 	assert.Equal(t, 1, code)
-	assert.Contains(t, stderr, "To add this machine to that installation, run make join-installation NAME=gorgon from a clone of the engine; otherwise choose another name.")
+	assert.Contains(t, stderr, "To add this machine to that installation, run mse join gorgon; otherwise choose another name.")
 	f.nothingKept(t)
 }
 
@@ -449,4 +449,15 @@ func TestCreateChecksAHomepagePortChangedInTheSettings(t *testing.T) {
 	assert.Contains(t, stdout, "Checking the landing page's port 8443... failed.")
 	assert.Contains(t, stderr, "8443 is in use")
 	f.nothingKept(t)
+}
+
+func TestCreateChecksTheHomepagePortBeforeOtherInstallations(t *testing.T) {
+	f := newCreateFixture(t)
+	other := filepath.Join(f.deps.Home, ".config", "mse", "medusa")
+	require.NoError(t, os.MkdirAll(other, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(other, "installation.env"), []byte("INSTALLATION_NAME=medusa\n"), 0o644))
+
+	_, _, stderr := f.create(t, "gorgon", "--homepage-port", "eighty")
+
+	assert.Contains(t, stderr, "mse: --homepage-port: ")
 }

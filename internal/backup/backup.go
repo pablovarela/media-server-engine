@@ -27,8 +27,16 @@ func (b *Backups) Claim(ctx context.Context, yes bool) error {
 		}
 		step.Done("created")
 	}
-	if err := b.confirmTakingOver(ctx, yes); err != nil {
+	latest, err := b.confirmTakingOver(ctx, yes)
+	if err != nil {
 		return err
+	}
+	held, err := b.HasAppData()
+	if err != nil {
+		return err
+	}
+	if !held && latest != nil {
+		return fmt.Errorf("volumes/ in %s holds no app data, so claiming would make an empty backup %s's latest; restore first with mse restore, then claim", b.Installation.Data, b.Installation.Name)
 	}
 	if err := b.backup(ctx, true); err != nil {
 		return err
@@ -37,23 +45,23 @@ func (b *Backups) Claim(ctx context.Context, yes bool) error {
 	return nil
 }
 
-func (b *Backups) confirmTakingOver(ctx context.Context, yes bool) error {
+func (b *Backups) confirmTakingOver(ctx context.Context, yes bool) (*restic.Snapshot, error) {
 	state, latest, err := b.main(ctx)
 	if err != nil {
-		return fmt.Errorf("%w; nothing was claimed", err)
+		return nil, fmt.Errorf("%w; nothing was claimed", err)
 	}
 	if state == thisMachine || yes {
-		return nil
+		return latest, nil
 	}
 	b.Report.Warn(fmt.Sprintf("%s's main is %s. Taking over makes it refuse to back up.", b.Installation.Name, describe(latest)))
 	answer, interactive := b.Ask("Make this machine the main instead? (y/n) ")
 	if !interactive {
-		return errors.New("nothing was claimed; --yes takes over without asking")
+		return nil, errors.New("nothing was claimed; --yes takes over without asking")
 	}
 	if answer != "y" && answer != "Y" {
-		return errors.New("nothing was claimed")
+		return nil, errors.New("nothing was claimed")
 	}
-	return nil
+	return latest, nil
 }
 
 func (b *Backups) backup(ctx context.Context, claiming bool) error {
@@ -81,7 +89,7 @@ func (b *Backups) backupHolding(ctx context.Context, lock *heldLock, claiming bo
 			return err
 		}
 	}
-	dir, err := b.dataToBackUp()
+	dir, err := b.dataToBackUp(claiming)
 	if err != nil {
 		return err
 	}
@@ -107,12 +115,18 @@ func (b *Backups) backupHolding(ctx context.Context, lock *heldLock, claiming bo
 	return nil
 }
 
-func (b *Backups) dataToBackUp() (string, error) {
-	held, err := hasAppData(filepath.Join(b.Installation.Data, "volumes"))
+func (b *Backups) dataToBackUp(claiming bool) (string, error) {
+	volumes := filepath.Join(b.Installation.Data, "volumes")
+	held, err := hasAppData(volumes)
 	if err != nil {
 		return "", err
 	}
-	if !held {
+	if claiming {
+		if err := os.MkdirAll(volumes, 0o755); err != nil { //nolint:gosec // the apps' volumes, read by their containers
+			return "", err
+		}
+	}
+	if !held && !claiming {
 		return "", fmt.Errorf("volumes/ in %s holds no app data; nothing was backed up", b.Installation.Data)
 	}
 	return filepath.EvalSymlinks(b.Installation.Data)

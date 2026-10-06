@@ -101,7 +101,7 @@ func discard(i Installation, undos []Undo, err error, shield func() func()) erro
 	case errors.Is(err, configure.ErrAborted) || errors.Is(err, context.Canceled):
 		return fmt.Errorf("stopped before %s was created. %s; %s%s", i.Name, kept, again, reminder)
 	case errors.Is(err, errNameTaken):
-		return fmt.Errorf("%w\n%s. To add this machine to that installation, run make join-installation NAME=%s from a clone of the engine; otherwise choose another name.%s", err, kept, i.Name, reminder)
+		return fmt.Errorf("%w\n%s. To add this machine to that installation, run mse join %s; otherwise choose another name.%s", err, kept, i.Name, reminder)
 	}
 	return fmt.Errorf("%w\n%s; %s%s", err, kept, again, reminder)
 }

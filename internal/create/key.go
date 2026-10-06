@@ -27,7 +27,7 @@ func NewKey() (Key, error) {
 func KeyFile(getenv func(string) string, configBase string) (string, error) {
 	for _, variable := range []string{"SOPS_AGE_KEY", "SOPS_AGE_KEY_CMD"} {
 		if getenv(variable) != "" {
-			return "", fmt.Errorf("mse create adds the new key to a key file, and %s is set: unset SOPS_AGE_KEY and SOPS_AGE_KEY_CMD (SOPS_AGE_KEY_FILE chooses the file)", variable)
+			return "", fmt.Errorf("the key goes into a key file, and %s is set: unset SOPS_AGE_KEY and SOPS_AGE_KEY_CMD (SOPS_AGE_KEY_FILE chooses the file)", variable)
 		}
 	}
 	if path := getenv("SOPS_AGE_KEY_FILE"); path != "" {
@@ -41,16 +41,16 @@ type KeyFileChangedError struct {
 }
 
 func (e *KeyFileChangedError) Error() string {
-	return fmt.Sprintf("the new key stays in %s, which changed while mse create ran; remove its lines (# media server %s) by hand", e.Path, e.Name)
+	return fmt.Sprintf("the new key stays in %s, which changed while mse ran; remove its lines (# media server %s) by hand", e.Path, e.Name)
 }
 
-func AppendKey(path, name string, key Key, today time.Time) (Undo, error) {
+func AppendKey(path, name, verb string, key Key, today time.Time) (Undo, error) {
 	original, err := os.ReadFile(path) //nolint:gosec // the age key file mse create adds to
 	existed := err == nil
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
-	added := fmt.Sprintf("# media server %s, created %s\n# public key: %s\n%s\n", name, today.Format(time.DateOnly), key.Public, key.Secret)
+	added := fmt.Sprintf("# media server %s, %s %s\n# public key: %s\n%s\n", name, verb, today.Format(time.DateOnly), key.Public, key.Secret)
 	if len(original) > 0 && !bytes.HasSuffix(original, []byte("\n")) {
 		added = "\n" + added
 	}

@@ -9,6 +9,14 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
+var ErrNewerSchema = errors.New("the config needs a newer mse")
+
+type newerSchema struct{ message string }
+
+func (e newerSchema) Error() string { return e.message }
+
+func (e newerSchema) Is(target error) bool { return target == ErrNewerSchema }
+
 func (i *Installation) CheckSchema(engineMajor int) error {
 	path := filepath.Join(i.Config, "config.yml")
 	text, err := os.ReadFile(path) //nolint:gosec // reads the installation's own config.yml
@@ -29,7 +37,7 @@ func (i *Installation) CheckSchema(engineMajor int) error {
 	}
 	switch schema := *declared.Config; {
 	case schema > engineMajor:
-		return fmt.Errorf("this config is schema %d and this mse reads %d: update mse", schema, engineMajor)
+		return newerSchema{fmt.Sprintf("this config is schema %d and this mse reads %d: update mse", schema, engineMajor)}
 	case schema < engineMajor:
 		return fmt.Errorf("this config is schema %d and this mse reads %d: migrate the config", schema, engineMajor)
 	}

@@ -137,3 +137,15 @@ func (h Huh) Acknowledge(title, text, word string) error {
 		}),
 	))
 }
+
+func (h Huh) Secret(title, description string, validate func(string) error) (string, error) {
+	var value string
+	err := h.run(huh.NewGroup(huh.NewInput().Title(title).Description(description).EchoMode(huh.EchoModePassword).Value(&value).Validate(validate)))
+	return value, err
+}
+
+func (h Huh) Ask(question string, yes bool) (bool, error) {
+	answer := yes
+	err := h.run(huh.NewGroup(huh.NewConfirm().Title(question).Affirmative("Yes").Negative("No").Value(&answer)))
+	return answer, err
+}

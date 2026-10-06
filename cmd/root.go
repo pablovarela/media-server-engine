@@ -94,6 +94,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 		newConfigureCommand(deps),
 		newCheckMachineCommand(deps),
 		newCreateCommand(deps),
+		newJoinCommand(deps),
 		newApplyCommand(deps),
 		newURLsCommand(deps),
 		newLoginsCommand(deps),

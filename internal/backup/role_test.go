@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -111,4 +112,40 @@ func TestRunsBackupsNeedsTheRepository(t *testing.T) {
 
 	assert.EqualError(t, err, "cannot read the backup repository to tell which machine is gorgon's main (restic snapshots failed (exit 1))")
 	assert.Equal(t, "main", b.Installation.Role())
+}
+
+func TestCurrentMain(t *testing.T) {
+	at := func(s string) time.Time { when, _ := time.Parse("2006-01-02 15:04", s); return when }
+	tests := map[string]struct {
+		snapshots []restic.Snapshot
+		main      *Main
+	}{
+		"another machine": {snapshots: []restic.Snapshot{snapshot("other", "pi2", "2026-10-05 04:30"), snapshot("this", "pi", "2026-10-03 04:30")},
+			main: &Main{Machine: "pi2", Time: at("2026-10-05 04:30")}},
+		"this machine": {snapshots: []restic.Snapshot{snapshot("this", "pi", "2026-10-05 04:30")},
+			main: &Main{Machine: "pi", Time: at("2026-10-05 04:30"), ThisMachine: true}},
+		"no name tag": {snapshots: []restic.Snapshot{{Time: at("2026-10-05 04:30"), Tags: []string{"machine:other"}}},
+			main: &Main{Machine: "machine other", Time: at("2026-10-05 04:30")}},
+		"no backups": {},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			b, m, _, _ := fixture(t)
+			m.repository.EXPECT().Snapshots(context.Background(), "gorgon").Return(tt.snapshots, nil)
+
+			main, err := b.CurrentMain(context.Background())
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.main, main)
+		})
+	}
+}
+
+func TestCurrentMainWhenTheRepositoryCannotBeRead(t *testing.T) {
+	b, m, _, _ := fixture(t)
+	m.repository.EXPECT().Snapshots(context.Background(), "gorgon").Return(nil, errors.New("restic snapshots failed (exit 1)"))
+
+	_, err := b.CurrentMain(context.Background())
+
+	assert.EqualError(t, err, "cannot read the backup repository to tell which machine is gorgon's main (restic snapshots failed (exit 1))")
 }

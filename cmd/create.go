@@ -31,10 +31,6 @@ type configRepositories interface {
 
 const homepagePortKey = "HOMEPAGE_PORT"
 
-var errCreateNeedsTerminal = errors.New("mse create needs a terminal; run it from an interactive shell (over ssh: ssh -t)")
-
-var errCreateTakesTheName = errors.New("mse create takes the installation's name as its argument; it has no --installation")
-
 func newCreateCommand(deps Dependencies) *cobra.Command {
 	var owner, homepagePort string
 	command := &cobra.Command{
@@ -57,20 +53,43 @@ func newCreateCommand(deps Dependencies) *cobra.Command {
 	return command
 }
 
-func (d Dependencies) canCreate(cmd *cobra.Command, name, homepagePort string) error {
+func (d Dependencies) canInstall(cmd *cobra.Command, verb, name string, more ...func() error) error {
 	switch {
 	case !d.Terminal():
-		return errCreateNeedsTerminal
+		return fmt.Errorf("mse %s needs a terminal; run it from an interactive shell (over ssh: ssh -t)", verb)
 	case cmd.Flags().Changed("installation"):
-		return errCreateTakesTheName
+		return fmt.Errorf("mse %s takes the installation's name as its argument; it has no --installation", verb)
 	}
 	if err := create.ValidName(name); err != nil {
 		return err
 	}
-	if err := validHomepagePort(homepagePort); err != nil {
-		return err
+	for _, check := range more {
+		if err := check(); err != nil {
+			return err
+		}
 	}
 	return d.noOtherInstallation(name)
+}
+
+func (d Dependencies) canCreate(cmd *cobra.Command, name, homepagePort string) error {
+	return d.canInstall(cmd, "create", name, func() error { return validHomepagePort(homepagePort) })
+}
+
+func (d Dependencies) machineReadyFor(cmd *cobra.Command, homepagePort, hint string) error {
+	ports, err := d.stackPortsCheck(nil, homepagePort)
+	if err != nil {
+		return err
+	}
+	checked, err := d.checkedMachine(cmd, ports)
+	switch {
+	case err != nil:
+		return err
+	case checked.Ready():
+		return nil
+	case checked.PortsTaken() && hint != "":
+		report.From(cmd.Context()).Say(hint)
+	}
+	return errAlreadyReported
 }
 
 func validHomepagePort(port string) error {
@@ -120,21 +139,12 @@ func (d Dependencies) creation(cmd *cobra.Command, name, owner string) *creation
 	}
 }
 
-func (c *creation) CheckMachine(ctx context.Context) error {
-	ports, err := c.d.stackPortsCheck(nil, c.homepagePort)
-	if err != nil {
-		return err
+func (c *creation) CheckMachine(context.Context) error {
+	hint := ""
+	if c.homepagePort == "" {
+		hint = "If port 80 is in use by something you keep, give the landing page another port: mse create " + c.name + " --homepage-port <port>"
 	}
-	checked, err := c.d.checkedMachine(c.cmd, ports)
-	switch {
-	case err != nil:
-		return err
-	case checked.Ready():
-		return nil
-	case checked.PortsTaken() && c.homepagePort == "":
-		report.From(ctx).Say("If port 80 is in use by something you keep, give the landing page another port: mse create " + c.name + " --homepage-port <port>")
-	}
-	return errAlreadyReported
+	return c.d.machineReadyFor(c.cmd, c.homepagePort, hint)
 }
 
 func (c *creation) CheckName(ctx context.Context) error {
@@ -161,7 +171,7 @@ func (c *creation) CheckName(ctx context.Context) error {
 	}
 	exists, err := c.d.Repositories.RepositoryExists(ctx, c.owner, c.repo)
 	if err == nil && exists {
-		return fmt.Errorf("%s/%s already exists on GitHub; to add this machine to it, run make join-installation NAME=%s from a clone of the engine", c.owner, c.repo, c.name)
+		return fmt.Errorf("%s/%s already exists on GitHub; to add this machine to it, run mse join %s", c.owner, c.repo, c.name)
 	}
 	return err
 }
@@ -175,7 +185,7 @@ func (c *creation) AddKey(ctx context.Context) (create.Undo, error) {
 	if err != nil {
 		return nil, err
 	}
-	undo, err := create.AppendKey(path, c.name, key, c.d.Now())
+	undo, err := create.AppendKey(path, c.name, "created", key, c.d.Now())
 	if err != nil {
 		return nil, err
 	}
@@ -310,11 +320,7 @@ func (c *creation) Summary(context.Context) string {
 	if err != nil {
 		return ready + ". mse urls lists every app."
 	}
-	page := "http://" + host
-	if port := i.HomepagePort(); port != "80" {
-		page += ":" + port
-	}
-	return fmt.Sprintf("%s: its config is in %s (%s), its data in %s and its landing page at %s. mse urls lists every app.", ready, c.config, c.remote, c.data, page)
+	return fmt.Sprintf("%s: its config is in %s (%s), its data in %s and its landing page at %s. mse urls lists every app.", ready, c.config, c.remote, c.data, homepageAddress(i, host))
 }
 
 func (c *creation) ClaimMain(context.Context) error {

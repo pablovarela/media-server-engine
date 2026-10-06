@@ -285,6 +285,72 @@ func (_c *mockPrompter_Acknowledge_Call) RunAndReturn(run func(title string, tex
 	return _c
 }
 
+// Ask provides a mock function for the type mockPrompter
+func (_mock *mockPrompter) Ask(question string, yes bool) (bool, error) {
+	ret := _mock.Called(question, yes)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Ask")
+	}
+
+	var r0 bool
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(string, bool) (bool, error)); ok {
+		return returnFunc(question, yes)
+	}
+	if returnFunc, ok := ret.Get(0).(func(string, bool) bool); ok {
+		r0 = returnFunc(question, yes)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+	if returnFunc, ok := ret.Get(1).(func(string, bool) error); ok {
+		r1 = returnFunc(question, yes)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// mockPrompter_Ask_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Ask'
+type mockPrompter_Ask_Call struct {
+	*mock.Call
+}
+
+// Ask is a helper method to define mock.On call
+//   - question string
+//   - yes bool
+func (_e *mockPrompter_Expecter) Ask(question any, yes any) *mockPrompter_Ask_Call {
+	return &mockPrompter_Ask_Call{Call: _e.mock.On("Ask", question, yes)}
+}
+
+func (_c *mockPrompter_Ask_Call) Run(run func(question string, yes bool)) *mockPrompter_Ask_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		var arg1 bool
+		if args[1] != nil {
+			arg1 = args[1].(bool)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *mockPrompter_Ask_Call) Return(b bool, err error) *mockPrompter_Ask_Call {
+	_c.Call.Return(b, err)
+	return _c
+}
+
+func (_c *mockPrompter_Ask_Call) RunAndReturn(run func(question string, yes bool) (bool, error)) *mockPrompter_Ask_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Confirm provides a mock function for the type mockPrompter
 func (_mock *mockPrompter) Confirm(question string, lines []string) (bool, error) {
 	ret := _mock.Called(question, lines)
@@ -475,6 +541,78 @@ func (_c *mockPrompter_Rotate_Call) Return(apps1 []configure.App, err error) *mo
 }
 
 func (_c *mockPrompter_Rotate_Call) RunAndReturn(run func(apps []configure.App) ([]configure.App, error)) *mockPrompter_Rotate_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Secret provides a mock function for the type mockPrompter
+func (_mock *mockPrompter) Secret(title string, description string, validate func(string) error) (string, error) {
+	ret := _mock.Called(title, description, validate)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Secret")
+	}
+
+	var r0 string
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(string, string, func(string) error) (string, error)); ok {
+		return returnFunc(title, description, validate)
+	}
+	if returnFunc, ok := ret.Get(0).(func(string, string, func(string) error) string); ok {
+		r0 = returnFunc(title, description, validate)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+	if returnFunc, ok := ret.Get(1).(func(string, string, func(string) error) error); ok {
+		r1 = returnFunc(title, description, validate)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// mockPrompter_Secret_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Secret'
+type mockPrompter_Secret_Call struct {
+	*mock.Call
+}
+
+// Secret is a helper method to define mock.On call
+//   - title string
+//   - description string
+//   - validate func(string) error
+func (_e *mockPrompter_Expecter) Secret(title any, description any, validate any) *mockPrompter_Secret_Call {
+	return &mockPrompter_Secret_Call{Call: _e.mock.On("Secret", title, description, validate)}
+}
+
+func (_c *mockPrompter_Secret_Call) Run(run func(title string, description string, validate func(string) error)) *mockPrompter_Secret_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 string
+		if args[0] != nil {
+			arg0 = args[0].(string)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 func(string) error
+		if args[2] != nil {
+			arg2 = args[2].(func(string) error)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *mockPrompter_Secret_Call) Return(s string, err error) *mockPrompter_Secret_Call {
+	_c.Call.Return(s, err)
+	return _c
+}
+
+func (_c *mockPrompter_Secret_Call) RunAndReturn(run func(title string, description string, validate func(string) error) (string, error)) *mockPrompter_Secret_Call {
 	_c.Call.Return(run)
 	return _c
 }

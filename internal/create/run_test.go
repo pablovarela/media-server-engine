@@ -120,7 +120,7 @@ func TestRunPointsATakenNameAtJoin(t *testing.T) {
 	f, err := failingRun(t, stepFailure{at: "publish", err: NameTaken(errors.New("create media-server-config-gorgon: the repository already exists"))})
 
 	assert.EqualError(t, err, "create media-server-config-gorgon: the repository already exists\n"+
-		"Nothing was kept apart from this run's log in /s/gorgon/logs. To add this machine to that installation, run make join-installation NAME=gorgon from a clone of the engine; otherwise choose another name.\n"+
+		"Nothing was kept apart from this run's log in /s/gorgon/logs. To add this machine to that installation, run mse join gorgon; otherwise choose another name.\n"+
 		"The secrets key shown for gorgon was removed; if you saved it, delete it from your password manager.")
 	assert.Equal(t, []string{"config", "key"}, f.undone)
 }
@@ -164,7 +164,7 @@ func TestRunNamesAKeyItCouldNotRemove(t *testing.T) {
 
 	err := Run(context.Background(), gorgon, steps, report.New(&out, &out, nil), func() func() { return func() {} })
 
-	assert.EqualError(t, err, "broken\nThe rest was removed, but the new key stays in /k/keys.txt, which changed while mse create ran; remove its lines (# media server gorgon) by hand. Then run mse create gorgon again.")
+	assert.EqualError(t, err, "broken\nThe rest was removed, but the new key stays in /k/keys.txt, which changed while mse ran; remove its lines (# media server gorgon) by hand. Then run mse create gorgon again.")
 }
 
 func TestRunUndoesWithACancelledContext(t *testing.T) {
