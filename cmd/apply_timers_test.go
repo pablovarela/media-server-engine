@@ -223,7 +223,7 @@ func TestWithoutAnUnattendedTokenTheTimersAreStillSetUpWithAWarning(t *testing.T
 	code, stdout, stderr := tf.apply(t)
 
 	require.Equal(t, 0, code, stderr)
-	assert.Contains(t, stderr, "the nightly update can't get a GitHub token without a login: run gh auth login (gh keeps the token in ~/.config/gh/hosts.yml when there is no keyring); a GITHUB_TOKEN in the shell doesn't reach the timers")
+	assert.Contains(t, stderr, "the nightly update can't fetch the config from GitHub without a login: run gh auth login (gh keeps the token in ~/.config/gh/hosts.yml when there is no keyring); a GITHUB_TOKEN in the shell doesn't reach the timers")
 	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update")
 	assert.FileExists(t, filepath.Join(tf.units, "mse-gorgon-update.timer"))
 }

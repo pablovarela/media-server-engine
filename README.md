@@ -32,8 +32,7 @@ The apps are wired to each other automatically: API keys, indexers, the download
 ## Getting started
 
 ```
-curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
-  https://raw.githubusercontent.com/pablovarela/media-server-engine/main/install.sh | sh
+curl -fsSL https://github.com/pablovarela/media-server-engine/releases/latest/download/install.sh | sh
 mse check-machine
 ```
 

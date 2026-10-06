@@ -17,10 +17,7 @@ const (
 	repository = owner + "/" + name
 )
 
-const (
-	EngineRepository = repository
-	canRead          = "can read " + repository
-)
+const EngineRepository = repository
 
 type Asset struct {
 	ID   int64
@@ -38,6 +35,7 @@ type Client struct {
 	tokenSource string
 	http        *http.Client
 	api         *gh.Client
+	public      *gh.Client
 }
 
 func NewClient(tokens TokenSource, httpClient *http.Client) *Client {
@@ -45,13 +43,13 @@ func NewClient(tokens TokenSource, httpClient *http.Client) *Client {
 }
 
 func (c *Client) Releases(ctx context.Context) ([]Release, error) {
-	api, err := c.authenticated(ctx)
+	api, err := c.anonymous()
 	if err != nil {
 		return nil, err
 	}
 	all, _, err := api.Repositories.ListReleases(ctx, owner, name, &gh.ListOptions{PerPage: 100})
 	if err != nil {
-		return nil, fmt.Errorf("list the releases of %s: %w", repository, c.explain(err, canRead))
+		return nil, fmt.Errorf("list the releases of %s: %w", repository, answered(err))
 	}
 	var published []Release
 	for _, release := range all {
@@ -63,19 +61,31 @@ func (c *Client) Releases(ctx context.Context) ([]Release, error) {
 }
 
 func (c *Client) Download(ctx context.Context, assetID int64, w io.Writer) error {
-	api, err := c.authenticated(ctx)
+	api, err := c.anonymous()
 	if err != nil {
 		return err
 	}
 	body, _, err := api.Repositories.DownloadReleaseAsset(ctx, owner, name, assetID, c.http)
 	if err != nil {
-		return fmt.Errorf("download asset %d: %w", assetID, c.explain(err, canRead))
+		return fmt.Errorf("download asset %d: %w", assetID, answered(err))
 	}
 	defer func() { _ = body.Close() }()
 	if _, err := io.Copy(w, body); err != nil {
 		return fmt.Errorf("download asset %d: %w", assetID, err)
 	}
 	return nil
+}
+
+func (c *Client) anonymous() (*gh.Client, error) {
+	if c.public != nil {
+		return c.public, nil
+	}
+	api, err := gh.NewClient(gh.WithHTTPClient(c.http))
+	if err != nil {
+		return nil, err
+	}
+	c.public = api
+	return api, nil
 }
 
 func (c *Client) authenticated(ctx context.Context) (*gh.Client, error) {
@@ -94,18 +104,33 @@ func (c *Client) authenticated(ctx context.Context) (*gh.Client, error) {
 	return api, nil
 }
 
-func (c *Client) explain(err error, can string) error {
-	var answer *gh.ErrorResponse
-	if !errors.As(err, &answer) || answer.Response == nil {
+func answered(err error) error {
+	answer, said, _ := saidBy(err)
+	if answer == nil {
 		return err
 	}
-	said := "GitHub answered " + answer.Response.Status
-	reason := reasonOf(answer)
+	return errors.New(said)
+}
+
+func saidBy(err error) (answer *gh.ErrorResponse, said, reason string) {
+	if !errors.As(err, &answer) || answer.Response == nil {
+		return nil, "", ""
+	}
+	said = "GitHub answered " + answer.Response.Status
+	reason = reasonOf(answer)
 	if strings.Contains(answer.Response.Status, reason) {
 		reason = ""
 	}
 	if reason != "" {
 		said += ": " + reason
+	}
+	return answer, said, reason
+}
+
+func (c *Client) explain(err error, can string) error {
+	answer, said, reason := saidBy(err)
+	if answer == nil {
+		return err
 	}
 	switch answer.Response.StatusCode {
 	case http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound:

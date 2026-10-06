@@ -3,6 +3,7 @@ package github
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -29,6 +30,24 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 func clientAnswering(t *testing.T, exchanges ...exchange) *Client {
+	t.Helper()
+	tokens := TokenSource{
+		Getenv:  func(string) string { return "test-token" },
+		GHToken: func(context.Context) ([]byte, error) { return nil, nil },
+	}
+	return clientWith(t, tokens, exchanges...)
+}
+
+func clientWithoutToken(t *testing.T, exchanges ...exchange) *Client {
+	t.Helper()
+	tokens := TokenSource{
+		Getenv:  func(string) string { return "" },
+		GHToken: func(context.Context) ([]byte, error) { return nil, errors.New("not logged in") },
+	}
+	return clientWith(t, tokens, exchanges...)
+}
+
+func clientWith(t *testing.T, tokens TokenSource, exchanges ...exchange) *Client {
 	t.Helper()
 	next := 0
 	t.Cleanup(func() { assert.Equal(t, len(exchanges), next, "requests made") })
@@ -63,18 +82,15 @@ func clientAnswering(t *testing.T, exchanges ...exchange) *Client {
 			Request:    r,
 		}, nil
 	})
-	tokens := TokenSource{
-		Getenv:  func(string) string { return "test-token" },
-		GHToken: func(context.Context) ([]byte, error) { return nil, nil },
-	}
 	return NewClient(tokens, &http.Client{Transport: transport})
 }
 
 func TestReleases(t *testing.T) {
 	releasesURL := "https://api.github.com/repos/pablovarela/media-server-engine/releases?per_page=100"
 	type Given struct {
-		status int
-		body   string
+		withoutToken bool
+		status       int
+		body         string
 	}
 	type Then struct {
 		tags []string
@@ -92,25 +108,33 @@ func TestReleases(t *testing.T) {
 			]`},
 			Then: Then{tags: []string{"v0.8.1"}},
 		},
-		"token without access": {
+		"without a token": {
+			Given: Given{withoutToken: true, status: http.StatusOK, body: `[
+				{"tag_name": "v0.8.1", "html_url": "https://github.com/pablovarela/media-server-engine/releases/tag/v0.8.1", "assets": [{"id": 101, "name": "mse_linux_arm64.tar.gz"}]}
+			]`},
+			Then: Then{tags: []string{"v0.8.1"}},
+		},
+		"repository not found": {
 			Given: Given{status: http.StatusNotFound, body: `{"message": "Not Found"}`},
-			Then:  Then{err: "list the releases of pablovarela/media-server-engine: GitHub answered 404 Not Found: check the token from GITHUB_TOKEN can read pablovarela/media-server-engine"},
+			Then:  Then{err: "list the releases of pablovarela/media-server-engine: GitHub answered 404 Not Found"},
 		},
 		"GitHub failing": {
 			Given: Given{status: http.StatusInternalServerError, body: `{"message": "Server Error"}`},
 			Then:  Then{err: "list the releases of pablovarela/media-server-engine: GitHub answered 500 Internal Server Error"},
 		},
-		"expired token": {
-			Given: Given{status: http.StatusUnauthorized, body: `{"message": "Bad credentials"}`},
-			Then:  Then{err: "list the releases of pablovarela/media-server-engine: GitHub answered 401 Unauthorized: Bad credentials; check the token from GITHUB_TOKEN can read pablovarela/media-server-engine"},
+		"rate limited": {
+			Given: Given{status: http.StatusForbidden, body: `{"message": "API rate limit exceeded for 192.0.2.1."}`},
+			Then:  Then{err: "list the releases of pablovarela/media-server-engine: GitHub answered 403 Forbidden: API rate limit exceeded for 192.0.2.1."},
 		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			client := clientAnswering(t, exchange{
-				url: releasesURL, authorization: "Bearer test-token", accept: "application/vnd.github.v3+json",
-				status: tt.Given.status, body: tt.Given.body,
-			})
+			answer := exchange{url: releasesURL, accept: "application/vnd.github.v3+json", status: tt.Given.status, body: tt.Given.body}
+			answering := clientAnswering
+			if tt.Given.withoutToken {
+				answering = clientWithoutToken
+			}
+			client := answering(t, answer)
 
 			releases, err := client.Releases(context.Background())
 
@@ -143,18 +167,18 @@ func TestDownload(t *testing.T) {
 		Given Given
 		Then  Then
 	}{
-		"drops the token on the redirect to storage": {
+		"follows the redirect to storage, with no token": {
 			Given: Given{exchanges: []exchange{
-				{url: assetURL, authorization: "Bearer test-token", accept: "application/octet-stream", status: http.StatusFound, location: storageURL},
+				{url: assetURL, accept: "application/octet-stream", status: http.StatusFound, location: storageURL},
 				{url: storageURL, authorization: "", accept: "application/octet-stream", status: http.StatusOK, body: "archive bytes"},
 			}},
 			Then: Then{body: "archive bytes"},
 		},
 		"asset that is gone": {
 			Given: Given{exchanges: []exchange{
-				{url: assetURL, authorization: "Bearer test-token", accept: "application/octet-stream", status: http.StatusNotFound},
+				{url: assetURL, accept: "application/octet-stream", status: http.StatusNotFound},
 			}},
-			Then: Then{err: "download asset 101: GitHub answered 404 Not Found: check the token from GITHUB_TOKEN can read pablovarela/media-server-engine"},
+			Then: Then{err: "download asset 101: GitHub answered 404 Not Found"},
 		},
 	}
 	for name, tt := range tests {
