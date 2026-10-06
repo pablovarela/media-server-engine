@@ -70,8 +70,6 @@ type Dependencies struct {
 	PortFree      func(machine.Port) bool
 	Published     func(ctx context.Context) ([]machine.Published, error)
 	Repositories  configRepositories
-	ClaimMain     func(cmd *cobra.Command) error
-	ApplyNew      func(cmd *cobra.Command) error
 }
 
 func NewRootCommand(deps Dependencies) *cobra.Command {

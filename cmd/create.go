@@ -15,6 +15,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/configure"
 	"github.com/pablovarela/media-server-engine/internal/create"
 	"github.com/pablovarela/media-server-engine/internal/gitconfig"
+	"github.com/pablovarela/media-server-engine/internal/github"
 	"github.com/pablovarela/media-server-engine/internal/installation"
 	"github.com/pablovarela/media-server-engine/internal/report"
 )
@@ -45,7 +46,7 @@ func newCreateCommand(deps Dependencies) *cobra.Command {
 			}
 			c := deps.creation(cmd, args[0], owner)
 			c.homepagePort = homepagePort
-			return create.Run(cmd.Context(), create.Installation{Name: c.name, Config: c.config, Data: c.data}, c, report.From(cmd.Context()), shieldSignals)
+			return create.Run(cmd.Context(), create.Installation{Name: c.name, Config: c.config}, c, report.From(cmd.Context()), shieldSignals)
 		},
 	}
 	command.Flags().StringVar(&owner, "owner", "", "the GitHub organisation that owns the config repository (default: the user gh is logged in as)")
@@ -101,6 +102,7 @@ type creation struct {
 	name, owner, org, repo  string
 	config, data, state     string
 	recipient, homepagePort string
+	remote                  string
 	repository              gitconfig.Repository
 }
 
@@ -151,7 +153,7 @@ func (c *creation) CheckName(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if c.owner == "" || c.owner == login {
+	if c.owner == "" || strings.EqualFold(c.owner, login) {
 		c.owner, c.org = login, ""
 	}
 	exists, err := c.d.Repositories.RepositoryExists(ctx, c.owner, c.repo)
@@ -175,9 +177,9 @@ func (c *creation) AddKey(ctx context.Context) (create.Undo, error) {
 		return nil, err
 	}
 	c.recipient = key.Public
-	text := "This is " + c.name + "'s secrets key. Save it in your password manager now: with the name " + c.name +
-		" it rebuilds the installation on any machine, and without it nobody can read the config's secrets.\n\n" + key.Secret + "\n\nIt is also in " + path + "."
-	return undo, c.d.Prompter(ctx).Acknowledge("Secrets key for "+c.name, text, "saved")
+	_, _ = fmt.Fprintf(report.From(ctx).Data(), "\nThis is %s's secrets key. Save it in your password manager now: with the name %s it rebuilds the installation on any machine,\n"+
+		"and without it nobody can read the config's secrets. It is also in %s.\n\n    %s\n\n", c.name, c.name, path, key.Secret)
+	return undo, c.d.Prompter(ctx).Acknowledge("Saved "+c.name+"'s secrets key?", "It is printed above. Once it is in your password manager, type saved.", "saved")
 }
 
 func (c *creation) WriteConfig(ctx context.Context) (create.Undo, error) {
@@ -233,12 +235,14 @@ func (c *creation) Publish(ctx context.Context) (bool, error) {
 	step := report.From(ctx).Step("Creating github.com/" + c.owner + "/" + c.repo + " (private)")
 	url, err := c.d.Repositories.CreatePrivateRepository(ctx, c.org, c.repo)
 	if err != nil {
-		return false, step.FailWithoutTail(err)
+		_ = step.FailWithoutTail(err)
+		return c.afterFailedCreate(ctx, err)
 	}
 	step.Done("done")
+	c.remote = gitconfig.DisplayRemote(url)
 	step = report.From(ctx).Step("Pushing the config")
 	if err := c.repository.AddRemote(ctx, url); err != nil {
-		return true, step.FailWithoutTail(err)
+		return true, step.FailWithoutTail(c.addRemoteBy(err, url))
 	}
 	if err := c.repository.PushNew(ctx); err != nil {
 		return true, step.FailWithoutTail(err)
@@ -247,12 +251,41 @@ func (c *creation) Publish(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
+func (c *creation) afterFailedCreate(ctx context.Context, err error) (bool, error) {
+	if errors.Is(err, github.ErrRepositoryTaken) {
+		return false, create.NameTaken(err)
+	}
+	exists, lookup := c.d.Repositories.RepositoryExists(context.WithoutCancel(ctx), c.owner, c.repo)
+	if lookup != nil || !exists {
+		return false, err
+	}
+	return true, c.addRemoteBy(err, "https://github.com/"+c.owner+"/"+c.repo+".git")
+}
+
+func (c *creation) addRemoteBy(err error, url string) error {
+	return fmt.Errorf("%w\nAdd its remote: git -C %s remote add origin %s", err, c.config, url)
+}
+
+func (c *creation) Summary(context.Context) string {
+	ready := c.name + " is ready"
+	i, err := c.d.installation(c.cmd)
+	if err != nil {
+		return ready + ". mse urls lists every app."
+	}
+	host, err := i.NetworkName(c.d.Host)
+	if err != nil {
+		return ready + ". mse urls lists every app."
+	}
+	page := "http://" + host
+	if port := i.HomepagePort(); port != "80" {
+		page += ":" + port
+	}
+	return fmt.Sprintf("%s: its config is in %s (%s), its data in %s and its landing page at %s. mse urls lists every app.", ready, c.config, c.remote, c.data, page)
+}
+
 func (c *creation) ClaimMain(context.Context) error {
 	if err := c.cmd.Flags().Set("installation", c.name); err != nil {
 		return err
-	}
-	if c.d.ClaimMain != nil {
-		return c.d.ClaimMain(c.cmd)
 	}
 	b, err := c.d.backups(c.cmd, backingUp)
 	if err != nil {
@@ -262,8 +295,5 @@ func (c *creation) ClaimMain(context.Context) error {
 }
 
 func (c *creation) Apply(context.Context) error {
-	if c.d.ApplyNew != nil {
-		return c.d.ApplyNew(c.cmd)
-	}
 	return c.d.apply(c.cmd)
 }

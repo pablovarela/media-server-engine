@@ -474,6 +474,57 @@ func (_c *mockSteps_Publish_Call) RunAndReturn(run func(ctx context.Context) (bo
 	return _c
 }
 
+// Summary provides a mock function for the type mockSteps
+func (_mock *mockSteps) Summary(ctx context.Context) string {
+	ret := _mock.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Summary")
+	}
+
+	var r0 string
+	if returnFunc, ok := ret.Get(0).(func(context.Context) string); ok {
+		r0 = returnFunc(ctx)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+	return r0
+}
+
+// mockSteps_Summary_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Summary'
+type mockSteps_Summary_Call struct {
+	*mock.Call
+}
+
+// Summary is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *mockSteps_Expecter) Summary(ctx any) *mockSteps_Summary_Call {
+	return &mockSteps_Summary_Call{Call: _e.mock.On("Summary", ctx)}
+}
+
+func (_c *mockSteps_Summary_Call) Run(run func(ctx context.Context)) *mockSteps_Summary_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *mockSteps_Summary_Call) Return(s string) *mockSteps_Summary_Call {
+	_c.Call.Return(s)
+	return _c
+}
+
+func (_c *mockSteps_Summary_Call) RunAndReturn(run func(ctx context.Context) string) *mockSteps_Summary_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // WriteConfig provides a mock function for the type mockSteps
 func (_mock *mockSteps) WriteConfig(ctx context.Context) (Undo, error) {
 	ret := _mock.Called(ctx)

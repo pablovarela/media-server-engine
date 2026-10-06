@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,12 +13,14 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/pablovarela/media-server-engine/internal/compose"
 	"github.com/pablovarela/media-server-engine/internal/configure"
+	"github.com/pablovarela/media-server-engine/internal/github"
+	"github.com/pablovarela/media-server-engine/internal/installation"
 	"github.com/pablovarela/media-server-engine/internal/machine"
 	"github.com/pablovarela/media-server-engine/internal/process"
 	"github.com/pablovarela/media-server-engine/internal/secrets"
@@ -53,6 +57,10 @@ func newCreateFixture(t *testing.T) *createFixture {
 	engine := m.deps.Engine.(fstest.MapFS)
 	engine["config-template/.gitignore"] = &fstest.MapFile{Data: []byte("secrets/*\n!secrets/*.sops.env\n")}
 	engine["config-template/config.yml"] = &fstest.MapFile{Data: []byte("config: 0\n")}
+	engine["config-template/images.yml"] = &fstest.MapFile{Data: []byte("services:\n  jellyfin:\n    image: j@sha256:x\n")}
+	engine["docker-compose.monitoring.yml"] = &fstest.MapFile{Data: []byte("services: {}\n")}
+	engine["grafana/grafana.ini"] = &fstest.MapFile{Data: []byte("\n")}
+	engine["prometheus/prometheus.yml"] = &fstest.MapFile{Data: []byte("\n")}
 	m.deps.Repositories = f.repositories
 	m.deps.Prompter = func(context.Context) prompter { return f.prompter }
 	m.deps.Decrypt = secrets.Sops(filepath.Join(m.deps.Home, ".config"))
@@ -62,6 +70,7 @@ func newCreateFixture(t *testing.T) *createFixture {
 	m.deps.RandomKey = func() (string, error) { return "0123456789abcdef0123456789abcdef", nil }
 	m.deps.Terminal = func() bool { return true }
 	m.deps.Now = func() time.Time { return time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC) }
+	m.deps.Host = installation.Host{GOOS: "linux", Hostname: func() (string, error) { return "pi.local", nil }}
 	return f
 }
 
@@ -81,7 +90,12 @@ func (f *createFixture) nameIsFree() {
 }
 
 func (f *createFixture) savesTheKey() {
-	f.prompter.EXPECT().Acknowledge("Secrets key for gorgon", mock.Anything, "saved").Return(nil).Once()
+	f.prompter.EXPECT().Acknowledge("Saved gorgon's secrets key?", mock.Anything, "saved").RunAndReturn(func(_, text, _ string) error {
+		if strings.Contains(text, "AGE-SECRET-KEY-") {
+			return errors.New("the key must not be inside the form")
+		}
+		return nil
+	}).Once()
 }
 
 func (f *createFixture) answersEverySection() {
@@ -220,13 +234,14 @@ func TestCreateWritesCommitsAndPublishes(t *testing.T) {
 	f.prompter.EXPECT().Confirm("Save these, commit and push them to a new repository?", mock.Anything).Return(true, nil).Once()
 	f.repositories.EXPECT().CreatePrivateRepository(mock.Anything, "", "media-server-config-gorgon").
 		Return("https://github.com/pablovarela/media-server-config-gorgon.git", nil).Once()
-	f.deps.ClaimMain = func(*cobra.Command) error { return errors.New("restic says no") }
+	f.deps.Compose = func(io.Writer, *compose.Outcomes) (composeRunner, error) { return nil, errors.New("no Docker here") }
 
 	code, stdout, stderr := f.create(t, "gorgon")
 
 	assert.Equal(t, 1, code)
 	assert.Contains(t, stdout, "Creating github.com/pablovarela/media-server-config-gorgon (private)... done")
-	assert.Contains(t, stderr, "restic says no\ngorgon is created and its config pushed. Finish with:\n  mse claim-backup-main\n  mse apply")
+	assert.Contains(t, stderr, "no Docker here\ngorgon is created and its config pushed. Finish with:\n  mse claim-backup-main --installation gorgon\n  mse apply --installation gorgon")
+	assert.FileExists(t, filepath.Join(f.deps.Home, ".local", "state", "mse", "gorgon", ".secrets", "apps.env"))
 	env, err := os.ReadFile(filepath.Join(f.config, "installation.env"))
 	require.NoError(t, err)
 	assert.Contains(t, string(env), "INSTALLATION_NAME=gorgon\n")
@@ -237,6 +252,11 @@ func TestCreateWritesCommitsAndPublishes(t *testing.T) {
 	keys, err := os.ReadFile(f.keys)
 	require.NoError(t, err)
 	assert.True(t, strings.HasPrefix(string(keys), "# media server gorgon, created 2026-10-06\n"))
+	secret := strings.Split(string(keys), "\n")[2]
+	assert.Contains(t, stdout, "\n    "+secret+"\n")
+	log, err := os.ReadFile(filepath.Join(f.deps.Home, ".local", "state", "mse", "gorgon", "logs", "mse.log"))
+	require.NoError(t, err)
+	assert.NotContains(t, string(log), "AGE-SECRET-KEY-")
 }
 
 func TestCreateRefusesTheInstallationFlag(t *testing.T) {
@@ -313,4 +333,80 @@ func TestCreateSuggestsAnotherHomepagePortWhenThePortsAreTaken(t *testing.T) {
 
 	assert.Equal(t, 1, code)
 	assert.Contains(t, stdout, "If port 80 is in use by something you keep, give the landing page another port: mse create gorgon --homepage-port <port>\n")
+}
+
+func (f *createFixture) reachesPublishing() {
+	f.nameIsFree()
+	f.savesTheKey()
+	f.answersEverySection()
+	f.prompter.EXPECT().Confirm(mock.Anything, mock.Anything).Return(true, nil).Once()
+}
+
+func TestCreateFindsTheRepositoryAfterALostAnswer(t *testing.T) {
+	f := newCreateFixture(t)
+	f.reachesPublishing()
+	f.repositories.EXPECT().CreatePrivateRepository(mock.Anything, "", "media-server-config-gorgon").Return("", errors.New("timeout")).Once()
+	f.repositories.EXPECT().RepositoryExists(mock.Anything, "pablovarela", "media-server-config-gorgon").Return(true, nil).Once()
+
+	code, _, stderr := f.create(t, "gorgon")
+
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stderr, "mse: timeout\nAdd its remote: git -C "+f.config+" remote add origin https://github.com/pablovarela/media-server-config-gorgon.git\n"+
+		"gorgon's repository exists and its config is committed in "+f.config+", but not pushed.")
+	assert.DirExists(t, f.config)
+	assert.FileExists(t, f.keys)
+}
+
+func TestCreateDiscardsWhenTheRepositoryWasNotCreated(t *testing.T) {
+	f := newCreateFixture(t)
+	f.reachesPublishing()
+	f.repositories.EXPECT().CreatePrivateRepository(mock.Anything, "", "media-server-config-gorgon").Return("", errors.New("timeout")).Once()
+	f.repositories.EXPECT().RepositoryExists(mock.Anything, "pablovarela", "media-server-config-gorgon").Return(false, nil).Once()
+
+	code, _, stderr := f.create(t, "gorgon")
+
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stderr, "Nothing was kept; run mse create gorgon again.")
+	f.nothingKept(t)
+}
+
+func TestCreatePointsATakenRepositoryAtJoin(t *testing.T) {
+	f := newCreateFixture(t)
+	f.reachesPublishing()
+	f.repositories.EXPECT().CreatePrivateRepository(mock.Anything, "", "media-server-config-gorgon").
+		Return("", fmt.Errorf("create media-server-config-gorgon: %w", github.ErrRepositoryTaken)).Once()
+
+	code, _, stderr := f.create(t, "gorgon")
+
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stderr, "To add this machine to that installation, run mse join gorgon; otherwise choose another name")
+	f.nothingKept(t)
+}
+
+func TestCreateTakesTheOwnerInAnyCase(t *testing.T) {
+	f := newCreateFixture(t)
+	f.nameIsFree()
+	f.prompter.EXPECT().Acknowledge(mock.Anything, mock.Anything, "saved").Return(configure.ErrAborted).Once()
+
+	code, _, _ := f.create(t, "gorgon", "--owner", "PabloVarela")
+
+	assert.Equal(t, 1, code)
+}
+
+func TestCreateSummary(t *testing.T) {
+	f := newCreateFixture(t)
+	_, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\nHOMEPAGE_PORT=8080\n"})
+	f.deps.Home = home
+	root := NewRootCommand(f.deps)
+	cmd, _, err := root.Find([]string{"create"})
+	require.NoError(t, err)
+	cmd.SetContext(context.Background())
+	require.NoError(t, cmd.ParseFlags([]string{"--installation", "gorgon"}))
+	c := f.deps.creation(cmd, "gorgon", "")
+	c.remote = "github.com/pablovarela/media-server-config-gorgon"
+
+	summary := c.Summary(context.Background())
+
+	assert.Equal(t, "gorgon is ready: its config is in "+filepath.Join(home, ".config", "mse", "gorgon")+" (github.com/pablovarela/media-server-config-gorgon), "+
+		"its data in "+filepath.Join(home, ".local", "share", "mse", "gorgon")+" and its landing page at http://pi.local:8080. mse urls lists every app.", summary)
 }

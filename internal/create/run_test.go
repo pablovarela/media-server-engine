@@ -13,7 +13,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/report"
 )
 
-var gorgon = Installation{Name: "gorgon", Config: "/c/gorgon", Data: "/d/gorgon"}
+var gorgon = Installation{Name: "gorgon", Config: "/c/gorgon"}
 
 type stepFailure struct {
 	at      string
@@ -49,6 +49,7 @@ func failingRun(t *testing.T, failure stepFailure) (*runFixture, error) {
 	}).Maybe()
 	f.steps.EXPECT().ClaimMain(mock.Anything).RunAndReturn(func(context.Context) error { return fails("main") }).Maybe()
 	f.steps.EXPECT().Apply(mock.Anything).RunAndReturn(func(context.Context) error { return fails("apply") }).Maybe()
+	f.steps.EXPECT().Summary(mock.Anything).Return("gorgon is ready.").Maybe()
 	err := Run(context.Background(), gorgon, f.steps, report.New(&f.out, &f.out, nil), func() func() { return func() {} })
 	return f, err
 }
@@ -59,7 +60,7 @@ func TestRunGoesThroughEveryStep(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"machine", "name", "key", "config", "settings", "commit", "publish", "main", "apply"}, f.order)
 	assert.Empty(t, f.undone)
-	assert.Contains(t, f.out.String(), "gorgon is ready. Its config is in /c/gorgon and its data in /d/gorgon; mse urls lists the apps' addresses.")
+	assert.Contains(t, f.out.String(), "gorgon is ready.\n")
 }
 
 var errBroken = errors.New("broken")
@@ -101,6 +102,21 @@ func TestRunSaysQuittingKeptNothing(t *testing.T) {
 	assert.Equal(t, []string{"config", "key"}, f.undone)
 }
 
+func TestRunSaysAnInterruptionKeptNothing(t *testing.T) {
+	f, err := failingRun(t, stepFailure{at: "commit", err: context.Canceled})
+
+	assert.EqualError(t, err, "stopped before gorgon was created. Nothing was kept; run mse create gorgon again.")
+	assert.Equal(t, []string{"config", "key"}, f.undone)
+}
+
+func TestRunPointsATakenNameAtJoin(t *testing.T) {
+	f, err := failingRun(t, stepFailure{at: "publish", err: NameTaken(errors.New("create media-server-config-gorgon: the repository already exists"))})
+
+	assert.EqualError(t, err, "create media-server-config-gorgon: the repository already exists\n"+
+		"Nothing was kept. To add this machine to that installation, run mse join gorgon; otherwise choose another name")
+	assert.Equal(t, []string{"config", "key"}, f.undone)
+}
+
 func TestRunDiscardsWhenPublishFailsBeforeCreating(t *testing.T) {
 	f, err := failingRun(t, stepFailure{at: "publish", err: errBroken})
 
@@ -114,11 +130,11 @@ func TestRunKeepsEverythingOnceTheRepositoryExists(t *testing.T) {
 		message string
 	}{
 		"push failed": {stepFailure{at: "publish", err: errBroken, created: true},
-			"broken\ngorgon's repository exists and its config is committed in /c/gorgon, but not pushed. Finish with:\n  git -C /c/gorgon push --set-upstream origin main\n  mse claim-backup-main\n  mse apply"},
+			"broken\ngorgon's repository exists and its config is committed in /c/gorgon, but not pushed. Finish with:\n  git -C /c/gorgon push --set-upstream origin main\n  mse claim-backup-main --installation gorgon\n  mse apply --installation gorgon"},
 		"main failed": {stepFailure{at: "main", err: errBroken},
-			"broken\ngorgon is created and its config pushed. Finish with:\n  mse claim-backup-main\n  mse apply"},
+			"broken\ngorgon is created and its config pushed. Finish with:\n  mse claim-backup-main --installation gorgon\n  mse apply --installation gorgon"},
 		"apply failed": {stepFailure{at: "apply", err: errBroken},
-			"broken\ngorgon is created, its config pushed and this machine is its main. Finish with:\n  mse apply"},
+			"broken\ngorgon is created, its config pushed and this machine is its main. Finish with:\n  mse apply --installation gorgon"},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -158,6 +174,6 @@ func TestRunUndoesWithACancelledContext(t *testing.T) {
 
 	err := Run(ctx, gorgon, steps, report.New(&out, &out, nil), func() func() { shielded = true; return func() { shielded = false } })
 
-	assert.ErrorIs(t, err, context.Canceled)
+	assert.EqualError(t, err, "stopped before gorgon was created. Nothing was kept; run mse create gorgon again.")
 	assert.True(t, removed, "the key was removed while signals were shielded")
 }
