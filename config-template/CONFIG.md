@@ -5,7 +5,7 @@ There are two ways to change the config, and they can be mixed:
 - `mse configure`, from a terminal on any machine of the installation. Its menu covers the settings and secrets below (General, Backups, VPN, Healthchecks, App logins, and rotating the internal API keys) and checks them: the time zone must exist, the port must be a port, the Portainer password must have 12 characters, and a `b2:` repository needs its B2 keys. It updates the config first, then commits and pushes what it changed.
 - Editing the files in this repository by hand. Every setting is a file here, so nothing needs the configuration tool.
 
-Either way, a change reaches the apps at the next `make update`, or `mse apply`.
+Either way, a change reaches the apps at the next `mse apply`, or at each machine's nightly update.
 
 ## Plain files
 
@@ -36,7 +36,7 @@ The page at `http://<machine>` comes from the files in `homepage/`, in Homepage'
 
 A file that is missing comes from the engine's default page. `@INSTALLATION_NAME@`, `@HOST@` (this machine's address), `@ENGINE_VERSION@` and `@ENGINE_URL@` (the engine version's page on GitHub) are filled in. Anything named `Healthchecks`, a tile or a group, is left out while no read-only healthchecks.io API key is set. With the key, `@HEALTHCHECK_BACKUP@`, `@HEALTHCHECK_UPDATE@` and `@HEALTHCHECK_VERIFY@` become the name of that check, the one this machine pings (on a machine that is not the main, its own update check), as in the default page's `https://healthchecks.io/api/v3/checks/?slug=@HEALTHCHECK_BACKUP@`; a tile naming a check healthchecks does not have yet is left out (in a tile with several widgets, only that check's widget, and the tile once none is left), and so is a group left with no tiles. The default page shows the checks as one `Healthchecks` tile at the top of its `Status` group, one row per check, with the tile's title linking to healthchecks.io.
 
-While changing these files, `make homepage` redraws the page in a second and an open page reloads itself; it restarts Homepage only when the images change, since Homepage serves only the images it found when it started. Commit the files once the page looks right. The page's port is `HOMEPAGE_PORT` in `installation.env`, under General in `mse configure`.
+While changing these files, `mse homepage` redraws the page in a second and an open page reloads itself; it restarts Homepage only when the images change, since Homepage serves only the images it found when it started. Commit the files once the page looks right. The page's port is `HOMEPAGE_PORT` in `installation.env`, under General in `mse configure`.
 
 ## Secrets
 
@@ -52,7 +52,7 @@ SOPS decrypts it into your editor and encrypts it again when you save. It needs 
 |---|---|
 | `secrets/vpn.sops.env` | `VPN_SERVICE_PROVIDER`, `OPENVPN_USER`, `OPENVPN_PASSWORD`, `SERVER_COUNTRIES`. Any other gluetun setting can be added here too; `mse configure` keeps keys it does not manage. |
 | `secrets/backup.sops.env` | `RESTIC_PASSWORD`, and for B2 `B2_ACCOUNT_ID` and `B2_ACCOUNT_KEY`. |
-| `secrets/healthchecks.sops.env` | `HEALTHCHECKS_PING_KEY`, empty to turn the pings off. `HEALTHCHECKS_API_KEY` (optional): a read-only API key of the same healthchecks.io project, to show the checks' status on the landing page. `HEALTHCHECKS_MANAGE_KEY` (optional): a read-write API key of the same project; with it, `make update` and `mse apply` set up the checks' schedules and descriptions (see the engine's docs/BACKUP.md). |
+| `secrets/healthchecks.sops.env` | `HEALTHCHECKS_PING_KEY`, empty to turn the pings off. `HEALTHCHECKS_API_KEY` (optional): a read-only API key of the same healthchecks.io project, to show the checks' status on the landing page. `HEALTHCHECKS_MANAGE_KEY` (optional): a read-write API key of the same project; with it, `mse apply` sets up the checks' schedules and descriptions (see the engine's docs/BACKUP.md). |
 | `secrets/apps.sops.env` | `JELLYFIN_ADMIN_PASSWORD`, `DELUGE_WEB_PASSWORD`, `PORTAINER_ADMIN_PASSWORD` (at least 12 characters), and the internal `SONARR_API_KEY`, `RADARR_API_KEY` and `PROWLARR_API_KEY`. |
 
 The internal API keys connect the apps to each other. Change one with Rotate keys in `mse configure` rather than by hand; the next `mse apply` gives the app its new key and rewires every app that uses it.
@@ -67,6 +67,6 @@ Deluge's web password is applied at every update. Jellyfin's and Portainer's adm
 git -C ~/<name>/config commit -am "What changed"
 ```
 
-For a config kept on GitHub, push the commit. Every machine of the installation applies it at its next daily update (`mse update --apply`), or straight away with `mse update --apply` or `make update` from `~/<name>`. For a local-only config, run `make update` from `~/<name>`.
+For a config kept on GitHub, push the commit. Every machine of the installation applies it at its next daily update (`mse update --apply`), or straight away with `mse update --apply`. For a local-only config, run `mse apply`.
 
-`make update` refuses to run while the config has changes that are not committed, and lists them. With `mse`, `mse update --apply` pulls the config and applies it, and `mse apply` applies the config as it is on disk, to try a change before committing it.
+`mse update` refuses to run while the config has changes that are not committed, and lists them. `mse update --apply` pulls the config and applies it, and `mse apply` applies the config as it is on disk, to try a change before committing it.

@@ -151,7 +151,7 @@ services:
     user: "1000:1000"
     command: --admin-password-file /run/secrets/portainer_admin
     group_add:
-      - "${DOCKER_GID:?DOCKER_GID is written to .env by make update}"
+      - "${DOCKER_GID:?DOCKER_GID is set by mse}"
     ports:
       - "9000:9000"
     volumes:
@@ -207,7 +207,7 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - HOMEPAGE_ALLOWED_HOSTS=${HOMEPAGE_ALLOWED_HOSTS:?HOMEPAGE_ALLOWED_HOSTS is written to .env by make update}
+      - HOMEPAGE_ALLOWED_HOSTS=${HOMEPAGE_ALLOWED_HOSTS:?HOMEPAGE_ALLOWED_HOSTS is set by mse}
       - LOG_TARGETS=stdout
     env_file:
       - .secrets/homepage.env

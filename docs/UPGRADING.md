@@ -1,30 +1,31 @@
 # Upgrading
 
-An installation runs exactly what its config pins: the engine release in `engine.env`, and every image, by tag and digest, in `images.yml` and `images.monitoring.yml`. Nothing changes until the config changes.
+An installation runs the `mse` release installed on each machine, and exactly the images its config pins (tag and digest, in `images.yml` and `images.monitoring.yml`).
 
-## With Renovate
+## Images
 
-Add the config repository to the Renovate app, and the engine repository too when it is private: Renovate finds engine releases among the engine repository's tags and cannot see them otherwise. It opens a pull request for each new image and each new engine release, and keeps a Dependency Dashboard issue listing them all. Merging a pull request is the upgrade: every machine of the installation applies it at its next update, daily at 05:00 with the timer, or straight away with `make update`.
+- Add the config repository to the Renovate app. It opens a pull request for each new image and keeps a Dependency Dashboard issue listing them.
+- Merging the pull request is the upgrade: every machine applies it at its nightly update (05:00), or straight away with `mse update --apply`.
+- By hand: change an image in the config (always with a digest), commit, push, and run `mse update --apply`.
 
-Before merging an engine release, read its release notes on GitHub; they say when a config needs new files or settings.
+## mse
 
-## By hand
-
-Change `ENGINE_VERSION` or an image in the config, commit, push if the config is on GitHub, and run `make update`. Images must be pinned to a digest; `make update` refuses an image without one.
-
-`ENGINE_VERSION=local` runs the engine as it is checked out, without switching. Update it with `git -C ~/<name>/engine pull`.
+- `mse update` installs the newest release of the running major version, after checking it against the release's `checksums.txt`. The nightly update runs it.
+- A new major version can need config changes: `mse update` says it is available, and `mse update --force` installs it. The config's `config:` number in `config.yml` is the major version it is written for; `mse` refuses a config of another schema.
+- Read a release's notes on GitHub before installing a new major: they say what a config needs.
 
 ## Going back
 
-Revert the commit that made the change, in the config repository, and run `make update`: the engine switches back to the previous release, and the previous images are pulled again. App data is not migrated back by this: if an app upgraded its database, restore the backup taken before the upgrade (see [Restoring](RESTORE.md)).
+- **An image:** revert the config commit that changed it, push, and run `mse update --apply`.
+- **mse:** install an earlier release with `install.sh` and `MSE_VERSION=<version>`.
+- App data is not migrated back: if an app upgraded its database, restore the backup taken before the upgrade (see [Restoring](RESTORE.md)).
 
-## What update does
+## What the nightly update does
 
-1. Refuses if the engine or the config has uncommitted changes, and shows them.
-2. Pulls the config, if it has a remote.
-3. Switches the engine to the release in `engine.env`, if it differs, and continues with the new engine.
-4. Installs the sops, age and restic versions that engine pins, where the installed ones differ (on Linux; Homebrew manages them on macOS). This needs `sudo` without a password for the scheduled update; otherwise run `make pinned-tools` by hand after an engine upgrade that changes them.
-5. Checks that every image is pinned and that every app that writes state runs as uid and gid 1000.
-6. Pulls the images, starts the apps and removes containers no longer declared.
-7. Wires the apps, printing one line per change.
-8. Removes images no longer pinned.
+`mse update --apply`, from the timers at 05:00:
+
+1. waits for a running backup;
+2. fast-forwards the config from its remote, refusing while it has uncommitted changes;
+3. installs a newer `mse` of the same major, if there is one, and continues with it;
+4. applies the config: secrets, landing page, healthchecks, images, containers, wiring, timers (see [Commands](COMMANDS.md#mse-apply));
+5. pings its healthchecks.io check.

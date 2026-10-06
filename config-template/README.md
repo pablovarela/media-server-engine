@@ -1,6 +1,6 @@
 # Media server installation config
 
-The configuration of one media server installation, used by [media-server-engine](https://github.com/ENGINE_REPOSITORY). The engine clones this repository next to itself and applies it with `make update`.
+The configuration of one media server installation, used by [media-server-engine](https://github.com/ENGINE_REPOSITORY). Each machine of the installation keeps a clone of it and applies it with `mse apply`, and at its nightly update.
 
 | File | Content |
 |---|---|
@@ -14,7 +14,7 @@ The configuration of one media server installation, used by [media-server-engine
 | `secrets/*.sops.env` | VPN, backup, healthchecks and app credentials, encrypted with SOPS for the key in `.sops.yaml` |
 | `renovate.json` | Renovate opens a pull request for every image and engine update |
 
-Change settings and secrets with `mse configure`, or edit any file by hand: [CONFIG.md](CONFIG.md) explains every file and how to edit the encrypted secrets. A config kept on GitHub is pushed and merged changes reach every machine of the installation at its next `make update`; a local-only config is used as it is by the one machine that has it.
+Change settings and secrets with `mse configure`, or edit any file by hand: [CONFIG.md](CONFIG.md) explains every file and how to edit the encrypted secrets. A config kept on GitHub is pushed and merged changes reach every machine of the installation at its next nightly update, or straight away with `mse update --apply`; a local-only config is used as it is by the one machine that has it.
 
 ## prowlarr.yml
 
@@ -36,7 +36,7 @@ applications:
     sync_categories: [5000, 5040]    # optional
 ```
 
-`make update` creates what is missing and corrects declared values that differ. It never deletes an indexer, proxy or application, and leaves settings that are not declared as they are.
+`mse apply` creates what is missing and corrects declared values that differ. It never deletes an indexer, proxy or application, and leaves settings that are not declared as they are.
 
 ## apps.yml
 
@@ -72,7 +72,7 @@ bazarr:
   languages: [en]                    # subtitle languages
 ```
 
-Deluge reads its settings at start, so when any of them differ `make update` stops Deluge, writes them and starts it again. The web password comes from the app secrets.
+Deluge reads its settings at start, so when any of them differ `mse apply` stops Deluge, writes them and starts it again. The web password comes from the app secrets.
 
 Bazarr's default subtitle profile for series and movies gets the declared languages; a Bazarr without one gets a profile named Default. Other profiles are kept.
 

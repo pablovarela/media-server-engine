@@ -66,7 +66,7 @@ found = [m for m in config["customManagers"] if m["depNameTemplate"] == "restic/
 assert len(found) == 1
 patterns = found[0]["managerFilePatterns"]
 assert any(pattern(p).search("internal/restic/release.env") for p in patterns), patterns
-assert not any(pattern(p).search("scripts/tool-versions.env") for p in patterns), patterns
+assert len(patterns) == 1, patterns
 '
 }
 

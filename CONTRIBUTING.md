@@ -4,9 +4,9 @@
 
 1. Branch from an up-to-date `main`, one change per branch.
 2. Change the code, its tests and its docs together. A change in behaviour comes with a test that fails without it.
-3. Run `make test` (bats, pytest, Go tests, shellcheck and golangci-lint; needs `brew install bats-core uv go shellcheck`; Go's dev tools are pinned in `tools/go.mod` and need no install). uv installs pytest and its dependencies from `uv.lock` into `.venv/`. With GNU parallel installed (`brew install parallel`), the bats tests run in parallel, one job per CPU; `TEST_JOBS=1` runs them one at a time. `make test-python PYTHON=3.9` runs the Python tests on the Python of Raspberry Pi OS bullseye.
+3. Run `make test` (bats, Go tests, shellcheck and golangci-lint; needs `brew install bats-core go shellcheck`; Go's dev tools are pinned in `tools/go.mod` and need no install). With GNU parallel installed (`brew install parallel`), the bats tests run in parallel, one job per CPU; `TEST_JOBS=1` runs them one at a time.
 4. Push the branch and open a pull request. Its title becomes the commit on `main`, so write it as a commit subject: short, imperative, saying what changes.
-5. CI runs `test`, `python-3-9`, `lint`, `release-check` and `tool-pins` on the pull request. All of them pass before it is merged.
+5. CI runs `test`, `lint`, `release-check` and `tool-pins` on the pull request. All of them pass before it is merged.
 6. The owner merges, with a squash merge.
 
 `main` is not pushed to directly.
@@ -17,10 +17,7 @@
 - Configuration belongs in git. The restic backup is for runtime state (libraries, history, users). When a setting can be declared in a config repository instead of only living in an app's database, declare it there.
 - Never commit decrypted secrets, and never print them in output or logs.
 - Every service that writes app state runs as uid and gid 1000; a test enforces it.
-- The engine's Python runs on Python 3.9 and later, the Python of Raspberry Pi OS bullseye.
-- Python is tested with pytest, in `tests/python/`, by calling its functions, with HTTP calls mocked at `urllib.request.urlopen`. Shell scripts are tested with bats, in `tests/`, and so is the way they call the Python. `make test-python` prints which lines and branches of the Python no test reaches; the command-line entry points are left to the bats tests.
-- The engine's programs are written in the `engine` package, `scripts/engine/`, and started as `scripts/engine-run <command>`. Every command they run goes through `engine.commands`, and tests answer those commands with the `commands` fixture, as the `http` fixture answers requests.
-- New logic that is mostly API calls or YAML is written in Python, not shell.
+- Shell scripts are tested with bats, in `tests/`.
 - `mse`, the Go engine, lives in `main.go`, `cmd/` (Cobra commands and their flags) and `internal/` (everything else). Commands write to the command's `OutOrStdout()` and `ErrOrStderr()`, and errors reach the user once, as `mse: <error>`. Commands speak through `internal/report` (`report.From(cmd.Context())`): a `Step` for each stage with its result, and `Tool` writers for external output, which reach the terminal only with `--verbose`; `internal/logfile` writes every run to the log.
 - Go tests are table-driven, with `Given`, `When` and `Then` structs (`When` left out when every case runs the same action), and use testify. `make go-test` writes `coverage.out` for `cmd/` and `internal/`; pull requests get it as a comment listing the functions not fully covered, read as questions, not a target.
 - Interfaces a Go test mocks are narrow and declared where they are used; Mockery generates their mocks (`make go-mocks`, configured in `.mockery.yml`) into `mocks_test.go` files, which are committed. GitHub's API is called through `internal/github`, a small layer over [go-github](https://github.com/google/go-github) that returns the engine's own types. HTTP is mocked with an `http.RoundTripper` that states each expected request and its answer.
@@ -30,11 +27,9 @@
 
 ## Renovate
 
-Renovate opens pull requests for the template's images (grouped weekly), the workflow's actions, shellcheck, the pinned sops, age and restic, the Python test dependencies in `uv.lock`, and the Go modules (the engine's and `tools/go.mod`, tidied after each update). Merge them like any other pull request once CI passes.
+Renovate opens pull requests for the template's images (grouped weekly), the workflow's actions, shellcheck, restic and the Go modules (the engine's and `tools/go.mod`, tidied after each update). Merge them like any other pull request once CI passes.
 
-A pull request for sops, age or restic fails `tool-pins` until the SHA256 next to the new version in `scripts/tool-versions.env` is updated: download the new release file named by `scripts/tool-pins.sh`, take its `sha256sum`, commit it to the pull request's branch, and `scripts/check-tool-downloads.sh` passes.
-
-`mse` pins its own restic in `internal/restic/release.env`: Renovate bumps `RESTIC_VERSION` there and in `scripts/tool-versions.env` in the same pull request. Copy the four `restic_<version>_<os>_<arch>.bz2` lines from the release's `SHA256SUMS` into the `RESTIC_SHA256_<os>_<arch>` lines, and `RESTIC_SHA256` in `scripts/tool-versions.env` from the `linux_arm64` one, until `tool-pins` passes.
+`mse` pins its restic in `internal/restic/release.env`. Renovate bumps `RESTIC_VERSION`; the pull request fails `tool-pins` until the four `RESTIC_SHA256_<os>_<arch>` lines are copied from the release's `SHA256SUMS`.
 
 ## Releases
 
