@@ -2,14 +2,15 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+	"golang.org/x/mod/semver"
 
 	"github.com/pablovarela/media-server-engine/internal/installation"
 )
 
 func (d Dependencies) installation(cmd *cobra.Command) (*installation.Installation, error) {
 	loaded, err := d.anyInstallation(cmd)
-	if err != nil {
-		return nil, err
+	if err != nil || !semver.IsValid(d.Build.Version) {
+		return loaded, err
 	}
 	return loaded, loaded.CheckSchema(d.Build.Major())
 }

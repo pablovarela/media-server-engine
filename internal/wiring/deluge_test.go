@@ -130,7 +130,7 @@ func TestAFreshDelugeGetsItsPluginsSettingsAndWebPasswordWithOneRestart(t *testi
 
 	_, core := readConf(t, filepath.Join(f.config, "core.conf"))
 	assert.Equal(t, []any{"Label", "AutoRemovePlus"}, core["enabled_plugins"])
-	assert.Equal(t, "/downloads", core["download_location"])
+	assert.Equal(t, "/data/downloads", core["download_location"])
 	assert.True(t, passwordMatches(t, f.config, "web pass"))
 	header, web := readConf(t, filepath.Join(f.config, "web.conf"))
 	assert.Equal(t, map[string]any{"file": float64(2), "format": float64(1)}, header)

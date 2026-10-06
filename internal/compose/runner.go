@@ -359,6 +359,24 @@ func BindSources(project *types.Project, under string) []string {
 	return sources
 }
 
+const sharedMount = "/data"
+
+func DataFolders(project *types.Project, under string, declared []string) []string {
+	folders := BindSources(project, under)
+	shared := filepath.Join(under, "data")
+	if !slices.Contains(folders, shared) {
+		return folders
+	}
+	for _, path := range declared {
+		inside, found := strings.CutPrefix(path, sharedMount+"/")
+		if folder := filepath.Join(shared, inside); found && !slices.Contains(folders, folder) {
+			folders = append(folders, folder)
+		}
+	}
+	slices.Sort(folders)
+	return folders
+}
+
 func (r *Runner) RunOnce(ctx context.Context, project *types.Project, service string, out io.Writer) (int, error) {
 	alone, err := project.WithSelectedServices([]string{service}, types.IgnoreDependencies)
 	if err != nil {

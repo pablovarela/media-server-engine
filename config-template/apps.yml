@@ -3,12 +3,13 @@ jellyfin:
   libraries:
     - name: Shows
       type: tvshows
-      path: /data/tvshows
+      path: /data/media/tvshows
     - name: Movies
       type: movies
-      path: /data/movies
+      path: /data/media/movies
 deluge:
-  core: {}
+  core:
+    download_location: /data/downloads
   plugins:
     - name: Label
     - name: AutoRemovePlus
@@ -31,10 +32,10 @@ seerr:
   libraries: [Shows, Movies]
   sonarr:
     quality_profile: WEB-1080p
-    root_folder: /tv
+    root_folder: /data/media/tvshows
   radarr:
     quality_profile: HD Bluray + WEB
-    root_folder: /movies
+    root_folder: /data/media/movies
     minimum_availability: released
 bazarr:
   languages: [en]

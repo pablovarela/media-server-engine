@@ -11,16 +11,16 @@ const jellyfinConnectionName = "Emby / Jellyfin"
 var eventsLeftOff = map[string]bool{"onHealthIssue": true, "onHealthRestored": true, "onManualInteractionRequired": true}
 
 type libraryArr struct {
-	kind, variable, fallback, key, arrPath, jellyfinPath string
+	kind, variable, fallback, key string
 }
 
 var libraryArrs = []libraryArr{
-	{sonarrKind, "SONARR_URL", "http://localhost:8989", sonarrKeyName, "/tv", "/data/tvshows"},
-	{radarrKind, "RADARR_URL", "http://localhost:7878", radarrKeyName, "/movies", "/data/movies"},
+	{sonarrKind, "SONARR_URL", "http://localhost:8989", sonarrKeyName},
+	{radarrKind, "RADARR_URL", "http://localhost:7878", radarrKeyName},
 }
 
 func (a libraryArr) wanted() []setting {
-	return []setting{{"host", "jellyfin"}, {portField, 8096}, {"updateLibrary", true}, {"mapFrom", a.arrPath}, {"mapTo", a.jellyfinPath}}
+	return []setting{{"host", "jellyfin"}, {portField, 8096}, {"updateLibrary", true}, {"mapFrom", nil}, {"mapTo", nil}}
 }
 
 func LibraryUpdates(ctx context.Context, env Env) error {

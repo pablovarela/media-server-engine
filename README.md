@@ -16,6 +16,8 @@ An installation is three folders side by side in `~/<name>`, with a Makefile the
 | `config/` | the installation's settings, image versions and encrypted secrets | its own git repository, `media-server-config-<name>`, local or on GitHub |
 | `data/` | app state, media and downloads | created on the machine; app state is backed up with restic |
 
+Media and downloads live together under `data/data/`, mounted as `/data` in Deluge, Radarr, Sonarr, Bazarr and Jellyfin: downloads in `/data/downloads`, films in `/data/media/movies`, series in `/data/media/tvshows`. One mount lets Radarr and Sonarr import a finished download as a hardlink, so it is neither written again nor stored twice; Linux refuses a hardlink across two mounts, even on one disk.
+
 Everything an installation declares lives in its config: change it with `mse configure` or by editing the files, and `make update` applies it. The engine never holds anything specific to one installation.
 
 ## Quick start

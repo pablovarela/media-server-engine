@@ -6,8 +6,8 @@ import yaml
 
 from conftest import REPO
 
-SONARR_TEST = {"profiles": [{"id": 4, "name": "Any"}, {"id": 7, "name": "WEB-1080p"}], "rootFolders": [{"id": 1, "path": "/tv"}]}
-RADARR_TEST = {"profiles": [{"id": 7, "name": "HD Bluray + WEB"}], "rootFolders": [{"id": 1, "path": "/movies"}]}
+SONARR_TEST = {"profiles": [{"id": 4, "name": "Any"}, {"id": 7, "name": "WEB-1080p"}], "rootFolders": [{"id": 1, "path": "/data/media/tvshows"}]}
+RADARR_TEST = {"profiles": [{"id": 7, "name": "HD Bluray + WEB"}], "rootFolders": [{"id": 1, "path": "/data/media/movies"}]}
 LIBRARIES = [
     {"id": "m1", "name": "Movies", "enabled": True, "type": "movie"},
     {"id": "s1", "name": "Shows", "enabled": True, "type": "show"},
@@ -15,13 +15,13 @@ LIBRARIES = [
 ]
 SONARR = {
     "id": 0, "name": "Sonarr", "hostname": "sonarr", "port": 8989, "apiKey": "sonarr-key", "useSsl": False, "baseUrl": "",
-    "activeProfileId": 7, "activeProfileName": "WEB-1080p", "activeDirectory": "/tv",
-    "activeAnimeProfileId": 7, "activeAnimeProfileName": "WEB-1080p", "activeAnimeDirectory": "/tv",
+    "activeProfileId": 7, "activeProfileName": "WEB-1080p", "activeDirectory": "/data/media/tvshows",
+    "activeAnimeProfileId": 7, "activeAnimeProfileName": "WEB-1080p", "activeAnimeDirectory": "/data/media/tvshows",
     "is4k": False, "isDefault": True, "enableSeasonFolders": False, "syncEnabled": True, "preventSearch": False, "tags": [], "animeTags": [],
 }
 RADARR = {
     "id": 0, "name": "Radarr", "hostname": "radarr", "port": 7878, "apiKey": "radarr-key", "useSsl": False, "baseUrl": "",
-    "activeProfileId": 7, "activeProfileName": "HD Bluray + WEB", "activeDirectory": "/movies",
+    "activeProfileId": 7, "activeProfileName": "HD Bluray + WEB", "activeDirectory": "/data/media/movies",
     "is4k": False, "minimumAvailability": "released", "isDefault": True, "syncEnabled": True, "preventSearch": False, "tags": [],
 }
 SECRETS = "SONARR_API_KEY=sonarr-key\nRADARR_API_KEY=radarr-key\nJELLYFIN_ADMIN_PASSWORD=admin pass\n"
@@ -102,10 +102,10 @@ def test_a_fresh_seerr_signs_in_with_jellyfin_gets_libraries_sonarr_and_radarr_t
     auth = http.body("POST", "/api/v1/auth/jellyfin")
     assert (auth["username"], auth["password"], auth["hostname"], auth["port"], auth["serverType"]) == ("admin", "admin pass", "jellyfin", 8096, 2)
     sonarr = http.body("POST", "/api/v1/settings/sonarr")
-    assert (sonarr["activeProfileId"], sonarr["activeDirectory"], sonarr["apiKey"], sonarr["isDefault"]) == (7, "/tv", "sonarr-key", True)
-    assert (sonarr["activeAnimeProfileId"], sonarr["activeAnimeDirectory"], sonarr["enableSeasonFolders"]) == (7, "/tv", False)
+    assert (sonarr["activeProfileId"], sonarr["activeDirectory"], sonarr["apiKey"], sonarr["isDefault"]) == (7, "/data/media/tvshows", "sonarr-key", True)
+    assert (sonarr["activeAnimeProfileId"], sonarr["activeAnimeDirectory"], sonarr["enableSeasonFolders"]) == (7, "/data/media/tvshows", False)
     radarr = http.body("POST", "/api/v1/settings/radarr")
-    assert (radarr["activeProfileId"], radarr["activeDirectory"], radarr["minimumAvailability"]) == (7, "/movies", "released")
+    assert (radarr["activeProfileId"], radarr["activeDirectory"], radarr["minimumAvailability"]) == (7, "/data/media/movies", "released")
     assert http.body("PUT", "/api/v1/settings/jellyfin/library/s1") == {"enabled": True}
 
 
@@ -185,8 +185,8 @@ def test_a_dry_run_on_a_fresh_seerr_reports_its_setup_and_writes_nothing(setup_s
         "(dry run) seerr: sign in with jellyfin as admin",
         "(dry run) seerr: enable library Shows",
         "(dry run) seerr: enable library Movies",
-        "(dry run) seerr: add sonarr with quality profile WEB-1080p and root folder /tv",
-        "(dry run) seerr: add radarr with quality profile HD Bluray + WEB and root folder /movies",
+        "(dry run) seerr: add sonarr with quality profile WEB-1080p and root folder /data/media/tvshows",
+        "(dry run) seerr: add radarr with quality profile HD Bluray + WEB and root folder /data/media/movies",
         "(dry run) seerr: initialise",
     ]
 
@@ -223,7 +223,7 @@ def test_a_dry_run_reports_a_library_and_an_app_seerr_does_not_have_yet_without_
     assert http.writes() == []
     reported = capsys.readouterr().out.splitlines()
     assert [line for line in reported if "enable library" in line] == ["(dry run) seerr: enable library Cartoons"]
-    assert "(dry run) seerr: add radarr with quality profile HD Bluray + WEB and root folder /movies" in reported
+    assert "(dry run) seerr: add radarr with quality profile HD Bluray + WEB and root folder /data/media/movies" in reported
 
 
 def test_a_root_folder_an_app_does_not_have_fails_the_step_with_the_folder_named(seerr, http, dirs):
@@ -248,8 +248,8 @@ def test_a_changed_root_folder_is_applied_to_series_and_anime(seerr, http, dirs,
     config["seerr"]["sonarr"]["root_folder"] = "/series"
     (dirs.config / "apps.yml").write_text(yaml.safe_dump(config))
     wired(http)
-    http.on("POST", "/api/v1/settings/sonarr/test", dict(SONARR_TEST, rootFolders=[{"id": 1, "path": "/tv"}, {"id": 2, "path": "/series"}]))
+    http.on("POST", "/api/v1/settings/sonarr/test", dict(SONARR_TEST, rootFolders=[{"id": 1, "path": "/data/media/tvshows"}, {"id": 2, "path": "/series"}]))
     seerr.wire()
     body = http.body("PUT", "/api/v1/settings/sonarr/0")
     assert (body["activeDirectory"], body["activeAnimeDirectory"]) == ("/series", "/series")
-    assert "seerr: set sonarr root folder /tv -> /series" in capsys.readouterr().out
+    assert "seerr: set sonarr root folder /data/media/tvshows -> /series" in capsys.readouterr().out

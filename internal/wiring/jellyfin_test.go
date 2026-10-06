@@ -15,8 +15,8 @@ const (
 	jellyfinConfiguration = `{"ServerName": "Media", "EnableMetrics": false, "UICulture": "en-US"}`
 	jellyfinLibraries     = `[
 		{"Name": "Collections", "Locations": [], "CollectionType": "boxsets", "ItemId": "c1", "LibraryOptions": {"EnableRealtimeMonitor": false, "Enabled": true}},
-		{"Name": "Movies", "Locations": ["/data/movies"], "CollectionType": "movies", "ItemId": "m1", "LibraryOptions": {"EnableRealtimeMonitor": true, "Enabled": true}},
-		{"Name": "Shows", "Locations": ["/data/tvshows"], "CollectionType": "tvshows", "ItemId": "s1", "LibraryOptions": {"EnableRealtimeMonitor": true, "Enabled": true}}]`
+		{"Name": "Movies", "Locations": ["/data/media/movies"], "CollectionType": "movies", "ItemId": "m1", "LibraryOptions": {"EnableRealtimeMonitor": true, "Enabled": true}},
+		{"Name": "Shows", "Locations": ["/data/media/tvshows"], "CollectionType": "tvshows", "ItemId": "s1", "LibraryOptions": {"EnableRealtimeMonitor": true, "Enabled": true}}]`
 	storedKey = `{"AppName": "media-server", "AccessToken": "stored-key"}`
 )
 
@@ -70,8 +70,8 @@ func TestAFreshJellyfinCompletesTheWizardThenGetsItsServerNameLibrariesAndAnAPIK
 	for _, path := range []string{"/Startup/Configuration", "/Startup/User", "/Startup/RemoteAccess", "/Startup/Complete", "/Auth/Keys?app=media-server", "/System/Configuration", "/Library/Refresh"} {
 		r.on("POST", path)
 	}
-	shows := "/Library/VirtualFolders?name=Shows&collectionType=tvshows&paths=%2Fdata%2Ftvshows&refreshLibrary=false"
-	movies := "/Library/VirtualFolders?name=Movies&collectionType=movies&paths=%2Fdata%2Fmovies&refreshLibrary=false"
+	shows := "/Library/VirtualFolders?name=Shows&collectionType=tvshows&paths=%2Fdata%2Fmedia%2Ftvshows&refreshLibrary=false"
+	movies := "/Library/VirtualFolders?name=Movies&collectionType=movies&paths=%2Fdata%2Fmedia%2Fmovies&refreshLibrary=false"
 	r.on("POST", shows).on("POST", movies)
 	env, out := jellyfinEnv(t, r)
 
@@ -161,7 +161,7 @@ func TestADriftedServerNameIsCorrectedWithOneWriteThatKeepsTheOtherSettings(t *t
 }
 
 func TestADeclaredPathMissingFromALibraryIsAddedToItAndScanned(t *testing.T) {
-	r := jellyfinWired(newRoutes(t), "", strings.Replace(jellyfinLibraries, `"Locations": ["/data/tvshows"]`, `"Locations": []`, 1), "")
+	r := jellyfinWired(newRoutes(t), "", strings.Replace(jellyfinLibraries, `"Locations": ["/data/media/tvshows"]`, `"Locations": []`, 1), "")
 	r.on("POST", "/Library/Refresh")
 	env, _ := jellyfinEnv(t, r)
 	storeJellyfinKey(t, env, "stored-key")
@@ -169,7 +169,7 @@ func TestADeclaredPathMissingFromALibraryIsAddedToItAndScanned(t *testing.T) {
 	require.NoError(t, Jellyfin(context.Background(), env))
 
 	assert.Equal(t, []string{"POST /Library/VirtualFolders/Paths?refreshLibrary=false", "POST /Library/Refresh"}, r.writes())
-	assert.Equal(t, map[string]any{"Name": "Shows", "PathInfo": map[string]any{"Path": "/data/tvshows"}}, r.sentBody("POST", "/Library/VirtualFolders/Paths?refreshLibrary=false"))
+	assert.Equal(t, map[string]any{"Name": "Shows", "PathInfo": map[string]any{"Path": "/data/media/tvshows"}}, r.sentBody("POST", "/Library/VirtualFolders/Paths?refreshLibrary=false"))
 }
 
 func TestALibraryWithRealTimeMonitoringOffGetsItOnKeepingItsOtherOptions(t *testing.T) {
@@ -218,4 +218,36 @@ func TestWithoutADeclaredServerNameJellyfinsOwnIsLeftAlone(t *testing.T) {
 	require.NoError(t, Jellyfin(context.Background(), env))
 
 	assert.Empty(t, r.writes())
+}
+
+const (
+	removeOldShows  = "/Library/VirtualFolders/Paths?name=Shows&path=%2Fdata%2Ftvshows&refreshLibrary=false"
+	removeOldMovies = "/Library/VirtualFolders/Paths?name=Movies&path=%2Fdata%2Fmovies&refreshLibrary=false"
+)
+
+func TestALocationALibraryNoLongerDeclaresIsRemovedWithoutAScan(t *testing.T) {
+	libraries := strings.Replace(jellyfinLibraries, `"Locations": ["/data/media/tvshows"]`, `"Locations": ["/data/tvshows", "/data/media/tvshows"]`, 1)
+	r := jellyfinWired(newRoutes(t), "", libraries, "")
+	r.on("DELETE", removeOldShows)
+	env, out := jellyfinEnv(t, r)
+	storeJellyfinKey(t, env, "stored-key")
+
+	require.NoError(t, Jellyfin(context.Background(), env))
+
+	assert.Equal(t, []string{"DELETE " + removeOldShows}, r.writes())
+	assert.Contains(t, out.lines, "jellyfin: remove /data/tvshows from library Shows")
+}
+
+func TestAMovedLibraryGetsItsNewPathThenLosesTheOldOneAndIsScanned(t *testing.T) {
+	libraries := strings.Replace(jellyfinLibraries, `"Locations": ["/data/media/movies"]`, `"Locations": ["/data/movies"]`, 1)
+	r := jellyfinWired(newRoutes(t), "", libraries, "")
+	r.on("DELETE", removeOldMovies)
+	r.on("POST", "/Library/Refresh")
+	env, out := jellyfinEnv(t, r)
+	storeJellyfinKey(t, env, "stored-key")
+
+	require.NoError(t, Jellyfin(context.Background(), env))
+
+	assert.Equal(t, []string{"POST /Library/VirtualFolders/Paths?refreshLibrary=false", "DELETE " + removeOldMovies, "POST /Library/Refresh"}, r.writes())
+	assert.Equal(t, []string{"jellyfin: add /data/media/movies to library Movies", "jellyfin: remove /data/movies from library Movies", "jellyfin: scan the libraries for what was added"}, out.lines)
 }

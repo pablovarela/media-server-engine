@@ -89,7 +89,7 @@ func (d Dependencies) apply(cmd *cobra.Command) error {
 		return err
 	}
 	return (&apply.Apply{
-		Stack:    appliedStack{runner: o.runner, project: o.project, wired: wired, outcomes: o.outcomes, data: o.installation.Data},
+		Stack:    appliedStack{runner: o.runner, project: o.project, wired: wired, outcomes: o.outcomes, data: o.installation.Data, config: o.installation.Config},
 		Checks:   d.checks(o.installation, o.network),
 		Wiring:   wires,
 		Timers:   d.timersOrNil(cmd, o.installation),
@@ -194,9 +194,12 @@ type appliedStack struct {
 	wired    *types.Project
 	outcomes *compose.Outcomes
 	data     string
+	config   string
 }
 
-func (s appliedStack) BindSources() []string { return compose.BindSources(s.wired, s.data) }
+func (s appliedStack) BindSources() []string {
+	return compose.DataFolders(s.wired, s.data, declaredDataPaths(s.config))
+}
 
 func (s appliedStack) Pull(ctx context.Context) (string, error) {
 	pulled, err := s.runner.Pull(ctx, s.wired)

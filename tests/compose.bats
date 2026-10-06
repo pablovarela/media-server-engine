@@ -62,7 +62,7 @@ import json, os, sys
 data = os.environ["DATA_DIR"]
 outside = [(n, m["source"]) for n, s in json.load(sys.stdin)["services"].items()
            for m in s.get("volumes", []) if m.get("type") == "bind"
-           and any(part in m["source"] for part in ("/volumes/", "/media/", "/downloads"))
+           and ("/volumes/" in m["source"] or m["target"].split("/")[1] in ("data", "media"))
            and not m["source"].startswith(data)]
 assert not outside, outside'
 }
@@ -176,7 +176,7 @@ assert env["HOMEPAGE_ALLOWED_HOSTS"] == "media.local"
 assert env["LOG_TARGETS"] == "stdout"
 mounts = {m["target"]: m for m in s["volumes"]}
 assert mounts["/app/config"]["source"] == os.environ["ENGINE_DIR"] + "/.homepage"
-assert mounts["/media"]["source"] == os.environ["DATA_DIR"] + "/media" and mounts["/media"]["read_only"]
+assert mounts["/media"]["source"] == os.environ["DATA_DIR"] + "/data/media" and mounts["/media"]["read_only"]
 '
 }
 
@@ -201,4 +201,18 @@ import json, os, sys
 mounts = {m["target"]: m for m in json.load(sys.stdin)["volumes"]}
 assert mounts["/app/public/images"]["source"] == os.environ["ENGINE_DIR"] + "/.homepage-images", mounts
 assert mounts["/app/public/images"]["read_only"]'
+}
+
+@test "downloads and media share one /data mount" {
+  run merged stack
+  echo "$output" | python3 -c '
+import json, os, sys
+data = os.environ["DATA_DIR"] + "/data"
+services = json.load(sys.stdin)["services"]
+for name in ("deluge", "radarr", "sonarr", "bazarr", "jellyfin"):
+    binds = {m["target"]: m["source"] for m in services[name].get("volumes", []) if m.get("type") == "bind"}
+    assert binds.get("/data") == data, (name, binds)
+old = {"/downloads", "/movies", "/tv", "/data/movies", "/data/tvshows"}
+stale = [(n, m["target"]) for n, s in services.items() for m in s.get("volumes", []) if m["target"] in old]
+assert not stale, stale'
 }
