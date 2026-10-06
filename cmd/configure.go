@@ -17,6 +17,8 @@ import (
 type prompter interface {
 	configure.Prompter
 	Acknowledge(title, text, word string) error
+	Secret(title, description string, validate func(string) error) (string, error)
+	Ask(question string, yes bool) (bool, error)
 }
 
 const notAppliedYet = "\nThe new configuration is NOT applied on this machine yet.\nTo apply it now, run:\n\n    mse apply\n\n" +
