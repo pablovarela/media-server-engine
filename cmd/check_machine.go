@@ -33,9 +33,17 @@ func newCheckMachineCommand(deps Dependencies) *cobra.Command {
 }
 
 func (d Dependencies) checkMachine(cmd *cobra.Command) error {
+	ready, err := d.machineReady(cmd)
+	if err != nil || ready {
+		return err
+	}
+	return errAlreadyReported
+}
+
+func (d Dependencies) machineReady(cmd *cobra.Command) (bool, error) {
 	env, err := d.machineEnv(cmd)
 	if err != nil {
-		return err
+		return false, err
 	}
 	out := cmd.OutOrStdout()
 	_, _ = fmt.Fprintln(out, "Checking this machine...")
@@ -45,10 +53,7 @@ func (d Dependencies) checkMachine(cmd *cobra.Command) error {
 	}
 	report := machine.RunEach(cmd.Context(), env, printer)
 	_, _ = fmt.Fprint(out, report.Closing())
-	if !report.Ready() {
-		return errAlreadyReported
-	}
-	return nil
+	return report.Ready(), nil
 }
 
 func (d Dependencies) machineEnv(cmd *cobra.Command) (machine.Env, error) {

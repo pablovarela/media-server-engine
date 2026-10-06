@@ -69,6 +69,9 @@ type Dependencies struct {
 	GOOS          string
 	PortFree      func(machine.Port) bool
 	Published     func(ctx context.Context) ([]machine.Published, error)
+	Repositories  configRepositories
+	ClaimMain     func(cmd *cobra.Command) error
+	ApplyNew      func(cmd *cobra.Command) error
 }
 
 func NewRootCommand(deps Dependencies) *cobra.Command {
@@ -92,6 +95,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 		newUpdateCommand(deps),
 		newConfigureCommand(deps),
 		newCheckMachineCommand(deps),
+		newCreateCommand(deps),
 		newApplyCommand(deps),
 		newURLsCommand(deps),
 		newLoginsCommand(deps),
@@ -144,11 +148,12 @@ func Execute(engine fs.FS) int {
 		Encrypt: func(config string) secrets.Encrypter {
 			return secrets.SopsEncrypter(installation.BasesFrom(os.Getenv, home).Config, filepath.Join(config, ".sops.yaml"))
 		},
-		RandomKey: secrets.RandomKey,
-		GOOS:      runtime.GOOS,
-		PortFree:  machine.PortFree,
-		Published: machine.DockerPublished,
-		Exec:      func(path string, args []string) error { return syscall.Exec(path, args, os.Environ()) }, //nolint:gosec // runs the mse release it just installed
+		RandomKey:    secrets.RandomKey,
+		GOOS:         runtime.GOOS,
+		PortFree:     machine.PortFree,
+		Published:    machine.DockerPublished,
+		Repositories: client,
+		Exec:         func(path string, args []string) error { return syscall.Exec(path, args, os.Environ()) }, //nolint:gosec // runs the mse release it just installed
 	}
 	globalLogs := filepath.Join(installation.BasesFrom(os.Getenv, home).State, "mse")
 	return runLogged(ctx, NewRootCommand(deps), os.Args[1:], globalLogs)
