@@ -1,4 +1,3 @@
-load helpers
 
 REPO="$BATS_TEST_DIRNAME/.."
 

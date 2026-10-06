@@ -14,10 +14,10 @@ teardown_stubs() {
 
 make_stub() {
   local name=$1 body=$2
-  cat > "$STUB_DIR/$name" <<EOF2
+  cat > "$STUB_DIR/$name" <<EOF
 #!/usr/bin/env bash
 echo "$name \$*" >> "\$STUB_LOG"
 $body
-EOF2
+EOF
   chmod +x "$STUB_DIR/$name"
 }
