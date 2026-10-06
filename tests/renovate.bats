@@ -38,9 +38,7 @@ assert all(rule in engine for rule in template)' "$REPO/renovate.json" "$REPO/co
   renovate '
 import glob
 expected = {
-    "getsops/sops": "scripts/tool-versions.env",
-    "FiloSottile/age": "scripts/tool-versions.env",
-    "restic/restic": "scripts/tool-versions.env",
+    "restic/restic": "internal/restic/release.env",
     "koalaman/shellcheck": ".github/workflows/test.yml",
 }
 found = {}
@@ -68,6 +66,14 @@ found = [m for m in config["customManagers"] if m["depNameTemplate"] == "restic/
 assert len(found) == 1
 patterns = found[0]["managerFilePatterns"]
 assert any(pattern(p).search("internal/restic/release.env") for p in patterns), patterns
-assert any(pattern(p).search("scripts/tool-versions.env") for p in patterns), patterns
+assert not any(pattern(p).search("scripts/tool-versions.env") for p in patterns), patterns
+'
+}
+
+@test "renovate no longer tracks sops, age or the Python test tools" {
+  renovate '
+names = [m["depNameTemplate"] for m in config["customManagers"]]
+assert "getsops/sops" not in names and "FiloSottile/age" not in names, names
+assert not any("tool-versions" in f for r in config["packageRules"] for f in r.get("matchFileNames", [])), config["packageRules"]
 '
 }
