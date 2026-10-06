@@ -126,8 +126,8 @@ func TestUpdate(t *testing.T) {
 			}
 			source := newMockReleaseSource(t)
 			source.EXPECT().Releases(mock.Anything).Return(tt.Given.releases, nil).Maybe()
-			source.EXPECT().Download(mock.Anything, int64(archiveID), mock.Anything).RunAndReturn(writing(archive)).Maybe()
-			source.EXPECT().Download(mock.Anything, int64(checksumsID), mock.Anything).RunAndReturn(writing([]byte(tt.Given.checksums))).Maybe()
+			source.EXPECT().Download(mock.Anything, assetWithID(archiveID), mock.Anything).RunAndReturn(writing(archive)).Maybe()
+			source.EXPECT().Download(mock.Anything, assetWithID(checksumsID), mock.Anything).RunAndReturn(writing([]byte(tt.Given.checksums))).Maybe()
 			versions := newMockVersionReader(t)
 			if tt.Given.version != nil {
 				versions.EXPECT().Version(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, path string) (string, error) {
@@ -174,8 +174,8 @@ func TestUpdateFollowsSymlink(t *testing.T) {
 	require.NoError(t, os.Symlink(target, link))
 	source := newMockReleaseSource(t)
 	source.EXPECT().Releases(mock.Anything).Return([]github.Release{releaseOf("v0.8.1")}, nil)
-	source.EXPECT().Download(mock.Anything, int64(archiveID), mock.Anything).RunAndReturn(writing(archive))
-	source.EXPECT().Download(mock.Anything, int64(checksumsID), mock.Anything).RunAndReturn(writing([]byte(hex.EncodeToString(sum[:]) + "  " + ArchiveName() + "\n")))
+	source.EXPECT().Download(mock.Anything, assetWithID(archiveID), mock.Anything).RunAndReturn(writing(archive))
+	source.EXPECT().Download(mock.Anything, assetWithID(checksumsID), mock.Anything).RunAndReturn(writing([]byte(hex.EncodeToString(sum[:]) + "  " + ArchiveName() + "\n")))
 	versions := newMockVersionReader(t)
 	versions.EXPECT().Version(mock.Anything, mock.Anything).Return("mse v0.8.1 (commit 1a2b3c4, built 2026-10-05)\n", nil)
 
@@ -194,8 +194,8 @@ func TestUpdateFollowsSymlink(t *testing.T) {
 	assert.Equal(t, target, resolved)
 }
 
-func writing(content []byte) func(context.Context, int64, io.Writer) error {
-	return func(_ context.Context, _ int64, w io.Writer) error {
+func writing(content []byte) func(context.Context, github.Asset, io.Writer) error {
+	return func(_ context.Context, _ github.Asset, w io.Writer) error {
 		_, err := w.Write(content)
 		return err
 	}
@@ -257,8 +257,8 @@ func TestUpdateReportsProgress(t *testing.T) {
 			require.NoError(t, os.WriteFile(executable, []byte("old binary"), 0o755))
 			source := newMockReleaseSource(t)
 			source.EXPECT().Releases(mock.Anything).Return(tt.Given.releases, nil).Maybe()
-			source.EXPECT().Download(mock.Anything, int64(archiveID), mock.Anything).RunAndReturn(writing(archive)).Maybe()
-			source.EXPECT().Download(mock.Anything, int64(checksumsID), mock.Anything).RunAndReturn(writing([]byte(checksums))).Maybe()
+			source.EXPECT().Download(mock.Anything, assetWithID(archiveID), mock.Anything).RunAndReturn(writing(archive)).Maybe()
+			source.EXPECT().Download(mock.Anything, assetWithID(checksumsID), mock.Anything).RunAndReturn(writing([]byte(checksums))).Maybe()
 			versions := newMockVersionReader(t)
 			versions.EXPECT().Version(mock.Anything, mock.Anything).RunAndReturn(func(context.Context, string) (string, error) {
 				return "mse " + tt.Given.downloaded + " (commit 1a2b3c4, built 2026-10-05)\n", nil
@@ -271,4 +271,8 @@ func TestUpdateReportsProgress(t *testing.T) {
 			assert.Equal(t, tt.Then.progress, progress)
 		})
 	}
+}
+
+func assetWithID(id int64) any {
+	return mock.MatchedBy(func(asset github.Asset) bool { return asset.ID == id })
 }

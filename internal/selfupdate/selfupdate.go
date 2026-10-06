@@ -21,7 +21,7 @@ import (
 
 type releaseSource interface {
 	Releases(ctx context.Context) ([]github.Release, error)
-	Download(ctx context.Context, assetID int64, w io.Writer) error
+	Download(ctx context.Context, asset github.Asset, w io.Writer) error
 }
 
 type versionReader interface {
@@ -110,7 +110,7 @@ func (u *Updater) download(ctx context.Context, target github.Release, name stri
 	for _, asset := range target.Assets {
 		if asset.Name == name {
 			var content bytes.Buffer
-			if err := u.source.Download(ctx, asset.ID, &content); err != nil {
+			if err := u.source.Download(ctx, asset, &content); err != nil {
 				return nil, err
 			}
 			return content.Bytes(), nil

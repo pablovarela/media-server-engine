@@ -119,7 +119,11 @@ func Execute(engine fs.FS) int {
 		_, _ = fmt.Fprintf(os.Stderr, "mse: %v\n", err)
 		return 1
 	}
-	client := github.NewClient(github.SystemTokenSource(), &http.Client{Timeout: 5 * time.Minute})
+	client, err := github.NewClient(github.SystemTokenSource(), &http.Client{Timeout: 5 * time.Minute})
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "mse: %v\n", err)
+		return 1
+	}
 	deps := Dependencies{
 		Build:       version.Current(),
 		Update:      selfupdate.New(client, os.Executable, selfupdate.SystemVersionReader{}),

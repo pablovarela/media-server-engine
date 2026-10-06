@@ -10,27 +10,37 @@ setup() {
   setup_stubs
   FIXTURES="$STUB_DIR/fixtures"
   export FIXTURES
-  mkdir -p "$FIXTURES/latest/download" "$FIXTURES/download/v0.6.9" "$STUB_DIR/package"
+  mkdir -p "$FIXTURES/download/v0.7.0" "$FIXTURES/download/v0.6.9" "$STUB_DIR/package"
   printf '#!/bin/sh\necho "mse v0.7.0 (fake)"\n' > "$STUB_DIR/package/mse"
   chmod +x "$STUB_DIR/package/mse"
-  tar -czf "$FIXTURES/latest/download/mse_linux_arm64.tar.gz" -C "$STUB_DIR/package" mse
-  printf '%s  mse_linux_arm64.tar.gz\n' "$(sha256_of "$FIXTURES/latest/download/mse_linux_arm64.tar.gz")" > "$FIXTURES/latest/download/checksums.txt"
-  cp "$FIXTURES/latest/download/"* "$FIXTURES/download/v0.6.9/"
+  tar -czf "$FIXTURES/download/v0.7.0/mse_linux_arm64.tar.gz" -C "$STUB_DIR/package" mse
+  printf '%s  mse_linux_arm64.tar.gz\n' "$(sha256_of "$FIXTURES/download/v0.7.0/mse_linux_arm64.tar.gz")" > "$FIXTURES/download/v0.7.0/checksums.txt"
+  cp "$FIXTURES/download/v0.7.0/"* "$FIXTURES/download/v0.6.9/"
+  echo v0.7.0 > "$FIXTURES/latest"
 
   make_stub curl '
-output="" url=""
+output="" url="" head="" format=""
 while [ $# -gt 0 ]; do
   case $1 in
     -H) echo "header $2" >> "$STUB_LOG.headers"; shift 2 ;;
     -o) output=$2; shift 2 ;;
+    -w) format=$2; shift 2 ;;
+    -I | -*I*) head=1; shift ;;
     -*) shift ;;
     *) url=$1; shift ;;
   esac
 done
-file="$FIXTURES/${url#https://github.com/pablovarela/media-server-engine/releases/}"
-[ -f "$file" ] || exit 22
+[ -z "${CURL_OFFLINE:-}" ] || { echo "curl: (6) Could not resolve host: github.com" >&2; exit 6; }
+releases=https://github.com/pablovarela/media-server-engine/releases
+if [ "$url" = "$releases/latest" ]; then
+  [ -f "$FIXTURES/latest" ] || { echo "curl: (56) The requested URL returned error: 404" >&2; exit 56; }
+  printf "%s" "$releases/tag/$(cat "$FIXTURES/latest")"
+  [ -z "${CURL_PUBLISH_AFTER_LOOKUP:-}" ] || echo "$CURL_PUBLISH_AFTER_LOOKUP" > "$FIXTURES/latest"
+  exit 0
+fi
+file="$FIXTURES/${url#"$releases/"}"
 case $url in *"${CURL_HANG_ON:-none}") touch "$STUB_LOG.hanging"; sleep 2 ;; esac
-if [ -n "$output" ]; then cp "$file" "$output"; else cat "$file"; fi'
+if [ -f "$file" ]; then cp "$file" "$output"; printf 200; else printf 404; fi'
   make_stub uname '
 case $1 in
   -s) echo "${FAKE_OS:-Linux}" ;;
@@ -57,8 +67,8 @@ teardown() {
   [[ "$output" == *"mse v0.7.0 (fake)"* ]]
   [ -x "$MSE_INSTALL_DIR/mse" ]
   [ "$("$MSE_INSTALL_DIR/mse")" = "mse v0.7.0 (fake)" ]
-  grep -q "github.com/pablovarela/media-server-engine/releases/latest/download/mse_linux_arm64.tar.gz" "$STUB_LOG"
-  grep -q "github.com/pablovarela/media-server-engine/releases/latest/download/checksums.txt" "$STUB_LOG"
+  grep -q "github.com/pablovarela/media-server-engine/releases/download/v0.7.0/mse_linux_arm64.tar.gz" "$STUB_LOG"
+  grep -q "github.com/pablovarela/media-server-engine/releases/download/v0.7.0/checksums.txt" "$STUB_LOG"
 }
 
 @test "works when piped into sh" {
@@ -85,14 +95,31 @@ teardown() {
   ! grep -q "gh " "$STUB_LOG" || false
 }
 
-@test "says so when the latest release cannot be downloaded" {
-  rm "$FIXTURES/latest/download/checksums.txt"
+@test "takes both files from the release that was the latest when it started" {
+  CURL_PUBLISH_AFTER_LOOKUP=v0.6.9 run sh "$REPO/install.sh"
+
+  [ "$status" -eq 0 ]
+  [ "$(grep -c "releases/latest" "$STUB_LOG")" -eq 1 ]
+  [ "$(grep -c "releases/download/v0.7.0/" "$STUB_LOG")" -eq 2 ]
+  ! grep -q "releases/download/v0.6.9/" "$STUB_LOG" || false
+}
+
+@test "says so when there is no latest release" {
+  rm "$FIXTURES/latest"
 
   run sh "$REPO/install.sh"
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"could not download the latest release of pablovarela/media-server-engine"* ]]
+  [[ "$output" == *"could not find the latest release of pablovarela/media-server-engine"* ]]
   [ ! -e "$MSE_INSTALL_DIR/mse" ]
+}
+
+@test "says so when GitHub cannot be reached, rather than blaming the release" {
+  CURL_OFFLINE=1 MSE_VERSION=v0.6.9 run sh "$REPO/install.sh"
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"could not reach github.com to download checksums.txt of release v0.6.9"* ]]
+  [[ "$output" != *"no release"* ]]
 }
 
 @test "names the release that does not exist" {
@@ -105,7 +132,7 @@ teardown() {
 @test "picks the archive for the machine" {
   FAKE_OS=Darwin FAKE_ARCH=x86_64 run sh "$REPO/install.sh"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"the latest release has no mse_darwin_amd64.tar.gz"* ]]
+  [[ "$output" == *"release v0.7.0 has no mse_darwin_amd64.tar.gz"* ]]
 
   FAKE_OS=Linux FAKE_ARCH=amd64 run sh "$REPO/install.sh"
   [[ "$output" == *"has no mse_linux_amd64.tar.gz"* ]]
@@ -128,7 +155,7 @@ teardown() {
   mkdir -p "$MSE_INSTALL_DIR"
   printf '#!/bin/sh\necho old\n' > "$MSE_INSTALL_DIR/mse"
   chmod +x "$MSE_INSTALL_DIR/mse"
-  printf '%s  mse_linux_arm64.tar.gz\n' "0000000000000000000000000000000000000000000000000000000000000000" > "$FIXTURES/latest/download/checksums.txt"
+  printf '%s  mse_linux_arm64.tar.gz\n' "0000000000000000000000000000000000000000000000000000000000000000" > "$FIXTURES/download/v0.7.0/checksums.txt"
 
   run sh "$REPO/install.sh"
 

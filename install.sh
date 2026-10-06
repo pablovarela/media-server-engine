@@ -23,8 +23,22 @@ platform() {
 	echo "${os}_${arch}"
 }
 
+latest_tag() {
+	latest=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "$RELEASES/latest") || return 1
+	case $latest in
+	"$RELEASES/tag/"?*) echo "${latest#"$RELEASES/tag/"}" ;;
+	*) return 1 ;;
+	esac
+}
+
 download() {
-	curl -fsSL -o "$workdir/$1" "$base/$1"
+	code=$(curl -sSL -o "$workdir/$1" -w '%{http_code}' "$RELEASES/download/$tag/$1") ||
+		fail "could not reach github.com to download $1 of release $tag"
+	case $code in
+	200) ;;
+	404) return 1 ;;
+	*) fail "GitHub answered $code for $1 of release $tag" ;;
+	esac
 }
 
 sha256() {
@@ -42,20 +56,16 @@ staged=""
 trap 'rm -rf "$workdir"; [ -z "$staged" ] || rm -f "$staged"' EXIT
 trap 'exit 1' HUP INT TERM
 
-if [ -n "${MSE_VERSION:-}" ]; then
-	base=$RELEASES/download/$MSE_VERSION
-	release="release $MSE_VERSION"
-	download checksums.txt || fail "no release $MSE_VERSION in $REPOSITORY"
-else
-	base=$RELEASES/latest/download
-	release="the latest release"
-	download checksums.txt || fail "could not download the latest release of $REPOSITORY"
+tag=${MSE_VERSION:-}
+if [ -z "$tag" ]; then
+	tag=$(latest_tag) || fail "could not find the latest release of $REPOSITORY"
 fi
 
+download checksums.txt || fail "no release $tag in $REPOSITORY"
 expected=$(awk -v name="$archive" '$2 == name { print $1 }' "$workdir/checksums.txt")
-[ -n "$expected" ] || fail "$release has no $archive"
-download "$archive" || fail "could not download $archive from $release"
-[ "$(sha256 "$workdir/$archive")" = "$expected" ] || fail "checksum mismatch for $archive in $release: not installing"
+[ -n "$expected" ] || fail "release $tag has no $archive"
+download "$archive" || fail "release $tag has no $archive"
+[ "$(sha256 "$workdir/$archive")" = "$expected" ] || fail "checksum mismatch for $archive in release $tag: not installing"
 
 install_dir=${MSE_INSTALL_DIR:-$HOME/.local/bin}
 
