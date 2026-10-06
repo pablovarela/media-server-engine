@@ -25,7 +25,8 @@ age_url() {
 }
 
 restic_url() {
-  echo "https://github.com/restic/restic/releases/download/v$RESTIC_VERSION/restic_${RESTIC_VERSION}_linux_arm64.bz2"
+  local platform=${1:-linux_arm64} version=${2:-$RESTIC_VERSION}
+  echo "https://github.com/restic/restic/releases/download/v$version/restic_${version}_${platform}.bz2"
 }
 
 download_verified() {

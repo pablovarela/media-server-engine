@@ -93,7 +93,7 @@ release-snapshot: ## build every release archive into dist/ without publishing (
 lint: ## shellcheck every script and lint the Go code, reporting both before failing
 	@command -v shellcheck >/dev/null || { echo "shellcheck missing: brew install shellcheck" >&2; exit 1; }
 	@status=0; \
-	shellcheck -x scripts/*.sh scripts/wire/*.sh diagnose.sh install.sh || status=1; \
+	shellcheck -x scripts/*.sh scripts/wire/*.sh install.sh || status=1; \
 	$(MAKE) --no-print-directory go-lint || status=1; \
 	exit $$status
 

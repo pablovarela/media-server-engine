@@ -170,7 +170,7 @@ func TestJoinStopsBeforeWritingAnything(t *testing.T) {
 
 func TestJoinStopsOnAMachineThatIsNotReady(t *testing.T) {
 	f := newJoinFixture(t)
-	delete(f.answers, "restic version")
+	delete(f.answers, "loginctl show-user pablo -p Linger")
 
 	code, stdout, stderr := f.join(t, "gorgon")
 

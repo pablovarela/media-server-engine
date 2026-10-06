@@ -23,15 +23,15 @@ func TestBases(t *testing.T) {
 	}{
 		"defaults under home": {
 			Given: Given{env: map[string]string{}},
-			Then:  Then{bases: Bases{Config: "/home/u/.config", Data: "/home/u/.local/share", State: "/home/u/.local/state"}},
+			Then:  Then{bases: Bases{Config: "/home/u/.config", Data: "/home/u/.local/share", State: "/home/u/.local/state", Cache: "/home/u/.cache"}},
 		},
 		"XDG variables win": {
 			Given: Given{env: map[string]string{"XDG_CONFIG_HOME": "/c", "XDG_DATA_HOME": "/d", "XDG_STATE_HOME": "/s"}},
-			Then:  Then{bases: Bases{Config: "/c", Data: "/d", State: "/s"}},
+			Then:  Then{bases: Bases{Config: "/c", Data: "/d", State: "/s", Cache: "/home/u/.cache"}},
 		},
 		"empty means unset": {
 			Given: Given{env: map[string]string{"XDG_CONFIG_HOME": "", "XDG_DATA_HOME": "/d"}},
-			Then:  Then{bases: Bases{Config: "/home/u/.config", Data: "/d", State: "/home/u/.local/state"}},
+			Then:  Then{bases: Bases{Config: "/home/u/.config", Data: "/d", State: "/home/u/.local/state", Cache: "/home/u/.cache"}},
 		},
 	}
 	for name, tt := range tests {
@@ -180,4 +180,9 @@ func TestSeveralInstallationsAreRecognisable(t *testing.T) {
 	_, err := Load(Bases{Config: filepath.Join(root, "config")}, "", func(string) string { return "" })
 
 	assert.ErrorIs(t, err, ErrSeveralInstallations)
+}
+
+func TestBasesHaveACacheFolder(t *testing.T) {
+	assert.Equal(t, "/home/p/.cache", BasesFrom(func(string) string { return "" }, "/home/p").Cache)
+	assert.Equal(t, "/c", BasesFrom(func(k string) string { return map[string]string{"XDG_CACHE_HOME": "/c"}[k] }, "/home/p").Cache)
 }

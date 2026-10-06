@@ -91,7 +91,8 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/^scripts\\/tool-versions\\.env$/"
+        "/^scripts\\/tool-versions\\.env$/",
+        "/^internal\\/restic\\/release\\.env$/"
       ],
       "matchStrings": [
         "RESTIC_VERSION=(?<currentValue>\\d+\\.\\d+\\.\\d+)"

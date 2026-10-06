@@ -65,6 +65,7 @@ func newApplyFixture(t *testing.T) applyFixture {
 func (f applyFixture) deps(t *testing.T, systemd bool) Dependencies {
 	t.Helper()
 	return Dependencies{
+		ResticBinary: localRestic,
 		Environment: func(key string) string {
 			if key == "USER" {
 				return "pablo"

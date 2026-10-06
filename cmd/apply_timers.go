@@ -21,7 +21,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/timers"
 )
 
-var carriedIntoUnits = []string{"XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "SOPS_AGE_KEY_FILE", "SOPS_AGE_KEY_CMD"}
+var carriedIntoUnits = []string{"XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME", "SOPS_AGE_KEY_FILE", "SOPS_AGE_KEY_CMD"}
 
 const noUnattendedToken = "the nightly update can't get a GitHub token without a login: run gh auth login " +
 	"(gh keeps the token in ~/.config/gh/hosts.yml when there is no keyring); a GITHUB_TOKEN in the shell doesn't reach the timers"
@@ -118,7 +118,7 @@ func (t *appliedTimers) droppedVariables() []string {
 const noBackupsYet = "; no backups yet (mse claim-backup-main makes this machine the main)"
 
 func (t *appliedTimers) role(ctx context.Context) (role timers.Role, note, warning string) {
-	b, configured, err := t.d.backupRole(t.i)
+	b, configured, err := t.d.backupRole(ctx, t.i)
 	if err == nil && !configured {
 		return timers.Secondary, "", ""
 	}
@@ -137,7 +137,7 @@ func (t *appliedTimers) role(ctx context.Context) (role timers.Role, note, warni
 	return timers.Unknown, "", fmt.Sprintf("%v; the backup timers are left as they are", err)
 }
 
-func (d Dependencies) backupRole(i *installation.Installation) (*backup.Backups, bool, error) {
+func (d Dependencies) backupRole(ctx context.Context, i *installation.Installation) (*backup.Backups, bool, error) {
 	location := i.Settings["RESTIC_REPOSITORY"]
 	environment := map[string]string{}
 	if decrypted, err := d.Decrypt(filepath.Join(i.Config, "secrets", "backup.sops.env")); err == nil {
@@ -153,9 +153,13 @@ func (d Dependencies) backupRole(i *installation.Installation) (*backup.Backups,
 	if err != nil {
 		return nil, true, err
 	}
+	binary, err := d.ResticBinary(report.With(ctx, report.New(io.Discard, io.Discard, nil)))
+	if err != nil {
+		return nil, true, err
+	}
 	return &backup.Backups{
 		Installation: i,
-		Repository:   resticFor(d.Run(io.Discard, io.Discard), environment, io.Discard),
+		Repository:   resticFor(binary, d.Run(io.Discard, io.Discard), environment, io.Discard),
 		MachineID:    machine,
 		Report:       report.New(io.Discard, io.Discard, nil),
 	}, true, nil

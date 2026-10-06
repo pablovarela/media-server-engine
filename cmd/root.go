@@ -31,6 +31,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/paint"
 	"github.com/pablovarela/media-server-engine/internal/process"
 	"github.com/pablovarela/media-server-engine/internal/report"
+	"github.com/pablovarela/media-server-engine/internal/restic"
 	"github.com/pablovarela/media-server-engine/internal/secrets"
 	"github.com/pablovarela/media-server-engine/internal/selfupdate"
 	"github.com/pablovarela/media-server-engine/internal/version"
@@ -70,6 +71,7 @@ type Dependencies struct {
 	PortFree      func(machine.Port) bool
 	Published     func(ctx context.Context) ([]machine.Published, error)
 	Repositories  configRepositories
+	ResticBinary  func(ctx context.Context) (string, error)
 }
 
 func NewRootCommand(deps Dependencies) *cobra.Command {
@@ -152,7 +154,20 @@ func Execute(engine fs.FS) int {
 		PortFree:     machine.PortFree,
 		Published:    machine.DockerPublished,
 		Repositories: client,
-		Exec:         func(path string, args []string) error { return syscall.Exec(path, args, os.Environ()) }, //nolint:gosec // runs the mse release it just installed
+		ResticBinary: func(ctx context.Context) (string, error) {
+			release, err := restic.Pinned()
+			if err != nil {
+				return "", err
+			}
+			return restic.Binary(ctx, restic.Fetch{
+				Release: release,
+				Cache:   filepath.Join(installation.BasesFrom(os.Getenv, home).Cache, "mse", "restic"),
+				GOOS:    runtime.GOOS, GOARCH: runtime.GOARCH,
+				HTTP:   &http.Client{Timeout: 5 * time.Minute},
+				Report: report.From(ctx),
+			})
+		},
+		Exec: func(path string, args []string) error { return syscall.Exec(path, args, os.Environ()) }, //nolint:gosec // runs the mse release it just installed
 	}
 	globalLogs := filepath.Join(installation.BasesFrom(os.Getenv, home).State, "mse")
 	return runLogged(ctx, NewRootCommand(deps), os.Args[1:], globalLogs)

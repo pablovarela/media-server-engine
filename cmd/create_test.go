@@ -155,7 +155,7 @@ func TestCreateRefusesAnInvalidName(t *testing.T) {
 
 func TestCreateStopsOnAMachineThatIsNotReady(t *testing.T) {
 	f := newCreateFixture(t)
-	delete(f.answers, "restic version")
+	delete(f.answers, "loginctl show-user pablo -p Linger")
 
 	code, stdout, stderr := f.create(t, "gorgon")
 

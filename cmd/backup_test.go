@@ -18,6 +18,8 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/process"
 )
 
+func localRestic(context.Context) (string, error) { return "restic", nil }
+
 func resticCall(args ...string) any {
 	return mock.MatchedBy(func(c process.Command) bool {
 		return c.Name == "restic" && slices.Equal(args, c.Args) &&
@@ -74,7 +76,8 @@ func TestBackupCommands(t *testing.T) {
 			runner := newMockCommandRunner(t)
 			tt.Then.expect(runner)
 			deps := Dependencies{
-				Environment: getenv, Home: home, Update: newMockUpdater(t),
+				ResticBinary: localRestic,
+				Environment:  getenv, Home: home, Update: newMockUpdater(t),
 				Decrypt: func(string) ([]byte, error) {
 					return []byte("RESTIC_PASSWORD=secret\n"), nil
 				},
@@ -100,7 +103,8 @@ func TestBackupCommands(t *testing.T) {
 func TestBackupCommandsNeedARepository(t *testing.T) {
 	getenv, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"})
 	root := NewRootCommand(Dependencies{
-		Environment: getenv, Home: home, Update: newMockUpdater(t),
+		ResticBinary: localRestic,
+		Environment:  getenv, Home: home, Update: newMockUpdater(t),
 		Decrypt: func(string) ([]byte, error) { return []byte("RESTIC_PASSWORD=secret\n"), nil },
 		Host:    installation.Host{GOOS: "linux", Hostname: func() (string, error) { return "gorgon", nil }},
 		Run:     func(_, _ io.Writer) commandRunner { return newMockCommandRunner(t) },

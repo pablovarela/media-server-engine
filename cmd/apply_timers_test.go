@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/pablovarela/media-server-engine/internal/process"
+	"github.com/pablovarela/media-server-engine/internal/report"
 	"github.com/pablovarela/media-server-engine/internal/version"
 )
 
@@ -204,11 +205,13 @@ func TestAKeyGivenByValueSetsUpNoTimers(t *testing.T) {
 func TestTheCarriedVariablesReachTheUnitsAndTheTokenCheck(t *testing.T) {
 	tf := newTimersFixture(t)
 	tf.environment["SOPS_AGE_KEY_FILE"] = "/keys/age.txt"
+	tf.environment["XDG_CACHE_HOME"] = "/cache"
 
 	code, _, stderr := tf.apply(t)
 
 	require.Equal(t, 0, code, stderr)
 	assert.Contains(t, tf.unit(t, "mse-gorgon-backup.service"), "Environment=\"SOPS_AGE_KEY_FILE=/keys/age.txt\"\n")
+	assert.Contains(t, tf.unit(t, "mse-gorgon-backup.service"), "Environment=\"XDG_CACHE_HOME=/cache\"\n")
 	assert.Contains(t, tf.tokenCall, "SOPS_AGE_KEY_FILE=/keys/age.txt")
 }
 
@@ -364,4 +367,18 @@ func TestAnUnreadableUserManagerGetsNoWarning(t *testing.T) {
 
 	require.Equal(t, 0, code, stderr)
 	assert.NotContains(t, stderr, "can't reach Docker")
+}
+
+func TestFetchingResticKeepsTheTimersStepOnOneLine(t *testing.T) {
+	tf := newTimersFixture(t)
+	tf.deps.ResticBinary = func(ctx context.Context) (string, error) {
+		report.From(ctx).Step("Downloading restic 0.19.1").Done("done")
+		return "restic", nil
+	}
+
+	code, stdout, stderr := tf.apply(t)
+
+	require.Equal(t, 0, code, stderr)
+	assert.NotContains(t, stdout, "Downloading restic")
+	assert.Regexp(t, `(?m)^Setting up the timers\.\.\. .+$`, stdout)
 }

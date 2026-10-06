@@ -17,7 +17,6 @@ const (
 	dockerCheck  = "docker"
 	groupCheck   = "group"
 	sessionCheck = "session"
-	resticCheck  = "restic"
 	lingerCheck  = "linger"
 	managerCheck = "manager"
 )
@@ -43,7 +42,6 @@ func checks() []check {
 		{id: dockerCheck, name: named("Docker"), probe: dockerInstalled},
 		{id: groupCheck, name: inGroupName, needs: []string{dockerCheck}, applies: linux, probe: inDockerGroup},
 		{id: sessionCheck, name: named("Docker answers"), needs: []string{dockerCheck, groupCheck}, probe: dockerAnswers},
-		{id: resticCheck, name: named("restic"), probe: resticInstalled},
 		{id: lingerCheck, name: named("lingering"), applies: systemd, probe: lingering},
 		{id: managerCheck, name: named("the user manager has the docker group"), needs: []string{dockerCheck, groupCheck, lingerCheck}, applies: systemd, probe: managerHasDocker},
 	}
@@ -92,11 +90,6 @@ func dockerAnswers(ctx context.Context, env Env) outcome {
 		return outcome{detail: "the daemon doesn't answer", fix: "sudo systemctl start docker"}
 	}
 	return outcome{detail: "this session doesn't have the docker group yet", fix: "log out and back in"}
-}
-
-func resticInstalled(ctx context.Context, env Env) outcome {
-	_, ok := output(ctx, env.Runner, "restic", "version")
-	return outcome{ok: ok, detail: notInstalled, fix: onOS(env, "sudo apt install restic", "brew install restic")}.passing()
 }
 
 func lingering(ctx context.Context, env Env) outcome {
