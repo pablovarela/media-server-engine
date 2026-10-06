@@ -10,6 +10,7 @@ import (
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/pablovarela/media-server-engine/internal/installation"
 )
@@ -43,13 +44,29 @@ func (s shipped) secret(t *testing.T, file, content string) {
 	require.NoError(t, os.WriteFile(filepath.Join(s.i.State, ".secrets", file), []byte(content), 0o600))
 }
 
-func (s shipped) load(t *testing.T, kind Kind, profiles ...string) *types.Project {
+func (s shipped) unpinHomepage(t *testing.T) {
 	t.Helper()
+	path := filepath.Join(s.i.Config, Stack.ImagesFile)
+	text, err := os.ReadFile(path)
+	require.NoError(t, err)
+	var images map[string]map[string]any
+	require.NoError(t, yaml.Unmarshal(text, &images))
+	require.Contains(t, images["services"], "homepage")
+	delete(images["services"], "homepage")
+	text, err = yaml.Marshal(images)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, text, 0o644))
+}
+
+func (s shipped) load(t *testing.T, kind Kind, wiring bool) types.Services {
+	t.Helper()
+	profiles, err := Profiles(s.i, kind, wiring)
+	require.NoError(t, err)
 	runner, err := NewRunner(os.Stderr, &Outcomes{})
 	require.NoError(t, err)
 	project, err := runner.Load(context.Background(), s.i, kind, Variables(s.i, "media.local", 0), profiles)
 	require.NoError(t, err)
-	return project
+	return project.Services
 }
 
 func binds(service types.ServiceConfig) map[string]types.ServiceVolumeConfig {
@@ -62,49 +79,63 @@ func binds(service types.ServiceConfig) map[string]types.ServiceVolumeConfig {
 	return mounts
 }
 
-func TestConfigarrOnlyRunsAsAWiringStep(t *testing.T) {
-	s := shippedInstallation(t, map[string]string{})
-
-	assert.NotContains(t, s.load(t, Stack, "homepage").Services, "configarr")
-	wiring := s.load(t, Stack, "homepage", "wiring")
-	assert.Equal(t, []string{"wiring"}, wiring.Services["configarr"].Profiles)
+func environment(t *testing.T, service types.ServiceConfig, key string) string {
+	t.Helper()
+	value := service.Environment[key]
+	require.NotNil(t, value, "%s has no %s", service.Name, key)
+	return *value
 }
 
-func TestTheEngineComposeFilesCarryNoImageVersions(t *testing.T) {
-	for _, file := range []string{"docker-compose.yml", "docker-compose.monitoring.yml"} {
-		content, err := os.ReadFile(filepath.Join("..", "..", file))
-		require.NoError(t, err)
-		for _, line := range strings.Split(string(content), "\n") {
-			assert.NotRegexp(t, `^\s+image:`, line, file)
-		}
+type shippedCheck func(t *testing.T, i *installation.Installation, services types.Services)
+
+func takesItsAPIKeyFromItsOwnSecretsFile(app, key string) shippedCheck {
+	return func(t *testing.T, _ *installation.Installation, services types.Services) {
+		assert.Equal(t, key, environment(t, services[app], strings.ToUpper(app)+"__AUTH__APIKEY"))
 	}
 }
 
-func TestTheTemplatePinsEveryServiceToADigest(t *testing.T) {
-	s := shippedInstallation(t, map[string]string{})
-	for _, project := range []*types.Project{s.load(t, Stack, "homepage", "wiring"), s.load(t, Monitoring)} {
-		for name, service := range project.Services {
-			assert.Contains(t, service.Image, "@sha256:", name)
-		}
+func skipsItsLoginOnTheLocalNetwork(app string) shippedCheck {
+	return func(t *testing.T, _ *installation.Installation, services types.Services) {
+		prefix := strings.ToUpper(app) + "__AUTH__"
+		assert.Equal(t, "Forms", environment(t, services[app], prefix+"METHOD"))
+		assert.Equal(t, "DisabledForLocalAddresses", environment(t, services[app], prefix+"REQUIRED"))
 	}
 }
 
-func TestAppStateMediaAndDownloadsLiveUnderTheDataFolder(t *testing.T) {
-	s := shippedInstallation(t, map[string]string{})
-	for name, service := range s.load(t, Stack, "homepage").Services {
+func waitsUntilHealthy(app string) shippedCheck {
+	return func(t *testing.T, _ *installation.Installation, services types.Services) {
+		assert.Equal(t, types.ServiceConditionHealthy, services["configarr"].DependsOn[app].Condition)
+		assert.NotNil(t, services[app].HealthCheck)
+	}
+}
+
+func mountsTheSharedDataFolder(app string) shippedCheck {
+	return func(t *testing.T, i *installation.Installation, services types.Services) {
+		assert.Equal(t, filepath.Join(i.Data, "data"), binds(services[app])["/data"].Source)
+	}
+}
+
+func pinsEveryServiceToADigest(t *testing.T, _ *installation.Installation, services types.Services) {
+	require.NotEmpty(t, services)
+	for name, service := range services {
+		assert.Contains(t, service.Image, "@sha256:", name)
+	}
+}
+
+func keepsAppStateMediaAndDownloadsUnderTheDataFolder(t *testing.T, i *installation.Installation, services types.Services) {
+	for name, service := range services {
 		for target, mount := range binds(service) {
 			top := strings.Split(target, "/")[1]
 			if strings.Contains(mount.Source, "/volumes/") || top == "data" || top == "media" {
-				assert.True(t, strings.HasPrefix(mount.Source, s.i.Data), "%s %s from %s", name, target, mount.Source)
+				assert.True(t, strings.HasPrefix(mount.Source, i.Data), "%s %s from %s", name, target, mount.Source)
 			}
 		}
 	}
 }
 
-func TestEveryServiceThatWritesAppStateRunsAsUID1000(t *testing.T) {
-	s := shippedInstallation(t, map[string]string{})
-	volumes := filepath.Join(s.i.Data, "volumes") + string(filepath.Separator)
-	for name, service := range s.load(t, Stack, "homepage").Services {
+func writesAppStateOnlyAsUID1000(t *testing.T, i *installation.Installation, services types.Services) {
+	volumes := filepath.Join(i.Data, "volumes") + string(filepath.Separator)
+	for name, service := range services {
 		writes := false
 		for _, mount := range binds(service) {
 			writes = writes || strings.HasPrefix(mount.Source, volumes)
@@ -119,117 +150,243 @@ func TestEveryServiceThatWritesAppStateRunsAsUID1000(t *testing.T) {
 	}
 }
 
-func TestConfigarrReadsItsConfigFromTheConfigRepoReadOnly(t *testing.T) {
-	s := shippedInstallation(t, map[string]string{})
-	mount := binds(s.load(t, Stack, "homepage", "wiring").Services["configarr"])["/app/config"]
-
-	assert.Equal(t, filepath.Join(s.i.Config, "configarr"), mount.Source)
-	assert.True(t, mount.ReadOnly)
-}
-
-func TestConfigarrWaitsUntilSonarrAndRadarrAreHealthy(t *testing.T) {
-	s := shippedInstallation(t, map[string]string{})
-	services := s.load(t, Stack, "homepage", "wiring").Services
-	for _, app := range []string{"sonarr", "radarr"} {
-		assert.Equal(t, types.ServiceConditionHealthy, services["configarr"].DependsOn[app].Condition, app)
-		assert.NotNil(t, services[app].HealthCheck, app)
-	}
-}
-
-func TestTheArrsTakeTheirAPIKeyFromTheirOwnSecretsFile(t *testing.T) {
-	s := shippedInstallation(t, map[string]string{})
-	s.secret(t, "sonarr.env", "SONARR__AUTH__APIKEY=sk\n")
-	s.secret(t, "radarr.env", "RADARR__AUTH__APIKEY=rk\n")
-	s.secret(t, "prowlarr.env", "PROWLARR__AUTH__APIKEY=pk\n")
-	services := s.load(t, Stack, "homepage").Services
-	for app, key := range map[string]string{"sonarr": "sk", "radarr": "rk", "prowlarr": "pk"} {
-		value := services[app].Environment[strings.ToUpper(app)+"__AUTH__APIKEY"]
-		require.NotNil(t, value, app)
-		assert.Equal(t, key, *value, app)
-	}
-	assert.NotContains(t, services["radarr"].Environment, "SONARR__AUTH__APIKEY")
-}
-
-func TestPortainerCreatesItsAdminFromAReadOnlyPasswordFile(t *testing.T) {
-	s := shippedInstallation(t, map[string]string{})
-	portainer := s.load(t, Stack, "homepage").Services["portainer"]
-	mount := binds(portainer)["/run/secrets/portainer_admin"]
-
-	assert.Equal(t, types.ShellCommand{"--admin-password-file", "/run/secrets/portainer_admin"}, portainer.Command)
-	assert.Equal(t, filepath.Join(s.i.State, ".secrets", "portainer_admin"), mount.Source)
-	assert.True(t, mount.ReadOnly)
-}
-
-func TestTheArrsSkipTheirLoginOnTheLocalNetwork(t *testing.T) {
-	s := shippedInstallation(t, map[string]string{})
-	services := s.load(t, Stack, "homepage").Services
-	for _, app := range []string{"sonarr", "radarr", "prowlarr"} {
-		env := services[app].Environment
-		prefix := strings.ToUpper(app) + "__AUTH__"
-		require.NotNil(t, env[prefix+"METHOD"], app)
-		require.NotNil(t, env[prefix+"REQUIRED"], app)
-		assert.Equal(t, "Forms", *env[prefix+"METHOD"], app)
-		assert.Equal(t, "DisabledForLocalAddresses", *env[prefix+"REQUIRED"], app)
-	}
-}
-
-func TestEveryAppRunsInTheInstallationsTimeZone(t *testing.T) {
-	zoned := shippedInstallation(t, map[string]string{"TZ": "Europe/London"})
-	withZone := 0
-	for name, service := range zoned.load(t, Stack, "homepage").Services {
+func runsEveryZonedAppInEuropeLondon(t *testing.T, _ *installation.Installation, services types.Services) {
+	zoned := 0
+	for name, service := range services {
 		if tz := service.Environment["TZ"]; tz != nil {
-			withZone++
+			zoned++
 			assert.Equal(t, "Europe/London", *tz, name)
 		}
 	}
-	assert.Positive(t, withZone, "some services run in a time zone")
-	jellyfin := shippedInstallation(t, map[string]string{}).load(t, Stack, "homepage").Services["jellyfin"]
-	require.NotNil(t, jellyfin.Environment["TZ"])
-	assert.Equal(t, "Etc/UTC", *jellyfin.Environment["TZ"])
+	assert.Positive(t, zoned)
 }
 
-func TestTheLandingPage(t *testing.T) {
-	s := shippedInstallation(t, map[string]string{})
-	homepage := s.load(t, Stack, "homepage").Services["homepage"]
+func servesTheMediaReadOnlyOnPort80(t *testing.T, i *installation.Installation, services types.Services) {
+	require.Contains(t, services, "homepage")
+	homepage := services["homepage"]
 	mounts := binds(homepage)
-
 	require.NotEmpty(t, homepage.Ports)
 	assert.Equal(t, "80", homepage.Ports[0].Published)
 	assert.Equal(t, uint32(3000), homepage.Ports[0].Target)
-	assert.Equal(t, "1000", *homepage.Environment["PUID"])
-	assert.Equal(t, "1000", *homepage.Environment["PGID"])
-	assert.Contains(t, *homepage.Environment["HOMEPAGE_ALLOWED_HOSTS"], "media.local")
-	assert.Equal(t, "stdout", *homepage.Environment["LOG_TARGETS"])
-	assert.Equal(t, filepath.Join(s.i.State, ".homepage"), mounts["/app/config"].Source)
-	assert.Equal(t, filepath.Join(s.i.Data, "data", "media"), mounts["/media"].Source)
+	assert.Equal(t, "1000", environment(t, homepage, "PUID"))
+	assert.Equal(t, "1000", environment(t, homepage, "PGID"))
+	assert.Equal(t, i.HomepageAllowedHosts("media.local"), environment(t, homepage, "HOMEPAGE_ALLOWED_HOSTS"))
+	assert.Equal(t, "stdout", environment(t, homepage, "LOG_TARGETS"))
+	assert.Equal(t, filepath.Join(i.State, ".homepage"), mounts["/app/config"].Source)
+	assert.Equal(t, filepath.Join(i.Data, "data", "media"), mounts["/media"].Source)
 	assert.True(t, mounts["/media"].ReadOnly)
-	assert.Equal(t, filepath.Join(s.i.State, ".homepage-images"), mounts["/app/public/images"].Source)
+	assert.Equal(t, filepath.Join(i.State, ".homepage-images"), mounts["/app/public/images"].Source)
 	assert.True(t, mounts["/app/public/images"].ReadOnly)
-
-	moved := shippedInstallation(t, map[string]string{"HOMEPAGE_PORT": "8080"})
-	assert.Equal(t, "8080", moved.load(t, Stack, "homepage").Services["homepage"].Ports[0].Published)
-	assert.NotContains(t, s.load(t, Stack).Services, "homepage", "without the homepage profile")
 }
 
-func TestGluetunTakesItsControlKeyFromItsOwnSecretsFile(t *testing.T) {
-	s := shippedInstallation(t, map[string]string{})
-	s.secret(t, "gluetun.env", `HTTP_CONTROL_SERVER_AUTH_DEFAULT_ROLE={"auth":"apikey","apikey":"k1"}`+"\n")
-	role := s.load(t, Stack, "homepage").Services["gluetun"].Environment["HTTP_CONTROL_SERVER_AUTH_DEFAULT_ROLE"]
-
-	require.NotNil(t, role)
-	assert.Equal(t, `{"auth":"apikey","apikey":"k1"}`, *role)
-}
-
-func TestDownloadsAndMediaShareOneDataMount(t *testing.T) {
-	s := shippedInstallation(t, map[string]string{})
-	services := s.load(t, Stack, "homepage").Services
-	for _, name := range []string{"deluge", "radarr", "sonarr", "bazarr", "jellyfin"} {
-		assert.Equal(t, filepath.Join(s.i.Data, "data"), binds(services[name])["/data"].Source, name)
-	}
-	old := []string{"/downloads", "/movies", "/tv", "/data/movies", "/data/tvshows"}
+func mountsNoSeparateDownloadOrMediaFolders(t *testing.T, _ *installation.Installation, services types.Services) {
+	separate := []string{"/downloads", "/movies", "/tv", "/data/movies", "/data/tvshows"}
 	for name, service := range services {
 		for _, volume := range service.Volumes {
-			assert.NotContains(t, old, volume.Target, name)
+			assert.NotContains(t, separate, volume.Target, name)
 		}
+	}
+}
+
+func TestTheShippedComposeFiles(t *testing.T) {
+	type Given struct {
+		settings         map[string]string
+		secrets          map[string]string
+		homepageUnpinned bool
+	}
+	type When struct {
+		kind   Kind
+		wiring bool
+	}
+	tests := map[string]struct {
+		Given Given
+		When  When
+		Then  shippedCheck
+	}{
+		"configarr is left out of a plain apply": {
+			When: When{kind: Stack},
+			Then: func(t *testing.T, _ *installation.Installation, services types.Services) {
+				assert.NotContains(t, services, "configarr")
+			},
+		},
+		"configarr runs only as a wiring step": {
+			When: When{kind: Stack, wiring: true},
+			Then: func(t *testing.T, _ *installation.Installation, services types.Services) {
+				assert.Equal(t, []string{"wiring"}, services["configarr"].Profiles)
+			},
+		},
+		"configarr reads its config from the config repository, read-only": {
+			When: When{kind: Stack, wiring: true},
+			Then: func(t *testing.T, i *installation.Installation, services types.Services) {
+				mount := binds(services["configarr"])["/app/config"]
+				assert.Equal(t, filepath.Join(i.Config, "configarr"), mount.Source)
+				assert.True(t, mount.ReadOnly)
+			},
+		},
+		"configarr waits until sonarr is healthy": {
+			When: When{kind: Stack, wiring: true},
+			Then: waitsUntilHealthy("sonarr"),
+		},
+		"configarr waits until radarr is healthy": {
+			When: When{kind: Stack, wiring: true},
+			Then: waitsUntilHealthy("radarr"),
+		},
+		"the template pins every stack service to a digest": {
+			When: When{kind: Stack, wiring: true},
+			Then: pinsEveryServiceToADigest,
+		},
+		"the template pins every monitoring service to a digest": {
+			When: When{kind: Monitoring},
+			Then: pinsEveryServiceToADigest,
+		},
+		"app state, media and downloads live under the data folder": {
+			When: When{kind: Stack, wiring: true},
+			Then: keepsAppStateMediaAndDownloadsUnderTheDataFolder,
+		},
+		"every service that writes app state runs as uid 1000": {
+			When: When{kind: Stack, wiring: true},
+			Then: writesAppStateOnlyAsUID1000,
+		},
+		"sonarr takes its API key from its own secrets file": {
+			Given: Given{secrets: map[string]string{"sonarr.env": "SONARR__AUTH__APIKEY=sk\n"}},
+			When:  When{kind: Stack},
+			Then:  takesItsAPIKeyFromItsOwnSecretsFile("sonarr", "sk"),
+		},
+		"radarr takes its API key from its own secrets file, not sonarr's": {
+			Given: Given{secrets: map[string]string{"sonarr.env": "SONARR__AUTH__APIKEY=sk\n", "radarr.env": "RADARR__AUTH__APIKEY=rk\n"}},
+			When:  When{kind: Stack},
+			Then: func(t *testing.T, i *installation.Installation, services types.Services) {
+				takesItsAPIKeyFromItsOwnSecretsFile("radarr", "rk")(t, i, services)
+				assert.NotContains(t, services["radarr"].Environment, "SONARR__AUTH__APIKEY")
+			},
+		},
+		"prowlarr takes its API key from its own secrets file": {
+			Given: Given{secrets: map[string]string{"prowlarr.env": "PROWLARR__AUTH__APIKEY=pk\n"}},
+			When:  When{kind: Stack},
+			Then:  takesItsAPIKeyFromItsOwnSecretsFile("prowlarr", "pk"),
+		},
+		"sonarr skips its login on the local network": {
+			When: When{kind: Stack},
+			Then: skipsItsLoginOnTheLocalNetwork("sonarr"),
+		},
+		"radarr skips its login on the local network": {
+			When: When{kind: Stack},
+			Then: skipsItsLoginOnTheLocalNetwork("radarr"),
+		},
+		"prowlarr skips its login on the local network": {
+			When: When{kind: Stack},
+			Then: skipsItsLoginOnTheLocalNetwork("prowlarr"),
+		},
+		"portainer creates its admin from a read-only password file": {
+			When: When{kind: Stack},
+			Then: func(t *testing.T, i *installation.Installation, services types.Services) {
+				mount := binds(services["portainer"])["/run/secrets/portainer_admin"]
+				assert.Equal(t, types.ShellCommand{"--admin-password-file", "/run/secrets/portainer_admin"}, services["portainer"].Command)
+				assert.Equal(t, filepath.Join(i.State, ".secrets", "portainer_admin"), mount.Source)
+				assert.True(t, mount.ReadOnly)
+			},
+		},
+		"gluetun takes its control key from its own secrets file": {
+			Given: Given{secrets: map[string]string{"gluetun.env": `HTTP_CONTROL_SERVER_AUTH_DEFAULT_ROLE={"auth":"apikey","apikey":"k1"}` + "\n"}},
+			When:  When{kind: Stack},
+			Then: func(t *testing.T, _ *installation.Installation, services types.Services) {
+				assert.Equal(t, `{"auth":"apikey","apikey":"k1"}`, environment(t, services["gluetun"], "HTTP_CONTROL_SERVER_AUTH_DEFAULT_ROLE"))
+			},
+		},
+		"every app with a time zone runs in the installation's": {
+			Given: Given{settings: map[string]string{"TZ": "Europe/London"}},
+			When:  When{kind: Stack},
+			Then:  runsEveryZonedAppInEuropeLondon,
+		},
+		"jellyfin runs in UTC when the installation sets no time zone": {
+			When: When{kind: Stack},
+			Then: func(t *testing.T, _ *installation.Installation, services types.Services) {
+				assert.Equal(t, "Etc/UTC", environment(t, services["jellyfin"], "TZ"))
+			},
+		},
+		"the landing page serves the media read-only on port 80": {
+			When: When{kind: Stack},
+			Then: servesTheMediaReadOnlyOnPort80,
+		},
+		"the landing page moves to the installation's port": {
+			Given: Given{settings: map[string]string{"HOMEPAGE_PORT": "8080"}},
+			When:  When{kind: Stack},
+			Then: func(t *testing.T, i *installation.Installation, services types.Services) {
+				require.NotEmpty(t, services["homepage"].Ports)
+				assert.Equal(t, "8080", services["homepage"].Ports[0].Published)
+				assert.Equal(t, i.HomepageAllowedHosts("media.local"), environment(t, services["homepage"], "HOMEPAGE_ALLOWED_HOSTS"))
+			},
+		},
+		"the landing page is left out when the images file does not pin it": {
+			Given: Given{homepageUnpinned: true},
+			When:  When{kind: Stack},
+			Then: func(t *testing.T, _ *installation.Installation, services types.Services) {
+				assert.NotContains(t, services, "homepage")
+				assert.Contains(t, services, "jellyfin")
+			},
+		},
+		"deluge mounts the shared data folder": {
+			When: When{kind: Stack},
+			Then: mountsTheSharedDataFolder("deluge"),
+		},
+		"radarr mounts the shared data folder": {
+			When: When{kind: Stack},
+			Then: mountsTheSharedDataFolder("radarr"),
+		},
+		"sonarr mounts the shared data folder": {
+			When: When{kind: Stack},
+			Then: mountsTheSharedDataFolder("sonarr"),
+		},
+		"bazarr mounts the shared data folder": {
+			When: When{kind: Stack},
+			Then: mountsTheSharedDataFolder("bazarr"),
+		},
+		"jellyfin mounts the shared data folder": {
+			When: When{kind: Stack},
+			Then: mountsTheSharedDataFolder("jellyfin"),
+		},
+		"no service mounts separate download or media folders": {
+			When: When{kind: Stack, wiring: true},
+			Then: mountsNoSeparateDownloadOrMediaFolders,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			settings := map[string]string{}
+			for key, value := range tt.Given.settings {
+				settings[key] = value
+			}
+			s := shippedInstallation(t, settings)
+			for file, content := range tt.Given.secrets {
+				s.secret(t, file, content)
+			}
+			if tt.Given.homepageUnpinned {
+				s.unpinHomepage(t)
+			}
+
+			services := s.load(t, tt.When.kind, tt.When.wiring)
+
+			tt.Then(t, s.i, services)
+		})
+	}
+}
+
+func TestTheEngineComposeFilesCarryNoImageVersions(t *testing.T) {
+	type Given struct {
+		file string
+	}
+	tests := map[string]struct {
+		Given Given
+	}{
+		"the stack":      {Given: Given{file: "docker-compose.yml"}},
+		"the monitoring": {Given: Given{file: "docker-compose.monitoring.yml"}},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			content, err := os.ReadFile(filepath.Join("..", "..", tt.Given.file))
+			require.NoError(t, err)
+
+			assert.NotRegexp(t, `(?m)^\s+image:`, string(content))
+		})
 	}
 }

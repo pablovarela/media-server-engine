@@ -51,72 +51,120 @@ func matchesAny(t *testing.T, patterns []string, file string) bool {
 	return false
 }
 
-func TestRenovateKeepsActionDigestsPinnedAndTidiesGoModules(t *testing.T) {
-	config := readRenovate(t, "renovate.json")
-
-	assert.Contains(t, config.Extends, "helpers:pinGitHubActionDigests")
-	assert.Contains(t, config.PostUpdateOptions, "gomodTidy")
+func currentValue(t *testing.T, matchString, text string) string {
+	t.Helper()
+	pattern, err := regexp.Compile(matchString)
+	require.NoError(t, err)
+	group := pattern.SubexpIndex("currentValue")
+	require.GreaterOrEqual(t, group, 0, "%s has no currentValue group", matchString)
+	if found := pattern.FindStringSubmatch(text); found != nil {
+		return found[group]
+	}
+	return ""
 }
 
-func TestRenovateUpdatesTheTemplatesImagePins(t *testing.T) {
-	patterns := readRenovate(t, "renovate.json").DockerCompose["managerFilePatterns"]
-
-	for _, file := range []string{"config-template/images.yml", "config-template/images.monitoring.yml"} {
-		assert.True(t, matchesAny(t, patterns, file), file)
-	}
-	assert.False(t, matchesAny(t, patterns, "docker-compose.yml"))
-}
-
-func TestTheTemplatesImageVersioningRulesAreTheEnginesToo(t *testing.T) {
-	engine := readRenovate(t, "renovate.json").PackageRules
-	for _, rule := range readRenovate(t, "config-template/renovate.json").PackageRules {
-		assert.Contains(t, engine, rule)
-	}
-}
-
-func TestEveryVersionRenovateTracksByRegexIsFoundInItsFile(t *testing.T) {
-	expected := map[string]string{
-		"restic/restic":       "internal/restic/release.env",
-		"koalaman/shellcheck": ".github/workflows/test.yml",
-	}
-	found := map[string]string{}
-	for _, manager := range readRenovate(t, "renovate.json").CustomManagers {
-		file, tracked := expected[manager.Dependency]
-		if !tracked || !matchesAny(t, manager.FilePatterns, file) {
-			continue
+func managersOf(config renovateConfig, dependency string) []renovateManager {
+	var managers []renovateManager
+	for _, manager := range config.CustomManagers {
+		if manager.Dependency == dependency {
+			managers = append(managers, manager)
 		}
+	}
+	return managers
+}
+
+func findsTheVersionIn(dependency, file, version string) func(t *testing.T, engine, _ renovateConfig) {
+	return func(t *testing.T, engine, _ renovateConfig) {
+		managers := managersOf(engine, dependency)
+		require.Len(t, managers, 1)
+		require.True(t, matchesAny(t, managers[0].FilePatterns, file))
 		text, err := os.ReadFile(file)
 		require.NoError(t, err)
-		for _, match := range manager.MatchStrings {
-			pattern := regexp.MustCompile(match)
-			if groups := pattern.FindStringSubmatch(string(text)); groups != nil {
-				found[manager.Dependency] = groups[pattern.SubexpIndex("currentValue")]
-			}
+		require.NotEmpty(t, managers[0].MatchStrings)
+		for _, matchString := range managers[0].MatchStrings {
+			assert.Regexp(t, version, currentValue(t, matchString, string(text)))
 		}
 	}
-	for dependency := range expected {
-		assert.NotEmpty(t, found[dependency], dependency)
-	}
-	assert.Regexp(t, `^\d`, found["restic/restic"])
 }
 
-func TestRenovateTracksResticInMsesPinFileOnly(t *testing.T) {
-	var restic []renovateManager
-	for _, manager := range readRenovate(t, "renovate.json").CustomManagers {
-		if manager.Dependency == "restic/restic" {
-			restic = append(restic, manager)
-		}
-	}
+func theEngines(engine, _ renovateConfig) renovateConfig { return engine }
 
-	require.Len(t, restic, 1)
-	assert.Equal(t, []string{`/^internal\/restic\/release\.env$/`}, restic[0].FilePatterns)
+func theTemplates(_, template renovateConfig) renovateConfig { return template }
+
+func updatesTheImagesIn(file string, of func(engine, template renovateConfig) renovateConfig) func(t *testing.T, engine, template renovateConfig) {
+	return func(t *testing.T, engine, template renovateConfig) {
+		assert.True(t, matchesAny(t, of(engine, template).DockerCompose["managerFilePatterns"], file))
+	}
 }
 
-func TestRenovateTracksOnlyTheToolsMseUses(t *testing.T) {
-	var dependencies []string
-	for _, manager := range readRenovate(t, "renovate.json").CustomManagers {
-		dependencies = append(dependencies, manager.Dependency)
+func TestTheRenovateConfigs(t *testing.T) {
+	tests := map[string]struct {
+		Then func(t *testing.T, engine, template renovateConfig)
+	}{
+		"the engine's keeps action digests pinned": {
+			Then: func(t *testing.T, engine, _ renovateConfig) {
+				assert.Contains(t, engine.Extends, "helpers:pinGitHubActionDigests")
+			},
+		},
+		"the engine's tidies the Go modules": {
+			Then: func(t *testing.T, engine, _ renovateConfig) {
+				assert.Contains(t, engine.PostUpdateOptions, "gomodTidy")
+			},
+		},
+		"the engine's updates the template's stack images": {
+			Then: updatesTheImagesIn("config-template/images.yml", theEngines),
+		},
+		"the engine's updates the template's monitoring images": {
+			Then: updatesTheImagesIn("config-template/images.monitoring.yml", theEngines),
+		},
+		"the engine's leaves its compose files to the template's images": {
+			Then: func(t *testing.T, engine, _ renovateConfig) {
+				assert.False(t, matchesAny(t, engine.DockerCompose["managerFilePatterns"], "docker-compose.yml"))
+			},
+		},
+		"the template's updates an installation's stack images": {
+			Then: updatesTheImagesIn("images.yml", theTemplates),
+		},
+		"the template's updates an installation's monitoring images": {
+			Then: updatesTheImagesIn("images.monitoring.yml", theTemplates),
+		},
+		"the template's image versioning rules are the engine's too": {
+			Then: func(t *testing.T, engine, template renovateConfig) {
+				require.NotEmpty(t, template.PackageRules)
+				for _, rule := range template.PackageRules {
+					assert.Contains(t, engine.PackageRules, rule)
+				}
+			},
+		},
+		"the engine's finds restic's version in mse's pin file": {
+			Then: findsTheVersionIn("restic/restic", "internal/restic/release.env", `^\d+\.\d+\.\d+$`),
+		},
+		"the engine's finds shellcheck's version in the CI workflow": {
+			Then: findsTheVersionIn("koalaman/shellcheck", ".github/workflows/test.yml", `^v\d+\.\d+\.\d+$`),
+		},
+		"the engine's tracks restic in mse's pin file only": {
+			Then: func(t *testing.T, engine, _ renovateConfig) {
+				restic := managersOf(engine, "restic/restic")
+				require.Len(t, restic, 1)
+				assert.Equal(t, []string{`/^internal\/restic\/release\.env$/`}, restic[0].FilePatterns)
+			},
+		},
+		"the engine's tracks only the tools mse uses": {
+			Then: func(t *testing.T, engine, _ renovateConfig) {
+				var dependencies []string
+				for _, manager := range engine.CustomManagers {
+					dependencies = append(dependencies, manager.Dependency)
+				}
+				assert.ElementsMatch(t, []string{"restic/restic", "koalaman/shellcheck"}, dependencies)
+			},
+		},
 	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			engine := readRenovate(t, "renovate.json")
+			template := readRenovate(t, "config-template/renovate.json")
 
-	assert.ElementsMatch(t, []string{"restic/restic", "koalaman/shellcheck"}, dependencies)
+			tt.Then(t, engine, template)
+		})
+	}
 }
