@@ -27,7 +27,7 @@ archives:
       - tar.gz
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
     files:
-      - none*
+      - LICENSE
 
 checksum:
   name_template: checksums.txt
