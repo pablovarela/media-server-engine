@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -397,4 +398,40 @@ func TestOldSnapshotsArePrunedOnlyWhenSomeWereRemoved(t *testing.T) {
 	require.NoError(t, b.Backup(context.Background()))
 
 	assert.Contains(t, out.String(), "Removing old snapshots... kept 5, removed 1 (2026-10-05 04:31); pruned.\n")
+}
+
+func TestClaimWithoutAppData(t *testing.T) {
+	tests := map[string]struct {
+		snapshots []restic.Snapshot
+		out, err  string
+		main      bool
+	}{
+		"no backups yet": {
+			out:  "This machine is now gorgon's main. There is no app data to back up yet, so the first backup is the nightly one.\n",
+			main: true,
+		},
+		"backups from another machine": {
+			snapshots: []restic.Snapshot{snapshot("other", "pi2", "2026-10-04 04:30")},
+			err:       "volumes/ in <data> holds no app data, so claiming would make an empty backup gorgon's latest; restore first with mse restore, then claim",
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			b, m, out, _ := fixture(t)
+			require.NoError(t, os.RemoveAll(filepath.Join(b.Installation.Data, "volumes", "jellyfin")))
+			m.repository.EXPECT().HasRepository(mock.Anything).Return(true, nil)
+			m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(tt.snapshots, nil)
+
+			err := b.Claim(context.Background(), true)
+
+			if tt.err != "" {
+				assert.EqualError(t, err, strings.ReplaceAll(tt.err, "<data>", b.Installation.Data))
+				assert.NoFileExists(t, filepath.Join(b.Installation.Data, ".backup-main"))
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.out, out.String())
+			assert.FileExists(t, filepath.Join(b.Installation.Data, ".backup-main"))
+		})
+	}
 }

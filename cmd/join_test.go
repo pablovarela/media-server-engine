@@ -12,6 +12,7 @@ import (
 	"testing/fstest"
 	"time"
 
+	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -62,6 +63,7 @@ func newJoinFixture(t *testing.T) *joinFixture {
 	engine["docker-compose.monitoring.yml"] = &fstest.MapFile{Data: []byte("services: {}\n")}
 	engine["grafana/grafana.ini"] = &fstest.MapFile{Data: []byte("\n")}
 	engine["prometheus/prometheus.yml"] = &fstest.MapFile{Data: []byte("\n")}
+	engine["scripts/backup-excludes.txt"] = &fstest.MapFile{Data: []byte("logs\n")}
 	m.deps.Repositories = f.repositories
 	m.deps.Prompter = func(context.Context) prompter { return f.prompter }
 	m.deps.Decrypt = secrets.Sops(filepath.Join(m.deps.Home, ".config"))
@@ -262,4 +264,36 @@ func TestJoinUsesAKeyAlreadyOnTheMachine(t *testing.T) {
 	keys, err := os.ReadFile(f.keys)
 	require.NoError(t, err)
 	assert.Equal(t, original, string(keys))
+}
+
+func TestJoinRestoresIntoAFreshDataFolder(t *testing.T) {
+	f := newJoinFixture(t)
+	f.repositoryExists()
+	f.pastesTheKey()
+	project := &types.Project{Name: "media-server"}
+	composer := newMockComposeRunner(t)
+	composer.EXPECT().Load(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(project, nil)
+	composer.EXPECT().AnyRunning(mock.Anything, project).Return(false, nil)
+	composer.EXPECT().Pull(mock.Anything, project).Return(compose.Pulled{}, errors.New("stop at the pull"))
+	f.deps.Compose = func(io.Writer, *compose.Outcomes) (composeRunner, error) { return composer, nil }
+	f.answers["restic snapshots --no-lock --host gorgon --json"] = process.Result{
+		Stdout: []byte(`[{"time":"2026-10-06T04:30:00Z","tags":["machine:other","machine-name:gorgon-pi"]}]`)}
+	restored := false
+	f.runner.EXPECT().Run(mock.Anything, mock.MatchedBy(func(c process.Command) bool {
+		return c.Name == "restic" && len(c.Args) == 1 && c.Args[0] == "unlock"
+	})).Return(0, nil).Maybe()
+	f.runner.EXPECT().Run(mock.Anything, mock.MatchedBy(func(c process.Command) bool {
+		return c.Name == "restic" && len(c.Args) > 0 && c.Args[0] == "restore"
+	})).RunAndReturn(func(context.Context, process.Command) (int, error) {
+		restored = true
+		return 0, nil
+	}).Once()
+
+	code, stdout, stderr := f.join(t, "gorgon", "--secondary")
+
+	assert.Equal(t, 1, code)
+	assert.True(t, restored, "the latest backup was restored")
+	assert.NotContains(t, stdout, "Kept the app data")
+	assert.Contains(t, stderr, "stop at the pull")
+	assert.Contains(t, stderr, "Finish with:\n  mse apply --installation gorgon")
 }

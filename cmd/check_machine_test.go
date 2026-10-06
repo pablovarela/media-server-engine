@@ -28,6 +28,7 @@ type checkMachineFixture struct {
 	answers map[string]process.Result
 	effects map[string]func()
 	checked []machine.Port
+	runner  *mockCommandRunner
 }
 
 func newCheckMachineFixture(t *testing.T, installations map[string]string) *checkMachineFixture {
@@ -44,6 +45,7 @@ func newCheckMachineFixture(t *testing.T, installations map[string]string) *chec
 		"loginctl show-user pablo -p Linger": {Stdout: []byte("Linger=yes\n")},
 	}}
 	runner := newMockCommandRunner(t)
+	f.runner = runner
 	runner.EXPECT().Output(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, c process.Command) (process.Result, error) {
 		command := strings.Join(append([]string{c.Name}, c.Args...), " ")
 		if effect := f.effects[command]; effect != nil {

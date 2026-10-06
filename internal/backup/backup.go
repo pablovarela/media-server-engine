@@ -30,10 +30,32 @@ func (b *Backups) Claim(ctx context.Context, yes bool) error {
 	if err := b.confirmTakingOver(ctx, yes); err != nil {
 		return err
 	}
+	held, err := b.HasAppData()
+	if err != nil {
+		return err
+	}
+	if !held {
+		return b.claimWithoutData(ctx)
+	}
 	if err := b.backup(ctx, true); err != nil {
 		return err
 	}
 	b.Report.Say(paint.Stdout.Success(fmt.Sprintf("This machine is now %s's main; backups from any other machine are refused.", b.Installation.Name)))
+	return nil
+}
+
+func (b *Backups) claimWithoutData(ctx context.Context) error {
+	_, latest, err := b.main(ctx)
+	if err != nil {
+		return err
+	}
+	if latest != nil {
+		return fmt.Errorf("volumes/ in %s holds no app data, so claiming would make an empty backup %s's latest; restore first with mse restore, then claim", b.Installation.Data, b.Installation.Name)
+	}
+	if err := markMain(b.Installation.Data); err != nil {
+		return err
+	}
+	b.Report.Say(paint.Stdout.Success(fmt.Sprintf("This machine is now %s's main. There is no app data to back up yet, so the first backup is the nightly one.", b.Installation.Name)))
 	return nil
 }
 

@@ -32,6 +32,7 @@ func TestRestore(t *testing.T) {
 	}{
 		"an empty data directory": {Then: Then{restored: true}},
 		"only configarr":          {Given: Given{volumes: []string{"configarr"}}, Then: Then{restored: true}},
+		"only the wiring's state": {Given: Given{volumes: []string{".wiring", "configarr"}}, Then: Then{restored: true}},
 		"the stack is running": {
 			Given: Given{running: true},
 			Then:  Then{err: "the stack is running; stop it with mse stack down first"},
@@ -109,6 +110,11 @@ func TestHasAppData(t *testing.T) {
 	held, err = b.HasAppData()
 	require.NoError(t, err)
 	assert.False(t, held, "configarr alone is not app data")
+
+	require.NoError(t, os.MkdirAll(filepath.Join(b.Installation.Data, "volumes", ".wiring"), 0o755))
+	held, err = b.HasAppData()
+	require.NoError(t, err)
+	assert.False(t, held, "the wiring's own state is not app data")
 
 	b.Installation.Data = filepath.Join(t.TempDir(), "missing")
 	held, err = b.HasAppData()

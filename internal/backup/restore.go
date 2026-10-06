@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/pablovarela/media-server-engine/internal/restic"
 )
@@ -58,6 +59,8 @@ func (b *Backups) HasAppData() (bool, error) {
 	return hasAppData(filepath.Join(b.Installation.Data, "volumes"))
 }
 
+var engineState = []string{"configarr", ".wiring"}
+
 func hasAppData(volumes string) (bool, error) {
 	entries, err := os.ReadDir(volumes)
 	if errors.Is(err, os.ErrNotExist) {
@@ -67,7 +70,7 @@ func hasAppData(volumes string) (bool, error) {
 		return false, err
 	}
 	for _, entry := range entries {
-		if entry.Name() != "configarr" {
+		if !slices.Contains(engineState, entry.Name()) {
 			return true, nil
 		}
 	}
