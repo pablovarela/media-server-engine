@@ -22,28 +22,27 @@ Everything an installation declares lives in its config: change it with `mse con
 
 ## Quick start
 
-On a Raspberry Pi with Raspberry Pi OS (64-bit) or a Mac with Docker:
+On a Raspberry Pi with Raspberry Pi OS (64-bit), another Debian machine or a Mac with Docker, install `mse` (see [Installing mse](#installing-mse)), then:
 
 ```
-git clone <this repository> media-server-engine
-cd media-server-engine
-make create-installation NAME=<name>
+mse check-machine
+mse create <name>
 ```
 
-It installs the tools, makes a secrets key (save it in your password manager), asks for the settings, brings the apps up, wires them and prints where everything is. To add another machine to an existing installation, or to rebuild one after losing a machine, use `make join-installation NAME=<name>` instead.
+`mse check-machine` says what the machine still needs; run it until it says the machine is ready. `mse create` makes the installation's secrets key (save it in your password manager), asks for the settings, pushes the config to a new private GitHub repository, makes this machine the main, brings the apps up and wires them. To add another machine to an existing installation, or to rebuild one after losing a machine, use `make join-installation NAME=<name>` from a clone of this repository.
 
-From then on, run make from the installation, `cd ~/<name>` (its Makefile passes every target to the engine):
+From then on, `mse` runs the installation from anywhere on the machine:
 
 | Command | Does |
 |---|---|
 | `mse configure` | change settings and secrets from a menu, then commit and push them |
-| `make update` | apply config changes, update images and the engine, wire the apps |
-| `make urls`, `make logins` | the apps' addresses, and their logins |
-| `make version` | the engine release running, and the one the config pins |
-| `make backup-now`, `make verify-backup-now` | back up now, check the backups now |
-| `make media-stop`, `make media-start` | stop and start the apps |
+| `mse update --apply` | update the config and `mse`, then apply: images, containers, wiring (the nightly timer runs it) |
+| `mse urls`, `mse logins` | the apps' addresses, and their logins |
+| `mse version` | the `mse` release running |
+| `mse backup`, `mse verify-backup` | back up now, check the backups now |
+| `mse stack down`, `mse stack up` | stop and start the apps |
 
-`make help` lists every target.
+`mse help` lists every command.
 
 ## Documentation
 
@@ -55,7 +54,7 @@ From then on, run make from the installation, `cd ~/<name>` (its Makefile passes
 
 ## Installing mse
 
-`mse` is the engine's Go binary. It prints its version (`mse version`), updates itself and the config (`mse update`), applies the config (`mse apply`), runs an installation's containers (`mse stack`, `mse monitoring`), draws its landing page (`mse homepage`), prints its addresses and logins (`mse urls`, `mse logins`), cleans up old images and executable downloads (`mse prune-stack-images`, `mse remove-executable-downloads`), and backs up and restores it (`mse backup`, `mse verify-backup`, `mse restore`, `mse backup-role`, `mse claim-backup-main`, `mse unlock-backup`). The Makefile runs the Python engine for everything else. It is built for Linux and macOS on amd64 and arm64, and installed from a GitHub release. The repository is private, so installing needs a token that can read it. Where gh is logged in:
+`mse` is the engine's Go binary. It prints its version (`mse version`), creates an installation (`mse create`), updates itself and the config (`mse update`), applies the config (`mse apply`), runs an installation's containers (`mse stack`, `mse monitoring`), draws its landing page (`mse homepage`), prints its addresses and logins (`mse urls`, `mse logins`), cleans up old images and executable downloads (`mse prune-stack-images`, `mse remove-executable-downloads`), and backs up and restores it (`mse backup`, `mse verify-backup`, `mse restore`, `mse backup-role`, `mse claim-backup-main`, `mse unlock-backup`). The Makefile runs the Python engine for everything else. It is built for Linux and macOS on amd64 and arm64, and installed from a GitHub release. The repository is private, so installing needs a token that can read it. Where gh is logged in:
 
     curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
       https://raw.githubusercontent.com/pablovarela/media-server-engine/main/install.sh | sh
@@ -69,6 +68,8 @@ Elsewhere, such as a Raspberry Pi without gh, export a token (a fine-grained tok
 `install.sh` takes the token from `GITHUB_TOKEN`, or from `gh auth token` when gh is installed. It installs the latest release into `~/.local/bin`. Settings for `install.sh` go on its side of the pipe: `… | MSE_VERSION=v0.7.0 sh` picks a release, and `MSE_INSTALL_DIR` another directory. It checks the archive against the release's `checksums.txt` before installing, and leaves the installed `mse` in place when the download or the check fails.
 
 Then check the machine with `mse check-machine`. It goes through what an installation needs, in order: git; gh logged in with its token on disk, which the unattended update needs (a `GITHUB_TOKEN` in the shell isn't enough); git using gh for github.com (`gh auth setup-git`), which is how the config is fetched and pushed; Docker, the user in the `docker` group and Docker answering this session; restic; lingering and a user manager that has the docker group (under systemd); and the stack's ports, free or held by the stack itself. It changes nothing: each line is ✓, ✗ with the command that fixes it, or – when it waits for an earlier one. Run it again until it says `This machine is ready.`; it exits 1 until then.
+
+`mse create <name>` creates a new installation on a machine that `mse check-machine` passes, and runs those checks first. It makes a new age key, adds it to `~/.config/sops/age/keys.txt` (or `SOPS_AGE_KEY_FILE`; it refuses while `SOPS_AGE_KEY` or `SOPS_AGE_KEY_CMD` is set) and shows it once: save it, since the name and the key rebuild the installation anywhere. It writes the config from the template into `~/.config/mse/<name>`, asks every configure section in turn, commits, creates the private repository `media-server-config-<name>` under the user gh is logged in as (`--owner <org>` for an organisation) and pushes. Then it makes this machine the main (`mse claim-backup-main`, which creates the backup repository and backs up the empty data folder) and applies the config (`mse apply`). The name is lowercase letters, digits and `-`, starting with a letter. It stops before writing anything when the name is taken here or on GitHub, or when this machine already runs another installation (a machine runs one installation's stack). When something else on the machine uses port 80, `--homepage-port <port>` puts the landing page on another port, for the checks and in the settings. If it fails or you quit before the repository is created, it removes what it wrote, the key included, so you can run it again; after that, it says which commands finish the job.
 
 `mse update` fast-forwards the config from its remote, then replaces the installed `mse` with the newest release of its major version, after checking it against `checksums.txt` and running it once; it takes the token the same way as `install.sh`. It refuses to run while the config has changes that are not committed. A newer major version can need config changes, so `mse update` only says it is available; `mse update --force` installs it.
 

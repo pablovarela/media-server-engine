@@ -90,6 +90,21 @@ func (r Repository) Push(ctx context.Context) error {
 	return err
 }
 
+func (r Repository) Init(ctx context.Context) error {
+	_, err := r.succeeding(ctx, "init", "--quiet", "--initial-branch=main")
+	return err
+}
+
+func (r Repository) AddRemote(ctx context.Context, url string) error {
+	_, err := r.succeeding(ctx, "remote", "add", "origin", url)
+	return err
+}
+
+func (r Repository) PushNew(ctx context.Context) error {
+	_, err := r.succeeding(ctx, "push", "--quiet", "--set-upstream", "origin", "main")
+	return err
+}
+
 func (r Repository) Unstage(ctx context.Context, paths []string) error {
 	_, err := r.succeeding(ctx, append([]string{"reset", "--quiet", "--"}, paths...)...)
 	return err

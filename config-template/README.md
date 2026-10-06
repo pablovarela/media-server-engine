@@ -4,8 +4,7 @@ The configuration of one media server installation, used by [media-server-engine
 
 | File | Content |
 |---|---|
-| `installation.env` | installation name, time zone, where the config is kept (local or GitHub) and its owner, Jellyfin admin user, backup repository; edited with `mse configure` |
-| `engine.env` | the engine version this installation runs |
+| `installation.env` | installation name, time zone, Jellyfin admin user, backup repository; edited with `mse configure` |
 | `images.yml`, `images.monitoring.yml` | the image of every service, pinned to a digest |
 | `compose.override.yml` | optional additions or changes to the engine's compose file |
 | `homepage/` | the landing page, in Homepage's own format; starts as a copy of the engine's default page |

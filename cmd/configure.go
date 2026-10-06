@@ -16,6 +16,7 @@ import (
 
 type prompter interface {
 	configure.Prompter
+	Acknowledge(title, text, word string) error
 }
 
 const notAppliedYet = "\nThe new configuration is NOT applied on this machine yet.\nTo apply it now, run:\n\n    mse apply\n\n" +

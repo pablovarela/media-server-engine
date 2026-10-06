@@ -33,9 +33,21 @@ func newCheckMachineCommand(deps Dependencies) *cobra.Command {
 }
 
 func (d Dependencies) checkMachine(cmd *cobra.Command) error {
-	env, err := d.machineEnv(cmd)
+	ports, err := d.portsCheck(cmd)
 	if err != nil {
 		return err
+	}
+	report, err := d.checkedMachine(cmd, ports)
+	if err != nil || report.Ready() {
+		return err
+	}
+	return errAlreadyReported
+}
+
+func (d Dependencies) checkedMachine(cmd *cobra.Command, ports machine.PortsCheck) (machine.Report, error) {
+	env, err := d.machineEnv(ports)
+	if err != nil {
+		return machine.Report{}, err
 	}
 	out := cmd.OutOrStdout()
 	_, _ = fmt.Fprintln(out, "Checking this machine...")
@@ -45,18 +57,11 @@ func (d Dependencies) checkMachine(cmd *cobra.Command) error {
 	}
 	report := machine.RunEach(cmd.Context(), env, printer)
 	_, _ = fmt.Fprint(out, report.Closing())
-	if !report.Ready() {
-		return errAlreadyReported
-	}
-	return nil
+	return report, nil
 }
 
-func (d Dependencies) machineEnv(cmd *cobra.Command) (machine.Env, error) {
+func (d Dependencies) machineEnv(ports machine.PortsCheck) (machine.Env, error) {
 	account, err := d.Account()
-	if err != nil {
-		return machine.Env{}, err
-	}
-	ports, err := d.portsCheck(cmd)
 	if err != nil {
 		return machine.Env{}, err
 	}
@@ -86,6 +91,12 @@ func (d Dependencies) portsCheck(cmd *cobra.Command) (machine.PortsCheck, error)
 		homepagePort = i.Settings["HOMEPAGE_PORT"]
 		override, _ = os.ReadFile(filepath.Join(i.Config, "compose.override.yml")) //nolint:gosec // the installation's own override
 	}
+	check, err := d.stackPortsCheck(override, homepagePort)
+	check.Note = note
+	return check, err
+}
+
+func (d Dependencies) stackPortsCheck(override []byte, homepagePort string) (machine.PortsCheck, error) {
 	engineFile, err := fs.ReadFile(d.Engine, compose.Stack.EngineFile)
 	if err != nil {
 		return machine.PortsCheck{}, err
@@ -94,8 +105,7 @@ func (d Dependencies) portsCheck(cmd *cobra.Command) (machine.PortsCheck, error)
 	if err != nil {
 		return machine.PortsCheck{}, err
 	}
-	check := machine.PortsCheck{Ports: ports, Unreadable: unreadable, Project: compose.Stack.Name, Free: d.PortFree, Published: d.Published, Note: note}
-	return check, nil
+	return machine.PortsCheck{Ports: ports, Unreadable: unreadable, Project: compose.Stack.Name, Free: d.PortFree, Published: d.Published}, nil
 }
 
 func (d Dependencies) carriedVariables() []string {

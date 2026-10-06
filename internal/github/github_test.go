@@ -14,7 +14,9 @@ import (
 )
 
 type exchange struct {
+	method        string
 	url           string
+	request       string
 	authorization string
 	accept        string
 	status        int
@@ -34,10 +36,21 @@ func clientAnswering(t *testing.T, exchanges ...exchange) *Client {
 		require.Less(t, next, len(exchanges), "unexpected request to %s", r.URL)
 		want := exchanges[next]
 		next++
-		assert.Equal(t, http.MethodGet, r.Method)
+		method := want.method
+		if method == "" {
+			method = http.MethodGet
+		}
+		assert.Equal(t, method, r.Method)
+		if want.request != "" {
+			sent, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			assert.JSONEq(t, want.request, string(sent))
+		}
 		assert.Equal(t, want.url, r.URL.String())
 		assert.Equal(t, want.authorization, r.Header.Get("Authorization"))
-		assert.Equal(t, want.accept, r.Header.Get("Accept"))
+		if want.accept != "" {
+			assert.Equal(t, want.accept, r.Header.Get("Accept"))
+		}
 		header := http.Header{}
 		if want.location != "" {
 			header.Set("Location", want.location)
@@ -89,7 +102,7 @@ func TestReleases(t *testing.T) {
 		},
 		"expired token": {
 			Given: Given{status: http.StatusUnauthorized, body: `{"message": "Bad credentials"}`},
-			Then:  Then{err: "list the releases of pablovarela/media-server-engine: GitHub answered 401 Unauthorized: check the token from GITHUB_TOKEN can read pablovarela/media-server-engine"},
+			Then:  Then{err: "list the releases of pablovarela/media-server-engine: GitHub answered 401 Unauthorized: Bad credentials; check the token from GITHUB_TOKEN can read pablovarela/media-server-engine"},
 		},
 	}
 	for name, tt := range tests {
