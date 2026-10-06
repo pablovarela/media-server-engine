@@ -17,14 +17,12 @@ const (
 	repository = owner + "/" + name
 )
 
-const (
-	EngineRepository = repository
-	canRead          = "can read " + repository
-)
+const EngineRepository = repository
 
 type Asset struct {
 	ID   int64
 	Name string
+	URL  string
 }
 
 type Release struct {
@@ -38,20 +36,26 @@ type Client struct {
 	tokenSource string
 	http        *http.Client
 	api         *gh.Client
+	public      *gh.Client
 }
 
-func NewClient(tokens TokenSource, httpClient *http.Client) *Client {
-	return &Client{tokens: tokens, http: httpClient}
-}
-
-func (c *Client) Releases(ctx context.Context) ([]Release, error) {
-	api, err := c.authenticated(ctx)
+func NewClient(tokens TokenSource, httpClient *http.Client) (*Client, error) {
+	public, err := gh.NewClient(gh.WithHTTPClient(httpClient))
 	if err != nil {
 		return nil, err
 	}
-	all, _, err := api.Repositories.ListReleases(ctx, owner, name, &gh.ListOptions{PerPage: 100})
+	return &Client{tokens: tokens, http: httpClient, public: public}, nil
+}
+
+func (c *Client) Releases(ctx context.Context) ([]Release, error) {
+	all, err := listReleases(ctx, c.public)
+	if _, limited := errors.AsType[*gh.RateLimitError](err); limited {
+		if api, tokenErr := c.authenticated(ctx); tokenErr == nil {
+			all, err = listReleases(ctx, api)
+		}
+	}
 	if err != nil {
-		return nil, fmt.Errorf("list the releases of %s: %w", repository, c.explain(err, canRead))
+		return nil, fmt.Errorf("list the releases of %s: %w", repository, c.explain(err, publicly))
 	}
 	var published []Release
 	for _, release := range all {
@@ -62,18 +66,26 @@ func (c *Client) Releases(ctx context.Context) ([]Release, error) {
 	return published, nil
 }
 
-func (c *Client) Download(ctx context.Context, assetID int64, w io.Writer) error {
-	api, err := c.authenticated(ctx)
+func listReleases(ctx context.Context, api *gh.Client) ([]*gh.RepositoryRelease, error) {
+	all, _, err := api.Repositories.ListReleases(ctx, owner, name, &gh.ListOptions{PerPage: 100})
+	return all, err
+}
+
+func (c *Client) Download(ctx context.Context, asset Asset, w io.Writer) error {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, asset.URL, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("download %s: %w", asset.Name, err)
 	}
-	body, _, err := api.Repositories.DownloadReleaseAsset(ctx, owner, name, assetID, c.http)
+	response, err := c.http.Do(request)
 	if err != nil {
-		return fmt.Errorf("download asset %d: %w", assetID, c.explain(err, canRead))
+		return fmt.Errorf("download %s: %w", asset.Name, err)
 	}
-	defer func() { _ = body.Close() }()
-	if _, err := io.Copy(w, body); err != nil {
-		return fmt.Errorf("download asset %d: %w", assetID, err)
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("download %s: GitHub answered %s", asset.Name, response.Status)
+	}
+	if _, err := io.Copy(w, response.Body); err != nil {
+		return fmt.Errorf("download %s: %w", asset.Name, err)
 	}
 	return nil
 }
@@ -94,9 +106,15 @@ func (c *Client) authenticated(ctx context.Context) (*gh.Client, error) {
 	return api, nil
 }
 
+const publicly = ""
+
 func (c *Client) explain(err error, can string) error {
-	var answer *gh.ErrorResponse
-	if !errors.As(err, &answer) || answer.Response == nil {
+	if limited, ok := errors.AsType[*gh.RateLimitError](err); ok {
+		return fmt.Errorf("GitHub's limit of %d requests an hour from this address is used up until %s; with gh logged in, mse uses its token instead",
+			limited.Rate.Limit, limited.Rate.Reset.Local().Format("15:04"))
+	}
+	answer, ok := errors.AsType[*gh.ErrorResponse](err)
+	if !ok || answer.Response == nil {
 		return err
 	}
 	said := "GitHub answered " + answer.Response.Status
@@ -109,6 +127,9 @@ func (c *Client) explain(err error, can string) error {
 	}
 	switch answer.Response.StatusCode {
 	case http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound:
+		if can == publicly {
+			return errors.New(said)
+		}
 		separator := ": "
 		if reason != "" {
 			separator = "; "
@@ -136,7 +157,7 @@ func reasonOf(answer *gh.ErrorResponse) string {
 func releaseOf(release *gh.RepositoryRelease) Release {
 	converted := Release{Tag: release.GetTagName(), URL: release.GetHTMLURL()}
 	for _, asset := range release.Assets {
-		converted.Assets = append(converted.Assets, Asset{ID: asset.GetID(), Name: asset.GetName()})
+		converted.Assets = append(converted.Assets, Asset{ID: asset.GetID(), Name: asset.GetName(), URL: asset.GetBrowserDownloadURL()})
 	}
 	return converted
 }

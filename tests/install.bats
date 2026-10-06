@@ -6,57 +6,41 @@ sha256_of() {
   if command -v sha256sum >/dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1
 }
 
-release_json() {
-  cat <<EOF
-{
-  "url": "https://api.github.com/repos/pablovarela/media-server-engine/releases/1",
-  "tag_name": "$1",
-  "name": "$1",
-  "assets": [
-    {
-      "url": "https://api.github.com/repos/pablovarela/media-server-engine/releases/assets/101",
-      "id": 101,
-      "name": "mse_linux_arm64.tar.gz",
-      "uploader": {
-        "url": "https://api.github.com/users/github-actions%5Bbot%5D"
-      }
-    },
-    {
-      "url": "https://api.github.com/repos/pablovarela/media-server-engine/releases/assets/102",
-      "id": 102,
-      "name": "checksums.txt"
-    }
-  ]
-}
-EOF
-}
-
 setup() {
   setup_stubs
   FIXTURES="$STUB_DIR/fixtures"
   export FIXTURES
-  mkdir -p "$FIXTURES/releases/tags" "$FIXTURES/releases/assets" "$STUB_DIR/package"
+  mkdir -p "$FIXTURES/download/v0.7.0" "$FIXTURES/download/v0.6.9" "$STUB_DIR/package"
   printf '#!/bin/sh\necho "mse v0.7.0 (fake)"\n' > "$STUB_DIR/package/mse"
   chmod +x "$STUB_DIR/package/mse"
-  tar -czf "$FIXTURES/releases/assets/101" -C "$STUB_DIR/package" mse
-  printf '%s  mse_linux_arm64.tar.gz\n' "$(sha256_of "$FIXTURES/releases/assets/101")" > "$FIXTURES/releases/assets/102"
-  release_json v0.7.0 > "$FIXTURES/releases/latest"
-  release_json v0.6.9 > "$FIXTURES/releases/tags/v0.6.9"
+  tar -czf "$FIXTURES/download/v0.7.0/mse_linux_arm64.tar.gz" -C "$STUB_DIR/package" mse
+  printf '%s  mse_linux_arm64.tar.gz\n' "$(sha256_of "$FIXTURES/download/v0.7.0/mse_linux_arm64.tar.gz")" > "$FIXTURES/download/v0.7.0/checksums.txt"
+  cp "$FIXTURES/download/v0.7.0/"* "$FIXTURES/download/v0.6.9/"
+  echo v0.7.0 > "$FIXTURES/latest"
 
   make_stub curl '
-output="" url=""
+output="" url="" head="" format=""
 while [ $# -gt 0 ]; do
   case $1 in
-    -H) case $2 in @*) cat "${2#@}" >> "$STUB_LOG.headers" ;; esac; shift 2 ;;
+    -H) echo "header $2" >> "$STUB_LOG.headers"; shift 2 ;;
     -o) output=$2; shift 2 ;;
+    -w) format=$2; shift 2 ;;
+    -I | -*I*) head=1; shift ;;
     -*) shift ;;
     *) url=$1; shift ;;
   esac
 done
-file="$FIXTURES/${url#https://api.github.com/repos/pablovarela/media-server-engine/}"
-[ -f "$file" ] || exit 22
+[ -z "${CURL_OFFLINE:-}" ] || { echo "curl: (6) Could not resolve host: github.com" >&2; exit 6; }
+releases=https://github.com/pablovarela/media-server-engine/releases
+if [ "$url" = "$releases/latest" ]; then
+  [ -f "$FIXTURES/latest" ] || { echo "curl: (56) The requested URL returned error: 404" >&2; exit 56; }
+  printf "%s" "$releases/tag/$(cat "$FIXTURES/latest")"
+  [ -z "${CURL_PUBLISH_AFTER_LOOKUP:-}" ] || echo "$CURL_PUBLISH_AFTER_LOOKUP" > "$FIXTURES/latest"
+  exit 0
+fi
+file="$FIXTURES/${url#"$releases/"}"
 case $url in *"${CURL_HANG_ON:-none}") touch "$STUB_LOG.hanging"; sleep 2 ;; esac
-if [ -n "$output" ]; then cp "$file" "$output"; else cat "$file"; fi'
+if [ -f "$file" ]; then cp "$file" "$output"; printf 200; else printf 404; fi'
   make_stub uname '
 case $1 in
   -s) echo "${FAKE_OS:-Linux}" ;;
@@ -64,9 +48,8 @@ case $1 in
 esac'
   make_stub gh 'exit 1'
 
-  export GITHUB_TOKEN=test-token
+  unset GITHUB_TOKEN GH_TOKEN MSE_VERSION
   export MSE_INSTALL_DIR="$STUB_DIR/bin"
-  unset MSE_VERSION
 }
 
 teardown() {
@@ -84,10 +67,8 @@ teardown() {
   [[ "$output" == *"mse v0.7.0 (fake)"* ]]
   [ -x "$MSE_INSTALL_DIR/mse" ]
   [ "$("$MSE_INSTALL_DIR/mse")" = "mse v0.7.0 (fake)" ]
-  grep -q "Authorization: Bearer test-token" "$STUB_LOG.headers"
-  ! grep -q "test-token" "$STUB_LOG" || false
-  grep -q "releases/latest" "$STUB_LOG"
-  grep -q "Accept: application/octet-stream" "$STUB_LOG"
+  grep -q "github.com/pablovarela/media-server-engine/releases/download/v0.7.0/mse_linux_arm64.tar.gz" "$STUB_LOG"
+  grep -q "github.com/pablovarela/media-server-engine/releases/download/v0.7.0/checksums.txt" "$STUB_LOG"
 }
 
 @test "works when piped into sh" {
@@ -101,45 +82,51 @@ teardown() {
   MSE_VERSION=v0.6.9 run sh "$REPO/install.sh"
 
   [ "$status" -eq 0 ]
-  grep -q "releases/tags/v0.6.9" "$STUB_LOG"
+  grep -q "releases/download/v0.6.9/mse_linux_arm64.tar.gz" "$STUB_LOG"
   ! grep -q "releases/latest" "$STUB_LOG" || false
 }
 
-@test "uses the gh token when GITHUB_TOKEN is not set" {
-  unset GITHUB_TOKEN
-  make_stub gh '[ "$*" = "auth token" ] && echo gh-token'
-
-  run sh "$REPO/install.sh"
+@test "needs no GitHub login or token, and sends none" {
+  GITHUB_TOKEN=a-token run sh "$REPO/install.sh"
 
   [ "$status" -eq 0 ]
-  grep -q "Authorization: Bearer gh-token" "$STUB_LOG.headers"
+  [ "$("$MSE_INSTALL_DIR/mse")" = "mse v0.7.0 (fake)" ]
+  [ ! -e "$STUB_LOG.headers" ]
+  ! grep -q "gh " "$STUB_LOG" || false
 }
 
-@test "stops without a token" {
-  unset GITHUB_TOKEN
+@test "takes both files from the release that was the latest when it started" {
+  CURL_PUBLISH_AFTER_LOOKUP=v0.6.9 run sh "$REPO/install.sh"
+
+  [ "$status" -eq 0 ]
+  [ "$(grep -c "releases/latest" "$STUB_LOG")" -eq 1 ]
+  [ "$(grep -c "releases/download/v0.7.0/" "$STUB_LOG")" -eq 2 ]
+  ! grep -q "releases/download/v0.6.9/" "$STUB_LOG" || false
+}
+
+@test "says so when there is no latest release" {
+  rm "$FIXTURES/latest"
 
   run sh "$REPO/install.sh"
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"set GITHUB_TOKEN"* ]]
+  [[ "$output" == *"could not find the latest release of pablovarela/media-server-engine"* ]]
   [ ! -e "$MSE_INSTALL_DIR/mse" ]
 }
 
-@test "says the token may lack access when the latest release cannot be read" {
-  rm "$FIXTURES/releases/latest"
-
-  run sh "$REPO/install.sh"
+@test "says so when GitHub cannot be reached, rather than blaming the release" {
+  CURL_OFFLINE=1 MSE_VERSION=v0.6.9 run sh "$REPO/install.sh"
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"could not read the latest release of pablovarela/media-server-engine"* ]]
-  [[ "$output" == *"token"* ]]
+  [[ "$output" == *"could not reach github.com to download checksums.txt of release v0.6.9"* ]]
+  [[ "$output" != *"no release"* ]]
 }
 
 @test "names the release that does not exist" {
   MSE_VERSION=v9.9.9 run sh "$REPO/install.sh"
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"no release v9.9.9 in pablovarela/media-server-engine, or the token cannot read it"* ]]
+  [[ "$output" == *"no release v9.9.9 in pablovarela/media-server-engine"* ]]
 }
 
 @test "picks the archive for the machine" {
@@ -168,7 +155,7 @@ teardown() {
   mkdir -p "$MSE_INSTALL_DIR"
   printf '#!/bin/sh\necho old\n' > "$MSE_INSTALL_DIR/mse"
   chmod +x "$MSE_INSTALL_DIR/mse"
-  printf '%s  mse_linux_arm64.tar.gz\n' "0000000000000000000000000000000000000000000000000000000000000000" > "$FIXTURES/releases/assets/102"
+  printf '%s  mse_linux_arm64.tar.gz\n' "0000000000000000000000000000000000000000000000000000000000000000" > "$FIXTURES/download/v0.7.0/checksums.txt"
 
   run sh "$REPO/install.sh"
 
@@ -189,7 +176,7 @@ teardown() {
 @test "removes its temporary files when stopped" {
   export TMPDIR="$STUB_DIR/tmp"
   mkdir -p "$TMPDIR"
-  export CURL_HANG_ON=releases/assets/101
+  export CURL_HANG_ON=mse_linux_arm64.tar.gz
 
   dash "$REPO/install.sh" > "$STUB_DIR/out" 2>&1 3>&- &
   pid=$!

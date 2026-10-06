@@ -49,16 +49,16 @@ func (_m *mockReleaseSource) EXPECT() *mockReleaseSource_Expecter {
 }
 
 // Download provides a mock function for the type mockReleaseSource
-func (_mock *mockReleaseSource) Download(ctx context.Context, assetID int64, w io.Writer) error {
-	ret := _mock.Called(ctx, assetID, w)
+func (_mock *mockReleaseSource) Download(ctx context.Context, asset github.Asset, w io.Writer) error {
+	ret := _mock.Called(ctx, asset, w)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Download")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, io.Writer) error); ok {
-		r0 = returnFunc(ctx, assetID, w)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, github.Asset, io.Writer) error); ok {
+		r0 = returnFunc(ctx, asset, w)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -72,21 +72,21 @@ type mockReleaseSource_Download_Call struct {
 
 // Download is a helper method to define mock.On call
 //   - ctx context.Context
-//   - assetID int64
+//   - asset github.Asset
 //   - w io.Writer
-func (_e *mockReleaseSource_Expecter) Download(ctx any, assetID any, w any) *mockReleaseSource_Download_Call {
-	return &mockReleaseSource_Download_Call{Call: _e.mock.On("Download", ctx, assetID, w)}
+func (_e *mockReleaseSource_Expecter) Download(ctx any, asset any, w any) *mockReleaseSource_Download_Call {
+	return &mockReleaseSource_Download_Call{Call: _e.mock.On("Download", ctx, asset, w)}
 }
 
-func (_c *mockReleaseSource_Download_Call) Run(run func(ctx context.Context, assetID int64, w io.Writer)) *mockReleaseSource_Download_Call {
+func (_c *mockReleaseSource_Download_Call) Run(run func(ctx context.Context, asset github.Asset, w io.Writer)) *mockReleaseSource_Download_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 int64
+		var arg1 github.Asset
 		if args[1] != nil {
-			arg1 = args[1].(int64)
+			arg1 = args[1].(github.Asset)
 		}
 		var arg2 io.Writer
 		if args[2] != nil {
@@ -106,7 +106,7 @@ func (_c *mockReleaseSource_Download_Call) Return(err error) *mockReleaseSource_
 	return _c
 }
 
-func (_c *mockReleaseSource_Download_Call) RunAndReturn(run func(ctx context.Context, assetID int64, w io.Writer) error) *mockReleaseSource_Download_Call {
+func (_c *mockReleaseSource_Download_Call) RunAndReturn(run func(ctx context.Context, asset github.Asset, w io.Writer) error) *mockReleaseSource_Download_Call {
 	_c.Call.Return(run)
 	return _c
 }

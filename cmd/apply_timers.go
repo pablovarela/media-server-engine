@@ -23,7 +23,7 @@ import (
 
 var carriedIntoUnits = []string{"XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME", "SOPS_AGE_KEY_FILE", "SOPS_AGE_KEY_CMD"}
 
-const noUnattendedToken = "the nightly update can't get a GitHub token without a login: run gh auth login " +
+const noUnattendedToken = "the nightly update can't fetch the config from GitHub without a login: run gh auth login " +
 	"(gh keeps the token in ~/.config/gh/hosts.yml when there is no keyring); a GITHUB_TOKEN in the shell doesn't reach the timers"
 
 type appliedTimers struct {

@@ -19,10 +19,9 @@
 
 `mse` is a single Go binary, built for Linux and macOS on amd64 and arm64 and installed from a GitHub release:
 
-    curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
-      https://raw.githubusercontent.com/pablovarela/media-server-engine/main/install.sh | sh
+    curl -fsSL https://github.com/pablovarela/media-server-engine/releases/latest/download/install.sh | sh
 
-- `install.sh` takes a token from `GITHUB_TOKEN`, or from `gh auth token` when gh is installed.
+- Installing and updating `mse` need no GitHub login: the releases are public. gh is needed for the config repository.
 - It installs the latest release into `~/.local/bin`. On its side of the pipe, `MSE_VERSION=v0.7.0` picks a release and `MSE_INSTALL_DIR` another folder: `… | MSE_VERSION=v0.7.0 sh`.
 - It checks the archive against the release's `checksums.txt`, and leaves the installed `mse` in place when the download or the check fails.
 - From a clone, `make go-build` builds `dist/mse` for the machine it runs on.
@@ -51,7 +50,7 @@ Checks the machine has what an installation needs. It changes nothing.
 
 In order:
 1. git;
-2. gh logged in, with its token on disk (the unattended update needs it; a `GITHUB_TOKEN` in the shell isn't enough);
+2. gh logged in, with its token on disk (the nightly update fetches the config with it; a `GITHUB_TOKEN` in the shell isn't enough);
 3. git using gh for github.com (`gh auth setup-git`), which is how the config is fetched and pushed;
 4. Docker, the user in the `docker` group, and Docker answering this session;
 5. lingering, and a user manager that has the docker group (under systemd);
@@ -108,7 +107,7 @@ Changes the installation's settings and secrets from a menu in the terminal, the
 ## mse update
 
 - Fast-forwards the config from its remote. It refuses while the config has uncommitted changes.
-- Replaces the installed `mse` with the newest release of its major version, after checking it against `checksums.txt` and running it once. It takes the token the same way as `install.sh`.
+- Replaces the installed `mse` with the newest release of its major version, after checking it against `checksums.txt` and running it once.
 - A newer major version can need config changes, so `mse update` only says it is available; `mse update --force` installs it.
 - See [Upgrading](UPGRADING.md) for images, major versions and going back.
 - `mse update --apply` waits for a running backup, updates, then applies with the updated `mse`, and reports to healthchecks.io. The nightly timer runs it.
@@ -141,7 +140,7 @@ Each change the wiring makes is one line. An app that fails or doesn't answer wi
 - Add the user to the `docker` group before turning lingering on: the user's systemd keeps the groups it started with until it restarts. `mse apply` warns when it started without `docker`; `sudo systemctl restart user@<uid>`, or a reboot, fixes it.
 - Which machine is the main comes from the backup repository; a secondary has no backup timers.
 - The units call the installed `mse` by its full path and carry `XDG_*_HOME`, `SOPS_AGE_KEY_FILE` and `SOPS_AGE_KEY_CMD` as the shell running `mse apply` has them. A dev build sets up no timers.
-- The nightly update needs a GitHub token with nobody logged in, so `gh auth login` must have kept its token in `~/.config/gh/hosts.yml` (where it goes without a keyring); `mse apply` warns when it hasn't.
+- The nightly update fetches the config from GitHub with nobody logged in, so `gh auth login` must have kept its token in `~/.config/gh/hosts.yml` (where it goes without a keyring); `mse apply` warns when it hasn't.
 
 ## Backups
 
