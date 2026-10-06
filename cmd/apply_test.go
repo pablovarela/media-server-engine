@@ -23,6 +23,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/images"
 	"github.com/pablovarela/media-server-engine/internal/installation"
 	"github.com/pablovarela/media-server-engine/internal/process"
+	"github.com/pablovarela/media-server-engine/internal/version"
 	"github.com/pablovarela/media-server-engine/internal/wiring"
 )
 
@@ -238,7 +239,9 @@ func TestApplyAfterAnUpdateReportsFailWhenTheConfigNeedsAnotherMajor(t *testing.
 	f := newApplyFixture(t)
 	writeHealthchecksKeys(t, f)
 	require.NoError(t, os.WriteFile(filepath.Join(f.home, ".config", "mse", "gorgon", "config.yml"), []byte("config: 1\n"), 0o644))
-	root := NewRootCommand(f.deps(t, false))
+	deps := f.deps(t, false)
+	deps.Build = version.Build{Version: "v0.16.1"}
+	root := NewRootCommand(deps)
 	var stdout, stderr bytes.Buffer
 	root.SetOut(&stdout)
 	root.SetErr(&stderr)
