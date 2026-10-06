@@ -16,7 +16,6 @@ var (
 	radarrEvents = []string{"onApplicationUpdate", "onDownload", "onGrab", "onHealthIssue", "onHealthRestored", "onManualInteractionRequired", "onMovieAdded",
 		"onMovieDelete", "onMovieFileDelete", "onMovieFileDeleteForUpgrade", "onRename", "onUpgrade"}
 	leftOff = map[string]bool{"onHealthIssue": true, "onHealthRestored": true, "onManualInteractionRequired": true}
-	paths   = map[string][2]string{"sonarr": {"/tv", "/data/tvshows"}, "radarr": {"/movies", "/data/movies"}}
 )
 
 func notificationSchema(events []string) map[string]any {
@@ -41,7 +40,7 @@ func notificationConnection(kind string, events []string) map[string]any {
 		item[event] = !leftOff[event]
 	}
 	item["id"], item["name"] = 2, "Emby / Jellyfin"
-	values := map[string]any{"host": "jellyfin", "apiKey": "********", "mapFrom": paths[kind][0], "mapTo": paths[kind][1]}
+	values := map[string]any{"host": "jellyfin", "apiKey": "********"}
 	for _, entry := range item["fields"].([]any) {
 		f := entry.(map[string]any)
 		if value, ok := values[f["name"].(string)]; ok {
@@ -116,7 +115,7 @@ func TestFreshSonarrAndRadarrTellJellyfinAboutEveryLibraryChange(t *testing.T) {
 	bodies := r.sentBodies("POST", "/api/v3/notification?forceSave=true")
 	sonarr, radarr := bodies[0], bodies[1]
 	assert.Equal(t, "Emby / Jellyfin", sonarr["name"])
-	assert.Equal(t, map[string]any{"host": "jellyfin", "port": float64(8096), "useSsl": false, "urlBase": nil, "apiKey": "jellyfin-key", "notify": false, "updateLibrary": true, "mapFrom": "/tv", "mapTo": "/data/tvshows"}, fieldsOf(sonarr))
+	assert.Equal(t, map[string]any{"host": "jellyfin", "port": float64(8096), "useSsl": false, "urlBase": nil, "apiKey": "jellyfin-key", "notify": false, "updateLibrary": true, "mapFrom": nil, "mapTo": nil}, fieldsOf(sonarr))
 	var on, want []string
 	for _, event := range sonarrEvents {
 		if sonarr[event] == true {
@@ -129,7 +128,7 @@ func TestFreshSonarrAndRadarrTellJellyfinAboutEveryLibraryChange(t *testing.T) {
 	sort.Strings(on)
 	sort.Strings(want)
 	assert.Equal(t, want, on)
-	assert.Equal(t, []any{"/movies", "/data/movies", true}, []any{fieldsOf(radarr)["mapFrom"], fieldsOf(radarr)["mapTo"], radarr["onMovieDelete"]})
+	assert.Equal(t, []any{nil, nil, true}, []any{fieldsOf(radarr)["mapFrom"], fieldsOf(radarr)["mapTo"], radarr["onMovieDelete"]})
 	assert.Contains(t, out.lines, "sonarr: add the Jellyfin connection")
 }
 
@@ -190,23 +189,31 @@ func TestAConnectionPointedElsewhereIsCorrectedKeepingItsEventsAndTheRealKey(t *
 	assert.Contains(t, out.lines, "sonarr: set the Jellyfin connection host old-host -> jellyfin")
 }
 
-func TestAConnectionWithoutThePathMappingGetsItSinceJellyfinCannotSeeTheArrsPaths(t *testing.T) {
-	unmapped := notificationConnection("sonarr", sonarrEvents)
-	for _, entry := range unmapped["fields"].([]any) {
-		if f := entry.(map[string]any); f["name"] == "mapFrom" || f["name"] == "mapTo" {
-			f["value"] = nil
+func TestAnOldPathMappingIsClearedSinceJellyfinSeesTheSamePaths(t *testing.T) {
+	mapped := notificationConnection("sonarr", sonarrEvents)
+	for _, entry := range mapped["fields"].([]any) {
+		f := entry.(map[string]any)
+		switch f["name"] {
+		case "mapFrom":
+			f["value"] = "/tv"
+		case "mapTo":
+			f["value"] = "/data/tvshows"
 		}
 	}
-	r := libraryUpdatesWired(t, newRoutes(t), unmapped)
+	r := libraryUpdatesWired(t, newRoutes(t), mapped)
 	env := libraryUpdatesEnv(t, r)
 	rememberAppliedJellyfinKey(t, env, "jellyfin-key")
+	var out said
+	env.Say = out.say
 
 	require.NoError(t, LibraryUpdates(context.Background(), env))
 
 	assert.Equal(t, []string{"PUT /api/v3/notification/2?forceSave=true"}, r.writes("sonarr"))
 	assert.Empty(t, r.writes("radarr"))
 	body := fieldsOf(r.sentBody("PUT", "/api/v3/notification/2?forceSave=true"))
-	assert.Equal(t, []any{"/tv", "/data/tvshows"}, []any{body["mapFrom"], body["mapTo"]})
+	assert.Equal(t, []any{nil, nil}, []any{body["mapFrom"], body["mapTo"]})
+	assert.Contains(t, out.lines, "sonarr: set the Jellyfin connection mapFrom /tv -> None")
+	assert.Contains(t, out.lines, "sonarr: set the Jellyfin connection mapTo /data/tvshows -> None")
 }
 
 func TestWithoutTheStoredJellyfinKeyTheStepFailsWithAHint(t *testing.T) {
