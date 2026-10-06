@@ -175,11 +175,14 @@ func TestTheArrsSkipTheirLoginOnTheLocalNetwork(t *testing.T) {
 
 func TestEveryAppRunsInTheInstallationsTimeZone(t *testing.T) {
 	zoned := shippedInstallation(t, map[string]string{"TZ": "Europe/London"})
+	withZone := 0
 	for name, service := range zoned.load(t, Stack, "homepage").Services {
 		if tz := service.Environment["TZ"]; tz != nil {
+			withZone++
 			assert.Equal(t, "Europe/London", *tz, name)
 		}
 	}
+	assert.Positive(t, withZone, "some services run in a time zone")
 	jellyfin := shippedInstallation(t, map[string]string{}).load(t, Stack, "homepage").Services["jellyfin"]
 	require.NotNil(t, jellyfin.Environment["TZ"])
 	assert.Equal(t, "Etc/UTC", *jellyfin.Environment["TZ"])
@@ -225,8 +228,8 @@ func TestDownloadsAndMediaShareOneDataMount(t *testing.T) {
 	}
 	old := []string{"/downloads", "/movies", "/tv", "/data/movies", "/data/tvshows"}
 	for name, service := range services {
-		for target := range binds(service) {
-			assert.NotContains(t, old, target, name)
+		for _, volume := range service.Volumes {
+			assert.NotContains(t, old, volume.Target, name)
 		}
 	}
 }

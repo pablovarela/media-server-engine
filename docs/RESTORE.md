@@ -7,7 +7,7 @@ After losing or replacing the machine, on the new one:
     mse check-machine
     mse join <name>
 
-`mse join` restores the latest backup before the apps start, then wires them, so they come back with their libraries, history, users and connections. When the old main is gone, it offers to make this machine the main. See [Commands](COMMANDS.md#mse-join).
+`mse join` restores the latest backup before the apps start (into an empty data folder; app data already there is kept unless `--restore-over` is given), then wires them, so they come back with their libraries, history, users and connections. When the old main is gone, it offers to make this machine the main. See [Commands](COMMANDS.md#mse-join).
 
 ## Restoring in place
 

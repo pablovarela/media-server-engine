@@ -14,3 +14,8 @@ setup() {
   ! git check-ignore -q docker-compose.yml || false
   ! git check-ignore -q install.sh || false
 }
+
+@test "decrypted secrets in a checkout of this repository are ignored by git" {
+  git check-ignore -q .secrets/vpn.env
+  git check-ignore -q .env
+}

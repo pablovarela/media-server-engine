@@ -27,8 +27,8 @@ restic keeps 7 daily, 4 weekly and 6 monthly snapshots, and removes older ones a
 ## Running a backup
 
 - `mse backup` stops the apps, takes the snapshot, starts them again and removes old snapshots. It takes a few minutes. A lock stops a second backup while one runs; the operating system releases it however the backup ends.
-- `mse verify-backup` runs `restic check`, restores the latest snapshot into a temporary folder and checks every SQLite database in it.
-- On the main, the timers back up daily at 04:30 and verify on Sundays at 05:30.
+- `mse verify-backup` runs `restic check`, restores the latest snapshot's databases into a temporary folder and checks each one.
+- On machines with systemd, the main's timers back up daily at 04:30 and verify on Sundays at 05:30.
 - `mse` runs the restic version pinned in it, downloaded on first use into `~/.cache/mse/restic`; nothing needs installing.
 
 ## Locks in the backup repository
@@ -49,4 +49,4 @@ With a healthchecks.io ping key in `secrets/healthchecks.sops.env`, backups, che
 | `<name>-update` | the nightly update on the main | `0 5 * * *` | 2 hours |
 | `<name>-update-<host>` | the nightly update on other machines | `0 5 * * *` | 2 hours |
 
-With a read-write API key (`HEALTHCHECKS_MANAGE_KEY`), `mse apply` sets up the checks this machine pings: schedule (in the timers' time zone), grace, the project's integrations, a tag and a description of what to do when it fails. Without it, checks are created by their first ping with healthchecks.io's defaults.
+With a read-write API key (`HEALTHCHECKS_MANAGE_KEY`), `mse apply` on a machine with systemd sets up the checks this machine pings: schedule (in the timers' time zone), grace, the project's integrations, a tag and a description of what to do when it fails. Without it, checks are created by their first ping with healthchecks.io's defaults.

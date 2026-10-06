@@ -5,7 +5,7 @@ An installation runs the `mse` release installed on each machine, and exactly th
 ## Images
 
 - Add the config repository to the Renovate app. It opens a pull request for each new image and keeps a Dependency Dashboard issue listing them.
-- Merging the pull request is the upgrade: every machine applies it at its nightly update (05:00), or straight away with `mse update --apply`.
+- Merging the pull request is the upgrade: every machine with systemd applies it at its nightly update (05:00), or straight away with `mse update --apply`.
 - By hand: change an image in the config (always with a digest), commit, push, and run `mse update --apply`.
 
 ## mse
@@ -17,7 +17,7 @@ An installation runs the `mse` release installed on each machine, and exactly th
 ## Going back
 
 - **An image:** revert the config commit that changed it, push, and run `mse update --apply`.
-- **mse:** install an earlier release with `install.sh` and `MSE_VERSION=<version>`.
+- **mse:** install an earlier release with `install.sh` and `MSE_VERSION=<version>`. It runs until the next nightly update installs the newest release of its major again. An earlier major also needs a config written for it (its `config:` number).
 - App data is not migrated back: if an app upgraded its database, restore the backup taken before the upgrade (see [Restoring](RESTORE.md)).
 
 ## What the nightly update does

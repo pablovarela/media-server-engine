@@ -12,7 +12,7 @@ The configuration of one media server installation, used by [media-server-engine
 | `prowlarr.yml` | Prowlarr indexers, their priorities, the FlareSolverr proxy and the links to Sonarr and Radarr |
 | `apps.yml` | Jellyfin server name and libraries, and the other apps' declared settings |
 | `secrets/*.sops.env` | VPN, backup, healthchecks and app credentials, encrypted with SOPS for the key in `.sops.yaml` |
-| `renovate.json` | Renovate opens a pull request for every image and engine update |
+| `renovate.json` | Renovate opens a pull request for every image update |
 
 Change settings and secrets with `mse configure`, or edit any file by hand: [CONFIG.md](CONFIG.md) explains every file and how to edit the encrypted secrets. A config kept on GitHub is pushed and merged changes reach every machine of the installation at its next nightly update, or straight away with `mse update --apply`; a local-only config is used as it is by the one machine that has it.
 

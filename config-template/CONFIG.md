@@ -52,7 +52,7 @@ SOPS decrypts it into your editor and encrypts it again when you save. It needs 
 |---|---|
 | `secrets/vpn.sops.env` | `VPN_SERVICE_PROVIDER`, `OPENVPN_USER`, `OPENVPN_PASSWORD`, `SERVER_COUNTRIES`. Any other gluetun setting can be added here too; `mse configure` keeps keys it does not manage. |
 | `secrets/backup.sops.env` | `RESTIC_PASSWORD`, and for B2 `B2_ACCOUNT_ID` and `B2_ACCOUNT_KEY`. |
-| `secrets/healthchecks.sops.env` | `HEALTHCHECKS_PING_KEY`, empty to turn the pings off. `HEALTHCHECKS_API_KEY` (optional): a read-only API key of the same healthchecks.io project, to show the checks' status on the landing page. `HEALTHCHECKS_MANAGE_KEY` (optional): a read-write API key of the same project; with it, `mse apply` sets up the checks' schedules and descriptions (see the engine's docs/BACKUP.md). |
+| `secrets/healthchecks.sops.env` | `HEALTHCHECKS_PING_KEY`, empty to turn the pings off. `HEALTHCHECKS_API_KEY` (optional): a read-only API key of the same healthchecks.io project, to show the checks' status on the landing page. `HEALTHCHECKS_MANAGE_KEY` (optional): a read-write API key of the same project; with it, `mse apply` on a machine with systemd sets up the checks' schedules and descriptions (see the engine's docs/BACKUP.md). |
 | `secrets/apps.sops.env` | `JELLYFIN_ADMIN_PASSWORD`, `DELUGE_WEB_PASSWORD`, `PORTAINER_ADMIN_PASSWORD` (at least 12 characters), and the internal `SONARR_API_KEY`, `RADARR_API_KEY` and `PROWLARR_API_KEY`. |
 
 The internal API keys connect the apps to each other. Change one with Rotate keys in `mse configure` rather than by hand; the next `mse apply` gives the app its new key and rewires every app that uses it.

@@ -1,3 +1,5 @@
 .DS_Store
 /dist/
 /coverage.out
+/.secrets/
+/.env
