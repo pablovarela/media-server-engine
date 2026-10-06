@@ -193,6 +193,28 @@ func TestApplyCreatesTheDataFolders(t *testing.T) {
 	assert.DirExists(t, jellyfin)
 }
 
+func TestApplyCreatesTheFoldersTheConfigDeclaresInsideTheSharedMount(t *testing.T) {
+	f := newApplyFixture(t)
+	shared := filepath.Join(f.data, "data")
+	f.project.Services["jellyfin"] = types.ServiceConfig{Name: "jellyfin", Volumes: []types.ServiceVolumeConfig{{Type: types.VolumeTypeBind, Source: shared, Target: "/data"}}}
+	config := filepath.Join(f.home, ".config", "mse", "gorgon")
+	require.NoError(t, os.WriteFile(filepath.Join(config, "apps.yml"), []byte("jellyfin:\n  libraries:\n    - {name: Anime, type: tvshows, path: /data/media/anime}\ndeluge:\n  core: {download_location: /data/downloads/incomplete}\n"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(config, "configarr"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(config, "configarr", "config.yml"), []byte("radarr:\n  main:\n    api_key: !secret RADARR_API_KEY\n    root_folders: [/data/media/movies]\n"), 0o644))
+	f.expectApply(nil)
+	root := NewRootCommand(f.deps(t, false))
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+
+	code := run(context.Background(), root, []string{"apply"})
+
+	require.Equal(t, 0, code, stderr.String())
+	for _, folder := range []string{"media/anime", "downloads/incomplete", "media/movies"} {
+		assert.DirExists(t, filepath.Join(shared, folder))
+	}
+}
+
 func TestApplyReattachesTheDetachedServices(t *testing.T) {
 	f := newApplyFixture(t)
 	f.composer.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, mock.Anything).Return(f.project, nil)

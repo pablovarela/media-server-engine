@@ -359,17 +359,18 @@ func BindSources(project *types.Project, under string) []string {
 	return sources
 }
 
-var sharedFolders = []string{"downloads", "media/movies", "media/tvshows"}
+const sharedMount = "/data"
 
-func DataFolders(project *types.Project, under string) []string {
+func DataFolders(project *types.Project, under string, declared []string) []string {
 	folders := BindSources(project, under)
 	shared := filepath.Join(under, "data")
 	if !slices.Contains(folders, shared) {
 		return folders
 	}
-	for _, folder := range sharedFolders {
-		if inside := filepath.Join(shared, folder); !slices.Contains(folders, inside) {
-			folders = append(folders, inside)
+	for _, path := range declared {
+		inside, found := strings.CutPrefix(path, sharedMount+"/")
+		if folder := filepath.Join(shared, inside); found && !slices.Contains(folders, folder) {
+			folders = append(folders, folder)
 		}
 	}
 	slices.Sort(folders)
