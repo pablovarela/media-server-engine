@@ -5,7 +5,7 @@ go 1.27
 require (
 	charm.land/bubbles/v2 v2.2.1
 	charm.land/huh/v2 v2.0.3
-	filippo.io/age v1.3.1
+	filippo.io/age v1.3.2
 	github.com/compose-spec/compose-go/v2 v2.16.1
 	github.com/containerd/errdefs v1.0.0
 	github.com/docker/cli v29.8.2+incompatible
