@@ -61,3 +61,13 @@ assert found["restic/restic"][1][0].isdigit()
 @test "renovate tidies the go modules it updates" {
   renovate 'assert "gomodTidy" in config.get("postUpdateOptions", []), config.get("postUpdateOptions")'
 }
+
+@test "renovate bumps the restic mse pins too" {
+  renovate '
+found = [m for m in config["customManagers"] if m["depNameTemplate"] == "restic/restic"]
+assert len(found) == 1
+patterns = found[0]["managerFilePatterns"]
+assert any(pattern(p).search("internal/restic/release.env") for p in patterns), patterns
+assert any(pattern(p).search("scripts/tool-versions.env") for p in patterns), patterns
+'
+}

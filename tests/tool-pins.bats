@@ -40,3 +40,28 @@ teardown() {
   echo "$output" | grep -q "restic $RESTIC_VERSION"
   ! echo "$output" | grep -q "sops $SOPS_VERSION.*does not match" || false
 }
+
+@test "the download check verifies restic for every platform mse pins" {
+  make_stub curl 'echo "$@" >> "$STUB_LOG.urls"; touch "${@: -1}"'
+  make_stub sha256sum 'cat >> "$STUB_LOG"'
+  run "$BATS_TEST_DIRNAME/../scripts/check-tool-downloads.sh"
+  [ "$status" -eq 0 ]
+  for platform in linux_arm64 linux_amd64 darwin_arm64 darwin_amd64; do
+    sum=$(grep "^RESTIC_SHA256_${platform}=" "$BATS_TEST_DIRNAME/../internal/restic/release.env" | cut -d= -f2)
+    grep -q "^$sum " "$STUB_LOG"
+    grep -q "restic_${RESTIC_VERSION}_${platform}.bz2" "$STUB_LOG.urls"
+  done
+}
+
+@test "the download check names the platform whose restic pin is wrong" {
+  bad=$(grep '^RESTIC_SHA256_darwin_amd64=' "$BATS_TEST_DIRNAME/../internal/restic/release.env" | cut -d= -f2)
+  make_stub curl 'touch "${@: -1}"'
+  make_stub sha256sum "if grep -q $bad; then exit 1; fi"
+  run "$BATS_TEST_DIRNAME/../scripts/check-tool-downloads.sh"
+  [ "$status" -ne 0 ]
+  echo "$output" | grep -q "MISMATCH restic darwin_amd64"
+}
+
+@test "mse's restic pin and the scripts' restic pin name the same version" {
+  [ "$(grep '^RESTIC_VERSION=' "$BATS_TEST_DIRNAME/../internal/restic/release.env")" = "RESTIC_VERSION=$RESTIC_VERSION" ]
+}
