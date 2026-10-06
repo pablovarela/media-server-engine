@@ -384,3 +384,25 @@ func TestRunOnceStopsTheContainerWhenCancelled(t *testing.T) {
 
 	assert.ErrorIs(t, err, context.Canceled)
 }
+
+func TestDataFoldersIncludeTheFoldersInsideTheSharedMount(t *testing.T) {
+	project := &types.Project{Services: types.Services{
+		"deluge": {Name: "deluge", Volumes: []types.ServiceVolumeConfig{
+			{Type: types.VolumeTypeBind, Source: "/d/volumes/deluge"},
+			{Type: types.VolumeTypeBind, Source: "/d/data"},
+		}},
+		"homepage": {Name: "homepage", Volumes: []types.ServiceVolumeConfig{
+			{Type: types.VolumeTypeBind, Source: "/d/data/media"},
+		}},
+	}}
+
+	assert.Equal(t, []string{"/d/data", "/d/data/downloads", "/d/data/media", "/d/data/media/movies", "/d/data/media/tvshows", "/d/volumes/deluge"}, DataFolders(project, "/d"))
+}
+
+func TestDataFoldersWithoutTheSharedMountAreTheBindSources(t *testing.T) {
+	project := &types.Project{Services: types.Services{
+		"sonarr": {Name: "sonarr", Volumes: []types.ServiceVolumeConfig{{Type: types.VolumeTypeBind, Source: "/d/volumes/sonarr"}}},
+	}}
+
+	assert.Equal(t, []string{"/d/volumes/sonarr"}, DataFolders(project, "/d"))
+}

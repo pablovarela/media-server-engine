@@ -196,7 +196,7 @@ type appliedStack struct {
 	data     string
 }
 
-func (s appliedStack) BindSources() []string { return compose.BindSources(s.wired, s.data) }
+func (s appliedStack) BindSources() []string { return compose.DataFolders(s.wired, s.data) }
 
 func (s appliedStack) Pull(ctx context.Context) (string, error) {
 	pulled, err := s.runner.Pull(ctx, s.wired)
