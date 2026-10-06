@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/pablovarela/media-server-engine/internal/create"
+	"github.com/pablovarela/media-server-engine/internal/secrets"
 )
 
 const testRecipient = "age1zxt57qnfrwmcth7uas4mq995ll9rcjdenmcftge67frhhetakejqflm07u"
@@ -95,4 +96,20 @@ func TestMatchKeyFindsTheSecretInABlockPastedAsOneLine(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, testSecret(t), key.Secret)
+}
+
+func TestMatchKeyNeedsAKeyThatOpensEverySecretFile(t *testing.T) {
+	config := configWithSecrets(t)
+	other, err := create.NewKey()
+	require.NoError(t, err)
+	rules := filepath.Join(t.TempDir(), ".sops.yaml")
+	require.NoError(t, os.WriteFile(rules, []byte("creation_rules:\n  - path_regex: \\.sops\\.env$\n    age: "+other.Public+"\n"), 0o644))
+	path := filepath.Join(config, "secrets", "vpn.sops.env")
+	sealed, err := secrets.SopsEncrypter(t.TempDir(), rules)(path, []byte("VPN_SERVICE_PROVIDER=x\n"))
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, sealed, 0o644))
+
+	_, err = MatchKey(testSecret(t), config)
+
+	assert.EqualError(t, err, "that key opens only some of this installation's secret files (not secrets/vpn.sops.env)")
 }

@@ -34,14 +34,14 @@ func TestDecide(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, tt.want, Decide("gorgon", tt.current, now, tt.flags))
+			assert.Equal(t, tt.want, Decide("gorgon", tt.current, now, tt.flags, false))
 		})
 	}
 }
 
 func TestDecideAtTheBoundary(t *testing.T) {
-	assert.Equal(t, Secondary, Decide("gorgon", mainAt(48), now, Flags{}).Default)
-	assert.Equal(t, Primary, Decide("gorgon", mainAt(48+1.0/60), now, Flags{}).Default)
+	assert.Equal(t, Secondary, Decide("gorgon", mainAt(48), now, Flags{}, false).Default)
+	assert.Equal(t, Primary, Decide("gorgon", mainAt(48+1.0/60), now, Flags{}, false).Default)
 }
 
 func TestPlanData(t *testing.T) {
@@ -66,7 +66,15 @@ func TestPlanData(t *testing.T) {
 func TestDecideKeepsTheMainThatMadeTheLatestBackup(t *testing.T) {
 	this := &backup.Main{Machine: "pi", Time: now, ThisMachine: true}
 
-	decision := Decide("gorgon", this, now, Flags{Secondary: true})
+	decision := Decide("gorgon", this, now, Flags{Secondary: true}, false)
 
 	assert.Equal(t, Decision{Say: "This machine made gorgon's latest backup, so it stays the main (--secondary doesn't apply; claim the main from another machine first).", Role: Primary}, decision)
+}
+
+func TestDecideKeepsASecondaryThatKeptItsOwnData(t *testing.T) {
+	kept := "Kept this machine a secondary: its app data wasn't restored, and gorgon-pi backed up at 2026-10-06 06:00, so backing this data up would make it gorgon's latest. " +
+		"--restore-over restores the latest backup first; mse claim-backup-main takes over later."
+	assert.Equal(t, Decision{Say: kept, Role: Secondary}, Decide("gorgon", mainAt(6), now, Flags{}, true))
+	assert.Equal(t, Decision{Role: Primary}, Decide("gorgon", mainAt(6), now, Flags{Main: true}, true), "--main is explicit")
+	assert.True(t, Decide("gorgon", mainAt(72), now, Flags{}, true).Ask, "a main that looks gone can be taken over with the disk's data")
 }

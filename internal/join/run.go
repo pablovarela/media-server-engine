@@ -16,7 +16,7 @@ type Steps interface {
 	CheckName(ctx context.Context) error
 	Clone(ctx context.Context) (create.Undo, error)
 	AddKey(ctx context.Context) (create.Undo, error)
-	Data(ctx context.Context) error
+	Data(ctx context.Context) (restoring bool, err error)
 	Role(ctx context.Context) error
 	Apply(ctx context.Context) error
 	Summary(ctx context.Context) string
@@ -35,11 +35,15 @@ func Run(ctx context.Context, i Installation, steps Steps, r *report.Reporter, s
 	if err := local(ctx, steps, &undos); err != nil {
 		return discard(i, undos, err, shield)
 	}
-	if err := steps.Data(ctx); err != nil {
+	if restoring, err := steps.Data(ctx); err != nil {
+		restore := plainRestoreLeft
+		if restoring {
+			restore = restoreLeft
+		}
 		return left(err, remaining{
 			stopped: "stopped while restoring " + i.Name + "'s data. Its config and key are on this machine",
 			kept:    i.Name + "'s config and key are on this machine; its data isn't restored",
-			still:   []string{restoreLeft, claimLeft, applyLeft},
+			still:   []string{restore, claimLeft, applyLeft},
 		}, i.Name)
 	}
 	if err := steps.Role(ctx); err != nil {
@@ -71,9 +75,10 @@ func local(ctx context.Context, steps Steps, undos *[]create.Undo) error {
 }
 
 const (
-	restoreLeft = "mse restore --overwrite --installation %s"
-	claimLeft   = "mse claim-backup-main --installation %s (to make this machine the main)"
-	applyLeft   = "mse apply --installation %s"
+	restoreLeft      = "mse restore --overwrite --installation %s"
+	plainRestoreLeft = "mse restore --installation %s"
+	claimLeft        = "mse claim-backup-main --installation %s (to make this machine the main)"
+	applyLeft        = "mse apply --installation %s"
 )
 
 type remaining struct {

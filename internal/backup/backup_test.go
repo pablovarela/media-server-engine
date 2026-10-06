@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -400,38 +399,34 @@ func TestOldSnapshotsArePrunedOnlyWhenSomeWereRemoved(t *testing.T) {
 	assert.Contains(t, out.String(), "Removing old snapshots... kept 5, removed 1 (2026-10-05 04:31); pruned.\n")
 }
 
-func TestClaimWithoutAppData(t *testing.T) {
-	tests := map[string]struct {
-		snapshots []restic.Snapshot
-		out, err  string
-		main      bool
-	}{
-		"no backups yet": {
-			out:  "This machine is now gorgon's main. There is no app data to back up yet, so the first backup is the nightly one.\n",
-			main: true,
-		},
-		"backups from another machine": {
-			snapshots: []restic.Snapshot{snapshot("other", "pi2", "2026-10-04 04:30")},
-			err:       "volumes/ in <data> holds no app data, so claiming would make an empty backup gorgon's latest; restore first with mse restore, then claim",
-		},
-	}
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			b, m, out, _ := fixture(t)
-			require.NoError(t, os.RemoveAll(filepath.Join(b.Installation.Data, "volumes", "jellyfin")))
-			m.repository.EXPECT().HasRepository(mock.Anything).Return(true, nil)
-			m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(tt.snapshots, nil)
+func TestClaimWithoutAppDataAndNoBackups(t *testing.T) {
+	b, m, out, _ := fixture(t)
+	require.NoError(t, os.RemoveAll(b.Installation.Data))
+	m.repository.EXPECT().HasRepository(mock.Anything).Return(true, nil)
+	m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(nil, nil).Once()
+	m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+	m.stack.EXPECT().RunningServices(mock.Anything).Return(nil, nil)
+	m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
+	m.stack.EXPECT().Stop(mock.Anything).Return("stopped", nil)
+	m.repository.EXPECT().Backup(mock.Anything, mock.Anything).Return(restic.BackupSummary{SnapshotID: "40c4a929f0d1e2b3"}, nil)
+	m.repository.EXPECT().Forget(mock.Anything, "gorgon", mock.Anything).Return(restic.ForgetSummary{Kept: 1}, nil)
+	m.pinger.EXPECT().Ping(mock.Anything, "backup", "").Return()
 
-			err := b.Claim(context.Background(), true)
+	err := b.Claim(context.Background(), true)
 
-			if tt.err != "" {
-				assert.EqualError(t, err, strings.ReplaceAll(tt.err, "<data>", b.Installation.Data))
-				assert.NoFileExists(t, filepath.Join(b.Installation.Data, ".backup-main"))
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tt.out, out.String())
-			assert.FileExists(t, filepath.Join(b.Installation.Data, ".backup-main"))
-		})
-	}
+	require.NoError(t, err)
+	assert.Contains(t, out.String(), "Backup done.\nThis machine is now gorgon's main; backups from any other machine are refused.\n")
+	assert.FileExists(t, filepath.Join(b.Installation.Data, ".backup-main"))
+}
+
+func TestClaimWithoutAppDataRefusesWhenThereAreBackups(t *testing.T) {
+	b, m, _, _ := fixture(t)
+	require.NoError(t, os.RemoveAll(filepath.Join(b.Installation.Data, "volumes", "jellyfin")))
+	m.repository.EXPECT().HasRepository(mock.Anything).Return(true, nil)
+	m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return([]restic.Snapshot{snapshot("other", "pi2", "2026-10-04 04:30")}, nil).Once()
+
+	err := b.Claim(context.Background(), true)
+
+	assert.EqualError(t, err, "volumes/ in "+b.Installation.Data+" holds no app data, so claiming would make an empty backup gorgon's latest; restore first with mse restore, then claim")
+	assert.NoFileExists(t, filepath.Join(b.Installation.Data, ".backup-main"))
 }

@@ -320,11 +320,7 @@ func (c *creation) Summary(context.Context) string {
 	if err != nil {
 		return ready + ". mse urls lists every app."
 	}
-	page := "http://" + host
-	if port := i.HomepagePort(); port != "80" {
-		page += ":" + port
-	}
-	return fmt.Sprintf("%s: its config is in %s (%s), its data in %s and its landing page at %s. mse urls lists every app.", ready, c.config, c.remote, c.data, page)
+	return fmt.Sprintf("%s: its config is in %s (%s), its data in %s and its landing page at %s. mse urls lists every app.", ready, c.config, c.remote, c.data, homepageAddress(i, host))
 }
 
 func (c *creation) ClaimMain(context.Context) error {

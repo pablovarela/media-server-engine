@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/pablovarela/media-server-engine/internal/compose"
+	"github.com/pablovarela/media-server-engine/internal/installation"
 	"github.com/pablovarela/media-server-engine/internal/report"
 )
 
@@ -38,11 +39,7 @@ func newURLsCommand(deps Dependencies) *cobra.Command {
 			}
 			var out strings.Builder
 			if pinned {
-				port := ""
-				if p := i.HomepagePort(); p != "80" {
-					port = ":" + p
-				}
-				fmt.Fprintf(&out, "%-12s http://%s%s\n", "Home", host, port)
+				fmt.Fprintf(&out, "%-12s %s\n", "Home", homepageAddress(i, host))
 			}
 			for _, app := range apps {
 				fmt.Fprintf(&out, "%-12s http://%s:%d\n", app.name, host, app.port)
@@ -51,4 +48,12 @@ func newURLsCommand(deps Dependencies) *cobra.Command {
 			return err
 		},
 	}
+}
+
+func homepageAddress(i *installation.Installation, host string) string {
+	address := "http://" + host
+	if port := i.HomepagePort(); port != "80" {
+		address += ":" + port
+	}
+	return address
 }

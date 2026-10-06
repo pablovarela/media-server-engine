@@ -243,7 +243,7 @@ func TestJoinTakesThePastedKeyAndRestores(t *testing.T) {
 	assert.Equal(t, 1, code)
 	assert.Contains(t, stdout, "Cloning github.com/pablovarela/media-server-config-gorgon... done")
 	assert.Contains(t, stderr, "no Docker here\ngorgon's config and key are on this machine; its data isn't restored. Finish with:\n"+
-		"  mse restore --overwrite --installation gorgon\n")
+		"  mse restore --installation gorgon\n")
 	keys, err := os.ReadFile(f.keys)
 	require.NoError(t, err)
 	assert.True(t, strings.HasPrefix(string(keys), "# media server gorgon, added 2026-10-06\n# public key: "+testRecipient+"\n"+f.secret+"\n"))
@@ -311,6 +311,22 @@ func TestJoinKeepsTheLogOfAConfigItCannotLoad(t *testing.T) {
 
 	assert.Equal(t, 1, code)
 	assert.Contains(t, stderr, "Nothing was kept apart from this run's log in "+logs+"; run mse join gorgon again.")
+	assert.NotContains(t, stderr, "update --force")
 	assert.FileExists(t, filepath.Join(logs, "mse.log"))
+	assert.NoDirExists(t, f.config)
+}
+
+func TestJoinStopsBeforeThePromptWhenTheConfigHasNoSecrets(t *testing.T) {
+	f := newJoinFixture(t)
+	f.repositoryExists()
+	f.effects["git clone --quiet -- "+joinCloneURL+" "+f.config] = func() {
+		writeClonedConfig(t, f.config)
+		require.NoError(t, os.RemoveAll(filepath.Join(f.config, "secrets")))
+	}
+
+	code, _, stderr := f.join(t, "gorgon")
+
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stderr, "the config has no encrypted secrets to check the key against")
 	assert.NoDirExists(t, f.config)
 }

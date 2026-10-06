@@ -50,3 +50,13 @@ func TestCheckSchema(t *testing.T) {
 		})
 	}
 }
+
+func TestANewerSchemaIsMarked(t *testing.T) {
+	config := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(config, "config.yml"), []byte("config: 2\n"), 0o644))
+	i := &Installation{Config: config}
+
+	assert.ErrorIs(t, i.CheckSchema(1), ErrNewerSchema)
+	require.NoError(t, os.WriteFile(filepath.Join(config, "config.yml"), []byte("config: 0\n"), 0o644))
+	assert.NotErrorIs(t, i.CheckSchema(1), ErrNewerSchema)
+}

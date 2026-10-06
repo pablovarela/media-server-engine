@@ -325,20 +325,29 @@ func (_c *mockSteps_Clone_Call) RunAndReturn(run func(ctx context.Context) (crea
 }
 
 // Data provides a mock function for the type mockSteps
-func (_mock *mockSteps) Data(ctx context.Context) error {
+func (_mock *mockSteps) Data(ctx context.Context) (bool, error) {
 	ret := _mock.Called(ctx)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Data")
 	}
 
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context) error); ok {
+	var r0 bool
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context) (bool, error)); ok {
+		return returnFunc(ctx)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context) bool); ok {
 		r0 = returnFunc(ctx)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(bool)
 	}
-	return r0
+	if returnFunc, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = returnFunc(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
 }
 
 // mockSteps_Data_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Data'
@@ -365,12 +374,12 @@ func (_c *mockSteps_Data_Call) Run(run func(ctx context.Context)) *mockSteps_Dat
 	return _c
 }
 
-func (_c *mockSteps_Data_Call) Return(err error) *mockSteps_Data_Call {
-	_c.Call.Return(err)
+func (_c *mockSteps_Data_Call) Return(restoring bool, err error) *mockSteps_Data_Call {
+	_c.Call.Return(restoring, err)
 	return _c
 }
 
-func (_c *mockSteps_Data_Call) RunAndReturn(run func(ctx context.Context) error) *mockSteps_Data_Call {
+func (_c *mockSteps_Data_Call) RunAndReturn(run func(ctx context.Context) (bool, error)) *mockSteps_Data_Call {
 	_c.Call.Return(run)
 	return _c
 }

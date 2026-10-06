@@ -19,8 +19,9 @@ var gorgon = Installation{Name: "gorgon", Logs: "/s/gorgon/logs"}
 var errBroken = errors.New("broken")
 
 type stepFailure struct {
-	at  string
-	err error
+	at        string
+	err       error
+	restoring bool
 }
 
 type runFixture struct {
@@ -43,7 +44,7 @@ func failingRun(t *testing.T, failure stepFailure) (*runFixture, error) {
 	f.steps.EXPECT().CheckName(mock.Anything).RunAndReturn(func(context.Context) error { return fails("name") }).Maybe()
 	f.steps.EXPECT().Clone(mock.Anything).RunAndReturn(func(context.Context) (create.Undo, error) { return undo("clone"), fails("clone") }).Maybe()
 	f.steps.EXPECT().AddKey(mock.Anything).RunAndReturn(func(context.Context) (create.Undo, error) { return undo("key"), fails("key") }).Maybe()
-	f.steps.EXPECT().Data(mock.Anything).RunAndReturn(func(context.Context) error { return fails("data") }).Maybe()
+	f.steps.EXPECT().Data(mock.Anything).RunAndReturn(func(context.Context) (bool, error) { return failure.restoring, fails("data") }).Maybe()
 	f.steps.EXPECT().Role(mock.Anything).RunAndReturn(func(context.Context) error { return fails("role") }).Maybe()
 	f.steps.EXPECT().Apply(mock.Anything).RunAndReturn(func(context.Context) error { return fails("apply") }).Maybe()
 	f.steps.EXPECT().Summary(mock.Anything).Return("gorgon is running here.").Maybe()
@@ -120,7 +121,7 @@ func TestRunNeverUndoesFromTheRestoreOn(t *testing.T) {
 	steps.EXPECT().CheckName(mock.Anything).Return(nil)
 	steps.EXPECT().Clone(mock.Anything).Return(func() error { t.Error("the clone was undone"); return nil }, nil)
 	steps.EXPECT().AddKey(mock.Anything).Return(func() error { t.Error("the key was undone"); return nil }, nil)
-	steps.EXPECT().Data(mock.Anything).Return(errBroken)
+	steps.EXPECT().Data(mock.Anything).Return(true, errBroken)
 	var out bytes.Buffer
 
 	err := Run(context.Background(), gorgon, steps, report.New(&out, &out, nil), func() func() { return func() {} })
@@ -133,10 +134,13 @@ func TestRunKeepsEverythingFromTheRestoreOn(t *testing.T) {
 		failure stepFailure
 		message string
 	}{
-		"restore failed": {stepFailure{at: "data", err: errBroken}, "broken\n" +
+		"before restoring": {stepFailure{at: "data", err: errBroken}, "broken\n" +
+			"gorgon's config and key are on this machine; its data isn't restored. Finish with:\n" +
+			"  mse restore --installation gorgon\n  mse claim-backup-main --installation gorgon (to make this machine the main)\n  mse apply --installation gorgon"},
+		"restore failed": {stepFailure{at: "data", err: errBroken, restoring: true}, "broken\n" +
 			"gorgon's config and key are on this machine; its data isn't restored. Finish with:\n" +
 			"  mse restore --overwrite --installation gorgon\n  mse claim-backup-main --installation gorgon (to make this machine the main)\n  mse apply --installation gorgon"},
-		"restore interrupted": {stepFailure{at: "data", err: context.Canceled}, "stopped while restoring gorgon's data. Its config and key are on this machine. Finish with:\n" +
+		"restore interrupted": {stepFailure{at: "data", err: context.Canceled, restoring: true}, "stopped while restoring gorgon's data. Its config and key are on this machine. Finish with:\n" +
 			"  mse restore --overwrite --installation gorgon\n  mse claim-backup-main --installation gorgon (to make this machine the main)\n  mse apply --installation gorgon"},
 		"claim failed": {stepFailure{at: "role", err: errBroken}, "broken\n" +
 			"gorgon's config, key and data are on this machine. Finish with:\n" +

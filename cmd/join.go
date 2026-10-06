@@ -53,15 +53,15 @@ func newJoinCommand(deps Dependencies) *cobra.Command {
 }
 
 type joining struct {
-	d                     Dependencies
-	cmd                   *cobra.Command
-	name, owner, repo     string
-	config, data, state   string
-	flags                 join.Flags
-	restoreOver, restored bool
-	role                  join.Role
-	current               *backup.Main
-	backups               *backup.Backups
+	d                           Dependencies
+	cmd                         *cobra.Command
+	name, owner, repo           string
+	config, data, state         string
+	flags                       join.Flags
+	restoreOver, restored, kept bool
+	role                        join.Role
+	current                     *backup.Main
+	backups                     *backup.Backups
 }
 
 func (d Dependencies) joining(cmd *cobra.Command, name, owner string) *joining {
@@ -114,7 +114,10 @@ func (j *joining) Clone(ctx context.Context) (create.Undo, error) {
 		return j.removeClone(), err
 	}
 	if _, err := j.d.installation(j.cmd); err != nil {
-		return j.removeClone(), fmt.Errorf("%w; mse update --force installs the release this config needs", err)
+		if errors.Is(err, installation.ErrNewerSchema) {
+			err = fmt.Errorf("%w; mse update --force installs the release this config needs", err)
+		}
+		return j.removeClone(), err
 	}
 	return j.removeClone(), nil
 }
@@ -128,20 +131,27 @@ func (j *joining) AddKey(ctx context.Context) (create.Undo, error) {
 		report.From(ctx).Step("Secrets key").Done("already on this machine")
 		return nil, nil
 	}
+	if _, err := join.Recipients(j.config); err != nil {
+		return nil, err
+	}
 	path, err := create.KeyFile(j.d.Environment, installation.BasesFrom(j.d.Environment, j.d.Home).Config)
 	if err != nil {
 		return nil, err
 	}
+	matched := map[string]create.Key{}
 	pasted, err := j.d.Prompter(ctx).Secret(j.name+"'s secrets key", "Paste it from your password manager (the line starting AGE-SECRET-KEY-1).", func(pasted string) error {
-		_, err := join.MatchKey(pasted, j.config)
+		key, err := join.MatchKey(pasted, j.config)
+		if err == nil {
+			matched[pasted] = key
+		}
 		return err
 	})
 	if err != nil {
 		return nil, err
 	}
-	key, err := join.MatchKey(pasted, j.config)
-	if err != nil {
-		return nil, err
+	key, ok := matched[pasted]
+	if !ok {
+		return nil, errors.New("the prompt returned a key it didn't check")
 	}
 	undo, err := create.AppendKey(path, j.name, "added", key, j.d.Now())
 	if err != nil {
@@ -156,39 +166,41 @@ func (j *joining) AddKey(ctx context.Context) (create.Undo, error) {
 
 func (j *joining) keyWorks() bool {
 	files, _ := filepath.Glob(filepath.Join(j.config, "secrets", "*.sops.env"))
-	if len(files) == 0 {
-		return false
+	for _, file := range files {
+		if _, err := j.d.Decrypt(file); err != nil {
+			return false
+		}
 	}
-	_, err := j.d.Decrypt(files[0])
-	return err == nil
+	return len(files) > 0
 }
 
-func (j *joining) Data(ctx context.Context) error {
+func (j *joining) Data(ctx context.Context) (bool, error) {
 	b, err := j.d.backups(j.cmd, backingUp)
 	if err != nil {
-		return err
+		return false, err
 	}
 	j.backups = b
 	if j.current, err = b.CurrentMain(ctx); err != nil {
-		return err
+		return false, err
 	}
 	held, err := b.HasAppData()
 	if err != nil {
-		return err
+		return false, err
 	}
 	plan := join.PlanData(j.data, j.current, held, j.restoreOver)
 	if plan.Say != "" {
 		report.From(ctx).Say(plan.Say)
 	}
+	j.kept = held && !plan.Restore
 	if !plan.Restore {
-		return nil
+		return false, nil
 	}
 	j.restored = true
-	return b.Restore(ctx, plan.Overwrite)
+	return true, b.Restore(ctx, plan.Overwrite)
 }
 
 func (j *joining) Role(ctx context.Context) error {
-	decision := join.Decide(j.name, j.current, j.d.Now(), j.flags)
+	decision := join.Decide(j.name, j.current, j.d.Now(), j.flags, j.kept)
 	if decision.Say != "" {
 		report.From(ctx).Say(decision.Say)
 	}
@@ -217,11 +229,7 @@ func (j *joining) Summary(context.Context) string {
 	summary := j.name + " is running on this machine"
 	if i, err := j.d.installation(j.cmd); err == nil {
 		if host, err := i.NetworkName(j.d.Host); err == nil {
-			page := "http://" + host
-			if port := i.HomepagePort(); port != "80" {
-				page += ":" + port
-			}
-			summary += fmt.Sprintf(": its config is in %s, its data in %s and its landing page at %s", j.config, j.data, page)
+			summary += fmt.Sprintf(": its config is in %s, its data in %s and its landing page at %s", j.config, j.data, homepageAddress(i, host))
 		}
 	}
 	summary += "."

@@ -15,7 +15,10 @@ const (
 	Primary
 )
 
-const recentBackup = 48 * time.Hour
+const (
+	recentBackup = 48 * time.Hour
+	timeLayout   = "2006-01-02 15:04"
+)
 
 type Flags struct{ Main, Secondary bool }
 
@@ -27,24 +30,45 @@ type Decision struct {
 	Role     Role
 }
 
-func Decide(name string, current *backup.Main, now time.Time, flags Flags) Decision {
+func Decide(name string, current *backup.Main, now time.Time, flags Flags, kept bool) Decision {
+	if decision, settled := settled(name, current, now, flags, kept); settled {
+		return decision
+	}
+	return question(name, current, now)
+}
+
+func settled(name string, current *backup.Main, now time.Time, flags Flags, kept bool) (Decision, bool) {
+	thisMachine := current != nil && current.ThisMachine
 	switch {
-	case current != nil && current.ThisMachine && flags.Secondary:
-		return Decision{Say: "This machine made " + name + "'s latest backup, so it stays the main (--secondary doesn't apply; claim the main from another machine first).", Role: Primary}
+	case thisMachine && flags.Secondary:
+		return Decision{Say: "This machine made " + name + "'s latest backup, so it stays the main (--secondary doesn't apply; claim the main from another machine first).", Role: Primary}, true
 	case flags.Main:
-		return Decision{Role: Primary}
+		return Decision{Role: Primary}, true
+	case kept && recent(current, now):
+		return Decision{Say: fmt.Sprintf("Kept this machine a secondary: its app data wasn't restored, and %s backed up at %s, so backing this data up would make it %s's latest. "+
+			"--restore-over restores the latest backup first; mse claim-backup-main takes over later.", current.Machine, current.Time.Format(timeLayout), name), Role: Secondary}, true
 	case flags.Secondary:
-		return Decision{Role: Secondary}
+		return Decision{Role: Secondary}, true
+	case thisMachine:
+		return Decision{Say: "This machine made " + name + "'s latest backup, so it is the main.", Role: Primary}, true
+	}
+	return Decision{}, false
+}
+
+func question(name string, current *backup.Main, now time.Time) Decision {
+	switch {
 	case current == nil:
 		return Decision{Say: name + " has no backups yet.", Ask: true, Question: "Make this machine the main?", Default: Primary}
-	case current.ThisMachine:
-		return Decision{Say: "This machine made " + name + "'s latest backup, so it is the main.", Role: Primary}
-	case now.Sub(current.Time) <= recentBackup:
-		return Decision{Say: fmt.Sprintf("%s's main is %s, last backup %s.", name, current.Machine, current.Time.Format("2006-01-02 15:04")),
+	case recent(current, now):
+		return Decision{Say: fmt.Sprintf("%s's main is %s, last backup %s.", name, current.Machine, current.Time.Format(timeLayout)),
 			Ask: true, Question: "Make this machine the main instead?", Default: Secondary}
 	}
-	return Decision{Say: fmt.Sprintf("%s's main is %s, but its last backup was %s; it looks gone.", name, current.Machine, current.Time.Format("2006-01-02 15:04")),
+	return Decision{Say: fmt.Sprintf("%s's main is %s, but its last backup was %s; it looks gone.", name, current.Machine, current.Time.Format(timeLayout)),
 		Ask: true, Question: "Make this machine the main?", Default: Primary}
+}
+
+func recent(current *backup.Main, now time.Time) bool {
+	return current != nil && !current.ThisMachine && now.Sub(current.Time) <= recentBackup
 }
 
 type DataPlan struct {
