@@ -39,18 +39,5 @@
       ],
       "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-(?<compatibility>alpine[\\d.]+)$"
     }
-  ],
-  "customManagers": [
-    {
-      "customType": "regex",
-      "managerFilePatterns": [
-        "/^engine\\.env$/"
-      ],
-      "matchStrings": [
-        "ENGINE_VERSION=(?<currentValue>v\\d+\\.\\d+\\.\\d+)"
-      ],
-      "datasourceTemplate": "github-tags",
-      "depNameTemplate": "ENGINE_REPOSITORY"
-    }
   ]
 }

@@ -84,8 +84,9 @@ Run `mse check-machine` until it says the machine is ready; each missing piece c
 ## More
 
 - [Commands](docs/COMMANDS.md): what each command does, in detail.
+- [Backups](docs/BACKUP.md), [Restoring](docs/RESTORE.md) and [Upgrading](docs/UPGRADING.md).
 - Each config repository has a README and a CONFIG.md describing its files.
 
 ## Developing
 
-`make test` runs the Go, Python and bats tests, shellcheck and golangci-lint; CI runs them on every pull request. [CONTRIBUTING.md](CONTRIBUTING.md) has the rest.
+`make test` runs the Go and bats tests, shellcheck and golangci-lint; CI runs them on every pull request. [CONTRIBUTING.md](CONTRIBUTING.md) has the rest.

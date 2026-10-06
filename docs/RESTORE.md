@@ -2,29 +2,27 @@
 
 ## Rebuilding a machine
 
-To rebuild an installation on a new machine, after losing or replacing the old one, join it:
+After losing or replacing the machine, on the new one:
 
-```
-make join-installation NAME=<name>
-```
+    mse check-machine
+    mse join <name>
 
-It restores the latest backup before the apps start, then wires them, so they come back with their libraries, history, users and connections. Answer yes when asked whether it should be the main if the old main is gone. See [Installing](INSTALL.md) for the steps.
+`mse join` restores the latest backup before the apps start (into an empty data folder; app data already there is kept unless `--restore-over` is given), then wires them, so they come back with their libraries, history, users and connections. When the old main is gone, it offers to make this machine the main. See [Commands](COMMANDS.md#mse-join).
 
 ## Restoring in place
 
-To roll a machine's app state back to the latest backup:
+To roll this machine's app state back to the latest backup:
 
-```
-cd ~/<name>
-make media-stop
-make restore ARGS=--overwrite
-make update
-```
+    mse stack down
+    mse restore --overwrite
+    mse apply
 
-`make restore` refuses while the apps run. With `--overwrite`, the current `data/volumes/` is moved aside to `data/volumes.before-restore-<time>` rather than deleted; remove it once the restored apps look right. Without it, restore only writes into an empty `data/volumes/`. `make update` brings the apps up and wires them again.
+- `mse restore` refuses while the apps run.
+- With `--overwrite`, the current `volumes/` is moved aside to `volumes.before-restore-<time>` rather than deleted; remove it once the restored apps look right. Without it, restore only writes into an empty `volumes/`.
+- `mse apply` brings the apps up and wires them again.
 
-## What comes back, and what does not
+## What comes back, and what doesn't
 
-A backup holds app state, not media. After restoring onto a machine without the media, the apps list the titles the old machine had. A library scan in Jellyfin and a rescan in Sonarr and Radarr bring them in line with what is on the disk.
-
-Restores take the latest snapshot of the installation, and the latest snapshot of any host while the installation has no snapshot of its own yet.
+- **Back:** app state: libraries, watch history, users, settings, the download client's torrent list.
+- **Not back:** media and downloads. On a machine without the media, the apps list the titles the old machine had; a library scan in Jellyfin and a rescan in Sonarr and Radarr bring them in line with the disk.
+- A restore takes the installation's latest snapshot.

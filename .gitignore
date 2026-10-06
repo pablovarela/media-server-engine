@@ -1,11 +1,5 @@
-/.secrets/
-/.env
 .DS_Store
-__pycache__/
-/.homepage/
-/.homepage-images/
-/.venv/
-.pytest_cache/
-.coverage
 /dist/
 /coverage.out
+/.secrets/
+/.env

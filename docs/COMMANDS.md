@@ -110,6 +110,7 @@ Changes the installation's settings and secrets from a menu in the terminal, the
 - Fast-forwards the config from its remote. It refuses while the config has uncommitted changes.
 - Replaces the installed `mse` with the newest release of its major version, after checking it against `checksums.txt` and running it once. It takes the token the same way as `install.sh`.
 - A newer major version can need config changes, so `mse update` only says it is available; `mse update --force` installs it.
+- See [Upgrading](UPGRADING.md) for images, major versions and going back.
 - `mse update --apply` waits for a running backup, updates, then applies with the updated `mse`, and reports to healthchecks.io. The nightly timer runs it.
 
 ## mse apply
@@ -149,6 +150,7 @@ Each change the wiring makes is one line. An app that fails or doesn't answer wi
 - **The main:** only the installation's main backs up: the machine that made the latest snapshot. `mse backup-role` says which; `mse claim-backup-main` takes over.
 - **Healthchecks:** `mse backup` and `mse verify-backup` report to healthchecks.io themselves when the config has a ping key, so a run by hand counts like a timer run.
 - **Paths:** a backup runs restic from the data folder with symlinks resolved, so a data folder linked to another path backs up under the same paths as before.
+- **More:** [Backups](BACKUP.md) and [Restoring](RESTORE.md).
 - **restic:** `mse` runs the restic version pinned in it. It downloads it from restic's GitHub releases the first time it needs it, checks it against the checksum built into `mse`, and keeps it in `~/.cache/mse/restic`. Before each use it checks that copy against the checksum it recorded, and downloads it again if it changed. A restic on `PATH` isn't used.
 
 ## The stack and the landing page

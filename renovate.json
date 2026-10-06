@@ -54,14 +54,14 @@
     },
     {
       "matchFileNames": [
-        "scripts/tool-versions.env",
+        "internal/restic/release.env",
         ".github/workflows/test.yml"
       ],
       "matchManagers": [
         "custom.regex"
       ],
       "prBodyNotes": [
-        "Update the SHA256 pinned next to this version to the new release file's: the tool-pins check fails until it matches."
+        "Update the SHA256 pinned next to this version (for restic, the four `RESTIC_SHA256_<os>_<arch>` lines, from the release's `SHA256SUMS`): the tool-pins check fails until they match."
       ]
     }
   ],
@@ -69,29 +69,6 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/^scripts\\/tool-versions\\.env$/"
-      ],
-      "matchStrings": [
-        "SOPS_VERSION=(?<currentValue>v\\d+\\.\\d+\\.\\d+)"
-      ],
-      "datasourceTemplate": "github-releases",
-      "depNameTemplate": "getsops/sops"
-    },
-    {
-      "customType": "regex",
-      "managerFilePatterns": [
-        "/^scripts\\/tool-versions\\.env$/"
-      ],
-      "matchStrings": [
-        "AGE_VERSION=(?<currentValue>v\\d+\\.\\d+\\.\\d+)"
-      ],
-      "datasourceTemplate": "github-releases",
-      "depNameTemplate": "FiloSottile/age"
-    },
-    {
-      "customType": "regex",
-      "managerFilePatterns": [
-        "/^scripts\\/tool-versions\\.env$/",
         "/^internal\\/restic\\/release\\.env$/"
       ],
       "matchStrings": [

@@ -32,9 +32,7 @@ jobs:
       - name: Install the test tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq bats python3-yaml parallel
-      - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+          sudo apt-get install -y -qq bats parallel
       - name: Run the tests
         id: tests
         run: |
@@ -42,24 +40,13 @@ jobs:
           set +e
           make test-scripts BATS_FLAGS="--report-formatter junit --output reports"
           scripts=$?
-          make test-python PYTEST_FLAGS="--junitxml=reports/pytest.xml" > reports/pytest-coverage.txt 2>&1
-          python=$?
-          cat reports/pytest-coverage.txt
           make go-test GO_TEST_FLAGS="--junitfile reports/go.xml"
           go=$?
           if [ -f coverage.out ]; then
             scripts/go-coverage-report.sh coverage.out > reports/go-coverage.md
             cat reports/go-coverage.md >> "$GITHUB_STEP_SUMMARY"
           fi
-          echo "status=$((scripts || python || go))" >> "$GITHUB_OUTPUT"
-      - name: Report the Python test coverage
-        if: always()
-        uses: MishaKav/pytest-coverage-comment@9ee59af31bd7bcada1cc496f086b407122602dbd # v1.12.3
-        with:
-          title: Python test coverage
-          pytest-coverage-path: reports/pytest-coverage.txt
-          junitxml-path: reports/pytest.xml
-          hide-comment: ${{ github.event_name != 'pull_request' }}
+          echo "status=$((scripts || go))" >> "$GITHUB_OUTPUT"
       - name: Report the Go test coverage
         if: always() && github.event_name == 'pull_request' && hashFiles('reports/go-coverage.md') != ''
         uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
@@ -77,15 +64,6 @@ jobs:
       - name: Fail when a test failed
         if: steps.tests.outputs.status != '0'
         run: exit 1
-
-  python-3-9:
-    runs-on: ubuntu-26.04
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-      - name: Run the Python tests on Python 3.9, as on Raspberry Pi OS bullseye
-        run: make test-python PYTHON=3.9
 
   lint:
     runs-on: ubuntu-26.04
