@@ -34,6 +34,8 @@ Renovate opens pull requests for the template's images (grouped weekly), the wor
 
 A pull request for sops, age or restic fails `tool-pins` until the SHA256 next to the new version in `scripts/tool-versions.env` is updated: download the new release file named by `scripts/tool-pins.sh`, take its `sha256sum`, commit it to the pull request's branch, and `scripts/check-tool-downloads.sh` passes.
 
+`mse` pins its own restic in `internal/restic/release.env`: Renovate bumps `RESTIC_VERSION` there and in `scripts/tool-versions.env` in the same pull request. Copy the four `restic_<version>_<os>_<arch>.bz2` lines from the release's `SHA256SUMS` into the `RESTIC_SHA256_<os>_<arch>` lines, and `RESTIC_SHA256` in `scripts/tool-versions.env` from the `linux_arm64` one, until `tool-pins` passes.
+
 ## Releases
 
 Releases are tags on `main`, `vMAJOR.MINOR.PATCH`. The major version is also the version of the config format: the template's `config-template/config.yml` holds it as `config:`, and a release that bumps the major bumps that too (the release workflow refuses a tag whose major differs). `mse update` installs any newer release of the same major, so from 1.0.0 a minor or patch release must not need config changes. Until then every 0.x release is the same major: a 0.x release may still change the config, and its notes say what to change.
