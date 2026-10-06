@@ -3,6 +3,7 @@ package gitconfig
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -225,4 +226,27 @@ func TestUnstage(t *testing.T) {
 	runner.EXPECT().Output(ctx, git("reset", "--quiet", "--", "installation.env", "secrets/new.sops.env")).Return(answer("", 0), nil).Once()
 
 	require.NoError(t, Repository{Runner: runner, Dir: dir}.Unstage(ctx, []string{"installation.env", "secrets/new.sops.env"}))
+}
+
+func TestNewRepository(t *testing.T) {
+	ctx := context.Background()
+	repository := func(args []string, exit int) Repository {
+		runner := newMockRunner(t)
+		runner.EXPECT().Output(ctx, git(args...)).Return(process.Result{Exit: exit, Stderr: []byte("fatal: nope\n")}, nil)
+		return Repository{Runner: runner, Dir: dir}
+	}
+	calls := map[string]struct {
+		args []string
+		call func(Repository) error
+	}{
+		"init":       {[]string{"init", "--quiet", "--initial-branch=main"}, func(r Repository) error { return r.Init(ctx) }},
+		"add remote": {[]string{"remote", "add", "origin", "https://github.com/p/c.git"}, func(r Repository) error { return r.AddRemote(ctx, "https://github.com/p/c.git") }},
+		"push new":   {[]string{"push", "--quiet", "--set-upstream", "origin", "main"}, func(r Repository) error { return r.PushNew(ctx) }},
+	}
+	for name, c := range calls {
+		t.Run(name, func(t *testing.T) {
+			require.NoError(t, c.call(repository(c.args, 0)))
+			assert.EqualError(t, c.call(repository(c.args, 128)), "git "+strings.Join(c.args[:2], " ")+" failed (exit 128): fatal: nope")
+		})
+	}
 }
