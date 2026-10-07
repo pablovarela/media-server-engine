@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/pablovarela/media-server-engine/internal/apply"
+	"github.com/pablovarela/media-server-engine/internal/backup"
 	"github.com/pablovarela/media-server-engine/internal/compose"
 	"github.com/pablovarela/media-server-engine/internal/healthchecks"
 	"github.com/pablovarela/media-server-engine/internal/images"
@@ -37,7 +38,7 @@ func newApplyCommand(deps Dependencies) *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if !cmd.Flags().Changed("after-update") {
-				return deps.apply(cmd)
+				return deps.applyByHand(cmd)
 			}
 			if !afterUpdateRunID.MatchString("--after-update=" + afterUpdate) {
 				return errors.New("--after-update takes the run id of the update that handed over, six hex digits")
@@ -76,6 +77,19 @@ func (d Dependencies) reported(cmd *cobra.Command, i *installation.Installation,
 	return do()
 }
 
+func (d Dependencies) applyByHand(cmd *cobra.Command) error {
+	if i, err := d.installation(cmd); err == nil {
+		cleared, err := backup.ClearMediaRestorePending(i.Data)
+		if err != nil {
+			return err
+		}
+		if cleared {
+			report.From(cmd.Context()).Say(fmt.Sprintf("Starting without %s's media; mse restore --media brings it back later, with the stack stopped.", i.Name))
+		}
+	}
+	return d.apply(cmd)
+}
+
 func (d Dependencies) apply(cmd *cobra.Command) error {
 	o, err := d.openProject(cmd, compose.Stack, drawingWhenPinned)
 	if err != nil {
@@ -90,15 +104,16 @@ func (d Dependencies) apply(cmd *cobra.Command) error {
 		return err
 	}
 	return (&apply.Apply{
-		Stack:    appliedStack{runner: o.runner, project: o.project, wired: wired, outcomes: o.outcomes, data: o.installation.Data, config: o.installation.Config},
-		Checks:   d.checks(o.installation, o.network),
-		Wiring:   wires,
-		Timers:   d.timersOrNil(cmd, o.installation),
-		Page:     pageFunc(func(ctx context.Context) error { return d.applyPage(ctx, o) }),
-		Images:   imagesFunc(func(ctx context.Context) error { return d.pruneImages(ctx, o.installation) }),
-		MkdirAll: func(path string) error { return os.MkdirAll(path, 0o755) }, //nolint:gosec // containers running as other users read these folders
-		Sleep:    d.Pause,
-		Report:   report.From(cmd.Context()),
+		Stack:       appliedStack{runner: o.runner, project: o.project, wired: wired, outcomes: o.outcomes, data: o.installation.Data, config: o.installation.Config},
+		Checks:      d.checks(o.installation, o.network),
+		Wiring:      wires,
+		Timers:      d.timersOrNil(cmd, o.installation),
+		KeepStopped: mediaToRestore(o.installation),
+		Page:        pageFunc(func(ctx context.Context) error { return d.applyPage(ctx, o) }),
+		Images:      imagesFunc(func(ctx context.Context) error { return d.pruneImages(ctx, o.installation) }),
+		MkdirAll:    func(path string) error { return os.MkdirAll(path, 0o755) }, //nolint:gosec // containers running as other users read these folders
+		Sleep:       d.Pause,
+		Report:      report.From(cmd.Context()),
 	}).Run(cmd.Context())
 }
 
@@ -174,6 +189,13 @@ func (d Dependencies) checks(i *installation.Installation, network string) apply
 		}
 		return set, append(failures, notRemoved...)
 	})
+}
+
+func mediaToRestore(i *installation.Installation) string {
+	if !backup.MediaRestorePending(i.Data) {
+		return ""
+	}
+	return i.Name + "'s media is still to be restored (mse restore --media, or mse apply to start without it)"
 }
 
 func mediaLocation(settings map[string]string, apps string) string {

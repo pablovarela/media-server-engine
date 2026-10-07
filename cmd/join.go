@@ -14,6 +14,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/gitconfig"
 	"github.com/pablovarela/media-server-engine/internal/installation"
 	"github.com/pablovarela/media-server-engine/internal/join"
+	"github.com/pablovarela/media-server-engine/internal/media"
 	"github.com/pablovarela/media-server-engine/internal/report"
 )
 
@@ -160,11 +161,31 @@ func (j *joining) Role(ctx context.Context) error {
 	return j.backups.Claim(ctx, true)
 }
 
+func (j *joining) mediaToCome() bool {
+	if !j.restored {
+		return false
+	}
+	i, err := j.d.installation(j.cmd)
+	if err != nil {
+		return false
+	}
+	timing, err := media.Timing(i.Settings)
+	return err == nil && timing.Enabled
+}
+
 func (j *joining) Apply(context.Context) error {
+	if j.mediaToCome() {
+		if err := backup.MarkMediaRestorePending(j.data); err != nil {
+			return err
+		}
+	}
 	return j.d.apply(j.cmd)
 }
 
 func (j *joining) Summary(context.Context) string {
+	if j.mediaToCome() {
+		return j.name + " is set up without its media. Bring it back, then start, with:\n  mse restore --media\nOr start without it:\n  mse apply"
+	}
 	summary := j.name + " is running on this machine"
 	if i, err := j.d.installation(j.cmd); err == nil {
 		if host, err := i.NetworkName(j.d.Host); err == nil {
@@ -178,7 +199,7 @@ func (j *joining) Summary(context.Context) string {
 		summary += " " + j.current.Machine + " stays its main; mse backup --apps --take-over takes over later."
 	}
 	if j.restored {
-		summary += " The backup holds app state, not media: copy the media over, or rescan each app once it's here."
+		summary += " The backup holds app state, not media: copy the media over, or rescan each app once it's here. mse configure can turn on a media backup."
 	}
 	return summary
 }

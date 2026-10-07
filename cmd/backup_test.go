@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -11,6 +13,7 @@ import (
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/pablovarela/media-server-engine/internal/compose"
 	"github.com/pablovarela/media-server-engine/internal/installation"
@@ -80,11 +83,12 @@ func TestBackupAndRestoreSayWhat(t *testing.T) {
 		stderr string
 	}{
 		"backup alone":               {args: []string{"backup"}, stderr: "mse: say what to back up: --apps, --media, or both\n"},
-		"restore alone":              {args: []string{"restore"}, stderr: "mse: say what to restore: --apps\n"},
+		"restore alone":              {args: []string{"restore"}, stderr: "mse: say what to restore: --apps, --media, or both\n"},
 		"--take-over without --apps": {args: []string{"backup", "--take-over"}, stderr: "mse: --take-over only goes with --apps\n"},
 		"--overwrite without --apps": {args: []string{"restore", "--overwrite"}, stderr: "mse: --overwrite only goes with --apps\n"},
 		"--yes without --take-over":  {args: []string{"backup", "--apps", "--yes"}, stderr: "mse: --yes only goes with --take-over\n"},
 		"--media when it is off":     {args: []string{"backup", "--media"}, stderr: "mse: gorgon has no media backup; turn it on with mse configure\n"},
+		"restore --media when off":   {args: []string{"restore", "--media"}, stderr: "mse: gorgon has no media backup; turn it on with mse configure\n"},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -149,4 +153,59 @@ func TestBackupCommandsNeedARepository(t *testing.T) {
 
 	assert.Equal(t, 1, code)
 	assert.Equal(t, "mse: gorgon has no backup repository: set RESTIC_REPOSITORY in installation.env\n", stderr.String())
+}
+
+func resticArgs(first string) any {
+	return mock.MatchedBy(func(c process.Command) bool { return c.Name == "restic" && len(c.Args) > 0 && c.Args[0] == first })
+}
+
+func TestRestoreMediaThenStarts(t *testing.T) {
+	tests := map[string]struct {
+		args     []string
+		restores []string
+	}{
+		"the media":                {args: []string{"restore", "--media"}, restores: []string{"media"}},
+		"the apps, then the media": {args: []string{"restore", "--apps", "--media"}, restores: []string{"apps", "media"}},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			f := newApplyFixture(t)
+			withSettings(t, f.home, mediaSettings)
+			require.NoError(t, os.RemoveAll(filepath.Join(f.data, ".backup-main")))
+			var restores []string
+			f.composer.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, mock.Anything).Return(f.project, nil).Maybe()
+			f.composer.EXPECT().AnyRunning(mock.Anything, f.project).Return(false, nil)
+			f.runner.EXPECT().Output(mock.Anything, resticArgs("snapshots")).Return(process.Result{Stdout: []byte(ourSnapshots)}, nil)
+			f.runner.EXPECT().Run(mock.Anything, resticArgs("unlock")).Return(0, nil)
+			f.runner.EXPECT().Run(mock.Anything, resticArgs("restore")).RunAndReturn(func(_ context.Context, c process.Command) (int, error) {
+				which := "apps"
+				if slices.Contains(c.Env, "RESTIC_REPOSITORY=b2:bucket:media") {
+					which = "media"
+					assert.Equal(t, []string{"--overwrite", "if-changed"}, c.Args[len(c.Args)-2:])
+				}
+				restores = append(restores, which)
+				return 0, nil
+			})
+			f.composer.EXPECT().Pull(mock.Anything, f.project).Return(compose.Pulled{}, nil)
+			f.composer.EXPECT().Up(mock.Anything, f.project, []string(nil), compose.NoWait).RunAndReturn(func(context.Context, *types.Project, []string, compose.Wait) error {
+				assert.Equal(t, tt.restores, restores, "the stack starts after every restore")
+				return nil
+			})
+			f.composer.EXPECT().Detached(mock.Anything, f.project, "gluetun", gluetunDependents).Return(nil, nil)
+			f.composer.EXPECT().Ps(mock.Anything, f.project).Return(nil, nil)
+			root := NewRootCommand(f.deps(t, false))
+			var stdout, stderr bytes.Buffer
+			root.SetOut(&stdout)
+			root.SetErr(&stderr)
+
+			code := run(context.Background(), root, tt.args)
+
+			assert.Equal(t, 0, code, stderr.String())
+			assert.Equal(t, tt.restores, restores)
+			media, _ := filepath.EvalSymlinks(filepath.Join(f.data, "data", "media"))
+			assert.Contains(t, stdout.String(), "Restoring the media from the latest media backup into "+media+" (")
+			assert.Contains(t, stdout.String(), "files already there that match are kept)... restored.\n")
+			assert.Contains(t, stdout.String(), "Starting the stack...")
+		})
+	}
 }

@@ -35,6 +35,7 @@ func fixture(t *testing.T) (*Backups, mocks, *bytes.Buffer, *bytes.Buffer) {
 		Repository:         m.repository,
 		RepositoryLocation: "b2:bucket",
 		MediaRepository:    m.media,
+		FreeSpace:          func(string) (uint64, error) { return 1_834_000_000_000, nil },
 		Media:              media.Settings{Enabled: true, Repository: "b2:bucket:restic-media", KeepWeekly: 4, CheckSubset: "5%"},
 		Stack:              m.stack,
 		Pinger:             m.pinger,
