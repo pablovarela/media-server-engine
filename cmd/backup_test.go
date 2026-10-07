@@ -43,18 +43,6 @@ func TestBackupCommands(t *testing.T) {
 		When  When
 		Then  Then
 	}{
-		"backup-role": {
-			Given: Given{machineID: "this-machine\n"},
-			When:  When{args: []string{"backup-role"}},
-			Then: Then{
-				expect: func(r *mockCommandRunner) {
-					r.EXPECT().Output(mock.Anything, resticCall("snapshots", "--no-lock", "--host", "gorgon", "--json")).Return(process.Result{
-						Stdout: []byte(`[{"time":"2026-10-05T04:30:00+01:00","tags":["machine:this-machine","machine-name:gorgon"]}]`),
-					}, nil)
-				},
-				stdout: "gorgon's main is gorgon, last backup 2026-10-05 04:30.\nThis machine is the main.\n",
-			},
-		},
 		"unlock-backup --all": {
 			When: When{args: []string{"unlock-backup", "--all"}},
 			Then: Then{

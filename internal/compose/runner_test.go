@@ -89,6 +89,19 @@ func TestOperations(t *testing.T) {
 		}, containers)
 	})
 
+	t.Run("containers lists the project's containers by its name alone", func(t *testing.T) {
+		service := newMockService(t)
+		service.EXPECT().Ps(ctx, "media-server", api.PsOptions{All: true}).Return([]api.ContainerSummary{
+			{Name: "sonarr", State: container.StateExited},
+			{Name: "jellyfin", State: container.StateRunning},
+		}, nil)
+
+		containers, err := (&Runner{service: service}).Containers(ctx, "media-server")
+
+		require.NoError(t, err)
+		assert.Equal(t, []Container{{Name: "jellyfin", State: "running"}, {Name: "sonarr", State: "exited"}}, containers)
+	})
+
 	t.Run("logs stream as service | line", func(t *testing.T) {
 		service := newMockService(t)
 		service.EXPECT().Logs(ctx, "media-server", mock.Anything, mock.MatchedBy(func(o api.LogOptions) bool {

@@ -314,13 +314,13 @@ func (c *creation) Summary(context.Context) string {
 	ready := c.name + " is ready"
 	i, err := c.d.installation(c.cmd)
 	if err != nil {
-		return ready + ". mse urls lists every app."
+		return ready + ". mse status lists every app."
 	}
 	host, err := i.NetworkName(c.d.Host)
 	if err != nil {
-		return ready + ". mse urls lists every app."
+		return ready + ". mse status lists every app."
 	}
-	return fmt.Sprintf("%s: its config is in %s (%s), its data in %s and its landing page at %s. mse urls lists every app.", ready, c.config, c.remote, c.data, homepageAddress(i, host))
+	return fmt.Sprintf("%s: its config is in %s (%s), its data in %s and its landing page at %s. mse status lists every app.", ready, c.config, c.remote, c.data, homepageAddress(i, host))
 }
 
 func (c *creation) ClaimMain(context.Context) error {

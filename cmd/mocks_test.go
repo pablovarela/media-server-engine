@@ -1033,6 +1033,74 @@ func (_c *mockComposeRunner_AnyRunning_Call) RunAndReturn(run func(ctx context.C
 	return _c
 }
 
+// Containers provides a mock function for the type mockComposeRunner
+func (_mock *mockComposeRunner) Containers(ctx context.Context, projectName string) ([]compose.Container, error) {
+	ret := _mock.Called(ctx, projectName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Containers")
+	}
+
+	var r0 []compose.Container
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) ([]compose.Container, error)); ok {
+		return returnFunc(ctx, projectName)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) []compose.Container); ok {
+		r0 = returnFunc(ctx, projectName)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]compose.Container)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = returnFunc(ctx, projectName)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// mockComposeRunner_Containers_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Containers'
+type mockComposeRunner_Containers_Call struct {
+	*mock.Call
+}
+
+// Containers is a helper method to define mock.On call
+//   - ctx context.Context
+//   - projectName string
+func (_e *mockComposeRunner_Expecter) Containers(ctx any, projectName any) *mockComposeRunner_Containers_Call {
+	return &mockComposeRunner_Containers_Call{Call: _e.mock.On("Containers", ctx, projectName)}
+}
+
+func (_c *mockComposeRunner_Containers_Call) Run(run func(ctx context.Context, projectName string)) *mockComposeRunner_Containers_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *mockComposeRunner_Containers_Call) Return(containers []compose.Container, err error) *mockComposeRunner_Containers_Call {
+	_c.Call.Return(containers, err)
+	return _c
+}
+
+func (_c *mockComposeRunner_Containers_Call) RunAndReturn(run func(ctx context.Context, projectName string) ([]compose.Container, error)) *mockComposeRunner_Containers_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Detached provides a mock function for the type mockComposeRunner
 func (_mock *mockComposeRunner) Detached(ctx context.Context, project *types.Project, from string, dependents []string) ([]string, error) {
 	ret := _mock.Called(ctx, project, from, dependents)

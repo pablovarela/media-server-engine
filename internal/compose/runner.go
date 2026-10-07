@@ -142,6 +142,18 @@ func (r *Runner) Ps(ctx context.Context, project *types.Project) ([]Container, e
 	if err != nil {
 		return nil, err
 	}
+	return containersOf(summaries), nil
+}
+
+func (r *Runner) Containers(ctx context.Context, projectName string) ([]Container, error) {
+	summaries, err := r.service.Ps(ctx, projectName, api.PsOptions{All: true})
+	if err != nil {
+		return nil, err
+	}
+	return containersOf(summaries), nil
+}
+
+func containersOf(summaries []api.ContainerSummary) []Container {
 	containers := make([]Container, 0, len(summaries))
 	for _, summary := range summaries {
 		containers = append(containers, Container{
@@ -152,7 +164,7 @@ func (r *Runner) Ps(ctx context.Context, project *types.Project) ([]Container, e
 		})
 	}
 	sort.Slice(containers, func(a, b int) bool { return containers[a].Name < containers[b].Name })
-	return containers, nil
+	return containers
 }
 
 func (r *Runner) Logs(ctx context.Context, project *types.Project, options LogsOptions, w io.Writer) error {
