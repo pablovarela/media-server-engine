@@ -183,7 +183,7 @@ Shows this machine's installation. It changes nothing and prints no passwords.
 - `mse stack up|down|restart|ps|logs` run the installation's containers.
 - `mse stack up --wait` returns once every container is running, and healthy when it has a healthcheck (`--wait-timeout`, 5 minutes by default).
 - `mse stack logs -f [service...]` follows the logs; `--tail N` limits them to the last lines.
-- When the config pins a `homepage` image, `mse stack up` and `mse stack restart` draw the landing page first, from the config's `homepage/` files over the engine's default page, then reload Homepage. A page that can't be drawn is reported and the containers start anyway. `mse homepage` redraws it on its own.
+- When the config pins a `homepage` image, `mse stack up` and `mse stack restart` draw the landing page first, from the config's `homepage/` files over the engine's default page, then reload Homepage. A page that can't be drawn is reported and the containers start anyway. `mse stack restart homepage` redraws it on its own.
 - `mse logins` prints the apps' users and passwords; `mse status` lists their addresses.
 
 ## Output and logs
