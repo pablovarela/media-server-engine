@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/media"
 	"github.com/pablovarela/media-server-engine/internal/report"
 	"github.com/pablovarela/media-server-engine/internal/restic"
 )
@@ -37,6 +38,8 @@ type Backups struct {
 	Installation       *installation.Installation
 	Repository         Repository
 	RepositoryLocation string
+	MediaRepository    Repository
+	Media              media.Settings
 	Stack              Stack
 	Pinger             Pinger
 	MachineID          string

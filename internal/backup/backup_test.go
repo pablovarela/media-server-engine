@@ -201,7 +201,7 @@ func TestBackup(t *testing.T) {
 
 func TestBackupRefusesWhileAnotherRuns(t *testing.T) {
 	b, _, _, _ := fixture(t)
-	held, err := takeLock(filepath.Join(b.Installation.Data, ".backup.lock"))
+	held, err := takeLock(filepath.Join(b.Installation.Data, ".backup.lock"), "backup")
 	require.NoError(t, err)
 	defer held.release()
 

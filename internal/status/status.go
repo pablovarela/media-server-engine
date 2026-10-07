@@ -27,11 +27,17 @@ func (t Timer) failedInSystemd() bool {
 
 type App struct{ Name, Address string }
 
+type MediaBackup struct {
+	Latest time.Time
+	Err    error
+}
+
 type Report struct {
 	Installation, Version string
 	Main                  *backup.Main
 	MainErr               error
 	NoBackups             bool
+	Media                 *MediaBackup
 	Running, Services     int
 	StackErr              error
 	Timers                []Timer
@@ -48,8 +54,21 @@ func (r Report) Render(now time.Time) string {
 	if r.Main != nil {
 		fmt.Fprintf(&out, "Last backup: %s by %s\n", when(r.Main.Time, now), r.Main.Machine)
 	}
+	out.WriteString(r.media(now))
 	out.WriteString("\n" + r.timers(now) + "\n" + r.apps())
 	return out.String()
+}
+
+func (r Report) media(now time.Time) string {
+	switch {
+	case r.Media == nil:
+		return ""
+	case r.Media.Err != nil:
+		return "Last media backup: couldn't read it: " + r.Media.Err.Error() + "\n"
+	case r.Media.Latest.IsZero():
+		return "Last media backup: none yet\n"
+	}
+	return "Last media backup: " + when(r.Media.Latest, now) + "\n"
 }
 
 func (r Report) apps() string {
@@ -171,6 +190,9 @@ func (r Report) backupAttention(now time.Time) []string {
 	var needs []string
 	if r.MainErr != nil {
 		needs = append(needs, "the backup repository couldn't be read")
+	}
+	if r.Media != nil && r.Media.Err != nil {
+		needs = append(needs, "the media backup repository couldn't be read")
 	}
 	if r.Main != nil && r.Main.ThisMachine && now.Sub(r.Main.Time) > staleBackup {
 		needs = append(needs, "the latest backup is more than 2 days old")

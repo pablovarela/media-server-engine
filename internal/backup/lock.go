@@ -64,14 +64,14 @@ type heldLock struct {
 	file *os.File
 }
 
-func takeLock(path string) (*heldLock, error) {
+func takeLock(path, what string) (*heldLock, error) {
 	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o644) //nolint:gosec // the installation's backup lock
 	if err != nil {
 		return nil, err
 	}
 	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil { //nolint:gosec // a file descriptor fits in an int
 		_ = file.Close()
-		return nil, fmt.Errorf("a backup is already running (process %s)", runningProcess(path))
+		return nil, fmt.Errorf("a %s is already running (process %s)", what, runningProcess(path))
 	}
 	if err := file.Truncate(0); err != nil {
 		_ = file.Close()

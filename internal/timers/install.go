@@ -26,8 +26,8 @@ type Outcome struct {
 	Removed   []string
 }
 
-func (in Installer) Install(ctx context.Context, role Role, v Values) (Outcome, error) {
-	install, remove := Plan(role)
+func (in Installer) Install(ctx context.Context, role Role, media bool, v Values) (Outcome, error) {
+	install, remove := Plan(role, media)
 	var outcome Outcome
 	for _, job := range install {
 		changed, err := in.write(job, v)
@@ -136,7 +136,7 @@ func (o Outcome) String() string {
 		parts = append(parts, strings.Join(o.Unchanged, ", ")+" unchanged")
 	}
 	if len(o.Removed) > 0 {
-		parts = append(parts, strings.Join(o.Removed, ", ")+" removed (not the main)")
+		parts = append(parts, strings.Join(o.Removed, ", ")+" removed")
 	}
 	return strings.Join(parts, "; ")
 }

@@ -100,11 +100,49 @@ func assertIdentityUnread(t *testing.T, unread bool, data string) {
 	}
 }
 
+const mediaSettings = "MEDIA_BACKUP=yes\nMEDIA_RESTIC_REPOSITORY=b2:bucket:media\n"
+
+func mediaCall(args ...string) any {
+	return mock.MatchedBy(func(c process.Command) bool {
+		return c.Name == "restic" && slices.Equal(args, c.Args) &&
+			slices.Contains(c.Env, "RESTIC_REPOSITORY=b2:bucket:media") && slices.Contains(c.Env, "RESTIC_PASSWORD=secret")
+	})
+}
+
+func withSettings(t *testing.T, home, settings string) {
+	t.Helper()
+	path := filepath.Join(home, ".config", "mse", "gorgon", "installation.env")
+	current, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, append(current, settings...), 0o644))
+}
+
+func backsUpMedia(r *mockCommandRunner, data string) {
+	r.EXPECT().Output(mock.Anything, mediaCall("cat", "config", "--no-lock")).Return(process.Result{}, nil)
+	r.EXPECT().Run(mock.Anything, mediaCall("unlock")).Return(0, nil)
+	r.EXPECT().Run(mock.Anything, mock.MatchedBy(func(c process.Command) bool {
+		want := []string{"backup", "--json", "--retry-lock", "2h", "--host", "gorgon", "--tag", "machine:this-machine", "--tag", "machine-name:gorgon", "--tag", "weekly", "."}
+		return slices.Equal(want, c.Args) && c.Dir == filepath.Join(data, "data", "media") && slices.Contains(c.Env, "RESTIC_REPOSITORY=b2:bucket:media")
+	})).RunAndReturn(func(_ context.Context, c process.Command) (int, error) {
+		_, _ = io.WriteString(c.Stdout, `{"message_type":"summary","snapshot_id":"7d2e9c41aa00"}`+"\n")
+		return 0, nil
+	})
+	r.EXPECT().Run(mock.Anything, mediaCall("forget", "--json", "--retry-lock", "2h", "--host", "gorgon", "--keep-weekly", "4", "--group-by", "host")).RunAndReturn(func(_ context.Context, c process.Command) (int, error) {
+		_, _ = io.WriteString(c.Stdout, `[{"keep":[{"short_id":"a"}],"remove":null}]`)
+		return 0, nil
+	})
+	r.EXPECT().Run(mock.Anything, mediaCall("check", "--retry-lock", "2h", "--read-data-subset", "5%")).Return(0, nil)
+}
+
+const backedUpMedia = "Backing up the media... snapshot 7d2e9c41: 0 new, 0 changed, 0 unchanged files; 0 B added (0 B stored).\n" +
+	"Removing old media snapshots... kept 1, removed 0.\nChecking 5% of the media backup... done.\nMedia backup done.\n"
+
 func TestBackupCommandFlows(t *testing.T) {
 	project := &types.Project{Name: "media-server"}
 	type Given struct {
 		interactive bool
 		stdin       string
+		settings    string
 	}
 	type When struct {
 		args []string
@@ -151,6 +189,33 @@ func TestBackupCommandFlows(t *testing.T) {
 				stdout:   backedUp,
 				pings:    []string{"/ping-key/gorgon-backup/start", "/ping-key/gorgon-backup"},
 				recorded: "backup",
+			},
+		},
+		"backup --media": {
+			Given: Given{settings: mediaSettings},
+			When:  When{args: []string{"backup", "--media"}},
+			Then: Then{
+				expect: func(r *mockCommandRunner, _ *mockComposeRunner, data, _ string) {
+					r.EXPECT().Output(mock.Anything, resticCall("snapshots", "--no-lock", "--host", "gorgon", "--json")).Return(process.Result{Stdout: []byte(ourSnapshots)}, nil)
+					backsUpMedia(r, data)
+				},
+				stdout:   backedUpMedia,
+				pings:    []string{"/ping-key/gorgon-media-backup"},
+				recorded: "media-backup",
+			},
+		},
+		"backup --apps --media": {
+			Given: Given{settings: mediaSettings},
+			When:  When{args: []string{"backup", "--apps", "--media"}},
+			Then: Then{
+				expect: func(r *mockCommandRunner, c *mockComposeRunner, data, _ string) {
+					r.EXPECT().Output(mock.Anything, resticCall("snapshots", "--no-lock", "--host", "gorgon", "--json")).Return(process.Result{Stdout: []byte(ourSnapshots)}, nil)
+					backsUp(r, c, data)
+					backsUpMedia(r, data)
+				},
+				stdout:   backedUp + backedUpMedia,
+				pings:    []string{"/ping-key/gorgon-backup/start", "/ping-key/gorgon-backup", "/ping-key/gorgon-media-backup"},
+				recorded: "media-backup",
 			},
 		},
 		"backup --take-over --yes": {
@@ -225,6 +290,9 @@ func TestBackupCommandFlows(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			home, data, resolved, tmp := backupHome(t)
+			withSettings(t, home, tt.Given.settings)
+			require.NoError(t, os.MkdirAll(filepath.Join(data, "data", "media"), 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(data, "data", "media", "film.mkv"), []byte("film"), 0o644))
 			runner := newMockCommandRunner(t)
 			composer := newMockComposeRunner(t)
 			composer.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, mock.Anything).Return(project, nil).Maybe()

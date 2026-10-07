@@ -1,0 +1,9 @@
+[Unit]
+Description=Weekly media backup (@NAME@)
+
+[Timer]
+OnCalendar=@SCHEDULE@
+Persistent=true
+
+[Install]
+WantedBy=timers.target

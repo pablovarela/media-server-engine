@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var gorgon = Values{Installation: "gorgon", Executable: "/home/pablo/.local/bin/mse"}
+var gorgon = Values{Installation: "gorgon", Executable: "/home/pablo/.local/bin/mse", MediaSchedule: "Sun *-*-* 01:00:00"}
 
 func TestTheServicesRunMse(t *testing.T) {
 	tests := map[Job]string{
@@ -41,6 +41,15 @@ ExecStart=/home/pablo/.local/bin/mse check-backup
 Nice=10
 IOSchedulingClass=idle
 `,
+		MediaBackup: `[Unit]
+Description=Back up the media server's media (gorgon)
+
+[Service]
+Type=oneshot
+ExecStart=/home/pablo/.local/bin/mse backup --media
+Nice=10
+IOSchedulingClass=idle
+`,
 		Cleanup: `[Unit]
 Description=Remove downloads Sonarr or Radarr flagged as executables (gorgon)
 
@@ -66,10 +75,11 @@ func TestTheTimersKeepTheirSchedules(t *testing.T) {
 		schedule   string
 		persistent bool
 	}{
-		Update:  {"OnCalendar=*-*-* 05:00:00", true},
-		Backup:  {"OnCalendar=*-*-* 04:30:00", true},
-		Verify:  {"OnCalendar=Sun *-*-* 05:30:00", true},
-		Cleanup: {"OnCalendar=*:0/15", false},
+		Update:      {"OnCalendar=*-*-* 05:00:00", true},
+		Backup:      {"OnCalendar=*-*-* 04:30:00", true},
+		Verify:      {"OnCalendar=Sun *-*-* 05:30:00", true},
+		Cleanup:     {"OnCalendar=*:0/15", false},
+		MediaBackup: {"OnCalendar=Sun *-*-* 01:00:00", true},
 	}
 	for job, tt := range tests {
 		t.Run(job.Name, func(t *testing.T) {
@@ -90,7 +100,7 @@ func TestTheUnitsAreNamedForTheInstallation(t *testing.T) {
 }
 
 func TestNoUnitLeavesAPlaceholder(t *testing.T) {
-	for _, job := range []Job{Update, Cleanup, Backup, Verify} {
+	for _, job := range []Job{Update, Cleanup, Backup, Verify, MediaBackup} {
 		for _, suffix := range []string{".service", ".timer"} {
 			text, err := Render(job, suffix, gorgon)
 
@@ -114,15 +124,23 @@ func TestTheEnvironmentTheInstallationNeedsReachesTheServices(t *testing.T) {
 }
 
 func TestWhichTimersEachMachineRuns(t *testing.T) {
-	tests := map[Role]struct{ install, remove []Job }{
-		Main:      {install: []Job{Update, Cleanup, Backup, Verify}},
-		Secondary: {install: []Job{Update, Cleanup}, remove: []Job{Backup, Verify}},
-		Unknown:   {install: []Job{Update, Cleanup}},
+	tests := map[string]struct {
+		role            Role
+		media           bool
+		install, remove []Job
+	}{
+		"main":                 {role: Main, install: []Job{Update, Cleanup, Backup, Verify}, remove: []Job{MediaBackup}},
+		"main with media":      {role: Main, media: true, install: []Job{Update, Cleanup, Backup, Verify, MediaBackup}},
+		"secondary":            {role: Secondary, install: []Job{Update, Cleanup}, remove: []Job{Backup, Verify, MediaBackup}},
+		"secondary with media": {role: Secondary, media: true, install: []Job{Update, Cleanup}, remove: []Job{Backup, Verify, MediaBackup}},
+		"unknown":              {role: Unknown, media: true, install: []Job{Update, Cleanup}},
 	}
-	for role, want := range tests {
-		install, remove := Plan(role)
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			install, remove := Plan(tt.role, tt.media)
 
-		assert.Equal(t, want.install, install, role)
-		assert.Equal(t, want.remove, remove, role)
+			assert.Equal(t, tt.install, install)
+			assert.Equal(t, tt.remove, remove)
+		})
 	}
 }

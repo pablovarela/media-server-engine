@@ -15,6 +15,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/backup"
 	"github.com/pablovarela/media-server-engine/internal/installation"
 	"github.com/pablovarela/media-server-engine/internal/machine"
+	"github.com/pablovarela/media-server-engine/internal/media"
 	"github.com/pablovarela/media-server-engine/internal/process"
 	"github.com/pablovarela/media-server-engine/internal/report"
 	"github.com/pablovarela/media-server-engine/internal/secrets"
@@ -60,13 +61,18 @@ func (t *appliedTimers) Set(ctx context.Context) (string, []string, error) {
 	if err != nil {
 		return "", nil, err
 	}
+	timing, err := media.Timing(t.i.Settings)
+	if err != nil {
+		return "", nil, err
+	}
+	values.MediaSchedule = timing.Schedule.OnCalendar()
 	warnings := t.unattendedWarnings(ctx, account, values)
 	role, note, warning := t.role(ctx)
 	if warning != "" {
 		warnings = append(warnings, warning)
 	}
 	installer := timers.Installer{Runner: t.d.Run(io.Discard, io.Discard), Dir: t.d.unitDir()}
-	outcome, err := installer.Install(ctx, role, values)
+	outcome, err := installer.Install(ctx, role, timing.Enabled, values)
 	if err != nil {
 		return "", warnings, err
 	}
@@ -137,15 +143,23 @@ func (t *appliedTimers) role(ctx context.Context) (role timers.Role, note, warni
 	return timers.Unknown, "", fmt.Sprintf("%v; the backup timers are left as they are", err)
 }
 
-func (d Dependencies) backupRole(ctx context.Context, i *installation.Installation) (*backup.Backups, bool, error) {
-	location := i.Settings["RESTIC_REPOSITORY"]
+func (d Dependencies) backupEnvironment(i *installation.Installation) map[string]string {
 	environment := map[string]string{}
 	if decrypted, err := d.Decrypt(filepath.Join(i.Config, "secrets", "backup.sops.env")); err == nil {
 		environment = secrets.Dotenv(decrypted)
 	}
 	if environment["RESTIC_REPOSITORY"] == "" {
-		environment["RESTIC_REPOSITORY"] = location
+		environment["RESTIC_REPOSITORY"] = i.Settings["RESTIC_REPOSITORY"]
 	}
+	return environment
+}
+
+func (d Dependencies) quietRestic(ctx context.Context) (string, error) {
+	return d.ResticBinary(report.With(ctx, report.New(io.Discard, io.Discard, nil)))
+}
+
+func (d Dependencies) backupRole(ctx context.Context, i *installation.Installation) (*backup.Backups, bool, error) {
+	environment := d.backupEnvironment(i)
 	if environment["RESTIC_REPOSITORY"] == "" {
 		return nil, false, nil
 	}
@@ -153,7 +167,7 @@ func (d Dependencies) backupRole(ctx context.Context, i *installation.Installati
 	if err != nil {
 		return nil, true, err
 	}
-	binary, err := d.ResticBinary(report.With(ctx, report.New(io.Discard, io.Discard, nil)))
+	binary, err := d.quietRestic(ctx)
 	if err != nil {
 		return nil, true, err
 	}

@@ -3,6 +3,8 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -162,7 +164,7 @@ func TestAMachineAnotherOneBacksUpForLosesItsBackupTimers(t *testing.T) {
 	code, stdout, stderr := tf.apply(t)
 
 	require.Equal(t, 0, code, stderr)
-	assert.Contains(t, stdout, "mse-gorgon-backup, mse-gorgon-verify removed (not the main)")
+	assert.Contains(t, stdout, "mse-gorgon-backup, mse-gorgon-verify removed")
 	assert.NoFileExists(t, filepath.Join(tf.units, "mse-gorgon-backup.timer"))
 	assert.NoFileExists(t, filepath.Join(tf.f.data, ".backup-main"))
 }
@@ -381,4 +383,47 @@ func TestFetchingResticKeepsTheTimersStepOnOneLine(t *testing.T) {
 	require.Equal(t, 0, code, stderr)
 	assert.NotContains(t, stdout, "Downloading restic")
 	assert.Regexp(t, `(?m)^Setting up the timers\.\.\. .+$`, stdout)
+}
+
+func TestAMainWithAMediaBackupGetsItsTimerOnItsSchedule(t *testing.T) {
+	tf := newTimersFixture(t)
+	withSettings(t, tf.f.home, "MEDIA_BACKUP=yes\nMEDIA_BACKUP_SCHEDULE=Sat 02:30\n")
+
+	code, stdout, stderr := tf.apply(t)
+
+	require.Equal(t, 0, code, stderr)
+	assert.Contains(t, stdout, "mse-gorgon-media-backup changed")
+	assert.Contains(t, stdout, "Setting up the Healthchecks checks... gorgon-backup, gorgon-verify, gorgon-media-backup, gorgon-update.\n")
+	assert.Contains(t, tf.unit(t, "mse-gorgon-media-backup.timer"), "OnCalendar=Sat *-*-* 02:30:00\n")
+	assert.Contains(t, tf.unit(t, "mse-gorgon-media-backup.service"), "ExecStart="+tf.mse+" backup --media\n")
+}
+
+func TestABadMediaScheduleFailsTheTimersStep(t *testing.T) {
+	tf := newTimersFixture(t)
+	withSettings(t, tf.f.home, "MEDIA_BACKUP=yes\nMEDIA_BACKUP_SCHEDULE=Sunday\n")
+
+	code, _, stderr := tf.apply(t)
+
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stderr, "MEDIA_BACKUP_SCHEDULE: Sunday isn't a weekday and time like Sun 01:00")
+	assert.NoFileExists(t, filepath.Join(tf.units, "mse-gorgon-media-backup.timer"))
+}
+
+func TestApplyOnAMainWithoutAMediaBackupRemovesItsCheck(t *testing.T) {
+	tf := newTimersFixture(t)
+	var requests []string
+	tf.deps.HTTP = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		requests = append(requests, r.Method+" "+r.URL.RequestURI())
+		body := "{}"
+		if r.Method == http.MethodGet {
+			body = `{"checks":[{"slug":"gorgon-media-backup","uuid":"5f1e"}]}`
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body))}, nil
+	})}
+
+	code, stdout, stderr := tf.apply(t)
+
+	require.Equal(t, 0, code, stderr)
+	assert.Contains(t, stdout, "Setting up the Healthchecks checks... gorgon-backup, gorgon-verify, gorgon-update; gorgon-media-backup removed.\n")
+	assert.Contains(t, requests, "DELETE /api/v3/checks/5f1e")
 }

@@ -79,11 +79,12 @@ func TestBackupAndRestoreSayWhat(t *testing.T) {
 		args   []string
 		stderr string
 	}{
-		"backup alone":               {args: []string{"backup"}, stderr: "mse: say what to back up: --apps\n"},
+		"backup alone":               {args: []string{"backup"}, stderr: "mse: say what to back up: --apps, --media, or both\n"},
 		"restore alone":              {args: []string{"restore"}, stderr: "mse: say what to restore: --apps\n"},
 		"--take-over without --apps": {args: []string{"backup", "--take-over"}, stderr: "mse: --take-over only goes with --apps\n"},
 		"--overwrite without --apps": {args: []string{"restore", "--overwrite"}, stderr: "mse: --overwrite only goes with --apps\n"},
 		"--yes without --take-over":  {args: []string{"backup", "--apps", "--yes"}, stderr: "mse: --yes only goes with --take-over\n"},
+		"--media when it is off":     {args: []string{"backup", "--media"}, stderr: "mse: gorgon has no media backup; turn it on with mse configure\n"},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -101,6 +102,26 @@ func TestBackupAndRestoreSayWhat(t *testing.T) {
 			assert.Empty(t, pings)
 		})
 	}
+}
+
+func TestAFailedAppsBackupSkipsTheMedia(t *testing.T) {
+	home, _, _, tmp := backupHome(t)
+	withSettings(t, home, mediaSettings)
+	runner := newMockCommandRunner(t)
+	composer := newMockComposeRunner(t)
+	composer.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, mock.Anything).Return(&types.Project{Name: "media-server"}, nil)
+	runner.EXPECT().Output(mock.Anything, resticCall("snapshots", "--no-lock", "--host", "gorgon", "--json")).Return(process.Result{Exit: 1, Stderr: []byte("Fatal: unreachable\n")}, nil)
+	var pings []string
+	root := NewRootCommand(backupDependencies(t, home, tmp, runner, composer, false, &pings))
+	var stderr bytes.Buffer
+	root.SetOut(io.Discard)
+	root.SetErr(&stderr)
+
+	code := run(context.Background(), root, []string{"backup", "--apps", "--media"})
+
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stderr.String(), "Fatal: unreachable")
+	assert.Equal(t, []string{"/ping-key/gorgon-backup/start", "/ping-key/gorgon-backup/fail"}, pings)
 }
 
 func localRestic(context.Context) (string, error) { return "restic", nil }

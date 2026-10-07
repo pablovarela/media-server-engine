@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -21,6 +22,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/files"
 	"github.com/pablovarela/media-server-engine/internal/healthchecks"
 	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/media"
 	"github.com/pablovarela/media-server-engine/internal/process"
 	"github.com/pablovarela/media-server-engine/internal/report"
 	"github.com/pablovarela/media-server-engine/internal/restic"
@@ -37,6 +39,7 @@ type backupNeeds struct {
 	stack    bool
 	identity bool
 	excludes bool
+	media    bool
 }
 
 var (
@@ -56,14 +59,19 @@ func newBackupCommands(deps Dependencies) []*cobra.Command {
 			return do(cmd, b)
 		}}
 	}
-	backupNow := backupCommand("backup", "Back up the installation now: --apps stops the apps for a few minutes (only on the main)", backingUp, func(cmd *cobra.Command, b *backup.Backups) error {
-		if f.takeOver {
-			return b.Claim(cmd.Context(), f.yes)
-		}
-		return b.Backup(cmd.Context())
-	})
+	backupNow := &cobra.Command{
+		Use: "backup", Short: "Back up the installation now: --apps stops the apps for a few minutes, --media leaves them running (only on the main)", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			b, err := deps.backups(cmd, backupNeeds{stack: f.apps, identity: true, excludes: f.apps, media: f.media})
+			if err != nil {
+				return err
+			}
+			return f.backUp(cmd.Context(), b)
+		},
+	}
 	backupNow.PreRunE = func(*cobra.Command, []string) error { return f.checkBackup() }
 	backupNow.Flags().BoolVar(&f.apps, "apps", false, "back up the apps' data: their databases and settings under volumes/")
+	backupNow.Flags().BoolVar(&f.media, "media", false, "back up data/media to the media backup repository; the apps keep running")
 	backupNow.Flags().BoolVar(&f.takeOver, "take-over", false, "with --apps, make this machine the main, after asking when another machine is, then back up")
 	backupNow.Flags().BoolVar(&f.yes, "yes", false, "with --apps --take-over, take over without asking")
 	restore := backupCommand("restore", "Restore volumes/ from the latest backup", restoring, func(cmd *cobra.Command, b *backup.Backups) error {
@@ -82,15 +90,31 @@ func newBackupCommands(deps Dependencies) []*cobra.Command {
 }
 
 type backupFlags struct {
-	apps, takeOver, yes, overwrite bool
+	apps, media, takeOver, yes, overwrite bool
+}
+
+func (f *backupFlags) backUp(ctx context.Context, b *backup.Backups) error {
+	if f.apps {
+		backUpApps := b.Backup
+		if f.takeOver {
+			backUpApps = func(ctx context.Context) error { return b.Claim(ctx, f.yes) }
+		}
+		if err := backUpApps(ctx); err != nil {
+			return err
+		}
+	}
+	if f.media {
+		return b.BackupMedia(ctx)
+	}
+	return nil
 }
 
 func (f *backupFlags) checkBackup() error {
 	switch {
 	case f.takeOver && !f.apps:
 		return errors.New("--take-over only goes with --apps")
-	case !f.apps:
-		return errors.New("say what to back up: --apps")
+	case !f.apps && !f.media:
+		return errors.New("say what to back up: --apps, --media, or both")
 	case f.yes && !f.takeOver:
 		return errors.New("--yes only goes with --take-over")
 	}
@@ -137,7 +161,7 @@ func (d Dependencies) backups(cmd *cobra.Command, needs backupNeeds) (*backup.Ba
 		return nil, err
 	}
 	tool := report.From(cmd.Context()).Tool("restic")
-	return &backup.Backups{
+	b := &backup.Backups{
 		Installation:       i,
 		Repository:         resticFor(binary, d.Run(tool, tool), repository, tool),
 		RepositoryLocation: repository["RESTIC_REPOSITORY"],
@@ -151,7 +175,28 @@ func (d Dependencies) backups(cmd *cobra.Command, needs backupNeeds) (*backup.Ba
 		Ask:                d.asker(cmd),
 		Shield:             shieldSignals,
 		Report:             report.From(cmd.Context()),
-	}, nil
+	}
+	if needs.media {
+		if b.MediaRepository, b.Media, err = d.mediaRepository(i, repository, binary, tool); err != nil {
+			return nil, err
+		}
+	}
+	return b, nil
+}
+
+func (d Dependencies) mediaRepository(i *installation.Installation, credentials map[string]string, binary string, tool io.Writer) (backup.Repository, media.Settings, error) {
+	settings := maps.Clone(i.Settings)
+	settings["RESTIC_REPOSITORY"] = credentials["RESTIC_REPOSITORY"]
+	m, err := media.From(settings)
+	if err != nil {
+		return nil, media.Settings{}, err
+	}
+	if !m.Enabled {
+		return nil, media.Settings{}, fmt.Errorf("%s has no media backup; turn it on with mse configure", i.Name)
+	}
+	environment := maps.Clone(credentials)
+	environment["RESTIC_REPOSITORY"] = m.Repository
+	return resticFor(binary, d.Run(tool, tool), environment, tool), m, nil
 }
 
 func (d Dependencies) backupFiles(i *installation.Installation, needs backupNeeds) (machine, excludes string, err error) {
@@ -222,12 +267,20 @@ func (p recordedPings) Ping(ctx context.Context, job, suffix string) {
 	switch suffix {
 	case "/start":
 		p.runs.start(job)
+		if !timedByHealthchecks(job) {
+			return
+		}
 	case "":
 		p.runs.finish(job, false)
 	case "/fail":
 		p.runs.finish(job, true)
 	}
 	p.pings.Ping(ctx, job, suffix)
+}
+
+// A first media upload can take days; with a start ping healthchecks.io would call it down once it outlasts the grace.
+func timedByHealthchecks(job string) bool {
+	return job != backup.MediaJob
 }
 
 type runRecorder struct {

@@ -156,3 +156,38 @@ func TestAttention(t *testing.T) {
 		})
 	}
 }
+
+func TestTheMediaBackupLine(t *testing.T) {
+	tests := map[string]struct {
+		media *MediaBackup
+		line  string
+		needs string
+	}{
+		"off":             {line: ""},
+		"never backed up": {media: &MediaBackup{}, line: "Last media backup: none yet\n"},
+		"backed up":       {media: &MediaBackup{Latest: time.Date(2026, 10, 4, 1, 40, 0, 0, time.UTC)}, line: "Last media backup: 4 Oct 01:40\n"},
+		"unreadable": {
+			media: &MediaBackup{Err: errors.New("restic snapshots failed (exit 1)")},
+			line:  "Last media backup: couldn't read it: restic snapshots failed (exit 1)\n", needs: "the media backup repository couldn't be read",
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			r := healthy()
+			r.Media = tt.media
+
+			out := r.Render(now)
+
+			if tt.line == "" {
+				assert.NotContains(t, out, "media backup")
+			} else {
+				assert.Contains(t, out, tt.line)
+			}
+			if tt.needs != "" {
+				assert.Contains(t, r.Attention(now), tt.needs)
+			} else {
+				assert.Empty(t, r.Attention(now))
+			}
+		})
+	}
+}

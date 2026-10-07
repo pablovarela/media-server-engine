@@ -15,13 +15,13 @@ import (
 func TestLock(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".backup.lock")
 
-	held, err := takeLock(path)
+	held, err := takeLock(path, "backup")
 	require.NoError(t, err)
-	_, err = takeLock(path)
+	_, err = takeLock(path, "backup")
 	assert.EqualError(t, err, fmt.Sprintf("a backup is already running (process %d)", os.Getpid()))
 
 	held.release()
-	again, err := takeLock(path)
+	again, err := takeLock(path, "backup")
 	require.NoError(t, err)
 	again.release()
 }
@@ -53,7 +53,7 @@ func TestWaitWhileRunning(t *testing.T) {
 
 	t.Run("waits until the backup finishes", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), ".backup.lock")
-		held, err := takeLock(path)
+		held, err := takeLock(path, "backup")
 		require.NoError(t, err)
 		announced, slept := 0, 0
 
@@ -77,7 +77,7 @@ func TestWaitWhileRunning(t *testing.T) {
 
 	t.Run("gives up after the timeout", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), ".backup.lock")
-		held, err := takeLock(path)
+		held, err := takeLock(path, "backup")
 		require.NoError(t, err)
 		defer held.release()
 		now := time.Date(2026, 10, 6, 5, 0, 0, 0, time.UTC)
@@ -92,7 +92,7 @@ func TestWaitWhileRunning(t *testing.T) {
 
 	t.Run("stops waiting when interrupted", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), ".backup.lock")
-		held, err := takeLock(path)
+		held, err := takeLock(path, "backup")
 		require.NoError(t, err)
 		defer held.release()
 

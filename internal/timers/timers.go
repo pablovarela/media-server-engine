@@ -9,9 +9,10 @@ import (
 var units embed.FS
 
 type Values struct {
-	Installation string
-	Executable   string
-	Environment  []string
+	Installation  string
+	Executable    string
+	Environment   []string
+	MediaSchedule string
 }
 
 type Job struct {
@@ -19,10 +20,11 @@ type Job struct {
 }
 
 var (
-	Update  = Job{Name: "update"}
-	Cleanup = Job{Name: "download-cleanup"}
-	Backup  = Job{Name: "backup"}
-	Verify  = Job{Name: "verify"}
+	Update      = Job{Name: "update"}
+	Cleanup     = Job{Name: "download-cleanup"}
+	Backup      = Job{Name: "backup"}
+	Verify      = Job{Name: "verify"}
+	MediaBackup = Job{Name: "media-backup"}
 )
 
 func (j Job) Unit(installation string) string {
@@ -42,12 +44,14 @@ const (
 	Unknown
 )
 
-func Plan(role Role) (install, remove []Job) {
-	switch role {
-	case Main:
-		return []Job{Update, Cleanup, Backup, Verify}, nil
-	case Secondary:
-		return []Job{Update, Cleanup}, []Job{Backup, Verify}
+func Plan(role Role, media bool) (install, remove []Job) {
+	switch {
+	case role == Main && media:
+		return []Job{Update, Cleanup, Backup, Verify, MediaBackup}, nil
+	case role == Main:
+		return []Job{Update, Cleanup, Backup, Verify}, []Job{MediaBackup}
+	case role == Secondary:
+		return []Job{Update, Cleanup}, []Job{Backup, Verify, MediaBackup}
 	}
 	return []Job{Update, Cleanup}, nil
 }
@@ -59,9 +63,9 @@ func Render(job Job, suffix string, v Values) (string, error) {
 	}
 	env := environment(v)
 	if env == "" {
-		return strings.NewReplacer("@NAME@", v.Installation, "@ENVIRONMENT@\n", "", "@MSE@", v.Executable).Replace(string(template)), nil
+		return strings.NewReplacer("@NAME@", v.Installation, "@ENVIRONMENT@\n", "", "@MSE@", v.Executable, "@SCHEDULE@", v.MediaSchedule).Replace(string(template)), nil
 	}
-	return strings.NewReplacer("@NAME@", v.Installation, "@ENVIRONMENT@", env, "@MSE@", v.Executable).Replace(string(template)), nil
+	return strings.NewReplacer("@NAME@", v.Installation, "@ENVIRONMENT@", env, "@MSE@", v.Executable, "@SCHEDULE@", v.MediaSchedule).Replace(string(template)), nil
 }
 
 func environment(v Values) string {

@@ -16,7 +16,7 @@ type JobStatus struct {
 	Stopped time.Time
 }
 
-var jobs = []Job{Update, Backup, Verify, Cleanup}
+var jobs = []Job{Update, Backup, Verify, MediaBackup, Cleanup}
 
 const systemdTime = "Mon 2006-01-02 15:04:05 MST"
 

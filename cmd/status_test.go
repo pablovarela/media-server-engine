@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -39,6 +40,7 @@ func succeededTimers(units []string) string {
 type statusGiven struct {
 	running   []string
 	snapshots process.Result
+	media     process.Result
 	systemd   bool
 	apps      string
 	settings  string
@@ -78,6 +80,9 @@ func statusRunner(t *testing.T, given statusGiven) commandRunner {
 	runner.EXPECT().Output(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, c process.Command) (process.Result, error) {
 		switch c.Name {
 		case "restic":
+			if slices.Contains(c.Env, "RESTIC_REPOSITORY=b2:bucket:media") {
+				return given.media, nil
+			}
 			return given.snapshots, nil
 		case "systemctl":
 			require.True(t, given.systemd, "systemctl called without systemd")
@@ -152,6 +157,21 @@ func TestStatus(t *testing.T) {
 			Given: Given{running: healthy.running, snapshots: healthy.snapshots, systemd: true,
 				records: map[string]string{"update": "", "backup": `{"started":"2026-10-05T03:30:58Z","pid":1,"ended":"2026-10-05T03:31:41Z"}`}},
 			Then: Then{code: 1, contains: []string{"couldn't read its last run", "last ran 5 Oct 03:30, succeeded", "update's last run couldn't be read"}},
+		},
+		"a main with a media backup": {
+			Given: Given{running: healthy.running, snapshots: healthy.snapshots, systemd: true, settings: mediaSettings,
+				media: process.Result{Stdout: []byte(`[{"time":"2026-10-04T01:40:00Z","tags":["machine:this-machine"]}]`)}},
+			Then: Then{contains: []string{"Last media backup: 4 Oct 01:40", "media backup     "}},
+		},
+		"the media backup repository unreachable": {
+			Given: Given{running: healthy.running, snapshots: healthy.snapshots, systemd: true, settings: mediaSettings,
+				media: process.Result{Exit: 1, Stderr: []byte("Fatal: unable to open config file\n")}},
+			Then: Then{code: 1, contains: []string{"Last media backup: couldn't read it: restic snapshots failed (exit 1): Fatal: unable to open config file",
+				"Stack: 2 of 2 services running", "Apps:", "the media backup repository couldn't be read"}},
+		},
+		"no media backup": {
+			Given: healthy,
+			Then:  Then{absent: []string{"Last media backup"}},
 		},
 		"no passwords": {
 			Given: Given{running: healthy.running, snapshots: healthy.snapshots, systemd: true, apps: "JELLYFIN_ADMIN_PASSWORD=s3cret\n"},
