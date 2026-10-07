@@ -22,7 +22,6 @@ type joining struct {
 	cmd                         *cobra.Command
 	name, owner, repo           string
 	config, data, state         string
-	flags                       join.Flags
 	restoreOver, restored, kept bool
 	role                        join.Role
 	current                     *backup.Main
@@ -151,7 +150,7 @@ func (j *joining) Data(ctx context.Context) (bool, error) {
 }
 
 func (j *joining) Role(ctx context.Context) error {
-	decision := join.Decide(j.name, j.current, j.d.Now(), j.flags, j.kept)
+	decision := join.Decide(j.name, j.current, j.d.Now(), j.kept)
 	if decision.Say != "" {
 		report.From(ctx).Say(decision.Say)
 	}
