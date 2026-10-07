@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -18,6 +19,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/healthchecks"
 	"github.com/pablovarela/media-server-engine/internal/images"
 	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/media"
 	"github.com/pablovarela/media-server-engine/internal/paint"
 	"github.com/pablovarela/media-server-engine/internal/process"
 	"github.com/pablovarela/media-server-engine/internal/report"
@@ -159,9 +161,26 @@ func (d Dependencies) checks(i *installation.Installation, network string) apply
 		facts := healthchecks.Facts{
 			Name: i.Name, TimeZone: d.timeZone(ctx), Repository: d.repositoryLocation(i), SSH: d.Environment("USER") + "@" + network,
 		}
+		mediaCron := ""
+		if timing, err := media.Timing(i.Settings); err == nil && timing.Enabled {
+			mediaCron = timing.Schedule.Cron()
+			facts.MediaRepository = mediaLocation(i.Settings, facts.Repository)
+		}
 		manage := healthchecks.Manage{Client: d.HTTP, URL: healthchecks.ChecksURL, Key: key}
-		return manage.SetUp(ctx, healthchecks.ChecksFor(i.Name, i.Role(), d.shortHost()), facts)
+		set, failures := manage.SetUp(ctx, healthchecks.ChecksFor(i.Name, i.Role(), d.shortHost(), mediaCron), facts)
+		removed, notRemoved := manage.Retire(ctx, healthchecks.RetiredFor(i.Name, i.Role(), mediaCron))
+		if len(removed) > 0 && len(set) > 0 {
+			set[len(set)-1] += "; " + strings.Join(removed, ", ") + " removed"
+		}
+		return set, append(failures, notRemoved...)
 	})
+}
+
+func mediaLocation(settings map[string]string, apps string) string {
+	withApps := maps.Clone(settings)
+	withApps["RESTIC_REPOSITORY"] = apps
+	m, _ := media.From(withApps)
+	return m.Repository
 }
 
 func (d Dependencies) timeZone(ctx context.Context) string {

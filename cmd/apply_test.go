@@ -130,7 +130,7 @@ func TestApplyCommand(t *testing.T) {
 			Given: Given{systemd: true},
 			When:  []string{"apply"},
 			Then: Then{
-				requests: []string{"POST /api/v3/checks/", "POST /api/v3/checks/", "POST /api/v3/checks/"},
+				requests: []string{"POST /api/v3/checks/", "POST /api/v3/checks/", "POST /api/v3/checks/", "GET /api/v3/checks/"},
 				stdout: []string{
 					"Setting up the Healthchecks checks... gorgon-backup, gorgon-verify, gorgon-update.\n",
 					"Pulling images... pulled 2 new images, 11 up to date.\n", "Starting the stack...", "Reattaching to gluetun... nothing to reattach.\n",
