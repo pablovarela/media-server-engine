@@ -143,15 +143,23 @@ func (t *appliedTimers) role(ctx context.Context) (role timers.Role, note, warni
 	return timers.Unknown, "", fmt.Sprintf("%v; the backup timers are left as they are", err)
 }
 
-func (d Dependencies) backupRole(ctx context.Context, i *installation.Installation) (*backup.Backups, bool, error) {
-	location := i.Settings["RESTIC_REPOSITORY"]
+func (d Dependencies) backupEnvironment(i *installation.Installation) map[string]string {
 	environment := map[string]string{}
 	if decrypted, err := d.Decrypt(filepath.Join(i.Config, "secrets", "backup.sops.env")); err == nil {
 		environment = secrets.Dotenv(decrypted)
 	}
 	if environment["RESTIC_REPOSITORY"] == "" {
-		environment["RESTIC_REPOSITORY"] = location
+		environment["RESTIC_REPOSITORY"] = i.Settings["RESTIC_REPOSITORY"]
 	}
+	return environment
+}
+
+func (d Dependencies) quietRestic(ctx context.Context) (string, error) {
+	return d.ResticBinary(report.With(ctx, report.New(io.Discard, io.Discard, nil)))
+}
+
+func (d Dependencies) backupRole(ctx context.Context, i *installation.Installation) (*backup.Backups, bool, error) {
+	environment := d.backupEnvironment(i)
 	if environment["RESTIC_REPOSITORY"] == "" {
 		return nil, false, nil
 	}
@@ -159,7 +167,7 @@ func (d Dependencies) backupRole(ctx context.Context, i *installation.Installati
 	if err != nil {
 		return nil, true, err
 	}
-	binary, err := d.ResticBinary(report.With(ctx, report.New(io.Discard, io.Discard, nil)))
+	binary, err := d.quietRestic(ctx)
 	if err != nil {
 		return nil, true, err
 	}

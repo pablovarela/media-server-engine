@@ -3,12 +3,15 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/pablovarela/media-server-engine/internal/compose"
 	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/media"
 	"github.com/pablovarela/media-server-engine/internal/report"
 	"github.com/pablovarela/media-server-engine/internal/runs"
 	"github.com/pablovarela/media-server-engine/internal/status"
@@ -25,6 +28,7 @@ var apps = []struct {
 
 var timerLabels = map[string]string{
 	timers.Update.Name: "update", timers.Backup.Name: "apps backup", timers.Verify.Name: "check-backup", timers.Cleanup.Name: "clean-downloads",
+	timers.MediaBackup.Name: "media backup",
 }
 
 func newStatusCommand(deps Dependencies) *cobra.Command {
@@ -58,6 +62,7 @@ func (d Dependencies) status(cmd *cobra.Command) (status.Report, error) {
 	r := status.Report{Installation: i.Name, Version: d.Build.Version}
 	d.statusOfStack(cmd, &r)
 	d.statusOfBackups(cmd.Context(), i, &r)
+	d.statusOfMedia(cmd.Context(), i, &r)
 	d.statusOfTimers(cmd, i, &r)
 	r.Apps, r.AppsErr = d.appAddresses(i)
 	return r, nil
@@ -92,6 +97,37 @@ func (d Dependencies) statusOfBackups(ctx context.Context, i *installation.Insta
 	default:
 		r.Main, r.MainErr = b.CurrentMain(ctx)
 	}
+}
+
+func (d Dependencies) statusOfMedia(ctx context.Context, i *installation.Installation, r *status.Report) {
+	timing, err := media.Timing(i.Settings)
+	if err == nil && !timing.Enabled {
+		return
+	}
+	r.Media = &status.MediaBackup{Err: err}
+	if err != nil {
+		return
+	}
+	r.Media.Latest, r.Media.Err = d.latestMediaBackup(ctx, i)
+}
+
+func (d Dependencies) latestMediaBackup(ctx context.Context, i *installation.Installation) (time.Time, error) {
+	binary, err := d.quietRestic(ctx)
+	if err != nil {
+		return time.Time{}, err
+	}
+	repository, _, err := d.mediaRepository(i, d.backupEnvironment(i), binary, io.Discard)
+	if err != nil {
+		return time.Time{}, err
+	}
+	snapshots, err := repository.Snapshots(ctx, i.Name)
+	var latest time.Time
+	for _, snapshot := range snapshots {
+		if snapshot.Time.After(latest) {
+			latest = snapshot.Time
+		}
+	}
+	return latest, err
 }
 
 func (d Dependencies) statusOfTimers(cmd *cobra.Command, i *installation.Installation, r *status.Report) {
