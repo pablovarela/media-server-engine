@@ -12,7 +12,7 @@ import (
 const (
 	Enabled            = "MEDIA_BACKUP"
 	RepositorySetting  = "MEDIA_RESTIC_REPOSITORY"
-	KeepWeeklySetting  = "MEDIA_BACKUP_KEEP_WEEKLY"
+	WeeksKeptSetting   = "MEDIA_BACKUP_KEEP_WEEKLY"
 	UploadLimitSetting = "MEDIA_BACKUP_UPLOAD_LIMIT"
 	ScheduleSetting    = "MEDIA_BACKUP_SCHEDULE"
 	CheckSubsetSetting = "MEDIA_BACKUP_CHECK_SUBSET"
@@ -82,7 +82,7 @@ func From(settings map[string]string) (Settings, error) {
 	if err := CheckSeparate(settings["RESTIC_REPOSITORY"], s.Repository); err != nil {
 		return Settings{}, fmt.Errorf("%s: %w", RepositorySetting, err)
 	}
-	if s.KeepWeekly, err = number(settings, KeepWeeklySetting, defaultKeepWeekly); err != nil {
+	if s.KeepWeekly, err = number(settings, WeeksKeptSetting, defaultKeepWeekly); err != nil {
 		return Settings{}, err
 	}
 	if s.UploadLimit, err = number(settings, UploadLimitSetting, 0); err != nil {
