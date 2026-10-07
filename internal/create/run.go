@@ -11,7 +11,6 @@ import (
 )
 
 type Steps interface {
-	CheckMachine(ctx context.Context) error
 	CheckName(ctx context.Context) error
 	AddKey(ctx context.Context) (Undo, error)
 	WriteConfig(ctx context.Context) (Undo, error)
@@ -36,9 +35,6 @@ func NameTaken(err error) error { return nameTaken{err} }
 type Installation struct{ Name, Config, Logs string }
 
 func Run(ctx context.Context, i Installation, steps Steps, r *report.Reporter, shield func() func()) error {
-	if err := steps.CheckMachine(ctx); err != nil {
-		return err
-	}
 	if err := steps.CheckName(ctx); err != nil {
 		return err
 	}
@@ -101,7 +97,7 @@ func discard(i Installation, undos []Undo, err error, shield func() func()) erro
 	case errors.Is(err, configure.ErrAborted) || errors.Is(err, context.Canceled):
 		return fmt.Errorf("stopped before %s was created. %s; %s%s", i.Name, kept, again, reminder)
 	case errors.Is(err, errNameTaken):
-		return fmt.Errorf("%w\n%s. To rebuild from that installation instead, run mse setup %s again; otherwise choose another name.%s", err, kept, i.Name, reminder)
+		return fmt.Errorf("%w\n%s. media-server-config-%s exists, but this gh login can't see it: check gh auth status and --owner, or choose another name.%s", err, kept, i.Name, reminder)
 	}
 	return fmt.Errorf("%w\n%s; %s%s", err, kept, again, reminder)
 }

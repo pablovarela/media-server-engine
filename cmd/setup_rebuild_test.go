@@ -165,7 +165,6 @@ func TestSetupRebuildingStopsBeforeWritingAnything(t *testing.T) {
 
 func TestSetupRebuildingStopsOnAMachineThatIsNotReady(t *testing.T) {
 	f := newJoinFixture(t)
-	f.repositoryExists()
 	delete(f.answers, "loginctl show-user pablo -p Linger")
 
 	code, stdout, stderr := f.join(t, "gorgon")
@@ -178,12 +177,11 @@ func TestSetupRebuildingStopsOnAMachineThatIsNotReady(t *testing.T) {
 
 func TestSetupRebuildingHintsAtTheHomepagePortWhenPortsAreTaken(t *testing.T) {
 	f := newJoinFixture(t)
-	f.repositoryExists()
 	f.deps.PortFree = func(p machine.Port) bool { return p.String() != "80" }
 
 	_, stdout, _ := f.join(t, "gorgon")
 
-	assert.Contains(t, stdout, "If something else must keep port 80, change gorgon's homepage port with mse configure on a machine that has it.\n")
+	assert.Contains(t, stdout, "If port 80 is in use by something you keep: a new installation takes another port with mse setup gorgon --homepage-port <port>; an existing one changes its homepage port with mse configure on a machine that has it.\n")
 }
 
 func TestSetupRebuildingKeepsNothingWhenTheCloneFails(t *testing.T) {

@@ -160,7 +160,6 @@ func TestSetupCreatingRefusesAnInvalidName(t *testing.T) {
 
 func TestSetupCreatingStopsOnAMachineThatIsNotReady(t *testing.T) {
 	f := newCreateFixture(t)
-	f.githubHasNoRepository()
 	delete(f.answers, "loginctl show-user pablo -p Linger")
 
 	code, stdout, stderr := f.create(t, "gorgon")
@@ -335,13 +334,12 @@ func TestSetupCreatingRefusesABadHomepagePort(t *testing.T) {
 
 func TestSetupCreatingSuggestsAnotherHomepagePortWhenThePortsAreTaken(t *testing.T) {
 	f := newCreateFixture(t)
-	f.githubHasNoRepository()
 	f.deps.PortFree = func(p machine.Port) bool { return p.String() != "80" }
 
 	code, stdout, _ := f.create(t, "gorgon")
 
 	assert.Equal(t, 1, code)
-	assert.Contains(t, stdout, "If port 80 is in use by something you keep, give the landing page another port: mse setup gorgon --homepage-port <port>\n")
+	assert.Contains(t, stdout, "If port 80 is in use by something you keep: a new installation takes another port with mse setup gorgon --homepage-port <port>; an existing one changes its homepage port with mse configure on a machine that has it.\n")
 }
 
 func (f *createFixture) reachesPublishing() {
@@ -388,7 +386,7 @@ func TestSetupCreatingPointsATakenRepositoryAtJoin(t *testing.T) {
 	code, _, stderr := f.create(t, "gorgon")
 
 	assert.Equal(t, 1, code)
-	assert.Contains(t, stderr, "To rebuild from that installation instead, run mse setup gorgon again; otherwise choose another name.")
+	assert.Contains(t, stderr, "media-server-config-gorgon exists, but this gh login can't see it: check gh auth status and --owner, or choose another name.")
 	f.nothingKept(t)
 }
 
@@ -411,7 +409,7 @@ func TestSetupCreatingSummary(t *testing.T) {
 	require.NoError(t, err)
 	cmd.SetContext(context.Background())
 	require.NoError(t, cmd.ParseFlags([]string{"--installation", "gorgon"}))
-	c := f.deps.creation(cmd, "gorgon", "")
+	c := f.deps.creation(cmd, "gorgon", "", "")
 	c.remote = "github.com/pablovarela/media-server-config-gorgon"
 
 	summary := c.Summary(context.Background())

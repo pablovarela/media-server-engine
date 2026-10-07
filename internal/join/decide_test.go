@@ -25,7 +25,7 @@ func TestDecide(t *testing.T) {
 		"old main": {current: mainAt(72), want: Decision{
 			Say: "gorgon's main is gorgon-pi, but its last backup was 2026-10-03 12:00; it looks gone.", Ask: true, Question: "Make this machine the main?", Default: Primary}},
 		"no backups": {want: Decision{
-			Say: "gorgon has no backups yet, so this machine becomes its main.", Role: Primary}},
+			Say: "gorgon has no backups yet.", Ask: true, Question: "Make this machine the main?", Default: Primary}},
 		"this machine": {current: &backup.Main{Machine: "pi", Time: now, ThisMachine: true}, want: Decision{
 			Say: "This machine made gorgon's latest backup, so it is the main.", Role: Primary}},
 	}

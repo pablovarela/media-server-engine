@@ -88,8 +88,8 @@ It says "Rebuilding <name> from <owner>/media-server-config-<name>." Then:
    - app data already there is kept (a disk moved from the old machine); `--overwrite` moves it aside and restores the latest backup;
    - with no backups yet, the apps start empty.
 4. **Main:**
-   - with no backups yet, or when this machine made the latest backup, this machine is the main;
-   - when another machine made it, setup names it and asks whether this machine takes over: "no" by default while that machine backed up in the last two days, "yes" when it looks gone. A machine that takes over backs up straight away;
+   - when this machine made the latest backup, it is the main;
+   - otherwise setup asks whether this machine becomes the main: "yes" by default when there are no backups yet or the machine behind the latest one looks gone, "no" while that machine backed up in the last two days. A machine that becomes the main backs up straight away;
    - a machine that kept its own app data while the main backed up in the last two days doesn't back up, so that data can't become the latest backup.
 
    A machine that doesn't take over doesn't back up; `mse backup --take-over` changes that later.

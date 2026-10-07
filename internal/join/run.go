@@ -12,8 +12,6 @@ import (
 )
 
 type Steps interface {
-	CheckMachine(ctx context.Context) error
-	CheckName(ctx context.Context) error
 	Clone(ctx context.Context) (create.Undo, error)
 	AddKey(ctx context.Context) (create.Undo, error)
 	Data(ctx context.Context) (restoring bool, err error)
@@ -25,12 +23,6 @@ type Steps interface {
 type Installation struct{ Name, Logs string }
 
 func Run(ctx context.Context, i Installation, steps Steps, r *report.Reporter, shield func() func()) error {
-	if err := steps.CheckMachine(ctx); err != nil {
-		return err
-	}
-	if err := steps.CheckName(ctx); err != nil {
-		return err
-	}
 	var undos []create.Undo
 	if err := local(ctx, steps, &undos); err != nil {
 		return discard(i, undos, err, shield)

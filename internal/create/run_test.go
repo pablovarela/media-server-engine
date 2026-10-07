@@ -37,7 +37,6 @@ func failingRun(t *testing.T, failure stepFailure) (*runFixture, error) {
 		}
 		return nil
 	}
-	f.steps.EXPECT().CheckMachine(mock.Anything).RunAndReturn(func(context.Context) error { return fails("machine") }).Maybe()
 	f.steps.EXPECT().CheckName(mock.Anything).RunAndReturn(func(context.Context) error { return fails("name") }).Maybe()
 	f.steps.EXPECT().AddKey(mock.Anything).RunAndReturn(func(context.Context) (Undo, error) { return undo("key"), fails("key") }).Maybe()
 	f.steps.EXPECT().WriteConfig(mock.Anything).RunAndReturn(func(context.Context) (Undo, error) { return undo("config"), fails("config") }).Maybe()
@@ -58,7 +57,7 @@ func TestRunGoesThroughEveryStep(t *testing.T) {
 	f, err := failingRun(t, stepFailure{})
 
 	assert.NoError(t, err)
-	assert.Equal(t, []string{"machine", "name", "key", "config", "settings", "commit", "publish", "main", "apply"}, f.order)
+	assert.Equal(t, []string{"name", "key", "config", "settings", "commit", "publish", "main", "apply"}, f.order)
 	assert.Empty(t, f.undone)
 	assert.Contains(t, f.out.String(), "gorgon is ready.\n")
 }
@@ -66,7 +65,7 @@ func TestRunGoesThroughEveryStep(t *testing.T) {
 var errBroken = errors.New("broken")
 
 func TestRunStopsBeforeWritingAnything(t *testing.T) {
-	for _, at := range []string{"machine", "name"} {
+	for _, at := range []string{"name"} {
 		t.Run(at, func(t *testing.T) {
 			f, err := failingRun(t, stepFailure{at: at, err: errBroken})
 
@@ -120,7 +119,7 @@ func TestRunPointsATakenNameAtSetup(t *testing.T) {
 	f, err := failingRun(t, stepFailure{at: "publish", err: NameTaken(errors.New("create media-server-config-gorgon: the repository already exists"))})
 
 	assert.EqualError(t, err, "create media-server-config-gorgon: the repository already exists\n"+
-		"Nothing was kept apart from this run's log in /s/gorgon/logs. To rebuild from that installation instead, run mse setup gorgon again; otherwise choose another name.\n"+
+		"Nothing was kept apart from this run's log in /s/gorgon/logs. media-server-config-gorgon exists, but this gh login can't see it: check gh auth status and --owner, or choose another name.\n"+
 		"The secrets key shown for gorgon was removed; if you saved it, delete it from your password manager.")
 	assert.Equal(t, []string{"config", "key"}, f.undone)
 }
@@ -156,7 +155,6 @@ func TestRunKeepsEverythingOnceTheRepositoryExists(t *testing.T) {
 
 func TestRunNamesAKeyItCouldNotRemove(t *testing.T) {
 	steps := newMockSteps(t)
-	steps.EXPECT().CheckMachine(mock.Anything).Return(nil)
 	steps.EXPECT().CheckName(mock.Anything).Return(nil)
 	steps.EXPECT().AddKey(mock.Anything).Return(func() error { return &KeyFileChangedError{Path: "/k/keys.txt", Name: "gorgon"} }, nil)
 	steps.EXPECT().WriteConfig(mock.Anything).Return(func() error { return nil }, errBroken)
@@ -170,7 +168,6 @@ func TestRunNamesAKeyItCouldNotRemove(t *testing.T) {
 func TestRunUndoesWithACancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	steps := newMockSteps(t)
-	steps.EXPECT().CheckMachine(mock.Anything).Return(nil)
 	steps.EXPECT().CheckName(mock.Anything).Return(nil)
 	shielded, removed := false, false
 	steps.EXPECT().AddKey(mock.Anything).Return(func() error { removed = shielded; return nil }, nil)

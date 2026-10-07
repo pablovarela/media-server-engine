@@ -36,14 +36,6 @@ func (d Dependencies) joining(cmd *cobra.Command, name, owner string) *joining {
 	}
 }
 
-func (j *joining) CheckMachine(context.Context) error {
-	return j.d.machineReadyFor(j.cmd, "", "If something else must keep port 80, change "+j.name+"'s homepage port with mse configure on a machine that has it.")
-}
-
-func (j *joining) CheckName(context.Context) error {
-	return nil
-}
-
 func (j *joining) Clone(ctx context.Context) (create.Undo, error) {
 	url := "https://github.com/" + j.owner + "/" + j.repo + ".git"
 	step := report.From(ctx).Step("Cloning " + gitconfig.DisplayRemote(url))

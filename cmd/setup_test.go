@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/pablovarela/media-server-engine/internal/configure"
 )
 
 func TestSetupCreatesOnlyAfterAYes(t *testing.T) {
@@ -18,17 +21,23 @@ func TestSetupCreatesOnlyAfterAYes(t *testing.T) {
 	}
 	type Then struct {
 		question string
+		stderr   string
 	}
 	tests := map[string]struct {
 		Given Given
 		Then  Then
 	}{
 		"under the gh user": {
-			Then: Then{question: "There's no media-server-config-gorgon under pablovarela. Create a new installation called gorgon?"},
+			Then: Then{question: "There's no media-server-config-gorgon under pablovarela. Create a new installation called gorgon?", stderr: "mse: nothing was created\n"},
 		},
 		"under an organisation": {
 			Given: Given{owner: "acme"},
-			Then:  Then{question: "There's no media-server-config-gorgon under acme. Create a new installation called gorgon?"},
+			Then:  Then{question: "There's no media-server-config-gorgon under acme. Create a new installation called gorgon?", stderr: "mse: nothing was created\n"},
+		},
+		"a yes goes on to make the key": {
+			Given: Given{answer: true},
+			Then: Then{question: "There's no media-server-config-gorgon under pablovarela. Create a new installation called gorgon?",
+				stderr: "mse: stopped before gorgon was created. Nothing was kept; run mse setup gorgon again.\n"},
 		},
 	}
 	for name, tt := range tests {
@@ -43,11 +52,14 @@ func TestSetupCreatesOnlyAfterAYes(t *testing.T) {
 			f.repositories.EXPECT().Login(mock.Anything).Return("pablovarela", nil).Once()
 			f.repositories.EXPECT().RepositoryExists(mock.Anything, owner, "media-server-config-gorgon").Return(false, nil).Once()
 			f.prompter.EXPECT().Ask(tt.Then.question, false).Return(tt.Given.answer, nil).Once()
+			if tt.Given.answer {
+				f.prompter.EXPECT().Acknowledge("Saved gorgon's secrets key?", mock.Anything, "saved").Return(configure.ErrAborted).Once()
+			}
 
 			code, _, stderr := f.create(t, args...)
 
 			assert.Equal(t, 1, code)
-			assert.Equal(t, "mse: nothing was created\n", stderr)
+			assert.True(t, strings.HasPrefix(stderr, tt.Then.stderr), stderr)
 			f.nothingKept(t)
 		})
 	}

@@ -37,19 +37,20 @@ func Decide(name string, current *backup.Main, now time.Time, kept bool) Decisio
 
 func settled(name string, current *backup.Main, now time.Time, kept bool) (Decision, bool) {
 	switch {
-	case current == nil:
-		return Decision{Say: name + " has no backups yet, so this machine becomes its main.", Role: Primary}, true
 	case kept && recent(current, now):
 		return Decision{Say: fmt.Sprintf("Kept this machine a copy that doesn't back up: its app data wasn't restored, and %s backed up at %s, so backing this data up would make it %s's latest. "+
 			"mse restore --overwrite restores the latest backup; mse backup --take-over takes over later.", current.Machine, current.Time.Format(timeLayout), name), Role: Secondary}, true
-	case current.ThisMachine:
+	case current != nil && current.ThisMachine:
 		return Decision{Say: "This machine made " + name + "'s latest backup, so it is the main.", Role: Primary}, true
 	}
 	return Decision{}, false
 }
 
 func question(name string, current *backup.Main, now time.Time) Decision {
-	if recent(current, now) {
+	switch {
+	case current == nil:
+		return Decision{Say: name + " has no backups yet.", Ask: true, Question: "Make this machine the main?", Default: Primary}
+	case recent(current, now):
 		return Decision{Say: fmt.Sprintf("%s's main is %s, last backup %s.", name, current.Machine, current.Time.Format(timeLayout)),
 			Ask: true, Question: "Make this machine the main instead?", Default: Secondary}
 	}

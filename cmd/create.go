@@ -102,30 +102,20 @@ type creation struct {
 	repository              gitconfig.Repository
 }
 
-func (d Dependencies) creation(cmd *cobra.Command, name, owner string) *creation {
+func (d Dependencies) creation(cmd *cobra.Command, name, owner, org string) *creation {
 	bases := installation.BasesFrom(d.Environment, d.Home)
 	config := filepath.Join(bases.Config, "mse", name)
 	tool := report.From(cmd.Context()).Tool("git")
 	return &creation{
-		d: d, cmd: cmd, name: name, owner: owner, org: owner, repo: "media-server-config-" + name,
+		d: d, cmd: cmd, name: name, owner: owner, org: org, repo: "media-server-config-" + name,
 		config: config, data: filepath.Join(bases.Data, "mse", name), state: filepath.Join(bases.State, "mse", name),
 		repository: gitconfig.Repository{Runner: d.Run(tool, tool), Dir: config},
 	}
 }
 
-func (c *creation) CheckMachine(context.Context) error {
-	hint := ""
-	if c.homepagePort == "" {
-		hint = "If port 80 is in use by something you keep, give the landing page another port: mse setup " + c.name + " --homepage-port <port>"
-	}
-	return c.d.machineReadyFor(c.cmd, c.homepagePort, hint)
-}
-
 func (c *creation) CheckName(ctx context.Context) error {
-	for _, folder := range []string{c.config, c.data} {
-		if _, err := os.Stat(folder); err == nil {
-			return fmt.Errorf("%s already exists, so %s is already an installation here", folder, c.name)
-		}
+	if _, err := os.Stat(c.data); err == nil {
+		return fmt.Errorf("%s already exists, so %s is already an installation here", c.data, c.name)
 	}
 	tool := report.From(ctx).Tool("git")
 	known, err := gitconfig.Repository{Runner: c.d.Run(tool, tool), Dir: c.d.Home}.HasIdentity(ctx)

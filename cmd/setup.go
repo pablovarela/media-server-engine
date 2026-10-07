@@ -29,6 +29,9 @@ func newSetupCommand(deps Dependencies) *cobra.Command {
 			if err := deps.canInstall(cmd, "setup", name, func() error { return validHomepagePort(homepagePort) }, func() error { return deps.notSetUp(name) }); err != nil {
 				return err
 			}
+			if err := deps.machineReadyFor(cmd, homepagePort, portHint(name, homepagePort)); err != nil {
+				return err
+			}
 			login, err := deps.Repositories.Login(cmd.Context())
 			if err != nil {
 				return err
@@ -60,11 +63,20 @@ func (d Dependencies) notSetUp(name string) error {
 	return nil
 }
 
-func (d Dependencies) createNew(cmd *cobra.Command, name, owner, login, homepagePort string) error {
-	c := d.creation(cmd, name, owner)
-	if owner == login {
-		c.org = ""
+func portHint(name, homepagePort string) string {
+	if homepagePort != "" {
+		return ""
 	}
+	return "If port 80 is in use by something you keep: a new installation takes another port with mse setup " + name +
+		" --homepage-port <port>; an existing one changes its homepage port with mse configure on a machine that has it."
+}
+
+func (d Dependencies) createNew(cmd *cobra.Command, name, owner, login, homepagePort string) error {
+	org := owner
+	if owner == login {
+		org = ""
+	}
+	c := d.creation(cmd, name, owner, org)
 	c.homepagePort = homepagePort
 	return create.Run(cmd.Context(), create.Installation{Name: name, Config: c.config, Logs: filepath.Join(c.state, "logs")}, c, report.From(cmd.Context()), shieldSignals)
 }
