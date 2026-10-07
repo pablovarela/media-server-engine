@@ -40,10 +40,9 @@ Run `mse check-machine` until it says the machine is ready; each missing piece c
 
 | To | Run |
 |---|---|
-| make a new installation | `mse create <name>` |
-| add this machine to an existing one, or rebuild after losing a machine | `mse join <name>` |
+| make a new installation, or rebuild one on this machine from its config and backups | `mse setup <name>` |
 
-`mse create` shows the new secrets key once: save it in a password manager.
+A new installation's secrets key is shown once: save it in a password manager.
 
 ## Everyday commands
 

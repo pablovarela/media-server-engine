@@ -4,7 +4,7 @@ Read README.md and CONTRIBUTING.md first, and follow CONTRIBUTING.md's workflow 
 
 - Work on a branch and open a pull request; never push to `main`. Wait for the pull request's checks, then hand over the link: the owner merges.
 - Commit with the identity configured in this clone (`git config user.email`). Set it before the first commit if it is missing, and check `git log --format='%ae %ce'` before pushing.
-- Never print decrypted secrets. Show key names, not values. The one exception is the new age key `mse create` shows once so it can be saved; it goes to the terminal only, never to the log.
+- Never print decrypted secrets. Show key names, not values. The one exception is the new age key `mse setup` shows once for a new installation so it can be saved; it goes to the terminal only, never to the log.
 - Draft each follow-up issue and get the owner's confirmation before creating it.
 - Tag a release only when the owner asks for it.
 

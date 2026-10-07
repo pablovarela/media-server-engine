@@ -45,7 +45,7 @@ func (e *KeyFileChangedError) Error() string {
 }
 
 func AppendKey(path, name, verb string, key Key, today time.Time) (Undo, error) {
-	original, err := os.ReadFile(path) //nolint:gosec // the age key file mse create adds to
+	original, err := os.ReadFile(path) //nolint:gosec // the age key file mse setup adds to
 	existed := err == nil
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
