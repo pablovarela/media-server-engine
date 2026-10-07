@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -14,6 +13,7 @@ import (
 
 	"golang.org/x/mod/semver"
 
+	"github.com/pablovarela/media-server-engine/internal/files"
 	"github.com/pablovarela/media-server-engine/internal/github"
 	"github.com/pablovarela/media-server-engine/internal/release"
 	"github.com/pablovarela/media-server-engine/internal/version"
@@ -121,29 +121,19 @@ func (u *Updater) download(ctx context.Context, target github.Release, name stri
 
 func (u *Updater) replace(ctx context.Context, path string, binary []byte, tag string) error {
 	dir := filepath.Dir(path)
-	staged, err := os.CreateTemp(dir, ".mse-update-*")
+	staged, err := files.Stage(dir, ".mse-update-*", binary, 0o755)
 	if err != nil {
 		return fmt.Errorf("cannot write to %s: %w", dir, err)
 	}
-	defer func() { _ = os.Remove(staged.Name()) }()
-	if _, err := staged.Write(binary); err != nil {
-		_ = staged.Close()
-		return fmt.Errorf("cannot write to %s: %w", dir, err)
-	}
-	if err := staged.Close(); err != nil {
-		return fmt.Errorf("cannot write to %s: %w", dir, err)
-	}
-	if err := os.Chmod(staged.Name(), 0o755); err != nil { //nolint:gosec // mse must stay executable
-		return fmt.Errorf("cannot write to %s: %w", dir, err)
-	}
-	out, err := u.versions.Version(ctx, staged.Name())
+	defer staged.Discard()
+	out, err := u.versions.Version(ctx, staged.Path())
 	if err != nil {
 		return fmt.Errorf("the downloaded mse %s does not run: %w", tag, err)
 	}
 	if fields := strings.Fields(out); len(fields) < 2 || fields[0] != "mse" || fields[1] != tag {
 		return fmt.Errorf("the downloaded mse says %q, not %s", strings.TrimSpace(out), tag)
 	}
-	return os.Rename(staged.Name(), path)
+	return staged.Commit(path)
 }
 
 type SystemVersionReader struct{}

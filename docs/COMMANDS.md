@@ -156,7 +156,7 @@ Shows this machine's installation. It changes nothing and prints no passwords.
   - the address of the landing page and of every app.
 - **When a part can't be read,** for example the backup repository is unreachable, that part says why and the rest still shows. Without systemd there are no timers to show.
 - **Exit code:** 1 when something needs attention, listed at the end:
-  - a timed job's last run failed, or stopped before finishing;
+  - a timed job's last run failed, stopped before finishing, or couldn't be read, or systemd couldn't start the job since;
   - a container of the stack isn't running, or the stack has no containers;
   - the backup repository, the stack or the timers couldn't be read;
   - this machine is the main and its latest backup is more than 2 days old.

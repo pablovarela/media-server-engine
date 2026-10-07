@@ -185,39 +185,48 @@ func (d Dependencies) pinger(cmd *cobra.Command, i *installation.Installation) r
 			Client: d.HTTP, URL: healthchecks.PingURL, Key: healthchecksKey(i, "HEALTHCHECKS_PING_KEY"), Sleep: d.Sleep, ErrOut: cmd.ErrOrStderr(),
 			Slug: func(job string) string { return healthchecks.Slug(i.Name, job, role, short) },
 		},
-		runs:   d.recorder(i),
-		errOut: cmd.ErrOrStderr(),
+		runs: d.recorder(cmd, i),
 	}
 }
 
 type recordedPings struct {
-	pings  *healthchecks.Pings
-	runs   runs.Recorder
-	errOut io.Writer
+	pings *healthchecks.Pings
+	runs  runRecorder
 }
 
 func (p recordedPings) Ping(ctx context.Context, job, suffix string) {
-	var err error
 	switch suffix {
 	case "/start":
-		err = p.runs.Start(job)
+		p.runs.start(job)
 	case "":
-		err = p.runs.Finish(job, false)
+		p.runs.finish(job, false)
 	case "/fail":
-		err = p.runs.Finish(job, true)
-	}
-	if err != nil {
-		_, _ = fmt.Fprintf(p.errOut, "could not record the %s run for mse status: %v\n", job, err)
+		p.runs.finish(job, true)
 	}
 	p.pings.Ping(ctx, job, suffix)
 }
 
-func (d Dependencies) recorder(i *installation.Installation) runs.Recorder {
+type runRecorder struct {
+	runs   runs.Recorder
+	errOut io.Writer
+}
+
+func (r runRecorder) start(job string) { r.warn(job, r.runs.Start(job)) }
+
+func (r runRecorder) finish(job string, failed bool) { r.warn(job, r.runs.Finish(job, failed)) }
+
+func (r runRecorder) warn(job string, err error) {
+	if err != nil {
+		_, _ = fmt.Fprintf(r.errOut, "could not record the %s run for mse status: %v\n", job, err)
+	}
+}
+
+func (d Dependencies) recorder(cmd *cobra.Command, i *installation.Installation) runRecorder {
 	now := d.Now
 	if now == nil {
 		now = time.Now
 	}
-	return runs.Recorder{Dir: runsDir(i), Now: now, PID: os.Getpid()}
+	return runRecorder{runs: runs.Recorder{Dir: runsDir(i), Now: now, PID: os.Getpid(), Boot: runs.BootID()}, errOut: cmd.ErrOrStderr()}
 }
 
 func runsDir(i *installation.Installation) string {

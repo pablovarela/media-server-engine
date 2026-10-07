@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -27,4 +28,21 @@ func TestRemoveExecutableDownloadsWithoutKeys(t *testing.T) {
 	assert.True(t, recorded, "the run is recorded for mse status")
 	assert.False(t, run.Ended.IsZero())
 	assert.False(t, run.Failed)
+}
+
+func TestCleanDownloadsStillCleansWhenItsRunCannotBeRecorded(t *testing.T) {
+	getenv, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"})
+	state := filepath.Join(home, ".local", "state", "mse", "gorgon")
+	require.NoError(t, os.MkdirAll(state, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(state, "runs"), nil, 0o644))
+	root := NewRootCommand(Dependencies{Environment: getenv, Home: home, Update: newMockUpdater(t)})
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+
+	code := run(context.Background(), root, []string{"clean-downloads"})
+
+	assert.Equal(t, 0, code)
+	assert.Contains(t, stdout.String(), "sonarr: queue not reachable, skipped\n")
+	assert.Contains(t, stderr.String(), "could not record the download-cleanup run for mse status")
 }

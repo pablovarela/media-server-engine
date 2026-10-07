@@ -6,13 +6,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
+
+	"github.com/pablovarela/media-server-engine/internal/files"
 )
 
 type Run struct {
 	Started time.Time `json:"started"`
 	PID     int       `json:"pid"`
+	Boot    string    `json:"boot,omitempty"`
 	Ended   time.Time `json:"ended,omitzero"`
 	Failed  bool      `json:"failed,omitempty"`
 }
@@ -20,36 +24,51 @@ type Run struct {
 type State int
 
 const (
-	Succeeded State = iota
+	NeverRan State = iota
+	Succeeded
 	Failed
 	Running
 	Interrupted
 )
 
-func (r Run) State(alive func(pid int) bool) State {
+func (r Run) State(alive func(Run) bool) State {
 	switch {
+	case r.Started.IsZero():
+		return NeverRan
 	case !r.Ended.IsZero() && r.Failed:
 		return Failed
 	case !r.Ended.IsZero():
 		return Succeeded
-	case alive(r.PID):
+	case alive(r):
 		return Running
 	}
 	return Interrupted
 }
 
-func Alive(pid int) bool {
-	return pid > 0 && syscall.Kill(pid, 0) == nil
+func Alive(boot string) func(Run) bool {
+	return func(r Run) bool {
+		if r.PID <= 0 || r.Boot != boot {
+			return false
+		}
+		err := syscall.Kill(r.PID, 0)
+		return err == nil || errors.Is(err, syscall.EPERM)
+	}
+}
+
+func BootID() string {
+	id, _ := os.ReadFile("/proc/sys/kernel/random/boot_id")
+	return strings.TrimSpace(string(id))
 }
 
 type Recorder struct {
-	Dir string
-	Now func() time.Time
-	PID int
+	Dir  string
+	Now  func() time.Time
+	PID  int
+	Boot string
 }
 
 func (r Recorder) Start(job string) error {
-	return write(r.Dir, job, Run{Started: r.Now(), PID: r.PID})
+	return write(r.Dir, job, Run{Started: r.Now(), PID: r.PID, Boot: r.Boot})
 }
 
 func (r Recorder) Finish(job string, failed bool) error {
@@ -58,8 +77,8 @@ func (r Recorder) Finish(job string, failed bool) error {
 		return err
 	}
 	now := r.Now()
-	if !recorded || !run.Ended.IsZero() {
-		run = Run{Started: now, PID: r.PID}
+	if !recorded || !run.Ended.IsZero() || run.PID != r.PID || run.Boot != r.Boot {
+		run = Run{Started: now, PID: r.PID, Boot: r.Boot}
 	}
 	run.Ended, run.Failed = now, failed
 	return write(r.Dir, job, run)
@@ -82,24 +101,9 @@ func Read(dir, job string) (Run, bool, error) {
 }
 
 func write(dir, job string, run Run) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // run records are read by the user's own status command
-		return err
-	}
 	text, err := json.Marshal(run)
 	if err != nil {
 		return err
 	}
-	staged, err := os.CreateTemp(dir, "."+job+"-*")
-	if err != nil {
-		return err
-	}
-	defer func() { _ = os.Remove(staged.Name()) }()
-	if _, err := staged.Write(text); err != nil {
-		_ = staged.Close()
-		return err
-	}
-	if err := staged.Close(); err != nil {
-		return err
-	}
-	return os.Rename(staged.Name(), filepath.Join(dir, job+".json"))
+	return files.WriteAtomically(filepath.Join(dir, job+".json"), text, 0o644)
 }

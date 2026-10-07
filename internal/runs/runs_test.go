@@ -24,6 +24,9 @@ func clock(times ...time.Time) func() time.Time {
 }
 
 func TestRecorder(t *testing.T) {
+	type Given struct {
+		earlier string
+	}
 	type When struct {
 		record func(r Recorder) error
 	}
@@ -32,15 +35,16 @@ func TestRecorder(t *testing.T) {
 		recorded bool
 	}
 	tests := map[string]struct {
-		When When
-		Then Then
+		Given Given
+		When  When
+		Then  Then
 	}{
 		"nothing recorded yet": {
 			When: When{record: func(Recorder) error { return nil }},
 		},
 		"started": {
 			When: When{record: func(r Recorder) error { return r.Start("backup") }},
-			Then: Then{recorded: true, run: Run{Started: started, PID: 4242}},
+			Then: Then{recorded: true, run: Run{Started: started, PID: 4242, Boot: "boot-1"}},
 		},
 		"succeeded": {
 			When: When{record: func(r Recorder) error {
@@ -49,7 +53,7 @@ func TestRecorder(t *testing.T) {
 				}
 				return r.Finish("backup", false)
 			}},
-			Then: Then{recorded: true, run: Run{Started: started, PID: 4242, Ended: ended}},
+			Then: Then{recorded: true, run: Run{Started: started, PID: 4242, Boot: "boot-1", Ended: ended}},
 		},
 		"failed": {
 			When: When{record: func(r Recorder) error {
@@ -58,17 +62,26 @@ func TestRecorder(t *testing.T) {
 				}
 				return r.Finish("backup", true)
 			}},
-			Then: Then{recorded: true, run: Run{Started: started, PID: 4242, Ended: ended, Failed: true}},
+			Then: Then{recorded: true, run: Run{Started: started, PID: 4242, Boot: "boot-1", Ended: ended, Failed: true}},
 		},
 		"failed before it started": {
 			When: When{record: func(r Recorder) error { return r.Finish("backup", true) }},
-			Then: Then{recorded: true, run: Run{Started: started, PID: 4242, Ended: started, Failed: true}},
+			Then: Then{recorded: true, run: Run{Started: started, PID: 4242, Boot: "boot-1", Ended: started, Failed: true}},
+		},
+		"another process's unfinished run is not closed by this one": {
+			Given: Given{earlier: `{"started":"2026-10-07T01:00:00Z","pid":1111,"boot":"boot-1"}`},
+			When:  When{record: func(r Recorder) error { return r.Finish("backup", false) }},
+			Then:  Then{recorded: true, run: Run{Started: started, PID: 4242, Boot: "boot-1", Ended: started}},
 		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			dir := filepath.Join(t.TempDir(), "runs")
-			r := Recorder{Dir: dir, Now: clock(started, ended), PID: 4242}
+			if tt.Given.earlier != "" {
+				require.NoError(t, os.MkdirAll(dir, 0o755))
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "backup.json"), []byte(tt.Given.earlier), 0o644))
+			}
+			r := Recorder{Dir: dir, Now: clock(started, ended), PID: 4242, Boot: "boot-1"}
 
 			require.NoError(t, tt.When.record(r))
 
@@ -77,6 +90,7 @@ func TestRecorder(t *testing.T) {
 			assert.Equal(t, tt.Then.recorded, recorded)
 			assert.True(t, tt.Then.run.Started.Equal(run.Started) && tt.Then.run.Ended.Equal(run.Ended), "%+v", run)
 			assert.Equal(t, tt.Then.run.PID, run.PID)
+			assert.Equal(t, tt.Then.run.Boot, run.Boot)
 			assert.Equal(t, tt.Then.run.Failed, run.Failed)
 		})
 	}
@@ -84,7 +98,7 @@ func TestRecorder(t *testing.T) {
 
 func TestAnUnreadableRecordIsAnError(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "backup.json"), []byte("not json"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "backup.json"), nil, 0o644))
 
 	_, _, err := Read(dir, "backup")
 
@@ -92,11 +106,12 @@ func TestAnUnreadableRecordIsAnError(t *testing.T) {
 }
 
 func TestRunState(t *testing.T) {
-	alive := func(pid int) bool { return pid == 4242 }
+	alive := func(run Run) bool { return run.PID == 4242 }
 	tests := map[string]struct {
 		Given Run
 		Then  State
 	}{
+		"never ran":                      {Given: Run{}, Then: NeverRan},
 		"ended well":                     {Given: Run{Started: started, PID: 1, Ended: ended}, Then: Succeeded},
 		"ended badly":                    {Given: Run{Started: started, PID: 1, Ended: ended, Failed: true}, Then: Failed},
 		"no end, its process still runs": {Given: Run{Started: started, PID: 4242}, Then: Running},
@@ -105,6 +120,24 @@ func TestRunState(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, tt.Then, tt.Given.State(alive))
+		})
+	}
+}
+
+func TestAlive(t *testing.T) {
+	this := os.Getpid()
+	tests := map[string]struct {
+		Given Run
+		Then  bool
+	}{
+		"this process, this boot":       {Given: Run{PID: this, Boot: "boot-1"}, Then: true},
+		"this process ID, another boot": {Given: Run{PID: this, Boot: "boot-0"}, Then: false},
+		"a process that doesn't exist":  {Given: Run{PID: 1 << 30, Boot: "boot-1"}, Then: false},
+		"no process":                    {Given: Run{Boot: "boot-1"}, Then: false},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tt.Then, Alive("boot-1")(tt.Given))
 		})
 	}
 }
