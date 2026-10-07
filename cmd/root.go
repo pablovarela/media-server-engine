@@ -103,7 +103,6 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 		newPruneStackImagesCommand(deps),
 		newRemoveExecutableDownloadsCommand(deps),
 		newProjectCommand(deps, "stack", "Run the media server's containers", compose.Stack),
-		newProjectCommand(deps, "monitoring", "Run the monitoring containers", compose.Monitoring),
 	)
 	root.AddCommand(newBackupCommands(deps)...)
 	return root

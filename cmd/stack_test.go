@@ -63,12 +63,6 @@ func TestStackCommands(t *testing.T) {
 				envWritten: true,
 			},
 		},
-		"monitoring up draws no page": {
-			When: When{args: []string{"monitoring", "up"}},
-			Then: Then{stdout: "Starting the monitoring stack... done.\n", expect: func(r *mockComposeRunner) {
-				r.EXPECT().Up(mock.Anything, project, []string{}, compose.NoWait).Return(nil)
-			}},
-		},
 		"stack up --wait": {
 			When: When{args: []string{"stack", "up", "--wait"}},
 			Then: Then{stdout: "Drawing the landing page... done.\nStarting the stack... done.\nReloading Homepage... not running.\n", expect: func(r *mockComposeRunner) {
@@ -140,10 +134,6 @@ func TestStackCommands(t *testing.T) {
 				r.EXPECT().Logs(mock.Anything, project, compose.LogsOptions{Follow: true, Tail: "20", Services: []string{"jellyfin"}}, mock.Anything).Return(nil)
 			}},
 		},
-		"monitoring ps": {
-			When: When{args: []string{"monitoring", "ps"}},
-			Then: Then{expect: func(r *mockComposeRunner) { r.EXPECT().Ps(mock.Anything, project).Return(nil, nil) }, stdout: "NAME  STATE  HEALTH  PORTS\n"},
-		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -154,26 +144,19 @@ func TestStackCommands(t *testing.T) {
 				require.NoError(t, os.WriteFile(services, []byte(tt.Given.configServices), 0o644))
 			}
 			runner := newMockComposeRunner(t)
-			kind := compose.Stack
-			if tt.When.args[0] == "monitoring" {
-				kind = compose.Monitoring
-			}
-			runner.EXPECT().Load(mock.Anything, mock.Anything, kind, mock.Anything, mock.Anything).Return(project, nil)
+			runner.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, mock.Anything).Return(project, nil)
 			tt.Then.expect(runner)
 			decrypt := func(string) ([]byte, error) { return []byte("A=1\n"), nil }
 			deps := Dependencies{
 				Environment: getenv, Home: home, Decrypt: decrypt, Update: newMockUpdater(t),
 				Host: installation.Host{GOOS: "linux", Hostname: func() (string, error) { return "gorgon", nil }},
 				Engine: fstest.MapFS{
-					"docker-compose.yml":            {Data: []byte("services: {}\n")},
-					"docker-compose.monitoring.yml": {Data: []byte("services: {}\n")},
-					"grafana/datasource.yml":        {Data: []byte("# fixture\n")},
-					"prometheus/prometheus.yml":     {Data: []byte("# fixture\n")},
-					"homepage/settings.yaml":        {Data: []byte("title: x\n")},
-					"homepage/services.yaml":        {Data: []byte("[]\n")},
-					"homepage/widgets.yaml":         {Data: []byte("[]\n")},
-					"homepage/bookmarks.yaml":       {Data: []byte("[]\n")},
-					"homepage/custom.css":           {Data: []byte("")},
+					"docker-compose.yml":      {Data: []byte("services: {}\n")},
+					"homepage/settings.yaml":  {Data: []byte("title: x\n")},
+					"homepage/services.yaml":  {Data: []byte("[]\n")},
+					"homepage/widgets.yaml":   {Data: []byte("[]\n")},
+					"homepage/bookmarks.yaml": {Data: []byte("[]\n")},
+					"homepage/custom.css":     {Data: []byte("")},
 				},
 				HTTP:    &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) { return nil, errors.New("no network in tests") })},
 				Compose: func(io.Writer, *compose.Outcomes) (composeRunner, error) { return runner, nil },
@@ -238,10 +221,7 @@ func TestContainerLogsStayOutOfTheLog(t *testing.T) {
 		Decrypt: func(string) ([]byte, error) { return []byte("A=1\n"), nil },
 		Host:    installation.Host{GOOS: "linux", Hostname: func() (string, error) { return "gorgon", nil }},
 		Engine: fstest.MapFS{
-			"docker-compose.yml":            {Data: []byte("services: {}\n")},
-			"docker-compose.monitoring.yml": {Data: []byte("services: {}\n")},
-			"grafana/datasource.yml":        {Data: []byte("# fixture\n")},
-			"prometheus/prometheus.yml":     {Data: []byte("# fixture\n")},
+			"docker-compose.yml": {Data: []byte("services: {}\n")},
 		},
 		Compose: func(io.Writer, *compose.Outcomes) (composeRunner, error) { return runner, nil },
 	})
@@ -274,10 +254,7 @@ func TestComposeEventsReachTheLogAndOnlyVerboseScreens(t *testing.T) {
 			Decrypt: func(string) ([]byte, error) { return []byte("A=1\n"), nil },
 			Host:    installation.Host{GOOS: "linux", Hostname: func() (string, error) { return "gorgon", nil }},
 			Engine: fstest.MapFS{
-				"docker-compose.yml":            {Data: []byte("services: {}\n")},
-				"docker-compose.monitoring.yml": {Data: []byte("services: {}\n")},
-				"grafana/datasource.yml":        {Data: []byte("# fixture\n")},
-				"prometheus/prometheus.yml":     {Data: []byte("# fixture\n")},
+				"docker-compose.yml": {Data: []byte("services: {}\n")},
 			},
 			Compose: func(w io.Writer, _ *compose.Outcomes) (composeRunner, error) {
 				tool = w

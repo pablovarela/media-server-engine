@@ -22,16 +22,9 @@ type Kind struct {
 	Override   bool
 }
 
-var (
-	Stack      = Kind{Name: "media-server", EngineFile: "docker-compose.yml", ImagesFile: "images.yml", Override: true}
-	Monitoring = Kind{Name: "monitoring", EngineFile: "docker-compose.monitoring.yml", ImagesFile: "images.monitoring.yml"}
-)
+var Stack = Kind{Name: "media-server", EngineFile: "docker-compose.yml", ImagesFile: "images.yml", Override: true}
 
-var (
-	composeFiles  = []string{"docker-compose.yml", "docker-compose.monitoring.yml"}
-	engineFolders = []string{"grafana", "prometheus"}
-	mountedEmpty  = []string{".homepage", ".homepage-images"}
-)
+var mountedEmpty = []string{".homepage", ".homepage-images"}
 
 func Prepare(engine fs.FS, state string) error {
 	for _, dir := range mountedEmpty {
@@ -39,17 +32,7 @@ func Prepare(engine fs.FS, state string) error {
 			return err
 		}
 	}
-	for _, file := range composeFiles {
-		if err := copyEngineFile(engine, file, state); err != nil {
-			return err
-		}
-	}
-	for _, folder := range engineFolders {
-		if err := copyEngineFolder(engine, folder, state); err != nil {
-			return err
-		}
-	}
-	return nil
+	return copyEngineFile(engine, Stack.EngineFile, state)
 }
 
 func copyEngineFile(engine fs.FS, path, state string) error {
@@ -58,36 +41,6 @@ func copyEngineFile(engine fs.FS, path, state string) error {
 		return err
 	}
 	return writeIfChanged(filepath.Join(state, filepath.FromSlash(path)), content)
-}
-
-func copyEngineFolder(engine fs.FS, folder, state string) error {
-	wanted := map[string]bool{}
-	err := fs.WalkDir(engine, folder, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return err
-		}
-		relative, _ := strings.CutPrefix(path, folder+"/")
-		wanted[relative] = true
-		return copyEngineFile(engine, path, state)
-	})
-	if err != nil {
-		return err
-	}
-	return removeUnwanted(filepath.Join(state, folder), wanted)
-}
-
-func removeUnwanted(dir string, wanted map[string]bool) error {
-	root, err := os.OpenRoot(dir)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = root.Close() }()
-	return fs.WalkDir(root.FS(), ".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || wanted[path] {
-			return err
-		}
-		return root.Remove(path)
-	})
 }
 
 func writeIfChanged(path string, content []byte) error {

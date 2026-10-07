@@ -11,3 +11,12 @@ REPO="$BATS_TEST_DIRNAME/.."
   echo "$output"
   [ "$status" -eq 1 ]
 }
+
+@test "nothing mentions the removed mse commands or files" {
+  cd "$REPO"
+  run git grep -nIE \
+    -e 'mse monitoring' -e 'images\.monitoring\.yml' -e 'docker-compose\.monitoring' \
+    -- ':!tests/legacy-engine.bats'
+  echo "$output"
+  [ "$status" -eq 1 ]
+}

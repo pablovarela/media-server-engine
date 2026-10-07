@@ -19,7 +19,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/report"
 )
 
-var imageFiles = []string{"images.yml", "images.monitoring.yml", "compose.override.yml"}
+var imageFiles = []string{"images.yml", "compose.override.yml"}
 
 type Client interface {
 	ImageList(ctx context.Context, options client.ImageListOptions) (client.ImageListResult, error)

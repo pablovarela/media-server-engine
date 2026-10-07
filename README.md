@@ -17,7 +17,6 @@ A self-hosted media server that can be rebuilt on any machine from two things: t
 - **Deluge** to download, behind a VPN with **gluetun** and **FlareSolverr**.
 - **Maintainerr** to clear out what nobody watches, **Portainer** to look at the containers.
 - A landing page with **Homepage** at `http://<machine>`, linking to every app with live summaries.
-- Optionally, monitoring with **Prometheus**, **Grafana**, **cAdvisor** and **node-exporter**.
 
 The apps are wired to each other automatically: API keys, indexers, the download client, libraries, subtitle languages and the links between them.
 

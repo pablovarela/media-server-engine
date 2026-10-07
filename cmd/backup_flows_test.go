@@ -59,11 +59,8 @@ func backupDependencies(t *testing.T, home, tmp string, runner commandRunner, co
 		},
 		Host: installation.Host{GOOS: "linux", Hostname: func() (string, error) { return "gorgon.local", nil }},
 		Engine: fstest.MapFS{
-			"docker-compose.yml":            {Data: []byte("services: {}\n")},
-			"docker-compose.monitoring.yml": {Data: []byte("services: {}\n")},
-			"grafana/datasource.yml":        {Data: []byte("# fixture\n")},
-			"prometheus/prometheus.yml":     {Data: []byte("# fixture\n")},
-			"scripts/backup-excludes.txt":   {Data: []byte("logs\n")},
+			"docker-compose.yml":          {Data: []byte("services: {}\n")},
+			"scripts/backup-excludes.txt": {Data: []byte("logs\n")},
 		},
 		Compose: func(io.Writer, *compose.Outcomes) (composeRunner, error) { return composer, nil },
 		Run:     func(_, _ io.Writer) commandRunner { return runner },

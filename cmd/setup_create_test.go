@@ -59,9 +59,6 @@ func newCreateFixture(t *testing.T) *createFixture {
 	engine["config-template/.gitignore"] = &fstest.MapFile{Data: []byte("secrets/*\n!secrets/*.sops.env\n")}
 	engine["config-template/config.yml"] = &fstest.MapFile{Data: []byte("config: 0\n")}
 	engine["config-template/images.yml"] = &fstest.MapFile{Data: []byte("services:\n  jellyfin:\n    image: j@sha256:x\n")}
-	engine["docker-compose.monitoring.yml"] = &fstest.MapFile{Data: []byte("services: {}\n")}
-	engine["grafana/grafana.ini"] = &fstest.MapFile{Data: []byte("\n")}
-	engine["prometheus/prometheus.yml"] = &fstest.MapFile{Data: []byte("\n")}
 	m.deps.Repositories = f.repositories
 	m.deps.Prompter = func(context.Context) prompter { return f.prompter }
 	m.deps.Decrypt = secrets.Sops(filepath.Join(m.deps.Home, ".config"))

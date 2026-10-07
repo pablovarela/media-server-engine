@@ -60,9 +60,6 @@ func newJoinFixture(t *testing.T) *joinFixture {
 	m.effects["git clone --quiet -- "+joinCloneURL+" "+f.config] = func() { writeClonedConfig(t, f.config) }
 	m.answers["git clone --quiet -- "+joinCloneURL+" "+f.config] = process.Result{}
 	engine := m.deps.Engine.(fstest.MapFS)
-	engine["docker-compose.monitoring.yml"] = &fstest.MapFile{Data: []byte("services: {}\n")}
-	engine["grafana/grafana.ini"] = &fstest.MapFile{Data: []byte("\n")}
-	engine["prometheus/prometheus.yml"] = &fstest.MapFile{Data: []byte("\n")}
 	engine["scripts/backup-excludes.txt"] = &fstest.MapFile{Data: []byte("logs\n")}
 	m.deps.Repositories = f.repositories
 	m.deps.Prompter = func(context.Context) prompter { return f.prompter }

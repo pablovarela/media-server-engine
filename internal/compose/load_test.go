@@ -20,7 +20,6 @@ func fixtureInstallation(t *testing.T, images, override string) *installation.In
 	i := &installation.Installation{Name: "gorgon", Config: filepath.Join(root, "config"), Data: filepath.Join(root, "data"), State: filepath.Join(root, "state"), Settings: map[string]string{}}
 	require.NoError(t, os.MkdirAll(i.Config, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(i.Config, "images.yml"), []byte(images), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(i.Config, "images.monitoring.yml"), []byte("services:\n  prometheus:\n    image: prom@sha256:p\n"), 0o644))
 	if override != "" {
 		require.NoError(t, os.WriteFile(filepath.Join(i.Config, "compose.override.yml"), []byte(override), 0o644))
 	}
@@ -76,13 +75,6 @@ func TestLoad(t *testing.T) {
 			Then: Then{services: []string{"jellyfin", "portainer"}, check: func(t *testing.T, i *installation.Installation, p projectView) {
 				assert.Equal(t, filepath.Join(i.Data, "volumes", "jellyfin"), p.volumeSources["jellyfin"][0])
 				assert.NotContains(t, p.services, "configarr")
-			}},
-		},
-		"monitoring": {
-			When: When{kind: Monitoring},
-			Then: Then{services: []string{"prometheus"}, check: func(t *testing.T, i *installation.Installation, p projectView) {
-				assert.Equal(t, "monitoring", p.name)
-				assert.Equal(t, filepath.Join(i.State, "prometheus"), p.volumeSources["prometheus"][0])
 			}},
 		},
 	}

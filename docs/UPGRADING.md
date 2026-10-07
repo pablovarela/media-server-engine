@@ -1,6 +1,6 @@
 # Upgrading
 
-An installation runs the `mse` release installed on each machine, and exactly the images its config pins (tag and digest, in `images.yml` and `images.monitoring.yml`).
+An installation runs the `mse` release installed on each machine, and exactly the images its config pins (tag and digest, in `images.yml`).
 
 ## Images
 

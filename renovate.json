@@ -12,7 +12,7 @@
   ],
   "docker-compose": {
     "managerFilePatterns": [
-      "/^config-template\\/images(\\.monitoring)?\\.yml$/"
+      "/^config-template\\/images\\.yml$/"
     ]
   },
   "packageRules": [
