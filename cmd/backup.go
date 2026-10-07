@@ -44,7 +44,6 @@ type backupNeeds struct {
 
 var (
 	backingUp = backupNeeds{stack: true, identity: true, excludes: true}
-	restoring = backupNeeds{stack: true}
 	telling   = backupNeeds{identity: true}
 )
 
@@ -74,11 +73,22 @@ func newBackupCommands(deps Dependencies) []*cobra.Command {
 	backupNow.Flags().BoolVar(&f.media, "media", false, "back up data/media to the media backup repository; the apps keep running")
 	backupNow.Flags().BoolVar(&f.takeOver, "take-over", false, "with --apps, make this machine the main, after asking when another machine is, then back up")
 	backupNow.Flags().BoolVar(&f.yes, "yes", false, "with --apps --take-over, take over without asking")
-	restore := backupCommand("restore", "Restore volumes/ from the latest backup", restoring, func(cmd *cobra.Command, b *backup.Backups) error {
-		return b.Restore(cmd.Context(), f.overwrite)
-	})
+	restore := &cobra.Command{
+		Use: "restore", Short: "Restore from the latest backup: --apps restores volumes/, --media restores data/media and starts the stack", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			b, err := deps.backups(cmd, backupNeeds{stack: true, media: f.media})
+			if err != nil {
+				return err
+			}
+			if err := f.restore(cmd.Context(), b); err != nil || !f.media {
+				return err
+			}
+			return deps.apply(cmd)
+		},
+	}
 	restore.PreRunE = func(*cobra.Command, []string) error { return f.checkRestore() }
 	restore.Flags().BoolVar(&f.apps, "apps", false, "restore volumes/ from the latest apps backup")
+	restore.Flags().BoolVar(&f.media, "media", false, "restore data/media from the latest media backup, keeping files that match, then start the stack")
 	restore.Flags().BoolVar(&f.overwrite, "overwrite", false, "with --apps, move the existing volumes/ aside and restore over it")
 	return []*cobra.Command{
 		backupNow,
@@ -109,6 +119,18 @@ func (f *backupFlags) backUp(ctx context.Context, b *backup.Backups) error {
 	return nil
 }
 
+func (f *backupFlags) restore(ctx context.Context, b *backup.Backups) error {
+	if f.apps {
+		if err := b.Restore(ctx, f.overwrite); err != nil {
+			return err
+		}
+	}
+	if f.media {
+		return b.RestoreMedia(ctx)
+	}
+	return nil
+}
+
 func (f *backupFlags) checkBackup() error {
 	switch {
 	case f.takeOver && !f.apps:
@@ -125,13 +147,18 @@ func (f *backupFlags) checkRestore() error {
 	switch {
 	case f.overwrite && !f.apps:
 		return errors.New("--overwrite only goes with --apps")
-	case !f.apps:
-		return errors.New("say what to restore: --apps")
+	case !f.apps && !f.media:
+		return errors.New("say what to restore: --apps, --media, or both")
 	}
 	return nil
 }
 
 func (d Dependencies) backups(cmd *cobra.Command, needs backupNeeds) (*backup.Backups, error) {
+	if needs.media {
+		if err := d.mediaBackupOn(cmd); err != nil {
+			return nil, err
+		}
+	}
 	binary, err := d.ResticBinary(cmd.Context())
 	if err != nil {
 		return nil, err
@@ -140,16 +167,9 @@ func (d Dependencies) backups(cmd *cobra.Command, needs backupNeeds) (*backup.Ba
 	if err != nil {
 		return nil, err
 	}
-	decrypted, err := d.Decrypt(filepath.Join(i.Config, "secrets", "backup.sops.env"))
+	repository, err := d.backupCredentials(i)
 	if err != nil {
-		return nil, fmt.Errorf("decrypt backup.sops.env: %w", err)
-	}
-	repository := secrets.Dotenv(decrypted)
-	if repository["RESTIC_REPOSITORY"] == "" {
-		repository["RESTIC_REPOSITORY"] = i.Settings["RESTIC_REPOSITORY"]
-	}
-	if repository["RESTIC_REPOSITORY"] == "" {
-		return nil, fmt.Errorf("%s has no backup repository: set RESTIC_REPOSITORY in installation.env", i.Name)
+		return nil, err
 	}
 	hostname, err := d.Host.Hostname()
 	if err != nil {
@@ -175,6 +195,7 @@ func (d Dependencies) backups(cmd *cobra.Command, needs backupNeeds) (*backup.Ba
 		Ask:                d.asker(cmd),
 		Shield:             shieldSignals,
 		Report:             report.From(cmd.Context()),
+		FreeSpace:          backup.FreeSpace,
 	}
 	if needs.media {
 		if b.MediaRepository, b.Media, err = d.mediaRepository(i, repository, binary, tool); err != nil {
@@ -182,6 +203,33 @@ func (d Dependencies) backups(cmd *cobra.Command, needs backupNeeds) (*backup.Ba
 		}
 	}
 	return b, nil
+}
+
+func (d Dependencies) backupCredentials(i *installation.Installation) (map[string]string, error) {
+	decrypted, err := d.Decrypt(filepath.Join(i.Config, "secrets", "backup.sops.env"))
+	if err != nil {
+		return nil, fmt.Errorf("decrypt backup.sops.env: %w", err)
+	}
+	repository := secrets.Dotenv(decrypted)
+	if repository["RESTIC_REPOSITORY"] == "" {
+		repository["RESTIC_REPOSITORY"] = i.Settings["RESTIC_REPOSITORY"]
+	}
+	if repository["RESTIC_REPOSITORY"] == "" {
+		return nil, fmt.Errorf("%s has no backup repository: set RESTIC_REPOSITORY in installation.env", i.Name)
+	}
+	return repository, nil
+}
+
+func (d Dependencies) mediaBackupOn(cmd *cobra.Command) error {
+	i, err := d.installation(cmd)
+	if err != nil {
+		return err
+	}
+	timing, err := media.Timing(i.Settings)
+	if err == nil && !timing.Enabled {
+		return fmt.Errorf("%s has no media backup; turn it on with mse configure", i.Name)
+	}
+	return err
 }
 
 func (d Dependencies) mediaRepository(i *installation.Installation, credentials map[string]string, binary string, tool io.Writer) (backup.Repository, media.Settings, error) {

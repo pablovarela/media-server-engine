@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -120,4 +121,113 @@ func TestHasAppData(t *testing.T) {
 	held, err = b.HasAppData()
 	require.NoError(t, err)
 	assert.False(t, held)
+}
+
+func TestRestoreMedia(t *testing.T) {
+	theirs := []restic.Snapshot{snapshot("this", "pi", "2026-10-04 01:40")}
+	tests := map[string]struct {
+		expect func(b *Backups, m mocks)
+		out    string
+		err    string
+	}{
+		"restores into data/media": {
+			expect: func(b *Backups, m mocks) {
+				target, _ := filepath.EvalSymlinks(MediaDir(b.Installation.Data))
+				m.stack.EXPECT().AnyRunning(mock.Anything).Return(false, nil)
+				m.media.EXPECT().Snapshots(mock.Anything, "gorgon").Return(theirs, nil)
+				m.media.EXPECT().Unlock(mock.Anything).Return(nil)
+				m.media.EXPECT().Restore(mock.Anything, restic.RestoreOptions{Snapshot: "latest", Host: "gorgon", Target: target, Overwrite: "if-changed"}).Return(nil)
+			},
+			out: "Restoring the media from the latest media backup into <target> (1834 GB free; files already there that match are kept)... restored.\n",
+		},
+		"the stack is running": {
+			expect: func(_ *Backups, m mocks) { m.stack.EXPECT().AnyRunning(mock.Anything).Return(true, nil) },
+			err:    "the stack is running; stop it with mse stack down first",
+		},
+		"no media backup yet": {
+			expect: func(_ *Backups, m mocks) {
+				m.stack.EXPECT().AnyRunning(mock.Anything).Return(false, nil)
+				m.media.EXPECT().Snapshots(mock.Anything, "gorgon").Return(nil, nil)
+			},
+			err: "gorgon has no media backup yet; start without it with mse apply",
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			b, m, out, _ := fixture(t)
+			tt.expect(b, m)
+
+			err := b.RestoreMedia(context.Background())
+
+			if tt.err != "" {
+				assert.EqualError(t, err, tt.err)
+				return
+			}
+			require.NoError(t, err)
+			target, _ := filepath.EvalSymlinks(MediaDir(b.Installation.Data))
+			assert.Equal(t, strings.ReplaceAll(tt.out, "<target>", target), out.String())
+		})
+	}
+}
+
+func TestRestoreMediaIntoAFolderOnAnotherDisk(t *testing.T) {
+	b, m, _, _ := fixture(t)
+	elsewhere := t.TempDir()
+	require.NoError(t, os.RemoveAll(MediaDir(b.Installation.Data)))
+	require.NoError(t, os.Symlink(elsewhere, MediaDir(b.Installation.Data)))
+	resolved, _ := filepath.EvalSymlinks(elsewhere)
+	m.stack.EXPECT().AnyRunning(mock.Anything).Return(false, nil)
+	m.media.EXPECT().Snapshots(mock.Anything, "gorgon").Return([]restic.Snapshot{snapshot("this", "pi", "2026-10-04 01:40")}, nil)
+	m.media.EXPECT().Unlock(mock.Anything).Return(nil)
+	m.media.EXPECT().Restore(mock.Anything, mock.MatchedBy(func(o restic.RestoreOptions) bool { return o.Target == resolved })).Return(nil)
+
+	require.NoError(t, b.RestoreMedia(context.Background()))
+}
+
+func TestRestoreMediaCreatesAMissingMediaFolder(t *testing.T) {
+	b, m, _, _ := fixture(t)
+	require.NoError(t, os.RemoveAll(MediaDir(b.Installation.Data)))
+	m.stack.EXPECT().AnyRunning(mock.Anything).Return(false, nil)
+	m.media.EXPECT().Snapshots(mock.Anything, "gorgon").Return([]restic.Snapshot{snapshot("this", "pi", "2026-10-04 01:40")}, nil)
+	m.media.EXPECT().Unlock(mock.Anything).Return(nil)
+	m.media.EXPECT().Restore(mock.Anything, mock.Anything).Return(nil)
+
+	require.NoError(t, b.RestoreMedia(context.Background()))
+	assert.DirExists(t, MediaDir(b.Installation.Data))
+}
+
+func TestRestoreMediaClearsThePendingRestore(t *testing.T) {
+	b, m, _, _ := fixture(t)
+	require.NoError(t, MarkMediaRestorePending(b.Installation.Data))
+	m.stack.EXPECT().AnyRunning(mock.Anything).Return(false, nil)
+	m.media.EXPECT().Snapshots(mock.Anything, "gorgon").Return([]restic.Snapshot{snapshot("this", "pi", "2026-10-04 01:40")}, nil)
+	m.media.EXPECT().Unlock(mock.Anything).Return(nil)
+	m.media.EXPECT().Restore(mock.Anything, mock.Anything).Return(nil)
+
+	require.NoError(t, b.RestoreMedia(context.Background()))
+	assert.False(t, MediaRestorePending(b.Installation.Data))
+}
+
+func TestAFailedMediaRestoreStaysPending(t *testing.T) {
+	b, m, _, _ := fixture(t)
+	require.NoError(t, MarkMediaRestorePending(b.Installation.Data))
+	m.stack.EXPECT().AnyRunning(mock.Anything).Return(false, nil)
+	m.media.EXPECT().Snapshots(mock.Anything, "gorgon").Return([]restic.Snapshot{snapshot("this", "pi", "2026-10-04 01:40")}, nil)
+	m.media.EXPECT().Unlock(mock.Anything).Return(nil)
+	m.media.EXPECT().Restore(mock.Anything, mock.Anything).Return(errors.New("restic restore failed (exit 1)"))
+
+	require.Error(t, b.RestoreMedia(context.Background()))
+	assert.True(t, MediaRestorePending(b.Installation.Data))
+}
+
+func TestRestoreMediaWaitsForNoMediaBackup(t *testing.T) {
+	b, m, _, _ := fixture(t)
+	held, err := takeLock(filepath.Join(b.Installation.Data, ".media-backup.lock"), "media backup")
+	require.NoError(t, err)
+	defer held.release()
+	m.stack.EXPECT().AnyRunning(mock.Anything).Return(false, nil)
+
+	err = b.RestoreMedia(context.Background())
+
+	assert.ErrorContains(t, err, "a media backup is already running")
 }

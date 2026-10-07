@@ -40,6 +40,7 @@ type Backups struct {
 	RepositoryLocation string
 	MediaRepository    Repository
 	Media              media.Settings
+	FreeSpace          func(path string) (uint64, error)
 	Stack              Stack
 	Pinger             Pinger
 	MachineID          string
