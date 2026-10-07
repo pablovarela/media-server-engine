@@ -1,0 +1,9 @@
+[Unit]
+Description=Back up the media server's media (@NAME@)
+
+[Service]
+Type=oneshot
+@ENVIRONMENT@
+ExecStart=@MSE@ backup --media
+Nice=10
+IOSchedulingClass=idle

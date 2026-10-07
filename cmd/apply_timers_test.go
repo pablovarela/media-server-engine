@@ -162,7 +162,7 @@ func TestAMachineAnotherOneBacksUpForLosesItsBackupTimers(t *testing.T) {
 	code, stdout, stderr := tf.apply(t)
 
 	require.Equal(t, 0, code, stderr)
-	assert.Contains(t, stdout, "mse-gorgon-backup, mse-gorgon-verify removed (not the main)")
+	assert.Contains(t, stdout, "mse-gorgon-backup, mse-gorgon-verify removed")
 	assert.NoFileExists(t, filepath.Join(tf.units, "mse-gorgon-backup.timer"))
 	assert.NoFileExists(t, filepath.Join(tf.f.data, ".backup-main"))
 }
@@ -381,4 +381,27 @@ func TestFetchingResticKeepsTheTimersStepOnOneLine(t *testing.T) {
 	require.Equal(t, 0, code, stderr)
 	assert.NotContains(t, stdout, "Downloading restic")
 	assert.Regexp(t, `(?m)^Setting up the timers\.\.\. .+$`, stdout)
+}
+
+func TestAMainWithAMediaBackupGetsItsTimerOnItsSchedule(t *testing.T) {
+	tf := newTimersFixture(t)
+	withSettings(t, tf.f.home, "MEDIA_BACKUP=yes\nMEDIA_BACKUP_SCHEDULE=Sat 02:30\n")
+
+	code, stdout, stderr := tf.apply(t)
+
+	require.Equal(t, 0, code, stderr)
+	assert.Contains(t, stdout, "mse-gorgon-media-backup changed")
+	assert.Contains(t, tf.unit(t, "mse-gorgon-media-backup.timer"), "OnCalendar=Sat *-*-* 02:30:00\n")
+	assert.Contains(t, tf.unit(t, "mse-gorgon-media-backup.service"), "ExecStart="+tf.mse+" backup --media\n")
+}
+
+func TestABadMediaScheduleFailsTheTimersStep(t *testing.T) {
+	tf := newTimersFixture(t)
+	withSettings(t, tf.f.home, "MEDIA_BACKUP=yes\nMEDIA_BACKUP_SCHEDULE=Sunday\n")
+
+	code, _, stderr := tf.apply(t)
+
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stderr, "MEDIA_BACKUP_SCHEDULE: Sunday isn't a weekday and time like Sun 01:00")
+	assert.NoFileExists(t, filepath.Join(tf.units, "mse-gorgon-media-backup.timer"))
 }
