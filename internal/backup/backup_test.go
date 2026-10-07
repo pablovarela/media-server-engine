@@ -72,7 +72,7 @@ func TestBackup(t *testing.T) {
 				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return([]restic.Snapshot{snapshot("other", "pi2", "2026-10-04 04:30")}, nil)
 			}},
 			Then: Then{out: "gorgon's main is pi2, last backup 2026-10-04 04:30. This machine doesn't back up; " +
-				"mse backup --take-over makes it the main and backs up now.\n"},
+				"mse backup --apps --take-over makes it the main and backs up now.\n"},
 		},
 		"unreadable repository": {
 			Given: Given{expect: func(b *Backups, m mocks, _ context.CancelFunc) {
@@ -274,7 +274,7 @@ func TestClaim(t *testing.T) {
 				m.repository.EXPECT().HasRepository(mock.Anything).Return(true, nil)
 				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(theirs, nil)
 			}},
-			Then: Then{errOut: "gorgon's main is pi2, last backup 2026-10-04 04:30. Taking over makes it refuse to back up.\n", err: "nothing was claimed; mse backup --take-over --yes takes over without asking"},
+			Then: Then{errOut: "gorgon's main is pi2, last backup 2026-10-04 04:30. Taking over makes it refuse to back up.\n", err: "nothing was claimed; mse backup --apps --take-over --yes takes over without asking"},
 		},
 		"unreadable repository": {
 			Given: Given{yes: true, expect: func(m mocks) {
@@ -426,6 +426,6 @@ func TestClaimWithoutAppDataRefusesWhenThereAreBackups(t *testing.T) {
 
 	err := b.Claim(context.Background(), true)
 
-	assert.EqualError(t, err, "volumes/ in "+b.Installation.Data+" holds no app data, so claiming would make an empty backup gorgon's latest; restore first with mse restore, then mse backup --take-over")
+	assert.EqualError(t, err, "volumes/ in "+b.Installation.Data+" holds no app data, so claiming would make an empty backup gorgon's latest; restore first with mse restore --apps, then mse backup --apps --take-over")
 	assert.NoFileExists(t, filepath.Join(b.Installation.Data, ".backup-main"))
 }

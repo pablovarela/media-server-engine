@@ -273,7 +273,7 @@ func TestAFreshInstallationSaysHowToMakeAMain(t *testing.T) {
 	code, stdout, stderr := tf.apply(t)
 
 	require.Equal(t, 0, code, stderr)
-	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update, mse-gorgon-download-cleanup changed; no backups yet (mse backup --take-over makes this machine the main).\n")
+	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update, mse-gorgon-download-cleanup changed; no backups yet (mse backup --apps --take-over makes this machine the main).\n")
 }
 
 func TestAnInstallationWithoutABackupRepositoryGetsNoBackupTimersQuietly(t *testing.T) {

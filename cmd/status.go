@@ -24,7 +24,7 @@ var apps = []struct {
 }
 
 var timerLabels = map[string]string{
-	timers.Update.Name: "update", timers.Backup.Name: "backup", timers.Verify.Name: "check-backup", timers.Cleanup.Name: "clean-downloads",
+	timers.Update.Name: "update", timers.Backup.Name: "apps backup", timers.Verify.Name: "check-backup", timers.Cleanup.Name: "clean-downloads",
 }
 
 func newStatusCommand(deps Dependencies) *cobra.Command {

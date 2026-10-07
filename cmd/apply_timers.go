@@ -115,7 +115,7 @@ func (t *appliedTimers) droppedVariables() []string {
 	return warnings
 }
 
-const noBackupsYet = "; no backups yet (mse backup --take-over makes this machine the main)"
+const noBackupsYet = "; no backups yet (mse backup --apps --take-over makes this machine the main)"
 
 func (t *appliedTimers) role(ctx context.Context) (role timers.Role, note, warning string) {
 	b, configured, err := t.d.backupRole(ctx, t.i)

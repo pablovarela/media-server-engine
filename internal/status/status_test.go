@@ -39,7 +39,7 @@ func TestRender(t *testing.T) {
 		},
 		"another machine is the main": {
 			Given: func(r *Report) { r.Main = &backup.Main{Machine: "laptop", Time: now.Add(-time.Hour)}; r.Timers = nil },
-			Then:  []string{"laptop is the main: it made the latest backup. This machine doesn't back up; mse backup --take-over makes it the main."},
+			Then:  []string{"laptop is the main: it made the latest backup. This machine doesn't back up; mse backup --apps --take-over makes it the main."},
 		},
 		"no backups yet": {
 			Given: func(r *Report) { r.Main = nil },

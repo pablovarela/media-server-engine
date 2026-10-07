@@ -235,7 +235,7 @@ func TestSetupRebuildingTakesThePastedKeyAndRestores(t *testing.T) {
 	assert.Equal(t, 1, code)
 	assert.Contains(t, stdout, "Cloning github.com/pablovarela/media-server-config-gorgon... done")
 	assert.Contains(t, stderr, "no Docker here\ngorgon's config and key are on this machine; its data isn't restored. Finish with:\n"+
-		"  mse restore\n")
+		"  mse restore --apps\n")
 	keys, err := os.ReadFile(f.keys)
 	require.NoError(t, err)
 	assert.True(t, strings.HasPrefix(string(keys), "# media server gorgon, added 2026-10-06\n# public key: "+testRecipient+"\n"+f.secret+"\n"))

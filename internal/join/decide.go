@@ -39,7 +39,7 @@ func settled(name string, current *backup.Main, now time.Time, kept bool) (Decis
 	switch {
 	case kept && recent(current, now):
 		return Decision{Say: fmt.Sprintf("Kept this machine a copy that doesn't back up: its app data wasn't restored, and %s backed up at %s, so backing this data up would make it %s's latest. "+
-			"mse restore --overwrite restores the latest backup; mse backup --take-over takes over later.", current.Machine, current.Time.Format(timeLayout), name), Role: Secondary}, true
+			"mse restore --apps --overwrite restores the latest backup; mse backup --apps --take-over takes over later.", current.Machine, current.Time.Format(timeLayout), name), Role: Secondary}, true
 	case current != nil && current.ThisMachine:
 		return Decision{Say: "This machine made " + name + "'s latest backup, so it is the main.", Role: Primary}, true
 	}
@@ -75,7 +75,7 @@ func PlanData(data string, current *backup.Main, held, restoreOver bool) DataPla
 	case current == nil:
 		return DataPlan{Say: "There are no backups yet, so the apps start empty."}
 	case held && !restoreOver:
-		return DataPlan{Say: "Kept the app data already in " + volumes + " (mse restore --overwrite replaces it with the latest backup)."}
+		return DataPlan{Say: "Kept the app data already in " + volumes + " (mse restore --apps --overwrite replaces it with the latest backup)."}
 	}
 	return DataPlan{Restore: true, Overwrite: held}
 }

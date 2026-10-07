@@ -27,7 +27,7 @@ Description=Back up the media server's app state (gorgon)
 
 [Service]
 Type=oneshot
-ExecStart=/home/pablo/.local/bin/mse backup
+ExecStart=/home/pablo/.local/bin/mse backup --apps
 Nice=10
 IOSchedulingClass=idle
 `,

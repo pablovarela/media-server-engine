@@ -48,7 +48,7 @@ func TestPlanData(t *testing.T) {
 		want              DataPlan
 	}{
 		"empty, with backups": {current: mainAt(6), want: DataPlan{Restore: true}},
-		"held":                {current: mainAt(6), held: true, want: DataPlan{Say: "Kept the app data already in /d/volumes (mse restore --overwrite replaces it with the latest backup)."}},
+		"held":                {current: mainAt(6), held: true, want: DataPlan{Say: "Kept the app data already in /d/volumes (mse restore --apps --overwrite replaces it with the latest backup)."}},
 		"held, restore over":  {current: mainAt(6), held: true, restoreOver: true, want: DataPlan{Restore: true, Overwrite: true}},
 		"no backups":          {want: DataPlan{Say: "There are no backups yet, so the apps start empty."}},
 		"no backups, held":    {held: true, want: DataPlan{Say: "Kept the app data already in /d/volumes; there are no backups yet."}},
@@ -62,7 +62,7 @@ func TestPlanData(t *testing.T) {
 
 func TestDecideKeepsACopyThatKeptItsOwnData(t *testing.T) {
 	kept := "Kept this machine a copy that doesn't back up: its app data wasn't restored, and gorgon-pi backed up at 2026-10-06 06:00, so backing this data up would make it gorgon's latest. " +
-		"mse restore --overwrite restores the latest backup; mse backup --take-over takes over later."
+		"mse restore --apps --overwrite restores the latest backup; mse backup --apps --take-over takes over later."
 	assert.Equal(t, Decision{Say: kept, Role: Secondary}, Decide("gorgon", mainAt(6), now, true))
 	assert.True(t, Decide("gorgon", mainAt(72), now, true).Ask, "a main that looks gone can be taken over with the disk's data")
 }

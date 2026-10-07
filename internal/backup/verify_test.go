@@ -124,7 +124,7 @@ func TestVerifyRunsOnTheMainOnly(t *testing.T) {
 		"another machine: refused, not failed": {
 			Given: Given{snapshots: []restic.Snapshot{snapshot("other", "pi2", "2026-10-04 04:30")}},
 			Then: Then{out: "gorgon's main is pi2, last backup 2026-10-04 04:30. Its backups are checked there; " +
-				"mse backup --take-over makes this machine the main.\n"},
+				"mse backup --apps --take-over makes this machine the main.\n"},
 		},
 		"unreadable": {
 			Given: Given{err: errors.New("boom")},

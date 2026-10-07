@@ -137,9 +137,9 @@ func TestRunKeepsEverythingOnceTheRepositoryExists(t *testing.T) {
 		message string
 	}{
 		"push failed": {stepFailure{at: "publish", err: errBroken, created: true},
-			"broken\ngorgon's repository exists and its config is committed in /c/gorgon, but not pushed. Finish with:\n  git -C /c/gorgon push --set-upstream origin main\n  mse backup --take-over\n  mse apply"},
+			"broken\ngorgon's repository exists and its config is committed in /c/gorgon, but not pushed. Finish with:\n  git -C /c/gorgon push --set-upstream origin main\n  mse backup --apps --take-over\n  mse apply"},
 		"main failed": {stepFailure{at: "main", err: errBroken},
-			"broken\ngorgon is created and its config pushed. Finish with:\n  mse backup --take-over\n  mse apply"},
+			"broken\ngorgon is created and its config pushed. Finish with:\n  mse backup --apps --take-over\n  mse apply"},
 		"apply failed": {stepFailure{at: "apply", err: errBroken},
 			"broken\ngorgon is created, its config pushed and this machine is its main. Finish with:\n  mse apply"},
 	}

@@ -75,7 +75,7 @@ func (r Report) role() string {
 	case r.Main.ThisMachine:
 		return "This machine is the main: it made the latest backup."
 	}
-	return r.Main.Machine + " is the main: it made the latest backup. This machine doesn't back up; mse backup --take-over makes it the main."
+	return r.Main.Machine + " is the main: it made the latest backup. This machine doesn't back up; mse backup --apps --take-over makes it the main."
 }
 
 func (r Report) stack() string {

@@ -142,7 +142,7 @@ func TestBackupCommandFlows(t *testing.T) {
 		Then  Then
 	}{
 		"backup": {
-			When: When{args: []string{"backup"}},
+			When: When{args: []string{"backup", "--apps"}},
 			Then: Then{
 				expect: func(r *mockCommandRunner, c *mockComposeRunner, data, _ string) {
 					r.EXPECT().Output(mock.Anything, resticCall("snapshots", "--no-lock", "--host", "gorgon", "--json")).Return(process.Result{Stdout: []byte(ourSnapshots)}, nil)
@@ -154,7 +154,7 @@ func TestBackupCommandFlows(t *testing.T) {
 			},
 		},
 		"backup --take-over --yes": {
-			When: When{args: []string{"backup", "--take-over", "--yes"}},
+			When: When{args: []string{"backup", "--apps", "--take-over", "--yes"}},
 			Then: Then{
 				expect: func(r *mockCommandRunner, c *mockComposeRunner, data, _ string) {
 					r.EXPECT().Output(mock.Anything, resticCall("cat", "config", "--no-lock")).Return(process.Result{}, nil)
@@ -167,7 +167,7 @@ func TestBackupCommandFlows(t *testing.T) {
 		},
 		"backup --take-over asks first": {
 			Given: Given{interactive: true, stdin: "y\n"},
-			When:  When{args: []string{"backup", "--take-over"}},
+			When:  When{args: []string{"backup", "--apps", "--take-over"}},
 			Then: Then{
 				expect: func(r *mockCommandRunner, c *mockComposeRunner, data, _ string) {
 					r.EXPECT().Output(mock.Anything, resticCall("cat", "config", "--no-lock")).Return(process.Result{}, nil)
@@ -180,7 +180,7 @@ func TestBackupCommandFlows(t *testing.T) {
 			},
 		},
 		"restore --overwrite": {
-			When: When{args: []string{"restore", "--overwrite"}},
+			When: When{args: []string{"restore", "--apps", "--overwrite"}},
 			Then: Then{
 				noIdentity: true,
 				stdout:     "previous volumes/ kept in <data>/volumes.before-restore-20261005-043000; delete it once the restore looks right\nRestoring volumes/ from the latest backup... restored.\n",
@@ -274,7 +274,7 @@ func TestBackupLogsResticButShowsSteps(t *testing.T) {
 		var stdout bytes.Buffer
 		root.SetOut(&stdout)
 		root.SetErr(&bytes.Buffer{})
-		args := []string{"backup"}
+		args := []string{"backup", "--apps"}
 		if verbose {
 			args = append(args, "--verbose")
 		}
@@ -304,7 +304,7 @@ func TestBackupStopsWhenResticCannotBeFetched(t *testing.T) {
 	root.SetOut(&stdout)
 	root.SetErr(&stderr)
 
-	code := run(context.Background(), root, []string{"backup"})
+	code := run(context.Background(), root, []string{"backup", "--apps"})
 
 	assert.Equal(t, 1, code)
 	assert.Contains(t, stderr.String(), "could not download restic 0.19.1 from github.com/restic/restic (no route to host)")
@@ -321,7 +321,7 @@ func TestBackupFetchesResticBeforeWritingAnything(t *testing.T) {
 	root.SetOut(io.Discard)
 	root.SetErr(io.Discard)
 
-	run(context.Background(), root, []string{"backup"})
+	run(context.Background(), root, []string{"backup", "--apps"})
 
 	assert.NoFileExists(t, filepath.Join(home, ".local", "state", "mse", "gorgon", "backup-excludes.txt"))
 }

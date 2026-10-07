@@ -146,7 +146,7 @@ func TestStatus(t *testing.T) {
 			Given: Given{running: healthy.running, snapshots: healthy.snapshots, systemd: true,
 				records: map[string]string{"update": `{"started":"2026-10-05T04:00:58Z","pid":1,"ended":"2026-10-05T04:03:00Z","failed":true}`,
 					"backup": `{"started":"2026-10-05T03:30:58Z","pid":1,"ended":"2026-10-05T03:31:41Z"}`}},
-			Then: Then{code: 1, contains: []string{"last ran 5 Oct 04:00, failed", "last ran 5 Oct 03:30, succeeded", "update's last run failed"}},
+			Then: Then{code: 1, contains: []string{"last ran 5 Oct 04:00, failed", "apps backup      last ran 5 Oct 03:30, succeeded", "update's last run failed"}},
 		},
 		"a corrupt record leaves the other timers": {
 			Given: Given{running: healthy.running, snapshots: healthy.snapshots, systemd: true,
