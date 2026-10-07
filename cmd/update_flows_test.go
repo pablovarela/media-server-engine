@@ -19,6 +19,7 @@ import (
 
 	"github.com/pablovarela/media-server-engine/internal/compose"
 	"github.com/pablovarela/media-server-engine/internal/process"
+	"github.com/pablovarela/media-server-engine/internal/runs"
 	"github.com/pablovarela/media-server-engine/internal/selfupdate"
 	"github.com/pablovarela/media-server-engine/internal/version"
 )
@@ -335,4 +336,28 @@ func TestUpdateApplyReportsFailWhenTheBackupKeepsRunning(t *testing.T) {
 	assert.Equal(t, 1, code)
 	assert.Contains(t, stderr.String(), "a backup is still running; run mse update --apply again once it has finished")
 	assert.Equal(t, []string{"GET /ping-key/gorgon-update/start", "GET /ping-key/gorgon-update/fail"}, *f.requests)
+}
+
+func TestTheUpdateRecordSpansTheHandOver(t *testing.T) {
+	f := newApplyFixture(t)
+	expectGit(f.runner, filepath.Join(f.home, ".config", "mse", "gorgon"), gitAnswers{})
+	deps := f.deps(t, false)
+	deps.Build = released
+	deps.Update = updatingTo(t, "v0.13.0", "/opt/mse")
+	deps.Exec = func(string, []string) error { return nil }
+	dir := filepath.Join(f.home, ".local", "state", "mse", "gorgon", "runs")
+
+	require.Equal(t, 0, run(context.Background(), NewRootCommand(deps), []string{"update", "--apply"}))
+	handedOver, recorded, err := runs.Read(dir, "update")
+	require.NoError(t, err)
+	require.True(t, recorded)
+	assert.True(t, handedOver.Ended.IsZero(), "the update hands over before the run ends")
+
+	f.expectApply(nil)
+	require.Equal(t, 0, run(context.Background(), NewRootCommand(deps), []string{"apply", "--after-update=a1b2c3"}))
+	applied, _, err := runs.Read(dir, "update")
+	require.NoError(t, err)
+	assert.True(t, applied.Started.Equal(handedOver.Started), "the apply ends the run the update started")
+	assert.False(t, applied.Ended.IsZero())
+	assert.False(t, applied.Failed)
 }

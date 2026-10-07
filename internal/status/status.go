@@ -12,11 +12,17 @@ import (
 const staleBackup = 48 * time.Hour
 
 type Timer struct {
-	Label    string
-	Next     time.Time
-	Recorded bool
-	Last     runs.Run
-	State    runs.State
+	Label   string
+	Next    time.Time
+	Last    runs.Run
+	State   runs.State
+	Err     error
+	Result  string
+	Stopped time.Time
+}
+
+func (t Timer) failedInSystemd() bool {
+	return t.Result != "" && t.Result != "success" && t.State != runs.Failed && t.Stopped.After(t.Last.Started)
 }
 
 type App struct{ Name, Address string }
@@ -100,7 +106,11 @@ func (r Report) timers(now time.Time) string {
 func (t Timer) lastRun(now time.Time) string {
 	started := when(t.Last.Started, now)
 	switch {
-	case !t.Recorded:
+	case t.Err != nil:
+		return "couldn't read its last run: " + t.Err.Error()
+	case t.failedInSystemd():
+		return "systemd couldn't run it (" + t.Result + "), " + when(t.Stopped, now)
+	case t.State == runs.NeverRan:
 		return "hasn't run yet"
 	case t.State == runs.Running:
 		return "running now, since " + started
@@ -127,7 +137,10 @@ func (r Report) timersAttention() []string {
 	var needs []string
 	for _, timer := range r.Timers {
 		switch {
-		case !timer.Recorded:
+		case timer.Err != nil:
+			needs = append(needs, timer.Label+"'s last run couldn't be read")
+		case timer.failedInSystemd():
+			needs = append(needs, "systemd couldn't run "+timer.Label+" ("+timer.Result+")")
 		case timer.State == runs.Failed:
 			needs = append(needs, timer.Label+"'s last run failed")
 		case timer.State == runs.Interrupted:

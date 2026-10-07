@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"errors"
-
 	"github.com/spf13/cobra"
 
 	"github.com/pablovarela/media-server-engine/internal/downloads"
@@ -19,12 +17,11 @@ func newRemoveExecutableDownloadsCommand(deps Dependencies) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			record := deps.recorder(i)
-			if err := record.Start(timers.Cleanup.Name); err != nil {
-				return err
-			}
-			cleaned := downloads.Clean(cmd.Context(), deps.HTTP, i, 200, cmd.OutOrStdout(), cmd.ErrOrStderr())
-			return errors.Join(cleaned, record.Finish(timers.Cleanup.Name, cleaned != nil))
+			record := deps.recorder(cmd, i)
+			record.start(timers.Cleanup.Name)
+			err = downloads.Clean(cmd.Context(), deps.HTTP, i, 200, cmd.OutOrStdout(), cmd.ErrOrStderr())
+			record.finish(timers.Cleanup.Name, err != nil)
+			return err
 		},
 	}
 }

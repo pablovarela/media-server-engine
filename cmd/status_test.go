@@ -148,6 +148,11 @@ func TestStatus(t *testing.T) {
 					"backup": `{"started":"2026-10-05T03:30:58Z","pid":1,"ended":"2026-10-05T03:31:41Z"}`}},
 			Then: Then{code: 1, contains: []string{"last ran 5 Oct 04:00, failed", "last ran 5 Oct 03:30, succeeded", "update's last run failed"}},
 		},
+		"a corrupt record leaves the other timers": {
+			Given: Given{running: healthy.running, snapshots: healthy.snapshots, systemd: true,
+				records: map[string]string{"update": "", "backup": `{"started":"2026-10-05T03:30:58Z","pid":1,"ended":"2026-10-05T03:31:41Z"}`}},
+			Then: Then{code: 1, contains: []string{"couldn't read its last run", "last ran 5 Oct 03:30, succeeded", "update's last run couldn't be read"}},
+		},
 		"no passwords": {
 			Given: Given{running: healthy.running, snapshots: healthy.snapshots, systemd: true, apps: "JELLYFIN_ADMIN_PASSWORD=s3cret\n"},
 			Then:  Then{absent: []string{"s3cret"}},

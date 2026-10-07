@@ -24,7 +24,7 @@ func (s showRunner) Output(_ context.Context, c process.Command) (process.Result
 	assert.Equal(s.t, []string{"--user", "show",
 		"mse-home-update.service", "mse-home-update.timer", "mse-home-backup.service", "mse-home-backup.timer",
 		"mse-home-verify.service", "mse-home-verify.timer", "mse-home-download-cleanup.service", "mse-home-download-cleanup.timer",
-		"--property=Id,LoadState,NextElapseUSecRealtime"}, c.Args)
+		"--property=Id,LoadState,Result,InactiveEnterTimestamp,NextElapseUSecRealtime"}, c.Args)
 	assert.Equal(s.t, []string{"TZ=UTC"}, c.Env)
 	return process.Result{Stdout: []byte(s.stdout)}, s.err
 }
@@ -32,7 +32,11 @@ func (s showRunner) Output(_ context.Context, c process.Command) (process.Result
 func shown(blocks ...string) string { return strings.Join(blocks, "\n\n") + "\n" }
 
 func service(job string) string {
-	return "Id=mse-home-" + job + ".service\nLoadState=loaded"
+	return failedService(job, "success", "")
+}
+
+func failedService(job, result, stopped string) string {
+	return "Result=" + result + "\nInactiveEnterTimestamp=" + stopped + "\nId=mse-home-" + job + ".service\nLoadState=loaded"
 }
 
 func timer(job, next string) string {
@@ -62,13 +66,22 @@ func TestStatus(t *testing.T) {
 			Given: Given{stdout: shown(
 				service("update"), timer("update", upcoming), service("backup"), timer("backup", upcoming),
 				service("verify"), timer("verify", upcoming), service("download-cleanup"), timer("download-cleanup", upcoming))},
-			Then: Then{statuses: []JobStatus{{Job: Update, Next: next}, {Job: Backup, Next: next}, {Job: Verify, Next: next}, {Job: Cleanup, Next: next}}},
+			Then: Then{statuses: []JobStatus{
+				{Job: Update, Next: next, Result: "success"}, {Job: Backup, Next: next, Result: "success"},
+				{Job: Verify, Next: next, Result: "success"}, {Job: Cleanup, Next: next, Result: "success"},
+			}},
+		},
+		"a service systemd couldn't run": {
+			Given: Given{stdout: shown(
+				failedService("update", "start-limit-hit", "Wed 2026-10-07 04:00:02 UTC"), timer("update", upcoming),
+				missing("backup"), missing("verify"), missing("download-cleanup"))},
+			Then: Then{statuses: []JobStatus{{Job: Update, Next: next, Result: "start-limit-hit", Stopped: time.Date(2026, 10, 7, 4, 0, 2, 0, time.UTC)}}},
 		},
 		"a copy without backup timers, one running with no next run until it ends": {
 			Given: Given{stdout: shown(
 				service("update"), timer("update", upcoming), missing("backup"), missing("verify"),
 				service("download-cleanup"), timer("download-cleanup", ""))},
-			Then: Then{statuses: []JobStatus{{Job: Update, Next: next}, {Job: Cleanup}}},
+			Then: Then{statuses: []JobStatus{{Job: Update, Next: next, Result: "success"}, {Job: Cleanup, Result: "success"}}},
 		},
 		"a time systemd printed in an unexpected form": {
 			Given: Given{stdout: shown(

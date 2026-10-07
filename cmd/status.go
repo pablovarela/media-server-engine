@@ -104,13 +104,11 @@ func (d Dependencies) statusOfTimers(cmd *cobra.Command, i *installation.Install
 		r.TimersErr = err
 		return
 	}
+	alive := runs.Alive(runs.BootID())
 	for _, state := range states {
-		timer := status.Timer{Label: timerLabels[state.Job.Name], Next: state.Next}
-		if timer.Last, timer.Recorded, err = runs.Read(runsDir(i), state.Job.Name); err != nil {
-			r.TimersErr = err
-			return
-		}
-		timer.State = timer.Last.State(runs.Alive)
+		timer := status.Timer{Label: timerLabels[state.Job.Name], Next: state.Next, Result: state.Result, Stopped: state.Stopped}
+		timer.Last, _, timer.Err = runs.Read(runsDir(i), state.Job.Name)
+		timer.State = timer.Last.State(alive)
 		r.Timers = append(r.Timers, timer)
 	}
 }

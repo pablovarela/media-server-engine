@@ -10,8 +10,10 @@ import (
 )
 
 type JobStatus struct {
-	Job  Job
-	Next time.Time
+	Job     Job
+	Next    time.Time
+	Result  string
+	Stopped time.Time
 }
 
 var jobs = []Job{Update, Backup, Verify, Cleanup}
@@ -23,7 +25,7 @@ func Status(ctx context.Context, r runner, installation string) ([]JobStatus, er
 	for _, job := range jobs {
 		args = append(args, job.Files(installation)...)
 	}
-	args = append(args, "--property=Id,LoadState,NextElapseUSecRealtime")
+	args = append(args, "--property=Id,LoadState,Result,InactiveEnterTimestamp,NextElapseUSecRealtime")
 	result, err := r.Output(ctx, process.Command{Name: "systemctl", Args: args, Env: []string{"TZ=UTC"}})
 	if err != nil {
 		return nil, fmt.Errorf("read the timers from systemd: %w", err)
@@ -32,12 +34,15 @@ func Status(ctx context.Context, r runner, installation string) ([]JobStatus, er
 	var statuses []JobStatus
 	for _, job := range jobs {
 		unit := job.Unit(installation)
-		timer := shown[unit+".timer"]
+		service, timer := shown[unit+".service"], shown[unit+".timer"]
 		if timer["LoadState"] != "loaded" {
 			continue
 		}
-		status := JobStatus{Job: job}
+		status := JobStatus{Job: job, Result: service["Result"]}
 		if status.Next, err = shownTime(unit+".timer", "NextElapseUSecRealtime", timer); err != nil {
+			return nil, err
+		}
+		if status.Stopped, err = shownTime(unit+".service", "InactiveEnterTimestamp", service); err != nil {
 			return nil, err
 		}
 		statuses = append(statuses, status)
