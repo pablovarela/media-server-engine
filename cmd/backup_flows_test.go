@@ -185,8 +185,8 @@ func TestBackupCommandFlows(t *testing.T) {
 				},
 			},
 		},
-		"verify-backup": {
-			When: When{args: []string{"verify-backup"}},
+		"check-backup": {
+			When: When{args: []string{"check-backup"}},
 			Then: Then{
 				expect: func(r *mockCommandRunner, _ *mockComposeRunner, _, tmp string) {
 					r.EXPECT().Output(mock.Anything, resticCall("snapshots", "--no-lock", "--host", "gorgon", "--json")).Return(process.Result{Stdout: []byte(ourSnapshots)}, nil)

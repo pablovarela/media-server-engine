@@ -37,7 +37,7 @@ After=mse-gorgon-backup.service
 
 [Service]
 Type=oneshot
-ExecStart=/home/pablo/.local/bin/mse verify-backup
+ExecStart=/home/pablo/.local/bin/mse check-backup
 Nice=10
 IOSchedulingClass=idle
 `,
@@ -46,7 +46,7 @@ Description=Remove downloads Sonarr or Radarr flagged as executables (gorgon)
 
 [Service]
 Type=oneshot
-ExecStart=/home/pablo/.local/bin/mse remove-executable-downloads
+ExecStart=/home/pablo/.local/bin/mse clean-downloads
 Nice=10
 IOSchedulingClass=idle
 `,

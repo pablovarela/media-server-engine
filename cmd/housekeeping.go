@@ -8,7 +8,7 @@ import (
 
 func newRemoveExecutableDownloadsCommand(deps Dependencies) *cobra.Command {
 	return &cobra.Command{
-		Use:   "remove-executable-downloads",
+		Use:   "clean-downloads",
 		Short: "Remove and blocklist downloads Sonarr and Radarr flag as executable",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {

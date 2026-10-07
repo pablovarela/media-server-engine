@@ -99,7 +99,7 @@ func TestBackupCommandsNeedARepository(t *testing.T) {
 	var stderr bytes.Buffer
 	root.SetErr(&stderr)
 
-	code := run(context.Background(), root, []string{"verify-backup"})
+	code := run(context.Background(), root, []string{"check-backup"})
 
 	assert.Equal(t, 1, code)
 	assert.Equal(t, "mse: gorgon has no backup repository: set RESTIC_REPOSITORY in installation.env\n", stderr.String())

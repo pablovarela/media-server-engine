@@ -73,7 +73,7 @@ func newBackupCommands(deps Dependencies) []*cobra.Command {
 	restore.Flags().BoolVar(&overwrite, "overwrite", false, "move the existing volumes/ aside and restore over it")
 	return []*cobra.Command{
 		backupNow,
-		backupCommand("verify-backup", "Check the backups: restic check and a test restore of the latest snapshot's databases", telling, func(cmd *cobra.Command, b *backup.Backups) error {
+		backupCommand("check-backup", "Check the backups: restic check and a test restore of the latest snapshot's databases", telling, func(cmd *cobra.Command, b *backup.Backups) error {
 			return b.Verify(cmd.Context())
 		}),
 		restore,

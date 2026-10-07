@@ -14,7 +14,7 @@ func TestRemoveExecutableDownloadsWithoutKeys(t *testing.T) {
 	var stdout bytes.Buffer
 	root.SetOut(&stdout)
 
-	code := run(context.Background(), root, []string{"remove-executable-downloads"})
+	code := run(context.Background(), root, []string{"clean-downloads"})
 
 	assert.Equal(t, 0, code)
 	assert.Equal(t, "sonarr: queue not reachable, skipped\nradarr: queue not reachable, skipped\n", stdout.String())

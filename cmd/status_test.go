@@ -165,7 +165,7 @@ func TestStatus(t *testing.T) {
 }
 
 func TestRemovedCommands(t *testing.T) {
-	for _, command := range []string{"urls", "backup-role", "claim-backup-main", "unlock-backup", "monitoring", "homepage", "prune-stack-images"} {
+	for _, command := range []string{"urls", "backup-role", "claim-backup-main", "unlock-backup", "monitoring", "homepage", "prune-stack-images", "verify-backup", "remove-executable-downloads"} {
 		t.Run(command, func(t *testing.T) {
 			getenv, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"})
 			root := NewRootCommand(Dependencies{Environment: getenv, Home: home, Update: newMockUpdater(t)})

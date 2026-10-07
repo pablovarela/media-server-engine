@@ -53,7 +53,7 @@ A new installation's secrets key is shown once: save it in a password manager.
 | `mse status` | this machine's installation: version, main, stack, last backup, timers and the apps' addresses |
 | `mse logins` | the apps' users and passwords |
 | `mse stack down`, `mse stack up` | stop and start the apps |
-| `mse backup`, `mse verify-backup` | back up now, check the backups now |
+| `mse backup`, `mse check-backup` | back up now, check the backups now |
 | `mse version` | the `mse` release running |
 
 `mse help` lists every command.
