@@ -83,12 +83,13 @@ func (b *Backups) backupHolding(ctx context.Context, lock *heldLock, claiming bo
 		err = b.finish(context.WithoutCancel(ctx), stopped, err)
 		release()
 	}()
-	b.Pinger.Ping(ctx, "backup", "/start")
 	if !claiming {
-		if err := b.requireMain(ctx); err != nil {
+		refused, err := b.refuseOnCopy(ctx)
+		if err != nil || refused {
 			return err
 		}
 	}
+	b.Pinger.Ping(ctx, "backup", "/start")
 	dir, err := b.dataToBackUp(claiming)
 	if err != nil {
 		return err
@@ -207,16 +208,18 @@ func (b *Backups) removeOldSnapshots(ctx context.Context, lock *heldLock) error 
 	return nil
 }
 
-func (b *Backups) requireMain(ctx context.Context) error {
-	state, _, err := b.main(ctx)
+func (b *Backups) refuseOnCopy(ctx context.Context) (bool, error) {
+	state, latest, err := b.main(ctx)
 	if err != nil {
-		return fmt.Errorf("%w; nothing was backed up", err)
+		return false, fmt.Errorf("%w; nothing was backed up", err)
 	}
-	if state == anotherMachine {
-		if err := removeMarker(b.Installation.Data); err != nil {
-			return err
-		}
-		return fmt.Errorf("another machine is %s's main; this machine does not back up (mse claim-backup-main makes it the main)", b.Installation.Name)
+	if state != anotherMachine {
+		return false, nil
 	}
-	return nil
+	if err := removeMarker(b.Installation.Data); err != nil {
+		return false, err
+	}
+	b.Report.Say(fmt.Sprintf("%s's main is %s, which last backed up on %s. This machine doesn't back up. mse backup --take-over makes it the main and backs up now.",
+		b.Installation.Name, machineName(latest), latest.Time.Format("2 Jan at 15:04")))
+	return true, nil
 }

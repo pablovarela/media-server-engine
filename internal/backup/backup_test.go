@@ -67,17 +67,15 @@ func TestBackup(t *testing.T) {
 			}},
 			Then: Then{out: "Stopping the stack... stopped.\nBacking up volumes/... snapshot 40c4a929: 0 new, 0 changed, 0 unchanged files; 0 B added (0 B stored).\nRemoving old snapshots... kept 5, removed 0.\nBackup done.\n", marked: true},
 		},
-		"another machine is the main": {
+		"another machine is the main: refused, not failed": {
 			Given: Given{marker: true, expect: func(b *Backups, m mocks, _ context.CancelFunc) {
-				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
 				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return([]restic.Snapshot{snapshot("other", "pi2", "2026-10-04 04:30")}, nil)
-				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/fail").Return()
 			}},
-			Then: Then{err: "another machine is gorgon's main; this machine does not back up (mse claim-backup-main makes it the main)"},
+			Then: Then{out: "gorgon's main is pi2, which last backed up on 4 Oct at 04:30. This machine doesn't back up. " +
+				"mse backup --take-over makes it the main and backs up now.\n"},
 		},
 		"unreadable repository": {
 			Given: Given{expect: func(b *Backups, m mocks, _ context.CancelFunc) {
-				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
 				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(nil, errors.New("restic snapshots failed (exit 1)"))
 				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/fail").Return()
 			}},
