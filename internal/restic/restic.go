@@ -94,15 +94,38 @@ type BackupOptions struct {
 	ExcludeFile string
 	Dir         string
 	Paths       []string
+	LimitUpload int
 	Inherit     []*os.File
 }
 
 type RestoreOptions struct {
-	Snapshot string
-	Host     string
-	Target   string
-	Include  []string
-	Exclude  []string
+	Snapshot  string
+	Host      string
+	Target    string
+	Include   []string
+	Exclude   []string
+	Overwrite string
+}
+
+type Keep struct {
+	Daily, Weekly, Monthly int
+	GroupBy                string
+}
+
+func (k Keep) args() []string {
+	var args []string
+	for _, keep := range []struct {
+		flag string
+		n    int
+	}{{"--keep-daily", k.Daily}, {"--keep-weekly", k.Weekly}, {"--keep-monthly", k.Monthly}} {
+		if keep.n > 0 {
+			args = append(args, keep.flag, strconv.Itoa(keep.n))
+		}
+	}
+	if k.GroupBy != "" {
+		args = append(args, "--group-by", k.GroupBy)
+	}
+	return args
 }
 
 func (r Restic) Init(ctx context.Context) error {
@@ -111,8 +134,12 @@ func (r Restic) Init(ctx context.Context) error {
 func (r Restic) Unlock(ctx context.Context) error {
 	return r.run(ctx, process.Command{Args: []string{"unlock"}})
 }
-func (r Restic) Check(ctx context.Context) error {
-	return r.run(ctx, process.Command{Args: []string{"check", retryLock, waitForLocks}})
+func (r Restic) Check(ctx context.Context, readDataSubset string) error {
+	args := []string{"check", retryLock, waitForLocks}
+	if readDataSubset != "" {
+		args = append(args, "--read-data-subset", readDataSubset)
+	}
+	return r.run(ctx, process.Command{Args: args})
 }
 
 func (r Restic) Backup(ctx context.Context, o BackupOptions) (BackupSummary, error) {
@@ -120,17 +147,21 @@ func (r Restic) Backup(ctx context.Context, o BackupOptions) (BackupSummary, err
 	for _, tag := range o.Tags {
 		args = append(args, "--tag", tag)
 	}
-	args = append(args, "--exclude-file", o.ExcludeFile)
+	if o.ExcludeFile != "" {
+		args = append(args, "--exclude-file", o.ExcludeFile)
+	}
+	if o.LimitUpload > 0 {
+		args = append(args, "--limit-upload", strconv.Itoa(o.LimitUpload))
+	}
 	messages, problems := &backupMessages{log: r.Log}, &backupMessages{log: r.Log}
 	err := r.run(ctx, process.Command{Args: append(args, o.Paths...), Dir: o.Dir, ExtraFiles: o.Inherit, Stdout: messages, Stderr: problems})
 	return messages.summary, err
 }
 
-func (r Restic) Forget(ctx context.Context, host string, inherit []*os.File) (ForgetSummary, error) {
+func (r Restic) Forget(ctx context.Context, host string, keep Keep, inherit []*os.File) (ForgetSummary, error) {
 	var listed bytes.Buffer
-	err := r.run(ctx, process.Command{ExtraFiles: inherit, Stdout: &listed, Args: []string{
-		"forget", "--json", retryLock, waitForLocks, "--host", host, "--keep-daily", "7", "--keep-weekly", "4", "--keep-monthly", "6",
-	}})
+	args := append([]string{"forget", "--json", retryLock, waitForLocks, "--host", host}, keep.args()...)
+	err := r.run(ctx, process.Command{ExtraFiles: inherit, Stdout: &listed, Args: args})
 	if err != nil {
 		return ForgetSummary{}, err
 	}
@@ -169,6 +200,9 @@ func (r Restic) Restore(ctx context.Context, o RestoreOptions) error {
 	}
 	for _, pattern := range o.Exclude {
 		args = append(args, "--exclude", pattern)
+	}
+	if o.Overwrite != "" {
+		args = append(args, "--overwrite", o.Overwrite)
 	}
 	return r.run(ctx, process.Command{Args: args})
 }

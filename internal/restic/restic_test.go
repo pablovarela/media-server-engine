@@ -37,12 +37,22 @@ func TestCommands(t *testing.T) {
 	}{
 		"init":   {When: When{call: func(r Restic) error { return r.Init(context.Background()) }}, Then: Then{command: command("init")}},
 		"unlock": {When: When{call: func(r Restic) error { return r.Unlock(context.Background()) }}, Then: Then{command: command("unlock")}},
-		"check":  {When: When{call: func(r Restic) error { return r.Check(context.Background()) }}, Then: Then{command: command("check", "--retry-lock", "2h")}},
+		"check":  {When: When{call: func(r Restic) error { return r.Check(context.Background(), "") }}, Then: Then{command: command("check", "--retry-lock", "2h")}},
 		"restore with a host and filters": {
 			When: When{call: func(r Restic) error {
 				return r.Restore(context.Background(), RestoreOptions{Snapshot: "latest:/volumes", Host: "gorgon", Target: "/data/volumes", Include: []string{"*.db"}, Exclude: []string{"configarr"}})
 			}},
 			Then: Then{command: command("restore", "--retry-lock", "2h", "latest:/volumes", "--host", "gorgon", "--target", "/data/volumes", "--include", "*.db", "--exclude", "configarr")},
+		},
+		"check a sample": {
+			When: When{call: func(r Restic) error { return r.Check(context.Background(), "5%") }},
+			Then: Then{command: command("check", "--retry-lock", "2h", "--read-data-subset", "5%")},
+		},
+		"restore over what is there when it changed": {
+			When: When{call: func(r Restic) error {
+				return r.Restore(context.Background(), RestoreOptions{Snapshot: "latest", Host: "gorgon", Target: "/data/media", Overwrite: "if-changed"})
+			}},
+			Then: Then{command: command("restore", "--retry-lock", "2h", "latest", "--host", "gorgon", "--target", "/data/media", "--overwrite", "if-changed")},
 		},
 		"restore any host": {
 			When: When{call: func(r Restic) error {
@@ -66,7 +76,7 @@ func TestCommandFailures(t *testing.T) {
 		runner := newMockRunner(t)
 		runner.EXPECT().Run(mock.Anything, command("check", "--retry-lock", "2h")).Return(1, nil)
 
-		assert.EqualError(t, Restic{Binary: binary, Runner: runner, Env: env}.Check(context.Background()), "restic check failed (exit 1)")
+		assert.EqualError(t, Restic{Binary: binary, Runner: runner, Env: env}.Check(context.Background(), ""), "restic check failed (exit 1)")
 	})
 	t.Run("a lock lists who holds it", func(t *testing.T) {
 		runner := newMockRunner(t)
@@ -74,7 +84,7 @@ func TestCommandFailures(t *testing.T) {
 		runner.EXPECT().Output(mock.Anything, command("list", "locks", "--no-lock")).Return(process.Result{Stdout: []byte("a1\n")}, nil)
 		runner.EXPECT().Output(mock.Anything, command("cat", "lock", "a1", "--no-lock")).Return(process.Result{Stdout: []byte(`{"exclusive":true,"hostname":"pi","pid":42,"time":"2026-10-05T04:30:12.5+01:00"}`)}, nil)
 
-		err := Restic{Binary: binary, Runner: runner, Env: env}.Check(context.Background())
+		err := Restic{Binary: binary, Runner: runner, Env: env}.Check(context.Background(), "")
 
 		assert.EqualError(t, err, "restic gave up waiting for a lock on the backup repository. Locks held:\n"+
 			"  exclusive lock from pi (process 42) since 2026-10-05 04:30\n"+
@@ -256,7 +266,7 @@ func TestForgetSummary(t *testing.T) {
 		return 0, nil
 	})
 
-	summary, err := Restic{Binary: binary, Runner: runner, Env: env, Log: &logged}.Forget(context.Background(), "gorgon", nil)
+	summary, err := Restic{Binary: binary, Runner: runner, Env: env, Log: &logged}.Forget(context.Background(), "gorgon", Keep{Daily: 7, Weekly: 4, Monthly: 6}, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, "kept 2, removed 1 (2026-10-05 04:31)", summary.String())
@@ -274,8 +284,55 @@ func TestForgetWithNothingToForget(t *testing.T) {
 	runner := newMockRunner(t)
 	runner.EXPECT().Run(mock.Anything, mock.MatchedBy(func(c process.Command) bool { return slices.Contains(c.Args, "forget") })).Return(0, nil)
 
-	summary, err := Restic{Binary: binary, Runner: runner, Env: env}.Forget(context.Background(), "gorgon", nil)
+	summary, err := Restic{Binary: binary, Runner: runner, Env: env}.Forget(context.Background(), "gorgon", Keep{Daily: 7, Weekly: 4, Monthly: 6}, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, "kept 0, removed 0", summary.String())
+}
+
+func TestBackupArguments(t *testing.T) {
+	tests := map[string]struct {
+		options BackupOptions
+		args    []string
+	}{
+		"apps": {
+			options: BackupOptions{Host: "gorgon", Tags: []string{"nightly"}, ExcludeFile: "/x.txt", Paths: []string{"volumes"}},
+			args:    []string{"backup", "--json", "--retry-lock", "2h", "--host", "gorgon", "--tag", "nightly", "--exclude-file", "/x.txt", "volumes"},
+		},
+		"media with an upload cap": {
+			options: BackupOptions{Host: "gorgon", Tags: []string{"weekly"}, LimitUpload: 2048, Paths: []string{"."}},
+			args:    []string{"backup", "--json", "--retry-lock", "2h", "--host", "gorgon", "--tag", "weekly", "--limit-upload", "2048", "."},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			runner := newMockRunner(t)
+			runner.EXPECT().Run(mock.Anything, mock.MatchedBy(func(c process.Command) bool { return slices.Equal(tt.args, c.Args) })).Return(0, nil)
+
+			_, err := Restic{Binary: binary, Runner: runner, Env: env}.Backup(context.Background(), tt.options)
+
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestForgetKeeps(t *testing.T) {
+	tests := map[string]struct {
+		keep Keep
+		args []string
+	}{
+		"weekly only":            {keep: Keep{Weekly: 4}, args: []string{"--keep-weekly", "4"}},
+		"daily, weekly, monthly": {keep: Keep{Daily: 7, Weekly: 4, Monthly: 6}, args: []string{"--keep-daily", "7", "--keep-weekly", "4", "--keep-monthly", "6"}},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			want := append([]string{"forget", "--json", "--retry-lock", "2h", "--host", "gorgon"}, tt.args...)
+			runner := newMockRunner(t)
+			runner.EXPECT().Run(mock.Anything, mock.MatchedBy(func(c process.Command) bool { return slices.Equal(want, c.Args) })).Return(0, nil)
+
+			_, err := Restic{Binary: binary, Runner: runner, Env: env}.Forget(context.Background(), "gorgon", tt.keep, nil)
+
+			require.NoError(t, err)
+		})
+	}
 }

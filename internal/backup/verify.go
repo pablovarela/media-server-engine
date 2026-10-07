@@ -68,7 +68,7 @@ func (b *Backups) Verify(ctx context.Context) (err error) {
 
 func (b *Backups) checkRepository(ctx context.Context) error {
 	step := b.Report.Step("Checking the repository")
-	if err := b.Repository.Check(ctx); err != nil {
+	if err := b.Repository.Check(ctx, ""); err != nil {
 		return step.Fail(err)
 	}
 	step.Done("no errors")
