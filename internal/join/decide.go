@@ -41,12 +41,12 @@ func settled(name string, current *backup.Main, now time.Time, flags Flags, kept
 	thisMachine := current != nil && current.ThisMachine
 	switch {
 	case thisMachine && flags.Secondary:
-		return Decision{Say: "This machine made " + name + "'s latest backup, so it stays the main (--secondary doesn't apply; claim the main from another machine first).", Role: Primary}, true
+		return Decision{Say: "This machine made " + name + "'s latest backup, so it stays the main (--secondary doesn't apply; another machine takes over with mse backup --take-over).", Role: Primary}, true
 	case flags.Main:
 		return Decision{Role: Primary}, true
 	case kept && recent(current, now):
 		return Decision{Say: fmt.Sprintf("Kept this machine a secondary: its app data wasn't restored, and %s backed up at %s, so backing this data up would make it %s's latest. "+
-			"--restore-over restores the latest backup first; mse claim-backup-main takes over later.", current.Machine, current.Time.Format(timeLayout), name), Role: Secondary}, true
+			"--restore-over restores the latest backup first; mse backup --take-over takes over later.", current.Machine, current.Time.Format(timeLayout), name), Role: Secondary}, true
 	case flags.Secondary:
 		return Decision{Role: Secondary}, true
 	case thisMachine:

@@ -35,10 +35,9 @@ func TestCommands(t *testing.T) {
 		When When
 		Then Then
 	}{
-		"init":       {When: When{call: func(r Restic) error { return r.Init(context.Background()) }}, Then: Then{command: command("init")}},
-		"unlock":     {When: When{call: func(r Restic) error { return r.Unlock(context.Background()) }}, Then: Then{command: command("unlock")}},
-		"unlock all": {When: When{call: func(r Restic) error { return r.UnlockAll(context.Background()) }}, Then: Then{command: command("unlock", "--remove-all")}},
-		"check":      {When: When{call: func(r Restic) error { return r.Check(context.Background()) }}, Then: Then{command: command("check", "--retry-lock", "2h")}},
+		"init":   {When: When{call: func(r Restic) error { return r.Init(context.Background()) }}, Then: Then{command: command("init")}},
+		"unlock": {When: When{call: func(r Restic) error { return r.Unlock(context.Background()) }}, Then: Then{command: command("unlock")}},
+		"check":  {When: When{call: func(r Restic) error { return r.Check(context.Background()) }}, Then: Then{command: command("check", "--retry-lock", "2h")}},
 		"restore with a host and filters": {
 			When: When{call: func(r Restic) error {
 				return r.Restore(context.Background(), RestoreOptions{Snapshot: "latest:/volumes", Host: "gorgon", Target: "/data/volumes", Include: []string{"*.db"}, Exclude: []string{"configarr"}})
@@ -79,7 +78,7 @@ func TestCommandFailures(t *testing.T) {
 
 		assert.EqualError(t, err, "restic gave up waiting for a lock on the backup repository. Locks held:\n"+
 			"  exclusive lock from pi (process 42) since 2026-10-05 04:30\n"+
-			"If none of those machines is running restic now, remove every lock with: mse unlock-backup --all")
+			"Each of those locks is still being refreshed, so restic is running on that machine: let it finish, or stop it there, then run this again.")
 	})
 	t.Run("a program that cannot start", func(t *testing.T) {
 		runner := newMockRunner(t)

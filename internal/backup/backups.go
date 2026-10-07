@@ -15,8 +15,6 @@ type Repository interface {
 	Init(ctx context.Context) error
 	Snapshots(ctx context.Context, host string) ([]restic.Snapshot, error)
 	Unlock(ctx context.Context) error
-	UnlockAll(ctx context.Context) error
-	Locks(ctx context.Context) ([]restic.Lock, error)
 	Backup(ctx context.Context, options restic.BackupOptions) (restic.BackupSummary, error)
 	Forget(ctx context.Context, host string, inherit []*os.File) (restic.ForgetSummary, error)
 	Prune(ctx context.Context, inherit []*os.File) error

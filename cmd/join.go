@@ -236,7 +236,7 @@ func (j *joining) Summary(context.Context) string {
 	if j.role == join.Primary {
 		summary += " This machine is its main and backs it up."
 	} else if j.current != nil {
-		summary += " " + j.current.Machine + " stays its main; mse claim-backup-main takes over later."
+		summary += " " + j.current.Machine + " stays its main; mse backup --take-over takes over later."
 	}
 	if j.restored {
 		summary += " The backup holds app state, not media: copy the media over, or rescan each app once it's here."

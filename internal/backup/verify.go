@@ -28,14 +28,14 @@ func (b *Backups) Verify(ctx context.Context) (err error) {
 			b.Pinger.Ping(finishing, "verify", "/fail")
 		}
 	}()
-	b.Pinger.Ping(ctx, "verify", "/start")
-	state, latest, err := b.main(ctx)
+	latest, refused, err := b.refuseOnCopy(ctx, "verify", "Its backups are checked there; mse backup --take-over makes this machine the main.")
 	if err != nil {
 		return fmt.Errorf("%w; nothing was checked", err)
 	}
-	if state == anotherMachine {
-		return fmt.Errorf("another machine is %s's main; its verification runs there", b.Installation.Name)
+	if refused {
+		return nil
 	}
+	b.Pinger.Ping(ctx, "verify", "/start")
 	if err := b.Repository.Unlock(ctx); err != nil {
 		return err
 	}

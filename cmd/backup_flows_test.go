@@ -78,6 +78,18 @@ func backupDependencies(t *testing.T, home, tmp string, runner commandRunner, co
 	}
 }
 
+func withoutSystemMachineID(t *testing.T, deps *Dependencies, without bool) {
+	if without {
+		deps.MachineIDFile = filepath.Join(t.TempDir(), "no-machine-id")
+	}
+}
+
+func assertIdentityUnread(t *testing.T, unread bool, data string) {
+	if unread {
+		assert.NoFileExists(t, filepath.Join(data, ".machine-id"), "only the commands that need it read the machine's identity")
+	}
+}
+
 func TestBackupCommandFlows(t *testing.T) {
 	project := &types.Project{Name: "media-server"}
 	type Given struct {
@@ -88,10 +100,11 @@ func TestBackupCommandFlows(t *testing.T) {
 		args []string
 	}
 	type Then struct {
-		expect func(r *mockCommandRunner, c *mockComposeRunner, data, tmp string)
-		stdout string
-		stderr string
-		pings  []string
+		expect     func(r *mockCommandRunner, c *mockComposeRunner, data, tmp string)
+		stdout     string
+		stderr     string
+		pings      []string
+		noIdentity bool
 	}
 	backsUp := func(r *mockCommandRunner, c *mockComposeRunner, data string) {
 		c.EXPECT().RunningServices(mock.Anything, project).Return([]string{"jellyfin"}, nil)
@@ -128,8 +141,8 @@ func TestBackupCommandFlows(t *testing.T) {
 				pings:  []string{"/ping-key/gorgon-backup/start", "/ping-key/gorgon-backup"},
 			},
 		},
-		"claim-backup-main --yes": {
-			When: When{args: []string{"claim-backup-main", "--yes"}},
+		"backup --take-over --yes": {
+			When: When{args: []string{"backup", "--take-over", "--yes"}},
 			Then: Then{
 				expect: func(r *mockCommandRunner, c *mockComposeRunner, data, _ string) {
 					r.EXPECT().Output(mock.Anything, resticCall("cat", "config", "--no-lock")).Return(process.Result{}, nil)
@@ -140,9 +153,9 @@ func TestBackupCommandFlows(t *testing.T) {
 				pings:  []string{"/ping-key/gorgon-backup/start", "/ping-key/gorgon-backup"},
 			},
 		},
-		"claim-backup-main asks first": {
+		"backup --take-over asks first": {
 			Given: Given{interactive: true, stdin: "y\n"},
-			When:  When{args: []string{"claim-backup-main"}},
+			When:  When{args: []string{"backup", "--take-over"}},
 			Then: Then{
 				expect: func(r *mockCommandRunner, c *mockComposeRunner, data, _ string) {
 					r.EXPECT().Output(mock.Anything, resticCall("cat", "config", "--no-lock")).Return(process.Result{}, nil)
@@ -157,7 +170,8 @@ func TestBackupCommandFlows(t *testing.T) {
 		"restore --overwrite": {
 			When: When{args: []string{"restore", "--overwrite"}},
 			Then: Then{
-				stdout: "previous volumes/ kept in <data>/volumes.before-restore-20261005-043000; delete it once the restore looks right\nRestoring volumes/ from the latest backup... restored.\n",
+				noIdentity: true,
+				stdout:     "previous volumes/ kept in <data>/volumes.before-restore-20261005-043000; delete it once the restore looks right\nRestoring volumes/ from the latest backup... restored.\n",
 				expect: func(r *mockCommandRunner, c *mockComposeRunner, data, _ string) {
 					c.EXPECT().AnyRunning(mock.Anything, project).Return(false, nil)
 					r.EXPECT().Run(mock.Anything, resticCall("unlock")).Return(0, nil)
@@ -204,6 +218,7 @@ func TestBackupCommandFlows(t *testing.T) {
 			tt.Then.expect(runner, composer, resolved, tmp)
 			var pings []string
 			deps := backupDependencies(t, home, tmp, runner, composer, tt.Given.interactive, &pings)
+			withoutSystemMachineID(t, &deps, tt.Then.noIdentity)
 			root := NewRootCommand(deps)
 			var stdout, stderr bytes.Buffer
 			root.SetOut(&stdout)
@@ -216,6 +231,7 @@ func TestBackupCommandFlows(t *testing.T) {
 			assert.Equal(t, strings.ReplaceAll(tt.Then.stdout, "<data>", data), stdout.String())
 			assert.Equal(t, tt.Then.stderr, stderr.String())
 			assert.Equal(t, tt.Then.pings, pings)
+			assertIdentityUnread(t, tt.Then.noIdentity, data)
 		})
 	}
 }

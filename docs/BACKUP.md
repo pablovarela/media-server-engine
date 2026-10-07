@@ -20,8 +20,8 @@ restic keeps 7 daily, 4 weekly and 6 monthly snapshots, and removes older ones a
 ## Which machine backs up
 
 - One machine per installation backs up: its **main**, the machine that made the latest snapshot. Snapshots are tagged with the machine's id and name.
-- Any other machine refuses to back up, so two machines never write competing snapshots.
-- `mse status` says which machine is the main. `mse claim-backup-main` makes this machine the main: it backs up once, and from then on the old main refuses. When another machine is the main, it first names it and the time of its last backup, and asks.
+- Any other machine refuses to back up, so two machines never write competing snapshots. The refusal names the main and when it last backed up, and isn't reported as a failure; checking the backups is refused the same way, since the main does that too.
+- `mse status` says which machine is the main. `mse backup --take-over` makes this machine the main: it backs up once, and from then on the old main refuses. When another machine is the main, it first names it and the time of its last backup, and asks; `--yes` takes over without asking.
 - `mse create` makes the new machine the main; `mse join` asks.
 
 ## Running a backup
@@ -35,8 +35,7 @@ restic keeps 7 daily, 4 weekly and 6 monthly snapshots, and removes older ones a
 
 - A restic process that is killed (a power cut, a sleeping laptop, an interrupted command) leaves its lock behind.
 - A backup, check or restore first removes stale locks: those whose process is gone from this machine, and those nobody refreshed for 30 minutes.
-- If a lock still gets in the way, restic waits up to two hours, then the job fails and names the machine, process and time behind each lock.
-- `mse unlock-backup` removes stale locks and lists the ones left; `mse unlock-backup --all` removes every lock (only when no machine is running restic on the repository).
+- If a lock still gets in the way, restic waits up to two hours, then the job fails and names the machine, process and time behind each lock. A lock whose process is gone goes stale 30 minutes after its last refresh, and the next run removes it.
 
 ## Being told when something fails
 

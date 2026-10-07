@@ -42,7 +42,7 @@ func TestSetUp(t *testing.T) {
 		"grace": float64(7200), "channels": "*", "unique": []any{"slug"},
 		"desc": "Nightly backup of gorgon's app state (libraries, history, users, settings) to Backblaze B2 with restic. Media files are not included. " +
 			"Runs daily at 04:30 on the main machine via the mse-gorgon-backup timer (mse backup). " +
-			"If it fails: ssh pablo@gorgon.local, journalctl --user-unit mse-gorgon-backup.service --since today; mse unlock-backup clears a stale lock.",
+			"If it fails: ssh pablo@gorgon.local, journalctl --user-unit mse-gorgon-backup.service --since today; a stale lock is cleared before the next run.",
 	}, bodies[0])
 	assert.Equal(t, "Weekly check that gorgon's backups in Backblaze B2 can be read back (restic check). "+
 		"Runs on Sundays at 05:30 on the main machine via the mse-gorgon-verify timer (mse verify-backup). "+

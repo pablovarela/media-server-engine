@@ -36,7 +36,7 @@ func (b *Backups) Claim(ctx context.Context, yes bool) error {
 		return err
 	}
 	if !held && latest != nil {
-		return fmt.Errorf("volumes/ in %s holds no app data, so claiming would make an empty backup %s's latest; restore first with mse restore, then claim", b.Installation.Data, b.Installation.Name)
+		return fmt.Errorf("volumes/ in %s holds no app data, so claiming would make an empty backup %s's latest; restore first with mse restore, then mse backup --take-over", b.Installation.Data, b.Installation.Name)
 	}
 	if err := b.backup(ctx, true); err != nil {
 		return err
@@ -56,7 +56,7 @@ func (b *Backups) confirmTakingOver(ctx context.Context, yes bool) (*restic.Snap
 	b.Report.Warn(fmt.Sprintf("%s's main is %s. Taking over makes it refuse to back up.", b.Installation.Name, describe(latest)))
 	answer, interactive := b.Ask("Make this machine the main instead? (y/n) ")
 	if !interactive {
-		return nil, errors.New("nothing was claimed; --yes takes over without asking")
+		return nil, errors.New("nothing was claimed; mse backup --take-over --yes takes over without asking")
 	}
 	if answer != "y" && answer != "Y" {
 		return nil, errors.New("nothing was claimed")
@@ -83,12 +83,16 @@ func (b *Backups) backupHolding(ctx context.Context, lock *heldLock, claiming bo
 		err = b.finish(context.WithoutCancel(ctx), stopped, err)
 		release()
 	}()
-	b.Pinger.Ping(ctx, "backup", "/start")
 	if !claiming {
-		if err := b.requireMain(ctx); err != nil {
-			return err
+		_, refused, err := b.refuseOnCopy(ctx, "backup", "This machine doesn't back up; mse backup --take-over makes it the main and backs up now.")
+		if err != nil {
+			return fmt.Errorf("%w; nothing was backed up", err)
+		}
+		if refused {
+			return nil
 		}
 	}
+	b.Pinger.Ping(ctx, "backup", "/start")
 	dir, err := b.dataToBackUp(claiming)
 	if err != nil {
 		return err
@@ -207,16 +211,18 @@ func (b *Backups) removeOldSnapshots(ctx context.Context, lock *heldLock) error 
 	return nil
 }
 
-func (b *Backups) requireMain(ctx context.Context) error {
-	state, _, err := b.main(ctx)
+func (b *Backups) refuseOnCopy(ctx context.Context, job, instead string) (*restic.Snapshot, bool, error) {
+	state, latest, err := b.main(ctx)
 	if err != nil {
-		return fmt.Errorf("%w; nothing was backed up", err)
+		b.Pinger.Ping(ctx, job, "/start")
+		return nil, false, err
 	}
-	if state == anotherMachine {
-		if err := removeMarker(b.Installation.Data); err != nil {
-			return err
-		}
-		return fmt.Errorf("another machine is %s's main; this machine does not back up (mse claim-backup-main makes it the main)", b.Installation.Name)
+	if state != anotherMachine {
+		return latest, false, nil
 	}
-	return nil
+	if err := removeMarker(b.Installation.Data); err != nil {
+		return nil, false, err
+	}
+	b.Report.Say(fmt.Sprintf("%s's main is %s. %s", b.Installation.Name, describe(latest), instead))
+	return latest, true, nil
 }
