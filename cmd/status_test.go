@@ -28,9 +28,9 @@ func succeededTimers(units []string) string {
 	var blocks []string
 	for _, unit := range units {
 		if strings.HasSuffix(unit, ".service") {
-			blocks = append(blocks, "Result=success\nExecMainExitTimestamp=Mon 2026-10-05 03:31:41 UTC\nId="+unit+"\nLoadState=loaded")
+			blocks = append(blocks, "ActiveState=inactive\nResult=success\nId="+unit+"\nLoadState=loaded")
 		} else if strings.HasSuffix(unit, ".timer") {
-			blocks = append(blocks, "NextElapseUSecRealtime=Tue 2026-10-06 03:30:00 UTC\nResult=success\nId="+unit+"\nLoadState=loaded")
+			blocks = append(blocks, "LastTriggerUSec=Mon 2026-10-05 03:30:58 UTC\nNextElapseUSecRealtime=Tue 2026-10-06 03:30:00 UTC\nResult=success\nId="+unit+"\nLoadState=loaded")
 		}
 	}
 	return strings.Join(blocks, "\n\n") + "\n"
@@ -109,7 +109,7 @@ func TestStatus(t *testing.T) {
 	}{
 		"a healthy main": {
 			Given: healthy,
-			Then: Then{contains: []string{"gorgon on mse v0.23.0", "This machine is the main", "Stack: 2 of 2 services running",
+			Then: Then{contains: []string{"gorgon on mse v0.23.0", "This machine is the main", "Stack: 2 of 2 services running", "last ran 5 Oct 03:30, succeeded",
 				"Last backup: 5 Oct 03:30 by gorgon", "check-backup", "clean-downloads", "Jellyfin", "http://gorgon.local:8096"}},
 		},
 		"a service down": {

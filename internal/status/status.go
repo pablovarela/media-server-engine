@@ -97,6 +97,8 @@ func (r Report) timers(now time.Time) string {
 
 func lastRun(s timers.JobStatus, now time.Time) string {
 	switch {
+	case s.Running:
+		return "running now, since " + when(s.LastRun, now)
 	case !s.Succeeded() && s.LastRun.IsZero():
 		return "last run failed (" + s.Result + ")"
 	case !s.Succeeded():

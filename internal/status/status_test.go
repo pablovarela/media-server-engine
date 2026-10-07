@@ -75,6 +75,12 @@ func TestRender(t *testing.T) {
 			},
 			Then: []string{"last run failed (start-limit-hit)"},
 		},
+		"a timer running now": {
+			Given: func(r *Report) {
+				r.Timers[1].Status = timers.JobStatus{Result: "success", Running: true, LastRun: now.Add(-time.Minute)}
+			},
+			Then: []string{"running now, since 7 Oct 11:59"},
+		},
 		"a timer that hasn't run": {
 			Given: func(r *Report) { r.Timers[0].Status.LastRun = time.Time{} },
 			Then:  []string{"hasn't run yet"},

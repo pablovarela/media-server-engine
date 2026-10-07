@@ -24,29 +24,30 @@ func (s showRunner) Output(_ context.Context, c process.Command) (process.Result
 	assert.Equal(s.t, []string{"--user", "show",
 		"mse-home-update.service", "mse-home-update.timer", "mse-home-backup.service", "mse-home-backup.timer",
 		"mse-home-verify.service", "mse-home-verify.timer", "mse-home-download-cleanup.service", "mse-home-download-cleanup.timer",
-		"--property=Id,LoadState,Result,ExecMainExitTimestamp,NextElapseUSecRealtime"}, c.Args)
+		"--property=Id,LoadState,ActiveState,Result,LastTriggerUSec,NextElapseUSecRealtime"}, c.Args)
 	assert.Equal(s.t, []string{"TZ=UTC"}, c.Env)
 	return process.Result{Stdout: []byte(s.stdout)}, s.err
 }
 
 func shown(blocks ...string) string { return strings.Join(blocks, "\n\n") + "\n" }
 
-func service(job, result, exited string) string {
-	return "Result=" + result + "\nExecMainExitTimestamp=" + exited + "\nId=mse-home-" + job + ".service\nLoadState=loaded"
+func service(job, state, result string) string {
+	return "ActiveState=" + state + "\nResult=" + result + "\nId=mse-home-" + job + ".service\nLoadState=loaded"
 }
 
-func timer(job, next string) string {
-	return "NextElapseUSecRealtime=" + next + "\nResult=success\nId=mse-home-" + job + ".timer\nLoadState=loaded"
+func timer(job, triggered, next string) string {
+	return "LastTriggerUSec=" + triggered + "\nNextElapseUSecRealtime=" + next + "\nResult=success\nId=mse-home-" + job + ".timer\nLoadState=loaded"
 }
 
 func missing(job string) string {
-	return "Result=success\nExecMainExitTimestamp=\nId=mse-home-" + job + ".service\nLoadState=not-found\n\n" +
-		"NextElapseUSecRealtime=\nResult=success\nId=mse-home-" + job + ".timer\nLoadState=not-found"
+	return "ActiveState=inactive\nResult=success\nId=mse-home-" + job + ".service\nLoadState=not-found\n\n" +
+		"LastTriggerUSec=\nNextElapseUSecRealtime=\nResult=success\nId=mse-home-" + job + ".timer\nLoadState=not-found"
 }
 
 func TestStatus(t *testing.T) {
-	ran := time.Date(2026, 10, 7, 3, 31, 41, 0, time.UTC)
+	ran := time.Date(2026, 10, 7, 3, 30, 58, 0, time.UTC)
 	next := time.Date(2026, 10, 8, 3, 30, 0, 0, time.UTC)
+	const triggered, upcoming = "Wed 2026-10-07 03:30:58 UTC", "Thu 2026-10-08 03:30:00 UTC"
 	type Given struct {
 		stdout string
 		err    error
@@ -59,12 +60,12 @@ func TestStatus(t *testing.T) {
 		Given Given
 		Then  Then
 	}{
-		"a main's four timers, one failed": {
+		"a main's four timers: one failed, one never triggered": {
 			Given: Given{stdout: shown(
-				service("update", "success", "Wed 2026-10-07 03:31:41 UTC"), timer("update", "Thu 2026-10-08 03:30:00 UTC"),
-				service("backup", "exit-code", "Wed 2026-10-07 03:31:41 UTC"), timer("backup", "Thu 2026-10-08 03:30:00 UTC"),
-				service("verify", "success", ""), timer("verify", "Thu 2026-10-08 03:30:00 UTC"),
-				service("download-cleanup", "success", "Wed 2026-10-07 03:31:41 UTC"), timer("download-cleanup", "Thu 2026-10-08 03:30:00 UTC"))},
+				service("update", "inactive", "success"), timer("update", triggered, upcoming),
+				service("backup", "inactive", "exit-code"), timer("backup", triggered, upcoming),
+				service("verify", "inactive", "success"), timer("verify", "", upcoming),
+				service("download-cleanup", "inactive", "success"), timer("download-cleanup", triggered, upcoming))},
 			Then: Then{statuses: []JobStatus{
 				{Job: Update, Result: "success", LastRun: ran, Next: next},
 				{Job: Backup, Result: "exit-code", LastRun: ran, Next: next},
@@ -72,21 +73,21 @@ func TestStatus(t *testing.T) {
 				{Job: Cleanup, Result: "success", LastRun: ran, Next: next},
 			}},
 		},
-		"a copy without backup timers, and a failure with no exit time": {
+		"running now, with no next run until it ends": {
 			Given: Given{stdout: shown(
-				service("update", "start-limit-hit", ""), timer("update", "Thu 2026-10-08 03:30:00 UTC"),
+				service("update", "inactive", "success"), timer("update", triggered, upcoming),
 				missing("backup"), missing("verify"),
-				service("download-cleanup", "success", "Wed 2026-10-07 03:31:41 UTC"), timer("download-cleanup", "Thu 2026-10-08 03:30:00 UTC"))},
+				service("download-cleanup", "activating", "success"), timer("download-cleanup", triggered, ""))},
 			Then: Then{statuses: []JobStatus{
-				{Job: Update, Result: "start-limit-hit", Next: next},
-				{Job: Cleanup, Result: "success", LastRun: ran, Next: next},
+				{Job: Update, Result: "success", LastRun: ran, Next: next},
+				{Job: Cleanup, Result: "success", Running: true, LastRun: ran},
 			}},
 		},
 		"a time systemd printed in an unexpected form": {
 			Given: Given{stdout: shown(
-				service("update", "success", "2026-10-07T03:31:41Z"), timer("update", "Thu 2026-10-08 03:30:00 UTC"),
+				service("update", "inactive", "success"), timer("update", "2026-10-07T03:30:58Z", upcoming),
 				missing("backup"), missing("verify"), missing("download-cleanup"))},
-			Then: Then{err: `read the timers from systemd: mse-home-update.service's ExecMainExitTimestamp "2026-10-07T03:31:41Z" isn't a time`},
+			Then: Then{err: `read the timers from systemd: mse-home-update.timer's LastTriggerUSec "2026-10-07T03:30:58Z" isn't a time`},
 		},
 		"systemctl failing": {
 			Given: Given{err: errors.New("Failed to connect to bus")},
