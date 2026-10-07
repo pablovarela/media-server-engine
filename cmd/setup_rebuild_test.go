@@ -357,3 +357,65 @@ func TestSetupRebuildingStopsBeforeThePromptWhenTheConfigHasNoSecrets(t *testing
 	assert.Contains(t, stderr, "the config has no encrypted secrets to check the key against")
 	assert.NoDirExists(t, f.config)
 }
+
+func (f *joinFixture) clonesAConfigWithAMediaBackup(t *testing.T) {
+	f.effects["git clone --quiet -- "+joinCloneURL+" "+f.config] = func() {
+		writeClonedConfig(t, f.config)
+		withSettings(t, f.deps.Home, "MEDIA_BACKUP=yes\n")
+	}
+}
+
+func (f *joinFixture) restoresTheLatestBackup() {
+	f.answers["restic snapshots --no-lock --host gorgon --json"] = process.Result{
+		Stdout: []byte(`[{"time":"2026-10-06T04:30:00Z","tags":["machine:other","machine-name:gorgon-pi"]}]`)}
+	f.runner.EXPECT().Run(mock.Anything, mock.MatchedBy(func(c process.Command) bool {
+		return c.Name == "restic" && len(c.Args) == 1 && c.Args[0] == "unlock"
+	})).Return(0, nil).Maybe()
+	f.runner.EXPECT().Run(mock.Anything, mock.MatchedBy(func(c process.Command) bool {
+		return c.Name == "restic" && len(c.Args) > 0 && c.Args[0] == "restore"
+	})).Return(0, nil).Maybe()
+	f.prompter.EXPECT().Ask("Make this machine the main instead?", false).Return(false, nil).Once()
+}
+
+func TestSetupRebuildingWithAMediaBackupLeavesTheStackStopped(t *testing.T) {
+	f := newJoinFixture(t)
+	f.repositoryExists()
+	f.pastesTheKey()
+	f.clonesAConfigWithAMediaBackup(t)
+	f.restoresTheLatestBackup()
+	project := &types.Project{Name: "media-server"}
+	composer := newMockComposeRunner(t)
+	composer.EXPECT().Load(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(project, nil)
+	composer.EXPECT().AnyRunning(mock.Anything, project).Return(false, nil)
+	composer.EXPECT().Pull(mock.Anything, project).Return(compose.Pulled{}, nil)
+	f.deps.Compose = func(io.Writer, *compose.Outcomes) (composeRunner, error) { return composer, nil }
+
+	code, stdout, stderr := f.join(t, "gorgon")
+
+	assert.Equal(t, 0, code, stderr)
+	assert.Contains(t, stdout, "gorgon is set up without its media. Bring it back, then start, with:\n  mse restore --media\nOr start without it:\n  mse apply")
+	assert.FileExists(t, filepath.Join(f.deps.Home, ".local", "share", "mse", "gorgon", ".media-restore-pending"), "the nightly update leaves the stack stopped too")
+}
+
+func TestSetupKeepingTheAppDataStartsTheStackEvenWithAMediaBackup(t *testing.T) {
+	f := newJoinFixture(t)
+	f.repositoryExists()
+	f.pastesTheKey()
+	f.clonesAConfigWithAMediaBackup(t)
+	data := filepath.Join(f.deps.Home, ".local", "share", "mse", "gorgon")
+	require.NoError(t, os.MkdirAll(filepath.Join(data, "volumes", "jellyfin"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(data, "volumes", "jellyfin", "library.db"), []byte("kept"), 0o644))
+	f.answers["restic snapshots --no-lock --host gorgon --json"] = process.Result{
+		Stdout: []byte(`[{"time":"2026-10-06T04:30:00Z","tags":["machine:other","machine-name:gorgon-pi"]}]`)}
+	project := &types.Project{Name: "media-server"}
+	composer := newMockComposeRunner(t)
+	composer.EXPECT().Load(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(project, nil)
+	composer.EXPECT().Pull(mock.Anything, project).Return(compose.Pulled{}, nil)
+	composer.EXPECT().Up(mock.Anything, project, mock.Anything, mock.Anything).Return(errors.New("stop at the start"))
+	composer.EXPECT().Detached(mock.Anything, project, mock.Anything, mock.Anything).Return(nil, nil).Maybe()
+	f.deps.Compose = func(io.Writer, *compose.Outcomes) (composeRunner, error) { return composer, nil }
+
+	_, _, stderr := f.join(t, "gorgon")
+
+	assert.Contains(t, stderr, "stop at the start")
+}

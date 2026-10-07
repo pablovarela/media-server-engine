@@ -363,3 +363,36 @@ func TestThePullSaysHowManyImagesWereNew(t *testing.T) {
 		})
 	}
 }
+
+func TestTheNightlyApplyLeavesTheStackStoppedUntilTheMediaIsRestored(t *testing.T) {
+	f := newApplyFixture(t)
+	require.NoError(t, os.WriteFile(filepath.Join(f.data, ".media-restore-pending"), nil, 0o644))
+	f.composer.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, mock.Anything).Return(f.project, nil)
+	f.composer.EXPECT().Pull(mock.Anything, f.project).Return(compose.Pulled{}, nil)
+	root := NewRootCommand(f.deps(t, false))
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+
+	code := run(context.Background(), root, []string{"apply", "--after-update=a1b2c3"})
+
+	assert.Equal(t, 0, code, stderr.String())
+	assert.Contains(t, stdout.String(), "Leaving the stack stopped: gorgon's media is still to be restored (mse restore --media, or mse apply to start without it).\n")
+	assert.FileExists(t, filepath.Join(f.data, ".media-restore-pending"))
+}
+
+func TestApplyByHandStartsWithoutTheMedia(t *testing.T) {
+	f := newApplyFixture(t)
+	require.NoError(t, os.WriteFile(filepath.Join(f.data, ".media-restore-pending"), nil, 0o644))
+	f.expectApply(nil)
+	root := NewRootCommand(f.deps(t, false))
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+
+	code := run(context.Background(), root, []string{"apply"})
+
+	assert.Equal(t, 0, code, stderr.String())
+	assert.Contains(t, stdout.String(), "Starting without gorgon's media; mse restore --media brings it back later, with the stack stopped.\n")
+	assert.NoFileExists(t, filepath.Join(f.data, ".media-restore-pending"))
+}

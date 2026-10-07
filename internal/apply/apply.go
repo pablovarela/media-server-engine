@@ -46,15 +46,16 @@ type Timers interface {
 }
 
 type Apply struct {
-	Stack    Stack
-	Checks   Checks
-	Wiring   Wiring
-	Page     Page
-	Images   Images
-	Timers   Timers
-	MkdirAll func(path string) error
-	Sleep    func(ctx context.Context, d time.Duration) error
-	Report   *report.Reporter
+	Stack       Stack
+	Checks      Checks
+	Wiring      Wiring
+	Page        Page
+	Images      Images
+	Timers      Timers
+	KeepStopped string
+	MkdirAll    func(path string) error
+	Sleep       func(ctx context.Context, d time.Duration) error
+	Report      *report.Reporter
 }
 
 func (a *Apply) Run(ctx context.Context) error {
@@ -77,6 +78,14 @@ func (a *Apply) converge(ctx context.Context) error {
 	if err := a.pull(ctx); err != nil {
 		return err
 	}
+	if a.KeepStopped != "" {
+		a.Report.Say("Leaving the stack stopped: " + a.KeepStopped + ".")
+		return nil
+	}
+	return a.startAndWire(ctx)
+}
+
+func (a *Apply) startAndWire(ctx context.Context) error {
 	if err := a.start(ctx); err != nil {
 		return err
 	}

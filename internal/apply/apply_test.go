@@ -340,3 +340,22 @@ func TestTheTimersWarningsFollowTheirResult(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, strings.HasSuffix(out.String(), "Setting up the timers... all 4 unchanged.\nthe nightly update can't get a GitHub token\n"), out.String())
 }
+
+func TestApplyKeepingTheStackStoppedPullsAndSetsUpTheTimersOnly(t *testing.T) {
+	ctx := context.Background()
+	stack := newMockStack(t)
+	stack.EXPECT().BindSources().Return(nil)
+	stack.EXPECT().Pull(ctx).Return("pulled 2 images", nil)
+	timers := newMockTimers(t)
+	timers.EXPECT().Set(ctx).Return("all 4 unchanged", nil, nil)
+	var stdout bytes.Buffer
+
+	err := (&Apply{
+		Stack: stack, Page: newMockPage(t), Images: newMockImages(t), Wiring: newMockWiring(t), Timers: timers, KeepStopped: "the media is still to be restored",
+		MkdirAll: func(string) error { return nil }, Sleep: func(context.Context, time.Duration) error { return nil }, Report: report.New(&stdout, &stdout, nil),
+	}).Run(ctx)
+
+	require.NoError(t, err)
+	assert.Equal(t, "Creating the data folders... done.\nPulling images... pulled 2 images.\nLeaving the stack stopped: the media is still to be restored.\n"+
+		"Setting up the timers... all 4 unchanged.\n", stdout.String())
+}
