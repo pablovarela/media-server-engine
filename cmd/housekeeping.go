@@ -1,9 +1,12 @@
 package cmd
 
 import (
+	"errors"
+
 	"github.com/spf13/cobra"
 
 	"github.com/pablovarela/media-server-engine/internal/downloads"
+	"github.com/pablovarela/media-server-engine/internal/timers"
 )
 
 func newRemoveExecutableDownloadsCommand(deps Dependencies) *cobra.Command {
@@ -16,7 +19,12 @@ func newRemoveExecutableDownloadsCommand(deps Dependencies) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return downloads.Clean(cmd.Context(), deps.HTTP, i, 200, cmd.OutOrStdout(), cmd.ErrOrStderr())
+			record := deps.recorder(i)
+			if err := record.Start(timers.Cleanup.Name); err != nil {
+				return err
+			}
+			cleaned := downloads.Clean(cmd.Context(), deps.HTTP, i, 200, cmd.OutOrStdout(), cmd.ErrOrStderr())
+			return errors.Join(cleaned, record.Finish(timers.Cleanup.Name, cleaned != nil))
 		},
 	}
 }

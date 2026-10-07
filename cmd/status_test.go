@@ -43,6 +43,7 @@ type statusGiven struct {
 	apps      string
 	settings  string
 	dockerErr error
+	records   map[string]string
 }
 
 func statusDependencies(t *testing.T, given statusGiven) (string, Dependencies, *[]string) {
@@ -53,6 +54,11 @@ func statusDependencies(t *testing.T, given statusGiven) (string, Dependencies, 
 		current, err := os.ReadFile(filepath.Join(config, "installation.env"))
 		require.NoError(t, err)
 		require.NoError(t, os.WriteFile(filepath.Join(config, "installation.env"), append(current, given.settings...), 0o644))
+	}
+	for job, record := range given.records {
+		dir := filepath.Join(home, ".local", "state", "mse", "gorgon", "runs")
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, job+".json"), []byte(record), 0o644))
 	}
 	if given.apps != "" {
 		require.NoError(t, os.WriteFile(filepath.Join(config, "secrets", "apps.sops.env"), []byte(given.apps), 0o644))
@@ -109,7 +115,7 @@ func TestStatus(t *testing.T) {
 	}{
 		"a healthy main": {
 			Given: healthy,
-			Then: Then{contains: []string{"gorgon on mse v0.23.0", "This machine is the main", "Stack: 2 of 2 services running", "last ran 5 Oct 03:30, succeeded",
+			Then: Then{contains: []string{"gorgon on mse v0.23.0", "This machine is the main", "Stack: 2 of 2 services running",
 				"Last backup: 5 Oct 03:30 by gorgon", "check-backup", "clean-downloads", "Jellyfin", "http://gorgon.local:8096"}},
 		},
 		"a service down": {
@@ -135,6 +141,12 @@ func TestStatus(t *testing.T) {
 		"docker unreachable": {
 			Given: Given{snapshots: healthy.snapshots, systemd: true, dockerErr: errors.New("Cannot connect to the Docker daemon")},
 			Then:  Then{code: 1, contains: []string{"Stack: couldn't read it: Cannot connect to the Docker daemon", "This machine is the main", "check-backup", "Jellyfin"}},
+		},
+		"a recorded failure": {
+			Given: Given{running: healthy.running, snapshots: healthy.snapshots, systemd: true,
+				records: map[string]string{"update": `{"started":"2026-10-05T04:00:58Z","pid":1,"ended":"2026-10-05T04:03:00Z","failed":true}`,
+					"backup": `{"started":"2026-10-05T03:30:58Z","pid":1,"ended":"2026-10-05T03:31:41Z"}`}},
+			Then: Then{code: 1, contains: []string{"last ran 5 Oct 04:00, failed", "last ran 5 Oct 03:30, succeeded", "update's last run failed"}},
 		},
 		"no passwords": {
 			Given: Given{running: healthy.running, snapshots: healthy.snapshots, systemd: true, apps: "JELLYFIN_ADMIN_PASSWORD=s3cret\n"},

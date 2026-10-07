@@ -46,6 +46,7 @@
 | Data: app state, media, downloads | `~/.local/share/mse/<name>` | `XDG_DATA_HOME` |
 | Generated files, decrypted secrets included | `~/.local/state/mse/<name>` | `XDG_STATE_HOME` |
 | Logs | `~/.local/state/mse/<name>/logs/mse.log` | `XDG_STATE_HOME` |
+| The last run of each timed job | `~/.local/state/mse/<name>/runs` | `XDG_STATE_HOME` |
 | The pinned restic | `~/.cache/mse/restic` | `XDG_CACHE_HOME` |
 | The secrets key | `~/.config/sops/age/keys.txt` | `SOPS_AGE_KEY_FILE` |
 
@@ -151,11 +152,11 @@ Shows this machine's installation. It changes nothing and prints no passwords.
   - the installation and the `mse` version;
   - whether this machine is the main, and when the latest backup was made and by which machine;
   - how many of the stack's containers are running;
-  - each timer's last run, whether it succeeded, and its next run;
+  - each timer's last run, whether it succeeded or is still running, and its next run. `backup`, `check-backup`, `update --apply` and `clean-downloads` record their own runs, from a timer or by hand, so this survives restarts;
   - the address of the landing page and of every app.
 - **When a part can't be read,** for example the backup repository is unreachable, that part says why and the rest still shows. Without systemd there are no timers to show.
 - **Exit code:** 1 when something needs attention, listed at the end:
-  - a timer's last run failed;
+  - a timed job's last run failed, or stopped before finishing;
   - a container of the stack isn't running, or the stack has no containers;
   - the backup repository, the stack or the timers couldn't be read;
   - this machine is the main and its latest backup is more than 2 days old.
