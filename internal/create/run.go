@@ -87,7 +87,7 @@ func discard(i Installation, undos []Undo, err error, shield func() func()) erro
 	if len(undos) > 1 {
 		kept += " apart from this run's log in " + i.Logs
 	}
-	again := "run mse create " + i.Name + " again."
+	again := "run mse setup " + i.Name + " again."
 	reminder := ""
 	if keyRemoved {
 		reminder = "\nThe secrets key shown for " + i.Name + " was removed; if you saved it, delete it from your password manager."
@@ -101,7 +101,7 @@ func discard(i Installation, undos []Undo, err error, shield func() func()) erro
 	case errors.Is(err, configure.ErrAborted) || errors.Is(err, context.Canceled):
 		return fmt.Errorf("stopped before %s was created. %s; %s%s", i.Name, kept, again, reminder)
 	case errors.Is(err, errNameTaken):
-		return fmt.Errorf("%w\n%s. To add this machine to that installation, run mse join %s; otherwise choose another name.%s", err, kept, i.Name, reminder)
+		return fmt.Errorf("%w\n%s. To rebuild from that installation instead, run mse setup %s again; otherwise choose another name.%s", err, kept, i.Name, reminder)
 	}
 	return fmt.Errorf("%w\n%s; %s%s", err, kept, again, reminder)
 }

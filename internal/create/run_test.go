@@ -82,13 +82,13 @@ func TestRunUndoesWhatItWrote(t *testing.T) {
 		undone  []string
 		message string
 	}{
-		"key": {[]string{"key"}, "broken\nNothing was kept; run mse create gorgon again.\n" +
+		"key": {[]string{"key"}, "broken\nNothing was kept; run mse setup gorgon again.\n" +
 			"The secrets key shown for gorgon was removed; if you saved it, delete it from your password manager."},
-		"config": {[]string{"config", "key"}, "broken\nNothing was kept apart from this run's log in /s/gorgon/logs; run mse create gorgon again.\n" +
+		"config": {[]string{"config", "key"}, "broken\nNothing was kept apart from this run's log in /s/gorgon/logs; run mse setup gorgon again.\n" +
 			"The secrets key shown for gorgon was removed; if you saved it, delete it from your password manager."},
-		"settings": {[]string{"config", "key"}, "broken\nNothing was kept apart from this run's log in /s/gorgon/logs; run mse create gorgon again.\n" +
+		"settings": {[]string{"config", "key"}, "broken\nNothing was kept apart from this run's log in /s/gorgon/logs; run mse setup gorgon again.\n" +
 			"The secrets key shown for gorgon was removed; if you saved it, delete it from your password manager."},
-		"commit": {[]string{"config", "key"}, "broken\nNothing was kept apart from this run's log in /s/gorgon/logs; run mse create gorgon again.\n" +
+		"commit": {[]string{"config", "key"}, "broken\nNothing was kept apart from this run's log in /s/gorgon/logs; run mse setup gorgon again.\n" +
 			"The secrets key shown for gorgon was removed; if you saved it, delete it from your password manager."},
 	}
 	for at, tt := range tests {
@@ -105,22 +105,22 @@ func TestRunUndoesWhatItWrote(t *testing.T) {
 func TestRunSaysQuittingKeptNothing(t *testing.T) {
 	f, err := failingRun(t, stepFailure{at: "settings", err: configure.ErrAborted})
 
-	assert.EqualError(t, err, "stopped before gorgon was created. Nothing was kept apart from this run's log in /s/gorgon/logs; run mse create gorgon again.\nThe secrets key shown for gorgon was removed; if you saved it, delete it from your password manager.")
+	assert.EqualError(t, err, "stopped before gorgon was created. Nothing was kept apart from this run's log in /s/gorgon/logs; run mse setup gorgon again.\nThe secrets key shown for gorgon was removed; if you saved it, delete it from your password manager.")
 	assert.Equal(t, []string{"config", "key"}, f.undone)
 }
 
 func TestRunSaysAnInterruptionKeptNothing(t *testing.T) {
 	f, err := failingRun(t, stepFailure{at: "commit", err: context.Canceled})
 
-	assert.EqualError(t, err, "stopped before gorgon was created. Nothing was kept apart from this run's log in /s/gorgon/logs; run mse create gorgon again.\nThe secrets key shown for gorgon was removed; if you saved it, delete it from your password manager.")
+	assert.EqualError(t, err, "stopped before gorgon was created. Nothing was kept apart from this run's log in /s/gorgon/logs; run mse setup gorgon again.\nThe secrets key shown for gorgon was removed; if you saved it, delete it from your password manager.")
 	assert.Equal(t, []string{"config", "key"}, f.undone)
 }
 
-func TestRunPointsATakenNameAtJoin(t *testing.T) {
+func TestRunPointsATakenNameAtSetup(t *testing.T) {
 	f, err := failingRun(t, stepFailure{at: "publish", err: NameTaken(errors.New("create media-server-config-gorgon: the repository already exists"))})
 
 	assert.EqualError(t, err, "create media-server-config-gorgon: the repository already exists\n"+
-		"Nothing was kept apart from this run's log in /s/gorgon/logs. To add this machine to that installation, run mse join gorgon; otherwise choose another name.\n"+
+		"Nothing was kept apart from this run's log in /s/gorgon/logs. To rebuild from that installation instead, run mse setup gorgon again; otherwise choose another name.\n"+
 		"The secrets key shown for gorgon was removed; if you saved it, delete it from your password manager.")
 	assert.Equal(t, []string{"config", "key"}, f.undone)
 }
@@ -128,7 +128,7 @@ func TestRunPointsATakenNameAtJoin(t *testing.T) {
 func TestRunDiscardsWhenPublishFailsBeforeCreating(t *testing.T) {
 	f, err := failingRun(t, stepFailure{at: "publish", err: errBroken})
 
-	assert.EqualError(t, err, "broken\nNothing was kept apart from this run's log in /s/gorgon/logs; run mse create gorgon again.\nThe secrets key shown for gorgon was removed; if you saved it, delete it from your password manager.")
+	assert.EqualError(t, err, "broken\nNothing was kept apart from this run's log in /s/gorgon/logs; run mse setup gorgon again.\nThe secrets key shown for gorgon was removed; if you saved it, delete it from your password manager.")
 	assert.Equal(t, []string{"config", "key"}, f.undone)
 }
 
@@ -164,7 +164,7 @@ func TestRunNamesAKeyItCouldNotRemove(t *testing.T) {
 
 	err := Run(context.Background(), gorgon, steps, report.New(&out, &out, nil), func() func() { return func() {} })
 
-	assert.EqualError(t, err, "broken\nThe rest was removed, but the new key stays in /k/keys.txt, which changed while mse ran; remove its lines (# media server gorgon) by hand. Then run mse create gorgon again.")
+	assert.EqualError(t, err, "broken\nThe rest was removed, but the new key stays in /k/keys.txt, which changed while mse ran; remove its lines (# media server gorgon) by hand. Then run mse setup gorgon again.")
 }
 
 func TestRunUndoesWithACancelledContext(t *testing.T) {
@@ -182,7 +182,7 @@ func TestRunUndoesWithACancelledContext(t *testing.T) {
 
 	err := Run(ctx, gorgon, steps, report.New(&out, &out, nil), func() func() { shielded = true; return func() { shielded = false } })
 
-	assert.EqualError(t, err, "stopped before gorgon was created. Nothing was kept; run mse create gorgon again.\n"+
+	assert.EqualError(t, err, "stopped before gorgon was created. Nothing was kept; run mse setup gorgon again.\n"+
 		"The secrets key shown for gorgon was removed; if you saved it, delete it from your password manager.")
 	assert.True(t, removed, "the key was removed while signals were shielded")
 }

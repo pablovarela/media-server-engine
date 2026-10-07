@@ -114,7 +114,7 @@ func discard(i Installation, undos []create.Undo, err error, shield func() func(
 	if len(undos) > 0 {
 		kept += " apart from this run's log in " + i.Logs
 	}
-	again := "run mse join " + i.Name + " again."
+	again := "run mse setup " + i.Name + " again."
 	var changed *create.KeyFileChangedError
 	switch {
 	case len(failed) == 1 && errors.As(failed[0], &changed):

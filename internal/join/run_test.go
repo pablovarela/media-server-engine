@@ -77,8 +77,8 @@ func TestRunUndoesBeforeTheRestore(t *testing.T) {
 		undone  []string
 		message string
 	}{
-		"clone": {[]string{"clone"}, "broken\nNothing was kept apart from this run's log in /s/gorgon/logs; run mse join gorgon again."},
-		"key":   {[]string{"key", "clone"}, "broken\nNothing was kept apart from this run's log in /s/gorgon/logs; run mse join gorgon again."},
+		"clone": {[]string{"clone"}, "broken\nNothing was kept apart from this run's log in /s/gorgon/logs; run mse setup gorgon again."},
+		"key":   {[]string{"key", "clone"}, "broken\nNothing was kept apart from this run's log in /s/gorgon/logs; run mse setup gorgon again."},
 	}
 	for at, tt := range tests {
 		t.Run(at, func(t *testing.T) {
@@ -95,7 +95,7 @@ func TestRunSaysStoppedWhenQuitBeforeTheRestore(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f, got := failingRun(t, stepFailure{at: "key", err: err})
 
-			assert.EqualError(t, got, "stopped before gorgon joined. Nothing was kept apart from this run's log in /s/gorgon/logs; run mse join gorgon again.")
+			assert.EqualError(t, got, "stopped before gorgon joined. Nothing was kept apart from this run's log in /s/gorgon/logs; run mse setup gorgon again.")
 			assert.Equal(t, []string{"key", "clone"}, f.undone)
 		})
 	}
@@ -112,7 +112,7 @@ func TestRunNamesAKeyItCouldNotRemove(t *testing.T) {
 	err := Run(context.Background(), gorgon, steps, report.New(&out, &out, nil), func() func() { return func() {} })
 
 	assert.EqualError(t, err, "broken\nThe rest was removed, but the new key stays in /k/keys.txt, which changed while mse ran; "+
-		"remove its lines (# media server gorgon) by hand. Then run mse join gorgon again.")
+		"remove its lines (# media server gorgon) by hand. Then run mse setup gorgon again.")
 }
 
 func TestRunNeverUndoesFromTheRestoreOn(t *testing.T) {
@@ -181,6 +181,6 @@ func TestRunUndoesWithACancelledContext(t *testing.T) {
 
 	err := Run(ctx, gorgon, steps, report.New(&out, &out, nil), func() func() { shielded = true; return func() { shielded = false } })
 
-	assert.EqualError(t, err, "stopped before gorgon joined. Nothing was kept apart from this run's log in /s/gorgon/logs; run mse join gorgon again.")
+	assert.EqualError(t, err, "stopped before gorgon joined. Nothing was kept apart from this run's log in /s/gorgon/logs; run mse setup gorgon again.")
 	assert.True(t, removed, "the clone was removed while signals were shielded")
 }

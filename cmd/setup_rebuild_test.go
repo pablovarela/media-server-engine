@@ -106,7 +106,7 @@ func (f *joinFixture) join(t *testing.T, args ...string) (int, string, string) {
 	var stdout, stderr bytes.Buffer
 	root.SetOut(&stdout)
 	root.SetErr(&stderr)
-	code := run(context.Background(), root, append([]string{"join"}, args...))
+	code := run(context.Background(), root, append([]string{"setup"}, args...))
 	return code, stdout.String(), stderr.String()
 }
 
@@ -125,28 +125,23 @@ func (f *joinFixture) pastesTheKey() {
 		}).Once()
 }
 
-func TestJoinStopsBeforeWritingAnything(t *testing.T) {
+func TestSetupRebuildingStopsBeforeWritingAnything(t *testing.T) {
 	tests := map[string]struct {
 		given func(t *testing.T, f *joinFixture)
 		args  []string
 		err   string
 	}{
 		"no terminal": {given: func(_ *testing.T, f *joinFixture) { f.deps.Terminal = func() bool { return false } },
-			err: "mse join needs a terminal; run it from an interactive shell (over ssh: ssh -t)"},
+			err: "mse setup needs a terminal; run it from an interactive shell (over ssh: ssh -t)"},
 		"bad name":       {args: []string{"Gorgon"}, err: "the installation name \"Gorgon\" must start with a lowercase letter"},
-		"--installation": {args: []string{"gorgon", "--installation", "gorgon"}, err: "mse join takes the installation's name as its argument; it has no --installation"},
-		"both roles":     {args: []string{"gorgon", "--main", "--secondary"}, err: "--main and --secondary can't both be given"},
+		"--installation": {args: []string{"gorgon", "--installation", "gorgon"}, err: "mse setup takes the installation's name as its argument; it has no --installation"},
 		"another installation here": {given: func(t *testing.T, f *joinFixture) {
 			other := filepath.Join(f.deps.Home, ".config", "mse", "medusa")
 			require.NoError(t, os.MkdirAll(other, 0o755))
 			require.NoError(t, os.WriteFile(filepath.Join(other, "installation.env"), []byte("INSTALLATION_NAME=medusa\n"), 0o644))
 		}, err: "this machine already runs the installation medusa"},
 		"already here": {given: func(t *testing.T, f *joinFixture) { require.NoError(t, os.MkdirAll(f.config, 0o755)) },
-			err: "this machine already has gorgon in " + "<config>" + "; mse update brings it up to date"},
-		"no repository": {given: func(_ *testing.T, f *joinFixture) {
-			f.repositories.EXPECT().Login(mock.Anything).Return("pablovarela", nil).Once()
-			f.repositories.EXPECT().RepositoryExists(mock.Anything, "pablovarela", "media-server-config-gorgon").Return(false, nil).Once()
-		}, err: "pablovarela/media-server-config-gorgon isn't on GitHub; to make a new installation, run mse create gorgon"},
+			err: "gorgon is already set up on this machine; mse status shows its state"},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -168,8 +163,9 @@ func TestJoinStopsBeforeWritingAnything(t *testing.T) {
 	}
 }
 
-func TestJoinStopsOnAMachineThatIsNotReady(t *testing.T) {
+func TestSetupRebuildingStopsOnAMachineThatIsNotReady(t *testing.T) {
 	f := newJoinFixture(t)
+	f.repositoryExists()
 	delete(f.answers, "loginctl show-user pablo -p Linger")
 
 	code, stdout, stderr := f.join(t, "gorgon")
@@ -180,8 +176,9 @@ func TestJoinStopsOnAMachineThatIsNotReady(t *testing.T) {
 	assert.NoDirExists(t, f.config)
 }
 
-func TestJoinHintsAtTheHomepagePortWhenPortsAreTaken(t *testing.T) {
+func TestSetupRebuildingHintsAtTheHomepagePortWhenPortsAreTaken(t *testing.T) {
 	f := newJoinFixture(t)
+	f.repositoryExists()
 	f.deps.PortFree = func(p machine.Port) bool { return p.String() != "80" }
 
 	_, stdout, _ := f.join(t, "gorgon")
@@ -189,7 +186,7 @@ func TestJoinHintsAtTheHomepagePortWhenPortsAreTaken(t *testing.T) {
 	assert.Contains(t, stdout, "If something else must keep port 80, change gorgon's homepage port with mse configure on a machine that has it.\n")
 }
 
-func TestJoinKeepsNothingWhenTheCloneFails(t *testing.T) {
+func TestSetupRebuildingKeepsNothingWhenTheCloneFails(t *testing.T) {
 	f := newJoinFixture(t)
 	f.repositoryExists()
 	f.answers["git clone --quiet -- "+joinCloneURL+" "+f.config] = process.Result{Exit: 128, Stderr: []byte("fatal: repository not found\n")}
@@ -199,11 +196,11 @@ func TestJoinKeepsNothingWhenTheCloneFails(t *testing.T) {
 
 	assert.Equal(t, 1, code)
 	assert.Equal(t, "mse: git clone failed (exit 128): fatal: repository not found; check gh auth status and that this account can read pablovarela/media-server-config-gorgon\n"+
-		"Nothing was kept; run mse join gorgon again.\n", stderr)
+		"Nothing was kept; run mse setup gorgon again.\n", stderr)
 	assert.NoDirExists(t, f.config)
 }
 
-func TestJoinUndoesWhenTheKeyIsNotGiven(t *testing.T) {
+func TestSetupRebuildingUndoesWhenTheKeyIsNotGiven(t *testing.T) {
 	f := newJoinFixture(t)
 	f.repositoryExists()
 	f.prompter.EXPECT().Secret(mock.Anything, mock.Anything, mock.Anything).Return("", configure.ErrAborted).Once()
@@ -212,12 +209,12 @@ func TestJoinUndoesWhenTheKeyIsNotGiven(t *testing.T) {
 
 	assert.Equal(t, 1, code)
 	assert.Contains(t, stderr, "mse: stopped before gorgon joined. Nothing was kept apart from this run's log in "+
-		filepath.Join(f.deps.Home, ".local", "state", "mse", "gorgon", "logs")+"; run mse join gorgon again.")
+		filepath.Join(f.deps.Home, ".local", "state", "mse", "gorgon", "logs")+"; run mse setup gorgon again.")
 	assert.NoDirExists(t, f.config)
 	assert.NoFileExists(t, f.keys)
 }
 
-func TestJoinRefusesAConfigForANewerMse(t *testing.T) {
+func TestSetupRebuildingRefusesAConfigForANewerMse(t *testing.T) {
 	f := newJoinFixture(t)
 	f.deps.Build = version.Build{Version: "v0.18.0"}
 	f.repositoryExists()
@@ -233,7 +230,7 @@ func TestJoinRefusesAConfigForANewerMse(t *testing.T) {
 	assert.NoDirExists(t, f.config)
 }
 
-func TestJoinTakesThePastedKeyAndRestores(t *testing.T) {
+func TestSetupRebuildingTakesThePastedKeyAndRestores(t *testing.T) {
 	f := newJoinFixture(t)
 	f.repositoryExists()
 	f.pastesTheKey()
@@ -250,7 +247,7 @@ func TestJoinTakesThePastedKeyAndRestores(t *testing.T) {
 	assert.FileExists(t, filepath.Join(f.deps.Home, ".local", "state", "mse", "gorgon", ".secrets", "apps.env"))
 }
 
-func TestJoinUsesAKeyAlreadyOnTheMachine(t *testing.T) {
+func TestSetupRebuildingUsesAKeyAlreadyOnTheMachine(t *testing.T) {
 	f := newJoinFixture(t)
 	require.NoError(t, os.MkdirAll(filepath.Dir(f.keys), 0o700))
 	original := "# an older key\n" + f.secret + "\n"
@@ -266,7 +263,7 @@ func TestJoinUsesAKeyAlreadyOnTheMachine(t *testing.T) {
 	assert.Equal(t, original, string(keys))
 }
 
-func TestJoinRestoresIntoAFreshDataFolder(t *testing.T) {
+func TestSetupRebuildingRestoresIntoAFreshDataFolder(t *testing.T) {
 	f := newJoinFixture(t)
 	f.repositoryExists()
 	f.pastesTheKey()
@@ -289,7 +286,9 @@ func TestJoinRestoresIntoAFreshDataFolder(t *testing.T) {
 		return 0, nil
 	}).Once()
 
-	code, stdout, stderr := f.join(t, "gorgon", "--secondary")
+	f.prompter.EXPECT().Ask("Make this machine the main instead?", false).Return(false, nil).Once()
+
+	code, stdout, stderr := f.join(t, "gorgon")
 
 	assert.Equal(t, 1, code)
 	assert.True(t, restored, "the latest backup was restored")
@@ -298,7 +297,40 @@ func TestJoinRestoresIntoAFreshDataFolder(t *testing.T) {
 	assert.Contains(t, stderr, "Finish with:\n  mse apply --installation gorgon")
 }
 
-func TestJoinKeepsTheLogOfAConfigItCannotLoad(t *testing.T) {
+func TestSetupOverwriteMovesTheAppDataAsideAndRestores(t *testing.T) {
+	f := newJoinFixture(t)
+	f.repositoryExists()
+	f.pastesTheKey()
+	data := filepath.Join(f.deps.Home, ".local", "share", "mse", "gorgon")
+	require.NoError(t, os.MkdirAll(filepath.Join(data, "volumes", "jellyfin"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(data, "volumes", "jellyfin", "library.db"), []byte("old"), 0o644))
+	project := &types.Project{Name: "media-server"}
+	composer := newMockComposeRunner(t)
+	composer.EXPECT().Load(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(project, nil)
+	composer.EXPECT().AnyRunning(mock.Anything, project).Return(false, nil)
+	composer.EXPECT().Pull(mock.Anything, project).Return(compose.Pulled{}, errors.New("stop at the pull"))
+	f.deps.Compose = func(io.Writer, *compose.Outcomes) (composeRunner, error) { return composer, nil }
+	f.answers["restic snapshots --no-lock --host gorgon --json"] = process.Result{
+		Stdout: []byte(`[{"time":"2026-10-06T04:30:00Z","tags":["machine:other","machine-name:gorgon-pi"]}]`)}
+	f.runner.EXPECT().Run(mock.Anything, mock.MatchedBy(func(c process.Command) bool {
+		return c.Name == "restic" && len(c.Args) == 1 && c.Args[0] == "unlock"
+	})).Return(0, nil).Maybe()
+	restored := false
+	f.runner.EXPECT().Run(mock.Anything, mock.MatchedBy(func(c process.Command) bool {
+		return c.Name == "restic" && len(c.Args) > 0 && c.Args[0] == "restore"
+	})).RunAndReturn(func(context.Context, process.Command) (int, error) {
+		restored = true
+		return 0, nil
+	}).Once()
+	f.prompter.EXPECT().Ask("Make this machine the main instead?", false).Return(false, nil).Once()
+
+	_, stdout, _ := f.join(t, "gorgon", "--overwrite")
+
+	assert.True(t, restored, "the latest backup was restored over the app data")
+	assert.Contains(t, stdout, "previous volumes/ kept in "+data+"/volumes.before-restore-")
+}
+
+func TestSetupRebuildingKeepsTheLogOfAConfigItCannotLoad(t *testing.T) {
 	f := newJoinFixture(t)
 	f.repositoryExists()
 	f.effects["git clone --quiet -- "+joinCloneURL+" "+f.config] = func() {
@@ -310,13 +342,13 @@ func TestJoinKeepsTheLogOfAConfigItCannotLoad(t *testing.T) {
 	code, _, stderr := f.join(t, "gorgon")
 
 	assert.Equal(t, 1, code)
-	assert.Contains(t, stderr, "Nothing was kept apart from this run's log in "+logs+"; run mse join gorgon again.")
+	assert.Contains(t, stderr, "Nothing was kept apart from this run's log in "+logs+"; run mse setup gorgon again.")
 	assert.NotContains(t, stderr, "update --force")
 	assert.FileExists(t, filepath.Join(logs, "mse.log"))
 	assert.NoDirExists(t, f.config)
 }
 
-func TestJoinStopsBeforeThePromptWhenTheConfigHasNoSecrets(t *testing.T) {
+func TestSetupRebuildingStopsBeforeThePromptWhenTheConfigHasNoSecrets(t *testing.T) {
 	f := newJoinFixture(t)
 	f.repositoryExists()
 	f.effects["git clone --quiet -- "+joinCloneURL+" "+f.config] = func() {
