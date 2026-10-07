@@ -274,7 +274,7 @@ func TestClaim(t *testing.T) {
 				m.repository.EXPECT().HasRepository(mock.Anything).Return(true, nil)
 				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(theirs, nil)
 			}},
-			Then: Then{errOut: "gorgon's main is pi2, last backup 2026-10-04 04:30. Taking over makes it refuse to back up.\n", err: "nothing was claimed; mse backup --take-over --yes takes over without asking"},
+			Then: Then{errOut: "gorgon's main is pi2, last backup 2026-10-04 04:30. Taking over makes it refuse to back up.\n", err: "nothing was claimed; mse backup --apps --take-over --yes takes over without asking"},
 		},
 		"unreadable repository": {
 			Given: Given{yes: true, expect: func(m mocks) {

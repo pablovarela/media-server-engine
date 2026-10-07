@@ -56,7 +56,7 @@ func (b *Backups) confirmTakingOver(ctx context.Context, yes bool) (*restic.Snap
 	b.Report.Warn(fmt.Sprintf("%s's main is %s. Taking over makes it refuse to back up.", b.Installation.Name, describe(latest)))
 	answer, interactive := b.Ask("Make this machine the main instead? (y/n) ")
 	if !interactive {
-		return nil, errors.New("nothing was claimed; mse backup --take-over --yes takes over without asking")
+		return nil, errors.New("nothing was claimed; mse backup --apps --take-over --yes takes over without asking")
 	}
 	if answer != "y" && answer != "Y" {
 		return nil, errors.New("nothing was claimed")

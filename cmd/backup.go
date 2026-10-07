@@ -46,7 +46,7 @@ var (
 )
 
 func newBackupCommands(deps Dependencies) []*cobra.Command {
-	var takeOver, yes, overwrite bool
+	var apps, takeOver, yes, overwrite bool
 	backupCommand := func(use, short string, needs backupNeeds, do func(cmd *cobra.Command, b *backup.Backups) error) *cobra.Command {
 		return &cobra.Command{Use: use, Short: short, Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 			b, err := deps.backups(cmd, needs)
@@ -56,24 +56,40 @@ func newBackupCommands(deps Dependencies) []*cobra.Command {
 			return do(cmd, b)
 		}}
 	}
-	backupNow := backupCommand("backup", "Back up the apps' data now (stops them for a few minutes; only on the installation's main)", backingUp, func(cmd *cobra.Command, b *backup.Backups) error {
+	backupNow := backupCommand("backup", "Back up the installation now: --apps stops the apps for a few minutes (only on the main)", backingUp, func(cmd *cobra.Command, b *backup.Backups) error {
 		if takeOver {
 			return b.Claim(cmd.Context(), yes)
 		}
 		return b.Backup(cmd.Context())
 	})
 	backupNow.PreRunE = func(*cobra.Command, []string) error {
-		if yes && !takeOver {
+		switch {
+		case takeOver && !apps:
+			return errors.New("--take-over only goes with --apps")
+		case !apps:
+			return errors.New("say what to back up: --apps")
+		case yes && !takeOver:
 			return errors.New("--yes only goes with --take-over")
 		}
 		return nil
 	}
-	backupNow.Flags().BoolVar(&takeOver, "take-over", false, "make this machine the main, after asking when another machine is, then back up")
-	backupNow.Flags().BoolVar(&yes, "yes", false, "with --take-over, take over without asking")
+	backupNow.Flags().BoolVar(&apps, "apps", false, "back up the apps' data: their databases and settings under volumes/")
+	backupNow.Flags().BoolVar(&takeOver, "take-over", false, "with --apps, make this machine the main, after asking when another machine is, then back up")
+	backupNow.Flags().BoolVar(&yes, "yes", false, "with --apps --take-over, take over without asking")
 	restore := backupCommand("restore", "Restore volumes/ from the latest backup", restoring, func(cmd *cobra.Command, b *backup.Backups) error {
 		return b.Restore(cmd.Context(), overwrite)
 	})
-	restore.Flags().BoolVar(&overwrite, "overwrite", false, "move the existing volumes/ aside and restore over it")
+	restore.PreRunE = func(*cobra.Command, []string) error {
+		switch {
+		case overwrite && !apps:
+			return errors.New("--overwrite only goes with --apps")
+		case !apps:
+			return errors.New("say what to restore: --apps")
+		}
+		return nil
+	}
+	restore.Flags().BoolVar(&apps, "apps", false, "restore volumes/ from the latest apps backup")
+	restore.Flags().BoolVar(&overwrite, "overwrite", false, "with --apps, move the existing volumes/ aside and restore over it")
 	return []*cobra.Command{
 		backupNow,
 		backupCommand("check-backup", "Check the backups: restic check and a test restore of the latest snapshot's databases", telling, func(cmd *cobra.Command, b *backup.Backups) error {

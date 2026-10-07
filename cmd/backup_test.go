@@ -41,17 +41,13 @@ func TestBackupTakeOverRefusals(t *testing.T) {
 	}{
 		"declined": {
 			Given: Given{interactive: true, stdin: "n\n", expect: asksAboutTheMain},
-			When:  When{args: []string{"backup", "--take-over"}},
+			When:  When{args: []string{"backup", "--apps", "--take-over"}},
 			Then:  Then{stderr: "mse: nothing was claimed\n"},
 		},
 		"no one to answer": {
 			Given: Given{expect: asksAboutTheMain},
-			When:  When{args: []string{"backup", "--take-over"}},
-			Then:  Then{stderr: "mse: nothing was claimed; mse backup --take-over --yes takes over without asking\n"},
-		},
-		"--yes without --take-over": {
-			When: When{args: []string{"backup", "--yes"}},
-			Then: Then{stderr: "mse: --yes only goes with --take-over\n"},
+			When:  When{args: []string{"backup", "--apps", "--take-over"}},
+			Then:  Then{stderr: "mse: nothing was claimed; mse backup --apps --take-over --yes takes over without asking\n"},
 		},
 	}
 	for name, tt := range tests {
@@ -73,6 +69,35 @@ func TestBackupTakeOverRefusals(t *testing.T) {
 
 			assert.Equal(t, 1, code)
 			assert.True(t, strings.HasSuffix(stderr.String(), tt.Then.stderr), stderr.String())
+			assert.Empty(t, pings)
+		})
+	}
+}
+
+func TestBackupAndRestoreSayWhat(t *testing.T) {
+	tests := map[string]struct {
+		args   []string
+		stderr string
+	}{
+		"backup alone":               {args: []string{"backup"}, stderr: "mse: say what to back up: --apps\n"},
+		"restore alone":              {args: []string{"restore"}, stderr: "mse: say what to restore: --apps\n"},
+		"--take-over without --apps": {args: []string{"backup", "--take-over"}, stderr: "mse: --take-over only goes with --apps\n"},
+		"--overwrite without --apps": {args: []string{"restore", "--overwrite"}, stderr: "mse: --overwrite only goes with --apps\n"},
+		"--yes without --take-over":  {args: []string{"backup", "--apps", "--yes"}, stderr: "mse: --yes only goes with --take-over\n"},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			home, _, _, tmp := backupHome(t)
+			var pings []string
+			root := NewRootCommand(backupDependencies(t, home, tmp, newMockCommandRunner(t), newMockComposeRunner(t), false, &pings))
+			var stderr bytes.Buffer
+			root.SetOut(io.Discard)
+			root.SetErr(&stderr)
+
+			code := run(context.Background(), root, tt.args)
+
+			assert.Equal(t, 1, code)
+			assert.Equal(t, tt.stderr, stderr.String())
 			assert.Empty(t, pings)
 		})
 	}
