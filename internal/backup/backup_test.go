@@ -49,7 +49,7 @@ func TestBackup(t *testing.T) {
 				m.stack.EXPECT().Stop(mock.Anything).Return("stopped", nil)
 				m.repository.EXPECT().Backup(mock.Anything, backupOptions(b)).Return(restic.BackupSummary{SnapshotID: "40c4a929f0d1e2b3"}, nil)
 				m.stack.EXPECT().Start(mock.Anything, []string{"jellyfin", "sonarr"}).Return("started", nil)
-				m.repository.EXPECT().Forget(mock.Anything, "gorgon", mock.Anything).Return(restic.ForgetSummary{Kept: 5}, nil)
+				m.repository.EXPECT().Forget(mock.Anything, "gorgon", restic.Keep{Daily: 7, Weekly: 4, Monthly: 6}, mock.Anything).Return(restic.ForgetSummary{Kept: 5}, nil)
 				m.pinger.EXPECT().Ping(mock.Anything, "backup", "").Return()
 			}},
 			Then: Then{out: "Stopping the stack... stopped.\nBacking up volumes/... snapshot 40c4a929: 0 new, 0 changed, 0 unchanged files; 0 B added (0 B stored).\nStarting the services again... started.\nRemoving old snapshots... kept 5, removed 0.\nBackup done.\n", marked: true},
@@ -62,7 +62,7 @@ func TestBackup(t *testing.T) {
 				m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
 				m.stack.EXPECT().Stop(mock.Anything).Return("stopped", nil)
 				m.repository.EXPECT().Backup(mock.Anything, backupOptions(b)).Return(restic.BackupSummary{SnapshotID: "40c4a929f0d1e2b3"}, nil)
-				m.repository.EXPECT().Forget(mock.Anything, "gorgon", mock.Anything).Return(restic.ForgetSummary{Kept: 5}, nil)
+				m.repository.EXPECT().Forget(mock.Anything, "gorgon", restic.Keep{Daily: 7, Weekly: 4, Monthly: 6}, mock.Anything).Return(restic.ForgetSummary{Kept: 5}, nil)
 				m.pinger.EXPECT().Ping(mock.Anything, "backup", "").Return()
 			}},
 			Then: Then{out: "Stopping the stack... stopped.\nBacking up volumes/... snapshot 40c4a929: 0 new, 0 changed, 0 unchanged files; 0 B added (0 B stored).\nRemoving old snapshots... kept 5, removed 0.\nBackup done.\n", marked: true},
@@ -153,7 +153,7 @@ func TestBackup(t *testing.T) {
 				m.stack.EXPECT().Stop(mock.Anything).Return("stopped", nil)
 				m.repository.EXPECT().Backup(mock.Anything, backupOptions(b)).Return(restic.BackupSummary{SnapshotID: "40c4a929f0d1e2b3"}, nil)
 				m.stack.EXPECT().Start(mock.Anything, []string{"jellyfin"}).Return("started", nil).Once()
-				m.repository.EXPECT().Forget(mock.Anything, "gorgon", mock.Anything).Return(restic.ForgetSummary{}, errors.New("restic forget failed (exit 1)"))
+				m.repository.EXPECT().Forget(mock.Anything, "gorgon", restic.Keep{Daily: 7, Weekly: 4, Monthly: 6}, mock.Anything).Return(restic.ForgetSummary{}, errors.New("restic forget failed (exit 1)"))
 				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/fail").Return()
 			}},
 			Then: Then{out: "Stopping the stack... stopped.\nBacking up volumes/... snapshot 40c4a929: 0 new, 0 changed, 0 unchanged files; 0 B added (0 B stored).\nStarting the services again... started.\nRemoving old snapshots... failed.\n", err: "restic forget failed (exit 1)"},
@@ -218,7 +218,7 @@ func TestClaim(t *testing.T) {
 		m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
 		m.stack.EXPECT().Stop(mock.Anything).Return("stopped", nil)
 		m.repository.EXPECT().Backup(mock.Anything, mock.Anything).Return(restic.BackupSummary{SnapshotID: "40c4a929f0d1e2b3"}, nil)
-		m.repository.EXPECT().Forget(mock.Anything, "gorgon", mock.Anything).Return(restic.ForgetSummary{Kept: 5}, nil)
+		m.repository.EXPECT().Forget(mock.Anything, "gorgon", restic.Keep{Daily: 7, Weekly: 4, Monthly: 6}, mock.Anything).Return(restic.ForgetSummary{Kept: 5}, nil)
 		m.pinger.EXPECT().Ping(mock.Anything, "backup", "").Return()
 	}
 	claimed := "Stopping the stack... stopped.\nBacking up volumes/... snapshot 40c4a929: 0 new, 0 changed, 0 unchanged files; 0 B added (0 B stored).\nRemoving old snapshots... kept 5, removed 0.\nBackup done.\nThis machine is now gorgon's main; backups from any other machine are refused.\n"
@@ -347,7 +347,7 @@ func TestBackupRunsResticInTheResolvedDataDirectory(t *testing.T) {
 	m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
 	m.stack.EXPECT().Stop(mock.Anything).Return("stopped", nil)
 	m.repository.EXPECT().Backup(mock.Anything, mock.MatchedBy(func(o restic.BackupOptions) bool { return o.Dir == resolved })).Return(restic.BackupSummary{SnapshotID: "40c4a929f0d1e2b3"}, nil)
-	m.repository.EXPECT().Forget(mock.Anything, "gorgon", mock.Anything).Return(restic.ForgetSummary{Kept: 5}, nil)
+	m.repository.EXPECT().Forget(mock.Anything, "gorgon", restic.Keep{Daily: 7, Weekly: 4, Monthly: 6}, mock.Anything).Return(restic.ForgetSummary{Kept: 5}, nil)
 	m.pinger.EXPECT().Ping(mock.Anything, "backup", "").Return()
 
 	require.NoError(t, b.Backup(context.Background()))
@@ -374,7 +374,7 @@ func TestBackupFailsWhenItCannotMarkTheMain(t *testing.T) {
 	m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
 	m.stack.EXPECT().Stop(mock.Anything).Return("stopped", nil)
 	m.repository.EXPECT().Backup(mock.Anything, mock.Anything).Return(restic.BackupSummary{SnapshotID: "40c4a929f0d1e2b3"}, nil)
-	m.repository.EXPECT().Forget(mock.Anything, "gorgon", mock.Anything).Return(restic.ForgetSummary{Kept: 5}, nil)
+	m.repository.EXPECT().Forget(mock.Anything, "gorgon", restic.Keep{Daily: 7, Weekly: 4, Monthly: 6}, mock.Anything).Return(restic.ForgetSummary{Kept: 5}, nil)
 	m.pinger.EXPECT().Ping(mock.Anything, "backup", "/fail").Return()
 
 	assert.ErrorContains(t, b.Backup(context.Background()), ".backup-main")
@@ -389,7 +389,7 @@ func TestOldSnapshotsArePrunedOnlyWhenSomeWereRemoved(t *testing.T) {
 	m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
 	m.stack.EXPECT().Stop(mock.Anything).Return("stopped", nil)
 	m.repository.EXPECT().Backup(mock.Anything, mock.Anything).Return(restic.BackupSummary{SnapshotID: "40c4a929f0d1e2b3"}, nil)
-	m.repository.EXPECT().Forget(mock.Anything, "gorgon", mock.Anything).Return(restic.ForgetSummary{Kept: 5, Removed: []time.Time{removed}}, nil)
+	m.repository.EXPECT().Forget(mock.Anything, "gorgon", restic.Keep{Daily: 7, Weekly: 4, Monthly: 6}, mock.Anything).Return(restic.ForgetSummary{Kept: 5, Removed: []time.Time{removed}}, nil)
 	m.repository.EXPECT().Prune(mock.Anything, mock.Anything).Return(nil)
 	m.pinger.EXPECT().Ping(mock.Anything, "backup", "").Return()
 
@@ -408,7 +408,7 @@ func TestClaimWithoutAppDataAndNoBackups(t *testing.T) {
 	m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
 	m.stack.EXPECT().Stop(mock.Anything).Return("stopped", nil)
 	m.repository.EXPECT().Backup(mock.Anything, mock.Anything).Return(restic.BackupSummary{SnapshotID: "40c4a929f0d1e2b3"}, nil)
-	m.repository.EXPECT().Forget(mock.Anything, "gorgon", mock.Anything).Return(restic.ForgetSummary{Kept: 1}, nil)
+	m.repository.EXPECT().Forget(mock.Anything, "gorgon", restic.Keep{Daily: 7, Weekly: 4, Monthly: 6}, mock.Anything).Return(restic.ForgetSummary{Kept: 1}, nil)
 	m.pinger.EXPECT().Ping(mock.Anything, "backup", "").Return()
 
 	err := b.Claim(context.Background(), true)

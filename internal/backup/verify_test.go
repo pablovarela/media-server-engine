@@ -78,7 +78,7 @@ func TestVerify(t *testing.T) {
 			m.pinger.EXPECT().Ping(mock.Anything, "verify", "/start").Return()
 			m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(tt.Given.snapshots, nil)
 			m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
-			m.repository.EXPECT().Check(mock.Anything).Return(nil)
+			m.repository.EXPECT().Check(mock.Anything, "").Return(nil)
 			m.repository.EXPECT().Restore(mock.Anything, mock.MatchedBy(func(o restic.RestoreOptions) bool {
 				return o.Snapshot == "latest" && o.Host == "gorgon" && filepath.Dir(o.Target) == b.TempDir &&
 					assert.ObjectsAreEqual([]string{"*.db", "*.sqlite", "*.sqlite3"}, o.Include)

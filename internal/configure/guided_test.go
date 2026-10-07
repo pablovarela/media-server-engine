@@ -50,7 +50,7 @@ func TestGuidedAsksEverySectionInOrderThenSaves(t *testing.T) {
 	outcome, err := Guided(context.Background(), p, before, start)
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"General", "Backups", "VPN", "Healthchecks", "App logins"}, asked)
+	assert.Equal(t, []string{"General", "Backups", "Media backup", "VPN", "Healthchecks", "App logins"}, asked)
 	assert.True(t, outcome.Save)
 	assert.Equal(t, "Europe/London", outcome.Values.Get(PlainFile, "TZ"))
 	assert.Equal(t, "twelve-chars", outcome.Values.Get(AppsFile, "PORTAINER_ADMIN_PASSWORD"))

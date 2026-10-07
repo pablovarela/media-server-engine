@@ -11,6 +11,8 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/restic"
 )
 
+var nightly = restic.Keep{Daily: 7, Weekly: 4, Monthly: 6}
+
 func (b *Backups) Backup(ctx context.Context) error {
 	return b.backup(ctx, false)
 }
@@ -196,7 +198,7 @@ func (b *Backups) snapshotVolumes(ctx context.Context, lock *heldLock, dir strin
 
 func (b *Backups) removeOldSnapshots(ctx context.Context, lock *heldLock) error {
 	step := b.Report.Step("Removing old snapshots")
-	summary, err := b.Repository.Forget(ctx, b.Installation.Name, lock.files())
+	summary, err := b.Repository.Forget(ctx, b.Installation.Name, nightly, lock.files())
 	if err != nil {
 		return step.Fail(err)
 	}

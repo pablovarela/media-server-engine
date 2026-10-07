@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pablovarela/media-server-engine/internal/media"
 )
 
 const (
@@ -23,7 +25,8 @@ type Field struct {
 	Masked     bool
 	Optional   bool
 	check      func(string) error
-	neededWhen func(Values) bool
+	needed     func(Values) string
+	against    func(value string, v Values) error
 }
 
 type Section struct {
@@ -47,8 +50,16 @@ func Sections() []Section {
 		{Name: "Backups", Summary: "restic repository, password, B2 keys", Fields: []Field{
 			{Key: "RESTIC_REPOSITORY", Title: "restic repository", File: PlainFile},
 			{Key: "RESTIC_PASSWORD", Title: "restic password", File: backupFile, Masked: true},
-			{Key: "B2_ACCOUNT_ID", Title: "B2 account ID (for a b2: repository)", File: backupFile, Masked: true, Optional: true, neededWhen: b2Repository},
-			{Key: "B2_ACCOUNT_KEY", Title: "B2 account key (for a b2: repository)", File: backupFile, Masked: true, Optional: true, neededWhen: b2Repository},
+			{Key: "B2_ACCOUNT_ID", Title: "B2 account ID (for a b2: repository)", File: backupFile, Masked: true, Optional: true, needed: b2Repository},
+			{Key: "B2_ACCOUNT_KEY", Title: "B2 account key (for a b2: repository)", File: backupFile, Masked: true, Optional: true, needed: b2Repository},
+		}},
+		{Name: "Media backup", Summary: "on or off, repository, weeks kept, upload cap, schedule", Fields: []Field{
+			{Key: media.Enabled, Title: "Back up the media too? yes or no (empty for no)", File: PlainFile, Optional: true, check: media.CheckEnabled},
+			{Key: media.RepositorySetting, Title: "Media restic repository (empty for the backup repository with -media after it)", File: PlainFile, Optional: true, needed: mediaRepositoryUnderivable, against: notTheBackupRepository},
+			{Key: media.WeeksKeptSetting, Title: "Weekly media snapshots to keep (empty for 4)", File: PlainFile, Optional: true, check: media.CheckPositive},
+			{Key: media.UploadLimitSetting, Title: "Upload cap in KiB/s (empty for none)", File: PlainFile, Optional: true, check: media.CheckPositive},
+			{Key: media.ScheduleSetting, Title: "When it runs, weekday and time (empty for Sun 01:00)", File: PlainFile, Optional: true, check: media.CheckSchedule},
+			{Key: media.CheckSubsetSetting, Title: "Share of the media each run reads back (empty for 5%)", File: PlainFile, Optional: true, check: media.CheckSubset},
 		}},
 		{Name: "VPN", Summary: "provider, user, password, countries", Fields: []Field{
 			{Key: "VPN_SERVICE_PROVIDER", Title: "VPN provider (as gluetun names it)", File: vpnFile},
@@ -89,14 +100,38 @@ func (f Field) Validate(value string) error {
 
 func (f Field) ValidateIn(v Values) error {
 	value := v.Get(f.File, f.Key)
-	if value == "" && f.neededWhen != nil && f.neededWhen(v) {
-		return fmt.Errorf("%s: needed for a b2: repository", f.Key)
+	if value == "" && f.needed != nil {
+		if reason := f.needed(v); reason != "" {
+			return fmt.Errorf("%s: %s", f.Key, reason)
+		}
+	}
+	if value != "" && f.against != nil {
+		if err := f.against(value, v); err != nil {
+			return fmt.Errorf("%s: %w", f.Key, err)
+		}
 	}
 	return f.Validate(value)
 }
 
-func b2Repository(v Values) bool {
-	return strings.HasPrefix(v.Get(PlainFile, "RESTIC_REPOSITORY"), "b2:")
+func b2Repository(v Values) string {
+	if strings.HasPrefix(v.Get(PlainFile, "RESTIC_REPOSITORY"), "b2:") {
+		return "needed for a b2: repository"
+	}
+	return ""
+}
+
+func notTheBackupRepository(repository string, v Values) error {
+	return media.CheckSeparate(v.Get(PlainFile, "RESTIC_REPOSITORY"), repository)
+}
+
+func mediaRepositoryUnderivable(v Values) string {
+	if v.Get(PlainFile, media.Enabled) != "yes" {
+		return ""
+	}
+	if _, derived := media.DefaultRepository(v.Get(PlainFile, "RESTIC_REPOSITORY")); derived {
+		return ""
+	}
+	return media.NeededFor
 }
 
 func timeZone(value string) error {

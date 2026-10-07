@@ -64,6 +64,9 @@ func TestMissing(t *testing.T) {
 
 	full := complete().With(PlainFile, "HOMEPAGE_PORT", "").With("secrets/vpn.sops.env", "SERVER_COUNTRIES", "").
 		With(healthchecksFile, "HEALTHCHECKS_PING_KEY", "").With(healthchecksFile, "HEALTHCHECKS_API_KEY", "").With(healthchecksFile, "HEALTHCHECKS_MANAGE_KEY", "")
+	for _, f := range sectionNamed("Media backup").Fields {
+		full = full.With(f.File, f.Key, "")
+	}
 	assert.Empty(t, Missing(full))
 
 	var vpn []string
@@ -71,6 +74,12 @@ func TestMissing(t *testing.T) {
 		vpn = append(vpn, section.Name)
 	}
 	assert.Equal(t, []string{"VPN"}, vpn)
+
+	var media []string
+	for _, section := range Missing(full.With(PlainFile, "RESTIC_REPOSITORY", "b2:bucket").With(PlainFile, "MEDIA_BACKUP", "yes")) {
+		media = append(media, section.Name)
+	}
+	assert.Equal(t, []string{"Media backup"}, media)
 }
 
 func TestRotate(t *testing.T) {

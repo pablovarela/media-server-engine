@@ -16,9 +16,9 @@ type Repository interface {
 	Snapshots(ctx context.Context, host string) ([]restic.Snapshot, error)
 	Unlock(ctx context.Context) error
 	Backup(ctx context.Context, options restic.BackupOptions) (restic.BackupSummary, error)
-	Forget(ctx context.Context, host string, inherit []*os.File) (restic.ForgetSummary, error)
+	Forget(ctx context.Context, host string, keep restic.Keep, inherit []*os.File) (restic.ForgetSummary, error)
 	Prune(ctx context.Context, inherit []*os.File) error
-	Check(ctx context.Context) error
+	Check(ctx context.Context, readDataSubset string) error
 	Restore(ctx context.Context, options restic.RestoreOptions) error
 }
 

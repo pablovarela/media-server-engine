@@ -115,16 +115,16 @@ func (_c *mockRepository_Backup_Call) RunAndReturn(run func(ctx context.Context,
 }
 
 // Check provides a mock function for the type mockRepository
-func (_mock *mockRepository) Check(ctx context.Context) error {
-	ret := _mock.Called(ctx)
+func (_mock *mockRepository) Check(ctx context.Context, readDataSubset string) error {
+	ret := _mock.Called(ctx, readDataSubset)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Check")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context) error); ok {
-		r0 = returnFunc(ctx)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) error); ok {
+		r0 = returnFunc(ctx, readDataSubset)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -138,18 +138,24 @@ type mockRepository_Check_Call struct {
 
 // Check is a helper method to define mock.On call
 //   - ctx context.Context
-func (_e *mockRepository_Expecter) Check(ctx any) *mockRepository_Check_Call {
-	return &mockRepository_Check_Call{Call: _e.mock.On("Check", ctx)}
+//   - readDataSubset string
+func (_e *mockRepository_Expecter) Check(ctx any, readDataSubset any) *mockRepository_Check_Call {
+	return &mockRepository_Check_Call{Call: _e.mock.On("Check", ctx, readDataSubset)}
 }
 
-func (_c *mockRepository_Check_Call) Run(run func(ctx context.Context)) *mockRepository_Check_Call {
+func (_c *mockRepository_Check_Call) Run(run func(ctx context.Context, readDataSubset string)) *mockRepository_Check_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
 		run(
 			arg0,
+			arg1,
 		)
 	})
 	return _c
@@ -160,14 +166,14 @@ func (_c *mockRepository_Check_Call) Return(err error) *mockRepository_Check_Cal
 	return _c
 }
 
-func (_c *mockRepository_Check_Call) RunAndReturn(run func(ctx context.Context) error) *mockRepository_Check_Call {
+func (_c *mockRepository_Check_Call) RunAndReturn(run func(ctx context.Context, readDataSubset string) error) *mockRepository_Check_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // Forget provides a mock function for the type mockRepository
-func (_mock *mockRepository) Forget(ctx context.Context, host string, inherit []*os.File) (restic.ForgetSummary, error) {
-	ret := _mock.Called(ctx, host, inherit)
+func (_mock *mockRepository) Forget(ctx context.Context, host string, keep restic.Keep, inherit []*os.File) (restic.ForgetSummary, error) {
+	ret := _mock.Called(ctx, host, keep, inherit)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Forget")
@@ -175,16 +181,16 @@ func (_mock *mockRepository) Forget(ctx context.Context, host string, inherit []
 
 	var r0 restic.ForgetSummary
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, []*os.File) (restic.ForgetSummary, error)); ok {
-		return returnFunc(ctx, host, inherit)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, restic.Keep, []*os.File) (restic.ForgetSummary, error)); ok {
+		return returnFunc(ctx, host, keep, inherit)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, []*os.File) restic.ForgetSummary); ok {
-		r0 = returnFunc(ctx, host, inherit)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, restic.Keep, []*os.File) restic.ForgetSummary); ok {
+		r0 = returnFunc(ctx, host, keep, inherit)
 	} else {
 		r0 = ret.Get(0).(restic.ForgetSummary)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, string, []*os.File) error); ok {
-		r1 = returnFunc(ctx, host, inherit)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string, restic.Keep, []*os.File) error); ok {
+		r1 = returnFunc(ctx, host, keep, inherit)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -199,12 +205,13 @@ type mockRepository_Forget_Call struct {
 // Forget is a helper method to define mock.On call
 //   - ctx context.Context
 //   - host string
+//   - keep restic.Keep
 //   - inherit []*os.File
-func (_e *mockRepository_Expecter) Forget(ctx any, host any, inherit any) *mockRepository_Forget_Call {
-	return &mockRepository_Forget_Call{Call: _e.mock.On("Forget", ctx, host, inherit)}
+func (_e *mockRepository_Expecter) Forget(ctx any, host any, keep any, inherit any) *mockRepository_Forget_Call {
+	return &mockRepository_Forget_Call{Call: _e.mock.On("Forget", ctx, host, keep, inherit)}
 }
 
-func (_c *mockRepository_Forget_Call) Run(run func(ctx context.Context, host string, inherit []*os.File)) *mockRepository_Forget_Call {
+func (_c *mockRepository_Forget_Call) Run(run func(ctx context.Context, host string, keep restic.Keep, inherit []*os.File)) *mockRepository_Forget_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -214,14 +221,19 @@ func (_c *mockRepository_Forget_Call) Run(run func(ctx context.Context, host str
 		if args[1] != nil {
 			arg1 = args[1].(string)
 		}
-		var arg2 []*os.File
+		var arg2 restic.Keep
 		if args[2] != nil {
-			arg2 = args[2].([]*os.File)
+			arg2 = args[2].(restic.Keep)
+		}
+		var arg3 []*os.File
+		if args[3] != nil {
+			arg3 = args[3].([]*os.File)
 		}
 		run(
 			arg0,
 			arg1,
 			arg2,
+			arg3,
 		)
 	})
 	return _c
@@ -232,7 +244,7 @@ func (_c *mockRepository_Forget_Call) Return(forgetSummary restic.ForgetSummary,
 	return _c
 }
 
-func (_c *mockRepository_Forget_Call) RunAndReturn(run func(ctx context.Context, host string, inherit []*os.File) (restic.ForgetSummary, error)) *mockRepository_Forget_Call {
+func (_c *mockRepository_Forget_Call) RunAndReturn(run func(ctx context.Context, host string, keep restic.Keep, inherit []*os.File) (restic.ForgetSummary, error)) *mockRepository_Forget_Call {
 	_c.Call.Return(run)
 	return _c
 }
