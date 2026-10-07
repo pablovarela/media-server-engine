@@ -143,7 +143,7 @@ func TestApplyCommand(t *testing.T) {
 			Then: Then{stdout: []string{"Pulling images..."}},
 		},
 		"after an update it reports success": {
-			When: []string{"apply", "--after-update=a1b2c3", "--installation", "gorgon", "--verbose"},
+			When: []string{"apply", "--after-update=a1b2c3", "--verbose"},
 			Then: Then{requests: []string{"GET /ping-key/gorgon-update"}},
 		},
 		"after an update a failure reports fail": {
@@ -362,18 +362,4 @@ func TestThePullSaysHowManyImagesWereNew(t *testing.T) {
 			assert.Equal(t, want, describePull(pulled))
 		})
 	}
-}
-
-func TestAnApplyHandedOverForAnotherInstallationIsRefused(t *testing.T) {
-	f := newApplyFixture(t)
-	root := NewRootCommand(f.deps(t, false))
-	var stdout, stderr bytes.Buffer
-	root.SetOut(&stdout)
-	root.SetErr(&stderr)
-
-	code := run(context.Background(), root, []string{"apply", "--after-update=a1b2c3", "--installation", "other"})
-
-	assert.Equal(t, 1, code)
-	assert.Contains(t, stderr.String(), "this machine's installation is gorgon, not other")
-	assert.Empty(t, *f.requests)
 }

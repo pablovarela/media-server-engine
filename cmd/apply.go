@@ -28,7 +28,7 @@ import (
 var gluetunDependents = []string{"prowlarr", "flaresolverr", "deluge"}
 
 func newApplyCommand(deps Dependencies) *cobra.Command {
-	var afterUpdate, handedOver string
+	var afterUpdate string
 	command := &cobra.Command{
 		Use:   "apply",
 		Short: "Apply the config on disk to this machine: secrets, landing page, images and containers",
@@ -44,17 +44,11 @@ func newApplyCommand(deps Dependencies) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if handedOver != "" && handedOver != i.Name {
-				return fmt.Errorf("this machine's installation is %s, not %s", i.Name, handedOver)
-			}
 			return deps.reported(cmd, i, func() error { return deps.apply(cmd) })
 		},
 	}
-	// Older releases hand over with exactly `apply --after-update=<run id> --installation <name> [--verbose]`.
 	command.Flags().StringVar(&afterUpdate, "after-update", "", "the run id of the update that handed over to this apply")
 	_ = command.Flags().MarkHidden("after-update")
-	command.Flags().StringVar(&handedOver, "installation", "", "the installation the update handed over")
-	_ = command.Flags().MarkHidden("installation")
 	return command
 }
 
