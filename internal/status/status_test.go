@@ -34,7 +34,7 @@ func TestRender(t *testing.T) {
 		"healthy main": {
 			Given: func(*Report) {},
 			Then: []string{"home on mse v0.23.0", "This machine is the main: it made the latest backup.",
-				"Stack: 12 of 12 services running", "Last backup: 7 Oct 05:00 by pi",
+				"Stack: 12 of 12 services running", "Last apps backup: 7 Oct 05:00 by pi",
 				"update", "last ran 7 Oct 05:00, succeeded", "next 8 Oct 05:00", "Jellyfin", "http://media.local:8096"},
 		},
 		"another machine is the main": {

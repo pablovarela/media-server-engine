@@ -83,6 +83,6 @@ func pageFile(engine fs.FS, i *installation.Installation, name string) (string, 
 
 func slugFor(name string, in Inputs) func(job string) string {
 	return func(job string) string {
-		return healthchecks.Slug(name, strings.ToLower(job), in.Role, in.ShortHost)
+		return healthchecks.Slug(name, strings.ToLower(strings.ReplaceAll(job, "_", "-")), in.Role, in.ShortHost)
 	}
 }

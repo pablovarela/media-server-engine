@@ -12,7 +12,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/paint"
 )
 
-var healthcheckMarker = regexp.MustCompile(`@HEALTHCHECK_([A-Z]+)@`)
+var healthcheckMarker = regexp.MustCompile(`@HEALTHCHECK_([A-Z_]+)@`)
 
 func renderServices(ctx context.Context, text string, slugFor func(job string) string, key string, checks CheckLister, warn io.Writer) (string, error) {
 	groups, err := sequence(text)
