@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net"
 	"os"
-	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -204,15 +203,6 @@ func TestPortsWaitForDocker(t *testing.T) {
 	f.fails("docker info")
 
 	assert.Contains(t, f.render(t), "  ports... – skipped until Docker answers\n")
-}
-
-func TestThePortsNote(t *testing.T) {
-	f := newPortsFixture(t)
-	f.env.Ports.Note = "several installations here; using the default homepage port 80"
-
-	out := f.render(t)
-
-	assert.True(t, strings.Contains(out, "  ports... ✓ 8096, 7359/udp, 80 free (several installations here; using the default homepage port 80)\n"), out)
 }
 
 func TestPortsWaitingOnAnUncheckedDockerSaySo(t *testing.T) {

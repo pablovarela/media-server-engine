@@ -120,12 +120,14 @@ func TestCheckMachineUsesTheInstallationsHomepagePort(t *testing.T) {
 	assert.Contains(t, f.checked, machine.Port{Number: 8080, Protocol: "tcp"})
 }
 
-func TestCheckMachineWithSeveralInstallations(t *testing.T) {
+func TestCheckMachineRefusesSeveralInstallations(t *testing.T) {
 	f := newCheckMachineFixture(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\nHOMEPAGE_PORT=8080\n", "medusa": "INSTALLATION_NAME=medusa\n"})
 
-	_, stdout, _ := f.check(t)
+	code, stdout, stderr := f.check(t)
 
-	assert.Contains(t, stdout, "  ports... ✓ 8096, 80 free (several installations here; using the default homepage port 80)\n")
+	assert.Equal(t, 1, code)
+	assert.Empty(t, stdout)
+	assert.Contains(t, stderr, "a machine runs one installation; remove the ones it shouldn't have:\n  gorgon\n  medusa")
 }
 
 func TestCheckMachineLooksForTheTokenWhereTheTimersWould(t *testing.T) {

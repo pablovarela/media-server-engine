@@ -127,8 +127,9 @@ func titled(verb string, kind compose.Kind, services []string) string {
 	return verb + " " + kind.Title()
 }
 
-func newProjectCommand(deps Dependencies, use, short string, kind compose.Kind) *cobra.Command {
-	command := &cobra.Command{Use: use, Short: short}
+func newStackCommand(deps Dependencies) *cobra.Command {
+	kind := compose.Stack
+	command := &cobra.Command{Use: "stack", Short: "Run the media server's containers"}
 	operation := func(use, short string, args cobra.PositionalArgs, draw drawing, do projectOperation) *cobra.Command {
 		return &cobra.Command{Use: use, Short: short, Args: args, RunE: func(cmd *cobra.Command, args []string) error {
 			o, err := deps.openProject(cmd, kind, draw)
@@ -139,7 +140,7 @@ func newProjectCommand(deps Dependencies, use, short string, kind compose.Kind) 
 		}}
 	}
 	command.AddCommand(
-		upCommand(deps, use, kind, operation),
+		upCommand(deps, "stack", kind, operation),
 		operation("down", "Stop and remove the containers", cobra.NoArgs, noDrawing, func(cmd *cobra.Command, o opened, _ []string) error {
 			return composeStep(cmd, o, titled("Stopping", kind, nil), func() error { return o.runner.Down(cmd.Context(), o.project) })
 		}),
@@ -156,7 +157,7 @@ func newProjectCommand(deps Dependencies, use, short string, kind compose.Kind) 
 			}
 			return printContainers(report.From(cmd.Context()).Data(), containers)
 		}),
-		logsCommand(deps, use, kind),
+		logsCommand(deps, "stack", kind),
 	)
 	return command
 }
