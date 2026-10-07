@@ -2,6 +2,16 @@
 
 `mse help` lists every command; `mse <command> --help` explains one. This page is the longer version.
 
+| To | Commands |
+|---|---|
+| install | `mse check-machine`, `mse setup <name> [--owner] [--homepage-port] [--overwrite]` |
+| personalize | `mse configure` |
+| run | `mse apply`, `mse update [--apply] [--force]`, `mse stack up\|down\|ps\|logs\|restart` |
+| back up | `mse backup [--take-over [--yes]]`, `mse check-backup` |
+| recover | `mse restore [--overwrite]` |
+| look | `mse status`, `mse logins`, `mse version` |
+| housekeeping, run by a timer | `mse clean-downloads` |
+
 - [Installing mse](#installing-mse)
 - [Where things live](#where-things-live)
 - [mse check-machine](#mse-check-machine)

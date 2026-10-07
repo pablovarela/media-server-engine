@@ -16,7 +16,9 @@ REPO="$BATS_TEST_DIRNAME/.."
   cd "$REPO"
   run git grep -nIE \
     -e 'mse monitoring' -e 'images\.monitoring\.yml' -e 'docker-compose\.monitoring' -e 'mse homepage' -e 'prune-stack-images' -e 'mse verify-backup' -e 'remove-executable-downloads' \
-    -- ':!tests/legacy-engine.bats' ':!*_test.go'
+    -e 'mse create' -e 'mse join' -e 'backup-role' -e 'claim-backup-main' -e 'unlock-backup' -e 'mse urls' \
+    -e '--restore-over' -e '--secondary' -e 'MSE_INSTALLATION' -e '--installation' \
+    -- ':!tests/legacy-engine.bats' ':!*_test.go' ':!cmd/apply.go'
   echo "$output"
   [ "$status" -eq 1 ]
 }

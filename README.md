@@ -35,13 +35,7 @@ curl -fsSL https://github.com/pablovarela/media-server-engine/releases/latest/do
 mse check-machine
 ```
 
-Run `mse check-machine` until it says the machine is ready; each missing piece comes with the command that fixes it. Then:
-
-| To | Run |
-|---|---|
-| make a new installation, or rebuild one on this machine from its config and backups | `mse setup <name>` |
-
-A new installation's secrets key is shown once: save it in a password manager.
+Run `mse check-machine` until it says the machine is ready; each missing piece comes with the command that fixes it. Then run `mse setup <name>`. When the installation's config repository exists, it rebuilds the installation here from its config and backups; otherwise it asks, then creates a new one. A new installation's secrets key is shown once: save it in a password manager.
 
 ## Everyday commands
 
@@ -54,6 +48,7 @@ A new installation's secrets key is shown once: save it in a password manager.
 | `mse logins` | the apps' users and passwords |
 | `mse stack down`, `mse stack up` | stop and start the apps |
 | `mse backup`, `mse check-backup` | back up now, check the backups now |
+| `mse restore --overwrite` | with the apps stopped, roll this machine's app state back to the latest backup |
 | `mse version` | the `mse` release running |
 
 `mse help` lists every command.
