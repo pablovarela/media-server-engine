@@ -14,10 +14,10 @@ After losing or replacing the machine, on the new one:
 To roll this machine's app state back to the latest backup:
 
     mse stack down
-    mse restore --overwrite
+    mse restore --apps --overwrite
     mse apply
 
-- `mse restore` refuses while the apps run.
+- `mse restore --apps` refuses while the apps run.
 - With `--overwrite`, the current `volumes/` is moved aside to `volumes.before-restore-<time>` rather than deleted; remove it once the restored apps look right. Without it, restore only writes into an empty `volumes/`.
 - `mse apply` brings the apps up and wires them again.
 

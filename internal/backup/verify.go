@@ -28,7 +28,7 @@ func (b *Backups) Verify(ctx context.Context) (err error) {
 			b.Pinger.Ping(finishing, "verify", "/fail")
 		}
 	}()
-	latest, refused, err := b.refuseOnCopy(ctx, "verify", "Its backups are checked there; mse backup --take-over makes this machine the main.")
+	latest, refused, err := b.refuseOnCopy(ctx, "verify", "Its backups are checked there; mse backup --apps --take-over makes this machine the main.")
 	if err != nil {
 		return fmt.Errorf("%w; nothing was checked", err)
 	}

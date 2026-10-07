@@ -67,9 +67,9 @@ func local(ctx context.Context, steps Steps, undos *[]create.Undo) error {
 }
 
 const (
-	restoreLeft      = "mse restore --overwrite"
-	plainRestoreLeft = "mse restore"
-	claimLeft        = "mse backup --take-over (to make this machine the main)"
+	restoreLeft      = "mse restore --apps --overwrite"
+	plainRestoreLeft = "mse restore --apps"
+	claimLeft        = "mse backup --apps --take-over (to make this machine the main)"
 	applyLeft        = "mse apply"
 )
 

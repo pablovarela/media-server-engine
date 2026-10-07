@@ -36,7 +36,7 @@ func (b *Backups) Claim(ctx context.Context, yes bool) error {
 		return err
 	}
 	if !held && latest != nil {
-		return fmt.Errorf("volumes/ in %s holds no app data, so claiming would make an empty backup %s's latest; restore first with mse restore, then mse backup --take-over", b.Installation.Data, b.Installation.Name)
+		return fmt.Errorf("volumes/ in %s holds no app data, so claiming would make an empty backup %s's latest; restore first with mse restore --apps, then mse backup --apps --take-over", b.Installation.Data, b.Installation.Name)
 	}
 	if err := b.backup(ctx, true); err != nil {
 		return err
@@ -84,7 +84,7 @@ func (b *Backups) backupHolding(ctx context.Context, lock *heldLock, claiming bo
 		release()
 	}()
 	if !claiming {
-		_, refused, err := b.refuseOnCopy(ctx, "backup", "This machine doesn't back up; mse backup --take-over makes it the main and backs up now.")
+		_, refused, err := b.refuseOnCopy(ctx, "backup", "This machine doesn't back up; mse backup --apps --take-over makes it the main and backs up now.")
 		if err != nil {
 			return fmt.Errorf("%w; nothing was backed up", err)
 		}

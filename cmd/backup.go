@@ -46,7 +46,7 @@ var (
 )
 
 func newBackupCommands(deps Dependencies) []*cobra.Command {
-	var apps, takeOver, yes, overwrite bool
+	var f backupFlags
 	backupCommand := func(use, short string, needs backupNeeds, do func(cmd *cobra.Command, b *backup.Backups) error) *cobra.Command {
 		return &cobra.Command{Use: use, Short: short, Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 			b, err := deps.backups(cmd, needs)
@@ -57,39 +57,21 @@ func newBackupCommands(deps Dependencies) []*cobra.Command {
 		}}
 	}
 	backupNow := backupCommand("backup", "Back up the installation now: --apps stops the apps for a few minutes (only on the main)", backingUp, func(cmd *cobra.Command, b *backup.Backups) error {
-		if takeOver {
-			return b.Claim(cmd.Context(), yes)
+		if f.takeOver {
+			return b.Claim(cmd.Context(), f.yes)
 		}
 		return b.Backup(cmd.Context())
 	})
-	backupNow.PreRunE = func(*cobra.Command, []string) error {
-		switch {
-		case takeOver && !apps:
-			return errors.New("--take-over only goes with --apps")
-		case !apps:
-			return errors.New("say what to back up: --apps")
-		case yes && !takeOver:
-			return errors.New("--yes only goes with --take-over")
-		}
-		return nil
-	}
-	backupNow.Flags().BoolVar(&apps, "apps", false, "back up the apps' data: their databases and settings under volumes/")
-	backupNow.Flags().BoolVar(&takeOver, "take-over", false, "with --apps, make this machine the main, after asking when another machine is, then back up")
-	backupNow.Flags().BoolVar(&yes, "yes", false, "with --apps --take-over, take over without asking")
+	backupNow.PreRunE = func(*cobra.Command, []string) error { return f.checkBackup() }
+	backupNow.Flags().BoolVar(&f.apps, "apps", false, "back up the apps' data: their databases and settings under volumes/")
+	backupNow.Flags().BoolVar(&f.takeOver, "take-over", false, "with --apps, make this machine the main, after asking when another machine is, then back up")
+	backupNow.Flags().BoolVar(&f.yes, "yes", false, "with --apps --take-over, take over without asking")
 	restore := backupCommand("restore", "Restore volumes/ from the latest backup", restoring, func(cmd *cobra.Command, b *backup.Backups) error {
-		return b.Restore(cmd.Context(), overwrite)
+		return b.Restore(cmd.Context(), f.overwrite)
 	})
-	restore.PreRunE = func(*cobra.Command, []string) error {
-		switch {
-		case overwrite && !apps:
-			return errors.New("--overwrite only goes with --apps")
-		case !apps:
-			return errors.New("say what to restore: --apps")
-		}
-		return nil
-	}
-	restore.Flags().BoolVar(&apps, "apps", false, "restore volumes/ from the latest apps backup")
-	restore.Flags().BoolVar(&overwrite, "overwrite", false, "with --apps, move the existing volumes/ aside and restore over it")
+	restore.PreRunE = func(*cobra.Command, []string) error { return f.checkRestore() }
+	restore.Flags().BoolVar(&f.apps, "apps", false, "restore volumes/ from the latest apps backup")
+	restore.Flags().BoolVar(&f.overwrite, "overwrite", false, "with --apps, move the existing volumes/ aside and restore over it")
 	return []*cobra.Command{
 		backupNow,
 		backupCommand("check-backup", "Check the backups: restic check and a test restore of the latest snapshot's databases", telling, func(cmd *cobra.Command, b *backup.Backups) error {
@@ -97,6 +79,32 @@ func newBackupCommands(deps Dependencies) []*cobra.Command {
 		}),
 		restore,
 	}
+}
+
+type backupFlags struct {
+	apps, takeOver, yes, overwrite bool
+}
+
+func (f *backupFlags) checkBackup() error {
+	switch {
+	case f.takeOver && !f.apps:
+		return errors.New("--take-over only goes with --apps")
+	case !f.apps:
+		return errors.New("say what to back up: --apps")
+	case f.yes && !f.takeOver:
+		return errors.New("--yes only goes with --take-over")
+	}
+	return nil
+}
+
+func (f *backupFlags) checkRestore() error {
+	switch {
+	case f.overwrite && !f.apps:
+		return errors.New("--overwrite only goes with --apps")
+	case !f.apps:
+		return errors.New("say what to restore: --apps")
+	}
+	return nil
 }
 
 func (d Dependencies) backups(cmd *cobra.Command, needs backupNeeds) (*backup.Backups, error) {

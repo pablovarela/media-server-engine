@@ -21,12 +21,12 @@ restic keeps 7 daily, 4 weekly and 6 monthly snapshots, and removes older ones a
 
 - One machine per installation backs up: its **main**, the machine that made the latest snapshot. Snapshots are tagged with the machine's id and name.
 - Any other machine refuses to back up, so two machines never write competing snapshots. The refusal names the main and when it last backed up, and isn't reported as a failure; checking the backups is refused the same way, since the main does that too.
-- `mse status` says which machine is the main. `mse backup --take-over` makes this machine the main: it backs up once, and from then on the old main refuses. When another machine is the main, it first names it and the time of its last backup, and asks; `--yes` takes over without asking.
+- `mse status` says which machine is the main. `mse backup --apps --take-over` makes this machine the main: it backs up once, and from then on the old main refuses. When another machine is the main, it first names it and the time of its last backup, and asks; `--yes` takes over without asking.
 - `mse setup` makes a new installation's machine the main; when it rebuilds an installation, it asks.
 
 ## Running a backup
 
-- `mse backup` stops the apps, takes the snapshot, starts them again and removes old snapshots. It takes a few minutes. A lock stops a second backup while one runs; the operating system releases it however the backup ends.
+- `mse backup --apps` stops the apps, takes the snapshot, starts them again and removes old snapshots. It takes a few minutes. A lock stops a second backup while one runs; the operating system releases it however the backup ends.
 - `mse check-backup` runs `restic check`, restores the latest snapshot's databases into a temporary folder and checks each one.
 - On machines with systemd, the main's timers back up daily at 04:30 and verify on Sundays at 05:30.
 - `mse` runs the restic version pinned in it, downloaded on first use into `~/.cache/mse/restic`; nothing needs installing.

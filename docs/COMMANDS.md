@@ -7,8 +7,8 @@
 | install | `mse check-machine`, `mse setup <name> [--owner] [--homepage-port] [--overwrite]` |
 | personalize | `mse configure` |
 | run | `mse apply`, `mse update [--apply] [--force]`, `mse stack up\|down\|ps\|logs\|restart` |
-| back up | `mse backup [--take-over [--yes]]`, `mse check-backup` |
-| recover | `mse restore [--overwrite]` |
+| back up | `mse backup --apps [--take-over [--yes]]`, `mse check-backup` |
+| recover | `mse restore --apps [--overwrite]` |
 | look | `mse status`, `mse logins`, `mse version` |
 | housekeeping, run by a timer | `mse clean-downloads` |
 
@@ -82,7 +82,7 @@ It asks first: "There's no media-server-config-<name> under <owner>. Create a ne
 1. **Secrets key:** a new age key, added to `~/.config/sops/age/keys.txt` (or `SOPS_AGE_KEY_FILE`; it refuses while `SOPS_AGE_KEY` or `SOPS_AGE_KEY_CMD` is set). It is shown once, on the terminal only: save it. The name and the key rebuild the installation anywhere.
 2. **Config:** written from the template into `~/.config/mse/<name>`, then every configure section is asked in turn.
 3. **Repository:** a commit, the new private repository and a push.
-4. **Main:** it creates the backup repository and backs up the still-empty data folder, as `mse backup --take-over` does, so the repository records this machine as the main.
+4. **Main:** it creates the backup repository and backs up the still-empty data folder, as `mse backup --apps --take-over` does, so the repository records this machine as the main.
 5. **Apply:** `mse apply`.
 
 - `--homepage-port <port>` puts the landing page on another port, for the checks and in the settings, when something else on the machine uses port 80.
@@ -103,7 +103,7 @@ It says "Rebuilding <name> from <owner>/media-server-config-<name>." Then:
    - otherwise setup asks whether this machine becomes the main: "yes" by default when there are no backups yet or the machine behind the latest one looks gone, "no" while that machine backed up in the last two days. A machine that becomes the main backs up straight away;
    - a machine that kept its own app data while the main backed up in the last two days doesn't back up, so that data can't become the latest backup.
 
-   A machine that doesn't take over doesn't back up; `mse backup --take-over` changes that later.
+   A machine that doesn't take over doesn't back up; `mse backup --apps --take-over` changes that later.
 5. **Apply:** `mse apply`.
 
 - A backup holds app state, not media: copy the media over, or rescan each app.
@@ -169,7 +169,7 @@ Shows this machine's installation. It changes nothing and prints no passwords.
 |---|---|---|---|
 | `mse-<name>-update` | `mse update --apply` | daily at 05:00 | every machine |
 | `mse-<name>-download-cleanup` | `mse clean-downloads` | every 15 minutes | every machine |
-| `mse-<name>-backup` | `mse backup` | daily at 04:30 | the main |
+| `mse-<name>-backup` | `mse backup --apps` | daily at 04:30 | the main |
 | `mse-<name>-verify` | `mse check-backup` | Sundays at 05:30 | the main |
 
 - They are systemd user units in `~/.config/systemd/user`: `systemctl --user list-timers` lists them, and `journalctl --user-unit mse-<name>-update.service` shows a run.
@@ -181,10 +181,10 @@ Shows this machine's installation. It changes nothing and prints no passwords.
 
 ## Backups
 
-- **Commands:** `mse backup [--take-over [--yes]]`, `mse check-backup`, `mse restore`.
+- **Commands:** `mse backup --apps [--take-over [--yes]]`, `mse check-backup`, `mse restore --apps`.
 - **Repository:** `RESTIC_REPOSITORY` in the config's `installation.env`, with its credentials in `secrets/backup.sops.env`.
-- **The main:** only the installation's main backs up: the machine that made the latest snapshot. `mse status` says which. On any other machine `mse backup` and `mse check-backup` say so and exit without failing; `mse backup --take-over` makes this machine the main, after asking when another machine is, and backs up (`--yes` skips the question).
-- **Healthchecks:** `mse backup` and `mse check-backup` report to healthchecks.io themselves when the config has a ping key, so a run by hand counts like a timer run.
+- **The main:** only the installation's main backs up: the machine that made the latest snapshot. `mse status` says which. On any other machine `mse backup --apps` and `mse check-backup` say so and exit without failing; `mse backup --apps --take-over` makes this machine the main, after asking when another machine is, and backs up (`--yes` skips the question).
+- **Healthchecks:** `mse backup --apps` and `mse check-backup` report to healthchecks.io themselves when the config has a ping key, so a run by hand counts like a timer run.
 - **Paths:** a backup runs restic from the data folder with symlinks resolved, so a data folder linked to another path backs up under the same paths as before.
 - **More:** [Backups](BACKUP.md) and [Restoring](RESTORE.md).
 - **restic:** `mse` runs the restic version pinned in it. It downloads it from restic's GitHub releases the first time it needs it, checks it against the checksum built into `mse`, and keeps it in `~/.cache/mse/restic`. Before each use it checks that copy against the checksum it recorded, and downloads it again if it changed. A restic on `PATH` isn't used.

@@ -39,7 +39,7 @@ type schedule struct {
 }
 
 var schedules = map[string]schedule{
-	backupJob: {cron: "30 4 * * *", grace: 2 * hour, command: "mse backup"},
+	backupJob: {cron: "30 4 * * *", grace: 2 * hour, command: "mse backup --apps"},
 	updateJob: {cron: "0 5 * * *", grace: 2 * hour, command: "mse update --apply"},
 	verifyJob: {cron: "30 5 * * 0", grace: 4 * hour, command: "mse check-backup"},
 }
