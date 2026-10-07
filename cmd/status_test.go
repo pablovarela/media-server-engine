@@ -3,35 +3,100 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/pablovarela/media-server-engine/internal/compose"
 	"github.com/pablovarela/media-server-engine/internal/process"
 	"github.com/pablovarela/media-server-engine/internal/version"
 )
 
 const (
-	recentSnapshot  = `[{"time":"2026-10-05T03:30:00Z","tags":["machine:this-machine","machine-name:gorgon"]}]`
-	laptopSnapshot  = `[{"time":"2026-10-05T03:30:00Z","tags":["machine:other","machine-name:laptop"]}]`
-	succeededTimers = "Result=success\nExecMainExitTimestamp=Mon 2026-10-05 03:31:41 UTC\nId=%s.service\nLoadState=loaded\n\n" +
-		"NextElapseUSecRealtime=Tue 2026-10-06 03:30:00 UTC\nResult=success\nId=%s.timer\nLoadState=loaded\n"
+	recentSnapshot = `[{"time":"2026-10-05T03:30:00Z","tags":["machine:this-machine","machine-name:gorgon"]}]`
+	laptopSnapshot = `[{"time":"2026-10-05T03:30:00Z","tags":["machine:other","machine-name:laptop"]}]`
 )
 
-func TestStatus(t *testing.T) {
-	type Given struct {
-		running   []string
-		snapshots process.Result
-		systemd   bool
-		apps      string
-		settings  string
+func succeededTimers(units []string) string {
+	var blocks []string
+	for _, unit := range units {
+		if strings.HasSuffix(unit, ".service") {
+			blocks = append(blocks, "Result=success\nExecMainExitTimestamp=Mon 2026-10-05 03:31:41 UTC\nId="+unit+"\nLoadState=loaded")
+		} else if strings.HasSuffix(unit, ".timer") {
+			blocks = append(blocks, "NextElapseUSecRealtime=Tue 2026-10-06 03:30:00 UTC\nResult=success\nId="+unit+"\nLoadState=loaded")
+		}
 	}
+	return strings.Join(blocks, "\n\n") + "\n"
+}
+
+type statusGiven struct {
+	running   []string
+	snapshots process.Result
+	systemd   bool
+	apps      string
+	settings  string
+	dockerErr error
+}
+
+func statusDependencies(t *testing.T, given statusGiven) (string, Dependencies, *[]string) {
+	t.Helper()
+	home, _, _, tmp := backupHome(t)
+	config := filepath.Join(home, ".config", "mse", "gorgon")
+	if given.settings != "" {
+		current, err := os.ReadFile(filepath.Join(config, "installation.env"))
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(filepath.Join(config, "installation.env"), append(current, given.settings...), 0o644))
+	}
+	if given.apps != "" {
+		require.NoError(t, os.WriteFile(filepath.Join(config, "secrets", "apps.sops.env"), []byte(given.apps), 0o644))
+	}
+	var pings []string
+	deps := backupDependencies(t, home, tmp, statusRunner(t, given), statusComposer(t, given), false, &pings)
+	deps.Build = version.Build{Version: "v0.23.0"}
+	deps.Systemd = func() bool { return given.systemd }
+	if given.dockerErr != nil {
+		deps.Compose = func(io.Writer, *compose.Outcomes) (composeRunner, error) { return nil, given.dockerErr }
+	}
+	return home, deps, &pings
+}
+
+func statusRunner(t *testing.T, given statusGiven) commandRunner {
+	runner := newMockCommandRunner(t)
+	runner.EXPECT().Output(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, c process.Command) (process.Result, error) {
+		switch c.Name {
+		case "restic":
+			return given.snapshots, nil
+		case "systemctl":
+			require.True(t, given.systemd, "systemctl called without systemd")
+			return process.Result{Stdout: []byte(succeededTimers(c.Args))}, nil
+		}
+		t.Fatalf("unexpected command %s %v", c.Name, c.Args)
+		return process.Result{}, nil
+	}).Maybe()
+	return runner
+}
+
+func statusComposer(t *testing.T, given statusGiven) composeRunner {
+	composer := newMockComposeRunner(t)
+	if given.dockerErr == nil {
+		containers := []compose.Container{{Name: "jellyfin", State: "running"}, {Name: "sonarr", State: "exited"}}
+		for n := range given.running {
+			containers[n].State = "running"
+		}
+		composer.EXPECT().Containers(mock.Anything, "media-server").Return(containers, nil)
+	}
+	return composer
+}
+
+func TestStatus(t *testing.T) {
+	type Given = statusGiven
 	type Then struct {
 		code     int
 		contains []string
@@ -53,7 +118,7 @@ func TestStatus(t *testing.T) {
 		},
 		"the backup repository unreachable": {
 			Given: Given{running: healthy.running, snapshots: process.Result{Exit: 1, Stderr: []byte("dial tcp: no route to host\n")}, systemd: true},
-			Then:  Then{contains: []string{"Couldn't reach the backup repository", "Stack: 2 of 2 services running", "Apps:"}},
+			Then:  Then{code: 1, contains: []string{"Couldn't reach the backup repository", "Stack: 2 of 2 services running", "Apps:", "the backup repository couldn't be read"}},
 		},
 		"no systemd": {
 			Given: Given{running: healthy.running, snapshots: healthy.snapshots},
@@ -67,6 +132,10 @@ func TestStatus(t *testing.T) {
 			Given: Given{running: healthy.running, snapshots: healthy.snapshots, systemd: true, settings: "HOMEPAGE_PORT=8080\n"},
 			Then:  Then{contains: []string{"Home         http://gorgon.local:8080"}},
 		},
+		"docker unreachable": {
+			Given: Given{snapshots: healthy.snapshots, systemd: true, dockerErr: errors.New("Cannot connect to the Docker daemon")},
+			Then:  Then{code: 1, contains: []string{"Stack: couldn't read it: Cannot connect to the Docker daemon", "This machine is the main", "check-backup", "Jellyfin"}},
+		},
 		"no passwords": {
 			Given: Given{running: healthy.running, snapshots: healthy.snapshots, systemd: true, apps: "JELLYFIN_ADMIN_PASSWORD=s3cret\n"},
 			Then:  Then{absent: []string{"s3cret"}},
@@ -74,37 +143,7 @@ func TestStatus(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			home, _, _, tmp := backupHome(t)
-			if tt.Given.settings != "" {
-				env := filepath.Join(home, ".config", "mse", "gorgon", "installation.env")
-				current, err := os.ReadFile(env)
-				require.NoError(t, err)
-				require.NoError(t, os.WriteFile(env, append(current, tt.Given.settings...), 0o644))
-			}
-			if tt.Given.apps != "" {
-				require.NoError(t, os.WriteFile(filepath.Join(home, ".config", "mse", "gorgon", "secrets", "apps.sops.env"), []byte(tt.Given.apps), 0o644))
-			}
-			runner := newMockCommandRunner(t)
-			runner.EXPECT().Output(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, c process.Command) (process.Result, error) {
-				switch c.Name {
-				case "restic":
-					return tt.Given.snapshots, nil
-				case "systemctl":
-					require.True(t, tt.Given.systemd, "systemctl called without systemd")
-					unit := strings.TrimSuffix(c.Args[2], ".service")
-					return process.Result{Stdout: []byte(strings.ReplaceAll(strings.Replace(succeededTimers, "%s", unit, 1), "%s", unit))}, nil
-				}
-				t.Fatalf("unexpected command %s %v", c.Name, c.Args)
-				return process.Result{}, nil
-			}).Maybe()
-			composer := newMockComposeRunner(t)
-			project := &types.Project{Services: types.Services{"jellyfin": {Name: "jellyfin"}, "sonarr": {Name: "sonarr"}}}
-			composer.EXPECT().Load(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(project, nil)
-			composer.EXPECT().RunningServices(mock.Anything, project).Return(tt.Given.running, nil)
-			var pings []string
-			deps := backupDependencies(t, home, tmp, runner, composer, false, &pings)
-			deps.Build = version.Build{Version: "v0.23.0"}
-			deps.Systemd = func() bool { return tt.Given.systemd }
+			home, deps, pings := statusDependencies(t, tt.Given)
 			root := NewRootCommand(deps)
 			var stdout, stderr bytes.Buffer
 			root.SetOut(&stdout)
@@ -119,7 +158,8 @@ func TestStatus(t *testing.T) {
 			for _, text := range tt.Then.absent {
 				assert.NotContains(t, stdout.String()+stderr.String(), text)
 			}
-			assert.Empty(t, pings)
+			assert.Empty(t, *pings)
+			assert.NoDirExists(t, filepath.Join(home, ".local", "state", "mse", "gorgon", ".secrets"), "status writes no decrypted secrets")
 		})
 	}
 }

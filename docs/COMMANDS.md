@@ -134,13 +134,14 @@ Shows this machine's installation. It changes nothing and prints no passwords.
 - **What it shows:**
   - the installation and the `mse` version;
   - whether this machine is the main, and when the latest backup was made and by which machine;
-  - how many of the stack's services are running;
+  - how many of the stack's containers are running;
   - each timer's last run, whether it succeeded, and its next run;
   - the address of the landing page and of every app.
 - **When a part can't be read,** for example the backup repository is unreachable, that part says why and the rest still shows. Without systemd there are no timers to show.
 - **Exit code:** 1 when something needs attention, listed at the end:
   - a timer's last run failed;
-  - a service isn't running;
+  - a container of the stack isn't running, or the stack has no containers;
+  - the backup repository, the stack or the timers couldn't be read;
   - this machine is the main and its latest backup is more than 2 days old.
 
   Otherwise 0.

@@ -85,7 +85,7 @@ func (d Dependencies) applyPage(ctx context.Context, o opened) error {
 
 func reload(ctx context.Context, d Dependencies, runner composeRunner, project *types.Project, port string, changes pageChanges) (string, error) {
 	containers, err := runner.Ps(ctx, project)
-	if err != nil || !slices.ContainsFunc(containers, func(c compose.Container) bool { return c.Name == homepageService && c.State == "running" }) {
+	if err != nil || !slices.ContainsFunc(containers, func(c compose.Container) bool { return c.Name == homepageService && c.State == containerRunning }) {
 		return "not running", nil
 	}
 	switch {

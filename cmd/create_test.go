@@ -414,7 +414,7 @@ func TestCreateSummary(t *testing.T) {
 	summary := c.Summary(context.Background())
 
 	assert.Equal(t, "gorgon is ready: its config is in "+filepath.Join(home, ".config", "mse", "gorgon")+" (github.com/pablovarela/media-server-config-gorgon), "+
-		"its data in "+filepath.Join(home, ".local", "share", "mse", "gorgon")+" and its landing page at http://pi.local:8080. mse urls lists every app.", summary)
+		"its data in "+filepath.Join(home, ".local", "share", "mse", "gorgon")+" and its landing page at http://pi.local:8080. mse status lists every app.", summary)
 }
 
 func TestCreateKeepsEverythingWhenGitHubCannotSay(t *testing.T) {

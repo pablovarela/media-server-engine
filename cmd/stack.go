@@ -24,6 +24,7 @@ type composeRunner interface {
 	Up(ctx context.Context, project *types.Project, services []string, wait compose.Wait) error
 	Down(ctx context.Context, project *types.Project) error
 	Ps(ctx context.Context, project *types.Project) ([]compose.Container, error)
+	Containers(ctx context.Context, projectName string) ([]compose.Container, error)
 	Logs(ctx context.Context, project *types.Project, options compose.LogsOptions, w io.Writer) error
 	Restart(ctx context.Context, project *types.Project, services []string) error
 	RunningServices(ctx context.Context, project *types.Project) ([]string, error)
@@ -242,9 +243,11 @@ func writeRow(out *strings.Builder, row []string, widths []int, paintStatuses bo
 	out.WriteString("\n")
 }
 
+const containerRunning = "running"
+
 func paintStatus(status string) string {
 	switch status {
-	case "running", "healthy":
+	case containerRunning, "healthy":
 		return paint.Stdout.Success(status)
 	case "exited", "dead", "unhealthy":
 		return paint.Stdout.Failure(status)

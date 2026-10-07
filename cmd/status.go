@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/pablovarela/media-server-engine/internal/backup"
 	"github.com/pablovarela/media-server-engine/internal/compose"
 	"github.com/pablovarela/media-server-engine/internal/installation"
 	"github.com/pablovarela/media-server-engine/internal/report"
@@ -51,18 +50,35 @@ func newStatusCommand(deps Dependencies) *cobra.Command {
 }
 
 func (d Dependencies) status(cmd *cobra.Command) (status.Report, error) {
-	o, err := d.openProject(cmd, compose.Stack, noDrawing)
+	i, err := d.installation(cmd)
 	if err != nil {
 		return status.Report{}, err
 	}
-	i := o.installation
-	r := status.Report{Installation: i.Name, Version: d.Build.Version, Services: len(o.project.Services)}
-	running, err := o.runner.RunningServices(cmd.Context(), o.project)
-	r.Running, r.StackErr = len(running), err
+	r := status.Report{Installation: i.Name, Version: d.Build.Version}
+	d.statusOfStack(cmd, &r)
 	d.statusOfBackups(cmd.Context(), i, &r)
 	d.statusOfTimers(cmd, i, &r)
-	r.Apps, err = d.appAddresses(i)
-	return r, err
+	r.Apps, r.AppsErr = d.appAddresses(i)
+	return r, nil
+}
+
+func (d Dependencies) statusOfStack(cmd *cobra.Command, r *status.Report) {
+	runner, err := d.Compose(report.From(cmd.Context()).Tool("compose"), &compose.Outcomes{})
+	if err != nil {
+		r.StackErr = err
+		return
+	}
+	containers, err := runner.Containers(cmd.Context(), compose.Stack.Name)
+	if err != nil {
+		r.StackErr = err
+		return
+	}
+	r.Services = len(containers)
+	for _, container := range containers {
+		if container.State == containerRunning {
+			r.Running++
+		}
+	}
 }
 
 func (d Dependencies) statusOfBackups(ctx context.Context, i *installation.Installation, r *status.Report) {
@@ -73,10 +89,6 @@ func (d Dependencies) statusOfBackups(ctx context.Context, i *installation.Insta
 	case !configured:
 		r.NoBackups = true
 	default:
-		if b.MachineID, err = backup.MachineID(d.MachineIDFile, i.Data); err != nil {
-			r.MainErr = err
-			return
-		}
 		r.Main, r.MainErr = b.CurrentMain(ctx)
 	}
 }
@@ -86,16 +98,13 @@ func (d Dependencies) statusOfTimers(cmd *cobra.Command, i *installation.Install
 		r.NoSystemd = true
 		return
 	}
-	runner := d.Run(cmd.ErrOrStderr(), cmd.ErrOrStderr())
-	for _, job := range timers.Jobs {
-		state, err := timers.Status(cmd.Context(), runner, i.Name, job)
-		if err != nil {
-			r.TimersErr = err
-			return
-		}
-		if state.Installed {
-			r.Timers = append(r.Timers, status.Timer{Label: timerLabels[job.Name], Status: state})
-		}
+	states, err := timers.Status(cmd.Context(), d.Run(cmd.ErrOrStderr(), cmd.ErrOrStderr()), i.Name)
+	if err != nil {
+		r.TimersErr = err
+		return
+	}
+	for _, state := range states {
+		r.Timers = append(r.Timers, status.Timer{Label: timerLabels[state.Job.Name], Status: state})
 	}
 }
 
