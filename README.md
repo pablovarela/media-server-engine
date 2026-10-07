@@ -52,10 +52,10 @@ Run `mse check-machine` until it says the machine is ready; each missing piece c
 | `mse configure` | change settings and secrets from a menu, then commit and push them |
 | `mse apply` | apply the config to this machine: secrets, images, containers, wiring, timers |
 | `mse update --apply` | update the config and `mse`, then apply (the nightly timer runs it) |
-| `mse urls`, `mse logins` | the apps' addresses, and their logins |
+| `mse status` | this machine's installation: version, main, stack, last backup, timers and the apps' addresses |
+| `mse logins` | the apps' users and passwords |
 | `mse stack down`, `mse stack up` | stop and start the apps |
 | `mse backup`, `mse verify-backup` | back up now, check the backups now |
-| `mse backup-role` | which machine is the main |
 | `mse version` | the `mse` release running |
 
 `mse help` lists every command.

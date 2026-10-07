@@ -72,9 +72,6 @@ func newBackupCommands(deps Dependencies) []*cobra.Command {
 		backupCommand("verify-backup", "Check the backups: restic check and a test restore of the latest snapshot's databases", telling, func(cmd *cobra.Command, b *backup.Backups) error {
 			return b.Verify(cmd.Context())
 		}),
-		backupCommand("backup-role", "Show which machine is the installation's main", telling, func(cmd *cobra.Command, b *backup.Backups) error {
-			return b.DescribeRole(cmd.Context())
-		}),
 		claim, unlock, restore,
 	}
 }

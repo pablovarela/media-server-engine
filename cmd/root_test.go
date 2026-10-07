@@ -80,18 +80,19 @@ func TestRunPaintsTheErrorRed(t *testing.T) {
 
 func TestEveryRunIsLogged(t *testing.T) {
 	getenv, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"})
-	root := NewRootCommand(Dependencies{Environment: getenv, Home: home, Update: newMockUpdater(t), Host: installation.Host{GOOS: "linux", Hostname: func() (string, error) { return "gorgon", nil }}})
+	root := NewRootCommand(Dependencies{Environment: getenv, Home: home, Update: newMockUpdater(t), Host: installation.Host{GOOS: "linux", Hostname: func() (string, error) { return "gorgon", nil }},
+		Decrypt: func(string) ([]byte, error) { return []byte("SONARR_API_KEY=k\n"), nil }})
 	var stdout bytes.Buffer
 	root.SetOut(&stdout)
 	root.SetErr(&bytes.Buffer{})
 
-	code := run(context.Background(), root, []string{"urls"})
+	code := run(context.Background(), root, []string{"logins"})
 
 	assert.Equal(t, 0, code)
 	logged, err := os.ReadFile(filepath.Join(home, ".local", "state", "mse", "gorgon", "logs", "mse.log"))
 	require.NoError(t, err)
 	text := string(logged)
-	assert.Regexp(t, ` urls\[[0-9a-f]{6}\] start urls\n`, text)
+	assert.Regexp(t, ` logins\[[0-9a-f]{6}\] start logins\n`, text)
 	assert.NotContains(t, text, strings.SplitN(stdout.String(), "\n", 2)[0], "data commands keep their output out of the log")
 	assert.Regexp(t, `\] finish exit 0 after [0-9.]+[µm]?s\n$`, text)
 }

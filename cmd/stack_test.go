@@ -307,14 +307,15 @@ func TestAnUnwritableLogDoesNotStopACommand(t *testing.T) {
 	state := filepath.Join(home, ".local", "state", "mse", "gorgon")
 	require.NoError(t, os.MkdirAll(state, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(state, "logs"), nil, 0o644))
-	root := NewRootCommand(Dependencies{Environment: getenv, Home: home, Update: newMockUpdater(t), Host: installation.Host{GOOS: "linux", Hostname: func() (string, error) { return "gorgon", nil }}})
+	root := NewRootCommand(Dependencies{Environment: getenv, Home: home, Update: newMockUpdater(t), Host: installation.Host{GOOS: "linux", Hostname: func() (string, error) { return "gorgon", nil }},
+		Decrypt: func(string) ([]byte, error) { return []byte("SONARR_API_KEY=k\n"), nil }})
 	var stdout, stderr bytes.Buffer
 	root.SetOut(&stdout)
 	root.SetErr(&stderr)
 
-	code := run(context.Background(), root, []string{"urls"})
+	code := run(context.Background(), root, []string{"logins"})
 
 	assert.Equal(t, 0, code)
-	assert.Contains(t, stdout.String(), "http://")
+	assert.Contains(t, stdout.String(), "Jellyfin")
 	assert.Equal(t, 1, strings.Count(stderr.String(), "could not write the log "))
 }

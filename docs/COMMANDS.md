@@ -10,6 +10,7 @@
 - [mse configure](#mse-configure)
 - [mse update](#mse-update)
 - [mse apply](#mse-apply)
+- [mse status](#mse-status)
 - [The timers](#the-timers)
 - [Backups](#backups)
 - [The stack and the landing page](#the-stack-and-the-landing-page)
@@ -126,6 +127,24 @@ Applies the config on disk to the machine, uncommitted changes included:
 
 Each change the wiring makes is one line. An app that fails or doesn't answer within five minutes is named, the others are still wired, and the command fails.
 
+## mse status
+
+Shows this machine's installation. It changes nothing and prints no passwords.
+
+- **What it shows:**
+  - the installation and the `mse` version;
+  - whether this machine is the main, and when the latest backup was made and by which machine;
+  - how many of the stack's services are running;
+  - each timer's last run, whether it succeeded, and its next run;
+  - the address of the landing page and of every app.
+- **When a part can't be read,** for example the backup repository is unreachable, that part says why and the rest still shows. Without systemd there are no timers to show.
+- **Exit code:** 1 when something needs attention, listed at the end:
+  - a timer's last run failed;
+  - a service isn't running;
+  - this machine is the main and its latest backup is more than 2 days old.
+
+  Otherwise 0.
+
 ## The timers
 
 | Timer | Runs | When | Where |
@@ -144,9 +163,9 @@ Each change the wiring makes is one line. An app that fails or doesn't answer wi
 
 ## Backups
 
-- **Commands:** `mse backup`, `mse verify-backup`, `mse restore`, `mse backup-role`, `mse claim-backup-main`, `mse unlock-backup`.
+- **Commands:** `mse backup`, `mse verify-backup`, `mse restore`, `mse claim-backup-main`, `mse unlock-backup`.
 - **Repository:** `RESTIC_REPOSITORY` in the config's `installation.env`, with its credentials in `secrets/backup.sops.env`.
-- **The main:** only the installation's main backs up: the machine that made the latest snapshot. `mse backup-role` says which; `mse claim-backup-main` takes over.
+- **The main:** only the installation's main backs up: the machine that made the latest snapshot. `mse status` says which; `mse claim-backup-main` takes over.
 - **Healthchecks:** `mse backup` and `mse verify-backup` report to healthchecks.io themselves when the config has a ping key, so a run by hand counts like a timer run.
 - **Paths:** a backup runs restic from the data folder with symlinks resolved, so a data folder linked to another path backs up under the same paths as before.
 - **More:** [Backups](BACKUP.md) and [Restoring](RESTORE.md).
@@ -158,7 +177,7 @@ Each change the wiring makes is one line. An app that fails or doesn't answer wi
 - `mse stack up --wait` returns once every container is running, and healthy when it has a healthcheck (`--wait-timeout`, 5 minutes by default).
 - `mse stack logs -f [service...]` follows the logs; `--tail N` limits them to the last lines.
 - When the config pins a `homepage` image, `mse stack up` and `mse stack restart` draw the landing page first, from the config's `homepage/` files over the engine's default page, then reload Homepage. A page that can't be drawn is reported and the containers start anyway. `mse homepage` redraws it on its own.
-- `mse urls` and `mse logins` print the apps' addresses and logins.
+- `mse logins` prints the apps' users and passwords; `mse status` lists their addresses.
 
 ## Output and logs
 

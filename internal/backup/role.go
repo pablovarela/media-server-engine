@@ -67,25 +67,6 @@ func (b *Backups) ownHost(ctx context.Context) (string, error) {
 	return b.Installation.Name, nil
 }
 
-func (b *Backups) DescribeRole(ctx context.Context) error {
-	state, latest, err := b.main(ctx)
-	if err != nil {
-		return err
-	}
-	name := b.Installation.Name
-	if latest == nil {
-		b.Report.Say(name + " has no backups yet; the first machine to back up becomes its main.")
-		return nil
-	}
-	b.Report.Say(fmt.Sprintf("%s's main is %s.", name, describe(latest)))
-	if state == anotherMachine {
-		b.Report.Say("This machine is not the main; mse claim-backup-main makes it the main.")
-		return nil
-	}
-	b.Report.Say("This machine is the main.")
-	return nil
-}
-
 func (b *Backups) RunsBackups(ctx context.Context) (runs, backedUp bool, err error) {
 	state, latest, err := b.main(ctx)
 	switch {
