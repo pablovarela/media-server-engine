@@ -14,11 +14,8 @@ import (
 )
 
 var engineFiles = fstest.MapFS{
-	"docker-compose.yml":            {Data: []byte("services: {}\n")},
-	"docker-compose.monitoring.yml": {Data: []byte("services: {}\n")},
-	"grafana/datasources/a.yml":     {Data: []byte("a\n")},
-	"prometheus/prometheus.yml":     {Data: []byte("p\n")},
-	"README.md":                     {Data: []byte("not an engine file\n")},
+	"docker-compose.yml": {Data: []byte("services: {}\n")},
+	"README.md":          {Data: []byte("not an engine file\n")},
 }
 
 func TestPrepare(t *testing.T) {
@@ -26,7 +23,7 @@ func TestPrepare(t *testing.T) {
 
 	require.NoError(t, Prepare(engineFiles, state))
 
-	for _, file := range []string{"docker-compose.yml", "docker-compose.monitoring.yml", "grafana/datasources/a.yml", "prometheus/prometheus.yml"} {
+	for _, file := range []string{"docker-compose.yml"} {
 		got, err := os.ReadFile(filepath.Join(state, file))
 		require.NoError(t, err, file)
 		assert.Equal(t, string(engineFiles[file].Data), string(got), file)
@@ -41,19 +38,8 @@ func TestPrepare(t *testing.T) {
 		}
 	})
 
-	t.Run("files that left the engine are removed", func(t *testing.T) {
-		stale := filepath.Join(state, "grafana", "dashboards", "old.json")
-		require.NoError(t, os.MkdirAll(filepath.Dir(stale), 0o755))
-		require.NoError(t, os.WriteFile(stale, []byte("{}"), 0o644))
-
-		require.NoError(t, Prepare(engineFiles, state))
-
-		assert.NoFileExists(t, stale)
-		assert.FileExists(t, filepath.Join(state, "grafana", "datasources", "a.yml"))
-	})
-
 	t.Run("unchanged files are left alone", func(t *testing.T) {
-		path := filepath.Join(state, "prometheus", "prometheus.yml")
+		path := filepath.Join(state, "docker-compose.yml")
 		past := time.Now().Add(-time.Hour)
 		require.NoError(t, os.Chtimes(path, past, past))
 
@@ -97,10 +83,9 @@ func TestProfiles(t *testing.T) {
 		When  When
 		Then  Then
 	}{
-		"homepage pinned":            {Given: Given{images: "services:\n  homepage:\n    image: ghcr.io/gethomepage/homepage@sha256:abc\n"}, When: When{kind: Stack}, Then: Then{profiles: []string{"homepage"}}},
-		"homepage not pinned":        {Given: Given{images: "services:\n  jellyfin:\n    image: x\n"}, When: When{kind: Stack}, Then: Then{profiles: nil}},
-		"wiring requested":           {Given: Given{images: "services: {}\n"}, When: When{kind: Stack, wiring: true}, Then: Then{profiles: []string{"wiring"}}},
-		"monitoring has no profiles": {Given: Given{images: "services:\n  homepage:\n    image: x\n"}, When: When{kind: Monitoring}, Then: Then{profiles: nil}},
+		"homepage pinned":     {Given: Given{images: "services:\n  homepage:\n    image: ghcr.io/gethomepage/homepage@sha256:abc\n"}, When: When{kind: Stack}, Then: Then{profiles: []string{"homepage"}}},
+		"homepage not pinned": {Given: Given{images: "services:\n  jellyfin:\n    image: x\n"}, When: When{kind: Stack}, Then: Then{profiles: nil}},
+		"wiring requested":    {Given: Given{images: "services: {}\n"}, When: When{kind: Stack, wiring: true}, Then: Then{profiles: []string{"wiring"}}},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {

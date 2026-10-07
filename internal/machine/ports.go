@@ -45,7 +45,6 @@ type PortsCheck struct {
 	Project    string
 	Free       func(Port) bool
 	Published  func(ctx context.Context) ([]Published, error)
-	Note       string
 	Unreadable []string
 }
 
@@ -299,9 +298,5 @@ func portList(ports []Port) string {
 }
 
 func freeDetail(check PortsCheck) string {
-	line := portList(check.Ports) + " free"
-	if check.Note != "" {
-		line += " (" + check.Note + ")"
-	}
-	return line
+	return portList(check.Ports) + " free"
 }

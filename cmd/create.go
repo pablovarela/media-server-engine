@@ -31,12 +31,9 @@ type configRepositories interface {
 
 const homepagePortKey = "HOMEPAGE_PORT"
 
-func (d Dependencies) canInstall(cmd *cobra.Command, verb, name string, more ...func() error) error {
-	switch {
-	case !d.Terminal():
+func (d Dependencies) canInstall(verb, name string, more ...func() error) error {
+	if !d.Terminal() {
 		return fmt.Errorf("mse %s needs a terminal; run it from an interactive shell (over ssh: ssh -t)", verb)
-	case cmd.Flags().Changed("installation"):
-		return fmt.Errorf("mse %s takes the installation's name as its argument; it has no --installation", verb)
 	}
 	if err := create.ValidName(name); err != nil {
 		return err
@@ -284,9 +281,6 @@ func (c *creation) Summary(context.Context) string {
 }
 
 func (c *creation) ClaimMain(context.Context) error {
-	if err := c.cmd.Flags().Set("installation", c.name); err != nil {
-		return err
-	}
 	b, err := c.d.backups(c.cmd, backingUp)
 	if err != nil {
 		return err

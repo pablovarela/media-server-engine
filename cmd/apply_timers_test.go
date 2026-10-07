@@ -149,7 +149,7 @@ func TestApplySetsUpTheMainsTimers(t *testing.T) {
 	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update, mse-gorgon-download-cleanup, mse-gorgon-backup, mse-gorgon-verify changed.\n")
 	update := tf.unit(t, "mse-gorgon-update.service")
 	assert.Contains(t, update, "ExecStart="+tf.mse+" update --apply\n")
-	assert.Contains(t, update, "Environment=MSE_INSTALLATION=gorgon\n")
+	assert.NotContains(t, update, "MSE_INSTALLATION")
 	assert.Contains(t, tf.systemctl, "--user enable --now mse-gorgon-update.timer mse-gorgon-download-cleanup.timer mse-gorgon-backup.timer mse-gorgon-verify.timer")
 	assert.Equal(t, []string{"env", "-i", "HOME=" + tf.deps.Home, "USER=pablo", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "gh", "auth", "token"}, tf.tokenCall)
 }

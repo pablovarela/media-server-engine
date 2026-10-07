@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"slices"
@@ -10,12 +9,10 @@ import (
 	"time"
 
 	"github.com/compose-spec/compose-go/v2/types"
-	"github.com/spf13/cobra"
 
 	"github.com/pablovarela/media-server-engine/internal/compose"
 	"github.com/pablovarela/media-server-engine/internal/homepage"
 	"github.com/pablovarela/media-server-engine/internal/installation"
-	"github.com/pablovarela/media-server-engine/internal/paint"
 	"github.com/pablovarela/media-server-engine/internal/report"
 )
 
@@ -24,25 +21,6 @@ const homepageService = "homepage"
 type pageChanges struct {
 	env    bool
 	images bool
-}
-
-func newHomepageCommand(deps Dependencies) *cobra.Command {
-	return &cobra.Command{
-		Use:   "homepage",
-		Short: "Redraw the landing page from the config's homepage files",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			o, err := deps.openProject(cmd, compose.Stack, drawingAlways)
-			if err != nil {
-				return err
-			}
-			if err := deps.applyPage(cmd.Context(), o); err != nil {
-				return err
-			}
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), paint.Stdout.Success("The landing page is redrawn; an open page reloads itself in a few seconds."))
-			return err
-		},
-	}
 }
 
 func (d Dependencies) drawPage(ctx context.Context, i *installation.Installation, network string, warn io.Writer) (pageChanges, error) {

@@ -5,7 +5,7 @@ The configuration of one media server installation, used by [media-server-engine
 | File | Content |
 |---|---|
 | `installation.env` | installation name, time zone, Jellyfin admin user, backup repository; edited with `mse configure` |
-| `images.yml`, `images.monitoring.yml` | the image of every service, pinned to a digest |
+| `images.yml` | the image of every service, pinned to a digest |
 | `compose.override.yml` | optional additions or changes to the engine's compose file |
 | `homepage/` | the landing page, in Homepage's own format; starts as a copy of the engine's default page |
 | `configarr/config.yml` | Sonarr and Radarr quality profiles, custom formats, naming, root folders, download client |

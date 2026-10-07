@@ -25,7 +25,7 @@ func shippedInstallation(t *testing.T, settings map[string]string) shipped {
 	root := t.TempDir()
 	i := &installation.Installation{Name: "home", Config: filepath.Join(root, "config"), Data: filepath.Join(root, "data"), State: filepath.Join(root, "state"), Settings: settings}
 	require.NoError(t, os.MkdirAll(i.Config, 0o755))
-	for _, file := range []string{"images.yml", "images.monitoring.yml"} {
+	for _, file := range []string{"images.yml"} {
 		content, err := os.ReadFile(filepath.Join("..", "..", "config-template", file))
 		require.NoError(t, err)
 		require.NoError(t, os.WriteFile(filepath.Join(i.Config, file), content, 0o644))
@@ -235,10 +235,6 @@ func TestTheShippedComposeFiles(t *testing.T) {
 			When: When{kind: Stack, wiring: true},
 			Then: pinsEveryServiceToADigest,
 		},
-		"the template pins every monitoring service to a digest": {
-			When: When{kind: Monitoring},
-			Then: pinsEveryServiceToADigest,
-		},
 		"app state, media and downloads live under the data folder": {
 			When: When{kind: Stack, wiring: true},
 			Then: keepsAppStateMediaAndDownloadsUnderTheDataFolder,
@@ -378,8 +374,7 @@ func TestTheEngineComposeFilesCarryNoImageVersions(t *testing.T) {
 	tests := map[string]struct {
 		Given Given
 	}{
-		"the stack":      {Given: Given{file: "docker-compose.yml"}},
-		"the monitoring": {Given: Given{file: "docker-compose.monitoring.yml"}},
+		"the stack": {Given: Given{file: "docker-compose.yml"}},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {

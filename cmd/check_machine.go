@@ -17,8 +17,6 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/paint"
 )
 
-const severalInstallationsNote = "several installations here; using the default homepage port 80"
-
 func newCheckMachineCommand(deps Dependencies) *cobra.Command {
 	return &cobra.Command{
 		Use:   "check-machine",
@@ -79,11 +77,9 @@ func (d Dependencies) machineEnv(ports machine.PortsCheck) (machine.Env, error) 
 }
 
 func (d Dependencies) portsCheck(cmd *cobra.Command) (machine.PortsCheck, error) {
-	homepagePort, note, override := "", "", []byte(nil)
+	homepagePort, override := "", []byte(nil)
 	i, err := d.anyInstallation(cmd)
 	switch {
-	case errors.Is(err, installation.ErrSeveralInstallations):
-		note = severalInstallationsNote
 	case errors.Is(err, installation.ErrNoInstallation):
 	case err != nil:
 		return machine.PortsCheck{}, err
@@ -91,9 +87,7 @@ func (d Dependencies) portsCheck(cmd *cobra.Command) (machine.PortsCheck, error)
 		homepagePort = i.Settings["HOMEPAGE_PORT"]
 		override, _ = os.ReadFile(filepath.Join(i.Config, "compose.override.yml")) //nolint:gosec // the installation's own override
 	}
-	check, err := d.stackPortsCheck(override, homepagePort)
-	check.Note = note
-	return check, err
+	return d.stackPortsCheck(override, homepagePort)
 }
 
 func (d Dependencies) stackPortsCheck(override []byte, homepagePort string) (machine.PortsCheck, error) {

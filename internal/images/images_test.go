@@ -20,8 +20,8 @@ import (
 
 func TestPinned(t *testing.T) {
 	config := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(config, "images.yml"), []byte("services:\n  sonarr:\n    image: lscr.io/linuxserver/sonarr:4.0@sha256:aaa\n  plain:\n    image: busybox:latest\n"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(config, "images.monitoring.yml"), []byte("services:\n  prometheus:\n    image: registry:5000/prom/prometheus:v3@sha256:bbb\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(config, "images.yml"), []byte("services:\n  sonarr:\n    image: lscr.io/linuxserver/sonarr:4.0@sha256:aaa\n  plain:\n    image: busybox:latest\n"+
+		"  mirrored:\n    image: registry:5000/prom/prometheus:v3@sha256:bbb\n"), 0o644))
 
 	assert.Equal(t, map[string]bool{
 		"lscr.io/linuxserver/sonarr@sha256:aaa":    true,

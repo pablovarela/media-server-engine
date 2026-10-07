@@ -52,9 +52,6 @@ func (j *joining) Clone(ctx context.Context) (create.Undo, error) {
 	}
 	step.Done("done")
 	openInstallationLog(ctx, j.state)
-	if err := j.cmd.Flags().Set("installation", j.name); err != nil {
-		return j.removeClone(), err
-	}
 	if _, err := j.d.installation(j.cmd); err != nil {
 		if errors.Is(err, installation.ErrNewerSchema) {
 			err = fmt.Errorf("%w; mse update --force installs the release this config needs", err)

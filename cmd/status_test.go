@@ -165,7 +165,7 @@ func TestStatus(t *testing.T) {
 }
 
 func TestRemovedCommands(t *testing.T) {
-	for _, command := range []string{"urls", "backup-role", "claim-backup-main", "unlock-backup"} {
+	for _, command := range []string{"urls", "backup-role", "claim-backup-main", "unlock-backup", "monitoring", "homepage", "prune-stack-images", "verify-backup", "remove-executable-downloads"} {
 		t.Run(command, func(t *testing.T) {
 			getenv, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"})
 			root := NewRootCommand(Dependencies{Environment: getenv, Home: home, Update: newMockUpdater(t)})
@@ -177,6 +177,22 @@ func TestRemovedCommands(t *testing.T) {
 
 			assert.Equal(t, 1, code)
 			assert.Contains(t, stderr.String(), "unknown command")
+		})
+	}
+}
+
+func TestNoCommandTakesAnInstallationFlag(t *testing.T) {
+	for _, args := range [][]string{{"logins", "--installation", "gorgon"}, {"apply", "--after-update=a1b2c3", "--installation", "gorgon"}} {
+		t.Run(args[0], func(t *testing.T) {
+			getenv, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"})
+			root := NewRootCommand(Dependencies{Environment: getenv, Home: home, Update: newMockUpdater(t)})
+			var stderr bytes.Buffer
+			root.SetErr(&stderr)
+
+			code := run(context.Background(), root, args)
+
+			assert.Equal(t, 1, code)
+			assert.Contains(t, stderr.String(), "unknown flag: --installation")
 		})
 	}
 }

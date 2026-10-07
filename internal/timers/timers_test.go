@@ -18,7 +18,6 @@ After=mse-gorgon-backup.service
 
 [Service]
 Type=oneshot
-Environment=MSE_INSTALLATION=gorgon
 ExecStart=/home/pablo/.local/bin/mse update --apply
 Nice=10
 IOSchedulingClass=idle
@@ -28,7 +27,6 @@ Description=Back up the media server's app state (gorgon)
 
 [Service]
 Type=oneshot
-Environment=MSE_INSTALLATION=gorgon
 ExecStart=/home/pablo/.local/bin/mse backup
 Nice=10
 IOSchedulingClass=idle
@@ -39,8 +37,7 @@ After=mse-gorgon-backup.service
 
 [Service]
 Type=oneshot
-Environment=MSE_INSTALLATION=gorgon
-ExecStart=/home/pablo/.local/bin/mse verify-backup
+ExecStart=/home/pablo/.local/bin/mse check-backup
 Nice=10
 IOSchedulingClass=idle
 `,
@@ -49,8 +46,7 @@ Description=Remove downloads Sonarr or Radarr flagged as executables (gorgon)
 
 [Service]
 Type=oneshot
-Environment=MSE_INSTALLATION=gorgon
-ExecStart=/home/pablo/.local/bin/mse remove-executable-downloads
+ExecStart=/home/pablo/.local/bin/mse clean-downloads
 Nice=10
 IOSchedulingClass=idle
 `,
@@ -111,7 +107,7 @@ func TestTheEnvironmentTheInstallationNeedsReachesTheServices(t *testing.T) {
 	text, err := Render(Backup, ".service", v)
 
 	require.NoError(t, err)
-	assert.Contains(t, text, "Environment=MSE_INSTALLATION=gorgon\n"+
+	assert.Contains(t, text, "Type=oneshot\n"+
 		`Environment="XDG_DATA_HOME=/mnt/ssd/share"`+"\n"+
 		`Environment="SOPS_AGE_KEY_CMD=op read \"op://vault/age key\" --at 100%% \\n"`+"\n"+
 		"ExecStart=")

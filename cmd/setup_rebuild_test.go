@@ -60,9 +60,6 @@ func newJoinFixture(t *testing.T) *joinFixture {
 	m.effects["git clone --quiet -- "+joinCloneURL+" "+f.config] = func() { writeClonedConfig(t, f.config) }
 	m.answers["git clone --quiet -- "+joinCloneURL+" "+f.config] = process.Result{}
 	engine := m.deps.Engine.(fstest.MapFS)
-	engine["docker-compose.monitoring.yml"] = &fstest.MapFile{Data: []byte("services: {}\n")}
-	engine["grafana/grafana.ini"] = &fstest.MapFile{Data: []byte("\n")}
-	engine["prometheus/prometheus.yml"] = &fstest.MapFile{Data: []byte("\n")}
 	engine["scripts/backup-excludes.txt"] = &fstest.MapFile{Data: []byte("logs\n")}
 	m.deps.Repositories = f.repositories
 	m.deps.Prompter = func(context.Context) prompter { return f.prompter }
@@ -134,7 +131,7 @@ func TestSetupRebuildingStopsBeforeWritingAnything(t *testing.T) {
 		"no terminal": {given: func(_ *testing.T, f *joinFixture) { f.deps.Terminal = func() bool { return false } },
 			err: "mse setup needs a terminal; run it from an interactive shell (over ssh: ssh -t)"},
 		"bad name":       {args: []string{"Gorgon"}, err: "the installation name \"Gorgon\" must start with a lowercase letter"},
-		"--installation": {args: []string{"gorgon", "--installation", "gorgon"}, err: "mse setup takes the installation's name as its argument; it has no --installation"},
+		"--installation": {args: []string{"gorgon", "--installation", "gorgon"}, err: "unknown flag: --installation"},
 		"another installation here": {given: func(t *testing.T, f *joinFixture) {
 			other := filepath.Join(f.deps.Home, ".config", "mse", "medusa")
 			require.NoError(t, os.MkdirAll(other, 0o755))
@@ -238,7 +235,7 @@ func TestSetupRebuildingTakesThePastedKeyAndRestores(t *testing.T) {
 	assert.Equal(t, 1, code)
 	assert.Contains(t, stdout, "Cloning github.com/pablovarela/media-server-config-gorgon... done")
 	assert.Contains(t, stderr, "no Docker here\ngorgon's config and key are on this machine; its data isn't restored. Finish with:\n"+
-		"  mse restore --installation gorgon\n")
+		"  mse restore\n")
 	keys, err := os.ReadFile(f.keys)
 	require.NoError(t, err)
 	assert.True(t, strings.HasPrefix(string(keys), "# media server gorgon, added 2026-10-06\n# public key: "+testRecipient+"\n"+f.secret+"\n"))
@@ -292,7 +289,7 @@ func TestSetupRebuildingRestoresIntoAFreshDataFolder(t *testing.T) {
 	assert.True(t, restored, "the latest backup was restored")
 	assert.NotContains(t, stdout, "Kept the app data")
 	assert.Contains(t, stderr, "stop at the pull")
-	assert.Contains(t, stderr, "Finish with:\n  mse apply --installation gorgon")
+	assert.Contains(t, stderr, "Finish with:\n  mse apply")
 }
 
 func TestSetupOverwriteMovesTheAppDataAsideAndRestores(t *testing.T) {

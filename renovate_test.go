@@ -114,9 +114,6 @@ func TestTheRenovateConfigs(t *testing.T) {
 		"the engine's updates the template's stack images": {
 			Then: updatesTheImagesIn("config-template/images.yml", theEngines),
 		},
-		"the engine's updates the template's monitoring images": {
-			Then: updatesTheImagesIn("config-template/images.monitoring.yml", theEngines),
-		},
 		"the engine's leaves its compose files to the template's images": {
 			Then: func(t *testing.T, engine, _ renovateConfig) {
 				assert.False(t, matchesAny(t, engine.DockerCompose["managerFilePatterns"], "docker-compose.yml"))
@@ -124,9 +121,6 @@ func TestTheRenovateConfigs(t *testing.T) {
 		},
 		"the template's updates an installation's stack images": {
 			Then: updatesTheImagesIn("images.yml", theTemplates),
-		},
-		"the template's updates an installation's monitoring images": {
-			Then: updatesTheImagesIn("images.monitoring.yml", theTemplates),
 		},
 		"the template's image versioning rules are the engine's too": {
 			Then: func(t *testing.T, engine, template renovateConfig) {

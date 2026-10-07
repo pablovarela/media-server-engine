@@ -59,9 +59,6 @@ func newCreateFixture(t *testing.T) *createFixture {
 	engine["config-template/.gitignore"] = &fstest.MapFile{Data: []byte("secrets/*\n!secrets/*.sops.env\n")}
 	engine["config-template/config.yml"] = &fstest.MapFile{Data: []byte("config: 0\n")}
 	engine["config-template/images.yml"] = &fstest.MapFile{Data: []byte("services:\n  jellyfin:\n    image: j@sha256:x\n")}
-	engine["docker-compose.monitoring.yml"] = &fstest.MapFile{Data: []byte("services: {}\n")}
-	engine["grafana/grafana.ini"] = &fstest.MapFile{Data: []byte("\n")}
-	engine["prometheus/prometheus.yml"] = &fstest.MapFile{Data: []byte("\n")}
 	m.deps.Repositories = f.repositories
 	m.deps.Prompter = func(context.Context) prompter { return f.prompter }
 	m.deps.Decrypt = secrets.Sops(filepath.Join(m.deps.Home, ".config"))
@@ -248,7 +245,7 @@ func TestSetupCreatingWritesCommitsAndPublishes(t *testing.T) {
 
 	assert.Equal(t, 1, code)
 	assert.Contains(t, stdout, "Creating github.com/pablovarela/media-server-config-gorgon (private)... done")
-	assert.Contains(t, stderr, "no Docker here\ngorgon is created and its config pushed. Finish with:\n  mse backup --take-over --installation gorgon\n  mse apply --installation gorgon")
+	assert.Contains(t, stderr, "no Docker here\ngorgon is created and its config pushed. Finish with:\n  mse backup --take-over\n  mse apply")
 	assert.FileExists(t, filepath.Join(f.deps.Home, ".local", "state", "mse", "gorgon", ".secrets", "apps.env"))
 	env, err := os.ReadFile(filepath.Join(f.config, "installation.env"))
 	require.NoError(t, err)
@@ -274,7 +271,7 @@ func TestSetupCreatingRefusesTheInstallationFlag(t *testing.T) {
 
 	assert.Equal(t, 1, code)
 	assert.Empty(t, stdout)
-	assert.Equal(t, "mse: mse setup takes the installation's name as its argument; it has no --installation\n", stderr)
+	assert.Contains(t, stderr, "unknown flag: --installation")
 }
 
 func TestSetupCreatingRefusesASecondInstallationOnThisMachine(t *testing.T) {
@@ -289,16 +286,6 @@ func TestSetupCreatingRefusesASecondInstallationOnThisMachine(t *testing.T) {
 	assert.Empty(t, stdout)
 	assert.Equal(t, "mse: this machine already runs the installation gorgon, and a machine runs one installation's stack\n", stderr)
 	assert.NoFileExists(t, f.keys)
-}
-
-func TestSetupCreatingIgnoresTheDefaultInstallation(t *testing.T) {
-	f := newCreateFixture(t)
-	f.deps.Environment = func(key string) string { return map[string]string{"MSE_INSTALLATION": "gorgon"}[key] }
-	f.repositories.EXPECT().Login(mock.Anything).Return("", errors.New("stop here")).Once()
-
-	_, _, stderr := f.create(t, "gorgon")
-
-	assert.Equal(t, "mse: stop here\n", stderr)
 }
 
 func TestSetupCreatingChecksAndSetsTheHomepagePortItIsGiven(t *testing.T) {
@@ -408,7 +395,6 @@ func TestSetupCreatingSummary(t *testing.T) {
 	cmd, _, err := root.Find([]string{"setup"})
 	require.NoError(t, err)
 	cmd.SetContext(context.Background())
-	require.NoError(t, cmd.ParseFlags([]string{"--installation", "gorgon"}))
 	c := f.deps.creation(cmd, "gorgon", "", "")
 	c.remote = "github.com/pablovarela/media-server-config-gorgon"
 

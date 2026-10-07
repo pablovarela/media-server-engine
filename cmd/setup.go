@@ -26,7 +26,7 @@ func newSetupCommand(deps Dependencies) *cobra.Command {
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
-			if err := deps.canInstall(cmd, "setup", name, func() error { return validHomepagePort(homepagePort) }, func() error { return deps.notSetUp(name) }); err != nil {
+			if err := deps.canInstall("setup", name, func() error { return validHomepagePort(homepagePort) }, func() error { return deps.notSetUp(name) }); err != nil {
 				return err
 			}
 			if err := deps.machineReadyFor(cmd, homepagePort, portHint(name, homepagePort)); err != nil {

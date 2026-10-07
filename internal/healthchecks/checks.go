@@ -41,7 +41,7 @@ type schedule struct {
 var schedules = map[string]schedule{
 	backupJob: {cron: "30 4 * * *", grace: 2 * hour, command: "mse backup"},
 	updateJob: {cron: "0 5 * * *", grace: 2 * hour, command: "mse update --apply"},
-	verifyJob: {cron: "30 5 * * 0", grace: 4 * hour, command: "mse verify-backup"},
+	verifyJob: {cron: "30 5 * * 0", grace: 4 * hour, command: "mse check-backup"},
 }
 
 var weekdays = []string{"Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"}

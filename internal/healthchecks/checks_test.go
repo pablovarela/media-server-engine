@@ -45,7 +45,7 @@ func TestSetUp(t *testing.T) {
 			"If it fails: ssh pablo@gorgon.local, journalctl --user-unit mse-gorgon-backup.service --since today; a stale lock is cleared before the next run.",
 	}, bodies[0])
 	assert.Equal(t, "Weekly check that gorgon's backups in Backblaze B2 can be read back (restic check). "+
-		"Runs on Sundays at 05:30 on the main machine via the mse-gorgon-verify timer (mse verify-backup). "+
+		"Runs on Sundays at 05:30 on the main machine via the mse-gorgon-verify timer (mse check-backup). "+
 		"If it fails: ssh pablo@gorgon.local, journalctl --user-unit mse-gorgon-verify.service --since -7d -n 200.", bodies[1]["desc"])
 	assert.Equal(t, "Daily update of gorgon: pulls the config and the newest compatible mse, pulls images and brings the apps up. "+
 		"Runs daily at 05:00 via the mse-gorgon-update timer (mse update --apply). It refuses to run while the config has uncommitted changes. "+

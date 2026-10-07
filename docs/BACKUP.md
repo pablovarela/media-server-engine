@@ -27,7 +27,7 @@ restic keeps 7 daily, 4 weekly and 6 monthly snapshots, and removes older ones a
 ## Running a backup
 
 - `mse backup` stops the apps, takes the snapshot, starts them again and removes old snapshots. It takes a few minutes. A lock stops a second backup while one runs; the operating system releases it however the backup ends.
-- `mse verify-backup` runs `restic check`, restores the latest snapshot's databases into a temporary folder and checks each one.
+- `mse check-backup` runs `restic check`, restores the latest snapshot's databases into a temporary folder and checks each one.
 - On machines with systemd, the main's timers back up daily at 04:30 and verify on Sundays at 05:30.
 - `mse` runs the restic version pinned in it, downloaded on first use into `~/.cache/mse/restic`; nothing needs installing.
 

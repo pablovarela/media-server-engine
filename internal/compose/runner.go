@@ -70,9 +70,6 @@ type Runner struct {
 }
 
 func (k Kind) Title() string {
-	if k.Name == Monitoring.Name {
-		return "the monitoring stack"
-	}
 	return "the stack"
 }
 

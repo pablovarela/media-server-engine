@@ -47,7 +47,6 @@ func newApplyCommand(deps Dependencies) *cobra.Command {
 			return deps.reported(cmd, i, func() error { return deps.apply(cmd) })
 		},
 	}
-	// Older releases hand over with exactly `apply --after-update=<run id> --installation <name> [--verbose]`.
 	command.Flags().StringVar(&afterUpdate, "after-update", "", "the run id of the update that handed over to this apply")
 	_ = command.Flags().MarkHidden("after-update")
 	return command

@@ -2,6 +2,16 @@
 
 `mse help` lists every command; `mse <command> --help` explains one. This page is the longer version.
 
+| To | Commands |
+|---|---|
+| install | `mse check-machine`, `mse setup <name> [--owner] [--homepage-port] [--overwrite]` |
+| personalize | `mse configure` |
+| run | `mse apply`, `mse update [--apply] [--force]`, `mse stack up\|down\|ps\|logs\|restart` |
+| back up | `mse backup [--take-over [--yes]]`, `mse check-backup` |
+| recover | `mse restore [--overwrite]` |
+| look | `mse status`, `mse logins`, `mse version` |
+| housekeeping, run by a timer | `mse clean-downloads` |
+
 - [Installing mse](#installing-mse)
 - [Where things live](#where-things-live)
 - [mse check-machine](#mse-check-machine)
@@ -40,7 +50,7 @@
 | The secrets key | `~/.config/sops/age/keys.txt` | `SOPS_AGE_KEY_FILE` |
 
 - Media and downloads share one folder, `data/data/`, mounted as `/data` in Deluge, Radarr, Sonarr, Bazarr and Jellyfin: downloads in `/data/downloads`, films in `/data/media/movies`, series in `/data/media/tvshows`. One mount lets Radarr and Sonarr import a finished download as a hardlink, so it is neither written again nor stored twice; Linux refuses a hardlink across two mounts, even on one disk.
-- With one installation on the machine `mse` uses it; with several, `--installation <name>` or `MSE_INSTALLATION` chooses.
+- A machine runs one installation, and `mse` uses it. When it finds several under `~/.config/mse`, it refuses and lists them.
 - The age key can also come from `SOPS_AGE_KEY` or `SOPS_AGE_KEY_CMD`.
 - `mse` talks to the Docker daemon directly: no `sops` or `docker compose` command is needed.
 
@@ -157,9 +167,9 @@ Shows this machine's installation. It changes nothing and prints no passwords.
 | Timer | Runs | When | Where |
 |---|---|---|---|
 | `mse-<name>-update` | `mse update --apply` | daily at 05:00 | every machine |
-| `mse-<name>-download-cleanup` | `mse remove-executable-downloads` | every 15 minutes | every machine |
+| `mse-<name>-download-cleanup` | `mse clean-downloads` | every 15 minutes | every machine |
 | `mse-<name>-backup` | `mse backup` | daily at 04:30 | the main |
-| `mse-<name>-verify` | `mse verify-backup` | Sundays at 05:30 | the main |
+| `mse-<name>-verify` | `mse check-backup` | Sundays at 05:30 | the main |
 
 - They are systemd user units in `~/.config/systemd/user`: `systemctl --user list-timers` lists them, and `journalctl --user-unit mse-<name>-update.service` shows a run.
 - They run with nobody logged in once lingering is on: `sudo loginctl enable-linger <user>`, once. Until then `mse apply` says so and leaves them out.
@@ -170,20 +180,20 @@ Shows this machine's installation. It changes nothing and prints no passwords.
 
 ## Backups
 
-- **Commands:** `mse backup [--take-over [--yes]]`, `mse verify-backup`, `mse restore`.
+- **Commands:** `mse backup [--take-over [--yes]]`, `mse check-backup`, `mse restore`.
 - **Repository:** `RESTIC_REPOSITORY` in the config's `installation.env`, with its credentials in `secrets/backup.sops.env`.
-- **The main:** only the installation's main backs up: the machine that made the latest snapshot. `mse status` says which. On any other machine `mse backup` and `mse verify-backup` say so and exit without failing; `mse backup --take-over` makes this machine the main, after asking when another machine is, and backs up (`--yes` skips the question).
-- **Healthchecks:** `mse backup` and `mse verify-backup` report to healthchecks.io themselves when the config has a ping key, so a run by hand counts like a timer run.
+- **The main:** only the installation's main backs up: the machine that made the latest snapshot. `mse status` says which. On any other machine `mse backup` and `mse check-backup` say so and exit without failing; `mse backup --take-over` makes this machine the main, after asking when another machine is, and backs up (`--yes` skips the question).
+- **Healthchecks:** `mse backup` and `mse check-backup` report to healthchecks.io themselves when the config has a ping key, so a run by hand counts like a timer run.
 - **Paths:** a backup runs restic from the data folder with symlinks resolved, so a data folder linked to another path backs up under the same paths as before.
 - **More:** [Backups](BACKUP.md) and [Restoring](RESTORE.md).
 - **restic:** `mse` runs the restic version pinned in it. It downloads it from restic's GitHub releases the first time it needs it, checks it against the checksum built into `mse`, and keeps it in `~/.cache/mse/restic`. Before each use it checks that copy against the checksum it recorded, and downloads it again if it changed. A restic on `PATH` isn't used.
 
 ## The stack and the landing page
 
-- `mse stack up|down|restart|ps|logs` and `mse monitoring …` run the installation's containers (the media server, and the optional Prometheus and Grafana stack).
+- `mse stack up|down|restart|ps|logs` run the installation's containers.
 - `mse stack up --wait` returns once every container is running, and healthy when it has a healthcheck (`--wait-timeout`, 5 minutes by default).
 - `mse stack logs -f [service...]` follows the logs; `--tail N` limits them to the last lines.
-- When the config pins a `homepage` image, `mse stack up` and `mse stack restart` draw the landing page first, from the config's `homepage/` files over the engine's default page, then reload Homepage. A page that can't be drawn is reported and the containers start anyway. `mse homepage` redraws it on its own.
+- When the config pins a `homepage` image, `mse stack up` and `mse stack restart` draw the landing page first, from the config's `homepage/` files over the engine's default page, then reload Homepage. A page that can't be drawn is reported and the containers start anyway. `mse stack restart homepage` redraws it on its own.
 - `mse logins` prints the apps' users and passwords; `mse status` lists their addresses.
 
 ## Output and logs
