@@ -71,11 +71,12 @@ func TestBackup(t *testing.T) {
 			Given: Given{marker: true, expect: func(b *Backups, m mocks, _ context.CancelFunc) {
 				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return([]restic.Snapshot{snapshot("other", "pi2", "2026-10-04 04:30")}, nil)
 			}},
-			Then: Then{out: "gorgon's main is pi2, which last backed up on 4 Oct at 04:30. This machine doesn't back up. " +
+			Then: Then{out: "gorgon's main is pi2, last backup 2026-10-04 04:30. This machine doesn't back up; " +
 				"mse backup --take-over makes it the main and backs up now.\n"},
 		},
 		"unreadable repository": {
 			Given: Given{expect: func(b *Backups, m mocks, _ context.CancelFunc) {
+				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
 				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(nil, errors.New("restic snapshots failed (exit 1)"))
 				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/fail").Return()
 			}},

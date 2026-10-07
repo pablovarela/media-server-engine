@@ -108,36 +108,48 @@ func TestVerify(t *testing.T) {
 }
 
 func TestVerifyRunsOnTheMainOnly(t *testing.T) {
+	type Given struct {
+		snapshots []restic.Snapshot
+		err       error
+	}
+	type Then struct {
+		out   string
+		err   string
+		pings []string
+	}
 	tests := map[string]struct {
-		Given struct {
-			snapshots []restic.Snapshot
-			err       error
-		}
-		Then struct{ err string }
+		Given Given
+		Then  Then
 	}{
-		"another machine": {
-			Given: struct {
-				snapshots []restic.Snapshot
-				err       error
-			}{snapshots: []restic.Snapshot{snapshot("other", "pi2", "2026-10-04 04:30")}},
-			Then: struct{ err string }{"another machine is gorgon's main; its verification runs there"},
+		"another machine: refused, not failed": {
+			Given: Given{snapshots: []restic.Snapshot{snapshot("other", "pi2", "2026-10-04 04:30")}},
+			Then: Then{out: "gorgon's main is pi2, last backup 2026-10-04 04:30. Its backups are checked there; " +
+				"mse backup --take-over makes this machine the main.\n"},
 		},
 		"unreadable": {
-			Given: struct {
-				snapshots []restic.Snapshot
-				err       error
-			}{err: errors.New("boom")},
-			Then: struct{ err string }{"cannot read the backup repository to tell which machine is gorgon's main (boom); nothing was checked"},
+			Given: Given{err: errors.New("boom")},
+			Then: Then{err: "cannot read the backup repository to tell which machine is gorgon's main (boom); nothing was checked",
+				pings: []string{"/start", "/fail"}},
 		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			b, m, _, _ := fixture(t)
-			m.pinger.EXPECT().Ping(mock.Anything, "verify", "/start").Return()
+			b, m, out, _ := fixture(t)
 			m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(tt.Given.snapshots, tt.Given.err)
-			m.pinger.EXPECT().Ping(mock.Anything, "verify", "/fail").Return()
+			var pings []string
+			m.pinger.EXPECT().Ping(mock.Anything, "verify", mock.Anything).RunAndReturn(func(_ context.Context, _, suffix string) {
+				pings = append(pings, suffix)
+			}).Maybe()
 
-			assert.EqualError(t, b.Verify(context.Background()), tt.Then.err)
+			err := b.Verify(context.Background())
+
+			if tt.Then.err != "" {
+				assert.EqualError(t, err, tt.Then.err)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tt.Then.out, out.String())
+			assert.Equal(t, tt.Then.pings, pings)
 		})
 	}
 }

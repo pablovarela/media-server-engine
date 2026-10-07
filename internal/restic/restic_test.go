@@ -78,7 +78,7 @@ func TestCommandFailures(t *testing.T) {
 
 		assert.EqualError(t, err, "restic gave up waiting for a lock on the backup repository. Locks held:\n"+
 			"  exclusive lock from pi (process 42) since 2026-10-05 04:30\n"+
-			"If none of those machines is running restic now, the lock goes stale 30 minutes after its last refresh, and the next run clears it.")
+			"Each of those locks is still being refreshed, so restic is running on that machine: let it finish, or stop it there, then run this again.")
 	})
 	t.Run("a program that cannot start", func(t *testing.T) {
 		runner := newMockRunner(t)

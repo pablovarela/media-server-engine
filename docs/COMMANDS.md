@@ -166,7 +166,7 @@ Shows this machine's installation. It changes nothing and prints no passwords.
 
 - **Commands:** `mse backup [--take-over [--yes]]`, `mse verify-backup`, `mse restore`.
 - **Repository:** `RESTIC_REPOSITORY` in the config's `installation.env`, with its credentials in `secrets/backup.sops.env`.
-- **The main:** only the installation's main backs up: the machine that made the latest snapshot. `mse status` says which. On any other machine `mse backup` says so and exits without failing; `mse backup --take-over` makes this machine the main, after asking when another machine is, and backs up (`--yes` skips the question).
+- **The main:** only the installation's main backs up: the machine that made the latest snapshot. `mse status` says which. On any other machine `mse backup` and `mse verify-backup` say so and exit without failing; `mse backup --take-over` makes this machine the main, after asking when another machine is, and backs up (`--yes` skips the question).
 - **Healthchecks:** `mse backup` and `mse verify-backup` report to healthchecks.io themselves when the config has a ping key, so a run by hand counts like a timer run.
 - **Paths:** a backup runs restic from the data folder with symlinks resolved, so a data folder linked to another path backs up under the same paths as before.
 - **More:** [Backups](BACKUP.md) and [Restoring](RESTORE.md).

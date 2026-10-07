@@ -54,14 +54,17 @@ func newBackupCommands(deps Dependencies) []*cobra.Command {
 		}}
 	}
 	backupNow := backupCommand("backup", "Back up the apps' data now (stops them for a few minutes; only on the installation's main)", backingUp, func(cmd *cobra.Command, b *backup.Backups) error {
-		switch {
-		case takeOver:
+		if takeOver {
 			return b.Claim(cmd.Context(), yes)
-		case yes:
-			return errors.New("--yes only goes with --take-over")
 		}
 		return b.Backup(cmd.Context())
 	})
+	backupNow.PreRunE = func(*cobra.Command, []string) error {
+		if yes && !takeOver {
+			return errors.New("--yes only goes with --take-over")
+		}
+		return nil
+	}
 	backupNow.Flags().BoolVar(&takeOver, "take-over", false, "make this machine the main, after asking when another machine is, then back up")
 	backupNow.Flags().BoolVar(&yes, "yes", false, "with --take-over, take over without asking")
 	restore := backupCommand("restore", "Restore volumes/ from the latest backup", restoring, func(cmd *cobra.Command, b *backup.Backups) error {

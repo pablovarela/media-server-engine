@@ -84,7 +84,7 @@ func (e *LockedError) Error() string {
 	for _, lock := range e.Locks {
 		message.WriteString("\n  " + lock.String())
 	}
-	message.WriteString("\nIf none of those machines is running restic now, the lock goes stale 30 minutes after its last refresh, and the next run clears it.")
+	message.WriteString("\nEach of those locks is still being refreshed, so restic is running on that machine: let it finish, or stop it there, then run this again.")
 	return message.String()
 }
 

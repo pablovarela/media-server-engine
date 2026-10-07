@@ -18,9 +18,15 @@ import (
 )
 
 func TestBackupTakeOverRefusals(t *testing.T) {
+	asksAboutTheMain := func(r *mockCommandRunner, c *mockComposeRunner) {
+		c.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, mock.Anything).Return(&types.Project{Name: "media-server"}, nil).Once()
+		r.EXPECT().Output(mock.Anything, resticCall("cat", "config", "--no-lock")).Return(process.Result{}, nil).Once()
+		r.EXPECT().Output(mock.Anything, resticCall("snapshots", "--no-lock", "--host", "gorgon", "--json")).Return(process.Result{Stdout: []byte(theirSnapshots)}, nil).Once()
+	}
 	type Given struct {
 		interactive bool
 		stdin       string
+		expect      func(r *mockCommandRunner, c *mockComposeRunner)
 	}
 	type When struct {
 		args []string
@@ -34,13 +40,14 @@ func TestBackupTakeOverRefusals(t *testing.T) {
 		Then  Then
 	}{
 		"declined": {
-			Given: Given{interactive: true, stdin: "n\n"},
+			Given: Given{interactive: true, stdin: "n\n", expect: asksAboutTheMain},
 			When:  When{args: []string{"backup", "--take-over"}},
 			Then:  Then{stderr: "mse: nothing was claimed\n"},
 		},
 		"no one to answer": {
-			When: When{args: []string{"backup", "--take-over"}},
-			Then: Then{stderr: "mse: nothing was claimed; mse backup --take-over --yes takes over without asking\n"},
+			Given: Given{expect: asksAboutTheMain},
+			When:  When{args: []string{"backup", "--take-over"}},
+			Then:  Then{stderr: "mse: nothing was claimed; mse backup --take-over --yes takes over without asking\n"},
 		},
 		"--yes without --take-over": {
 			When: When{args: []string{"backup", "--yes"}},
@@ -51,10 +58,10 @@ func TestBackupTakeOverRefusals(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			home, _, _, tmp := backupHome(t)
 			runner := newMockCommandRunner(t)
-			runner.EXPECT().Output(mock.Anything, resticCall("cat", "config", "--no-lock")).Return(process.Result{}, nil).Maybe()
-			runner.EXPECT().Output(mock.Anything, resticCall("snapshots", "--no-lock", "--host", "gorgon", "--json")).Return(process.Result{Stdout: []byte(theirSnapshots)}, nil).Maybe()
 			composer := newMockComposeRunner(t)
-			composer.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, mock.Anything).Return(&types.Project{Name: "media-server"}, nil).Maybe()
+			if tt.Given.expect != nil {
+				tt.Given.expect(runner, composer)
+			}
 			var pings []string
 			root := NewRootCommand(backupDependencies(t, home, tmp, runner, composer, tt.Given.interactive, &pings))
 			var stdout, stderr bytes.Buffer
