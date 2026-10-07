@@ -57,11 +57,15 @@ func Render(job Job, suffix string, v Values) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.NewReplacer("@NAME@", v.Installation, "@ENVIRONMENT@", environment(v), "@MSE@", v.Executable).Replace(string(template)), nil
+	env := environment(v)
+	if env == "" {
+		return strings.NewReplacer("@NAME@", v.Installation, "@ENVIRONMENT@\n", "", "@MSE@", v.Executable).Replace(string(template)), nil
+	}
+	return strings.NewReplacer("@NAME@", v.Installation, "@ENVIRONMENT@", env, "@MSE@", v.Executable).Replace(string(template)), nil
 }
 
 func environment(v Values) string {
-	lines := []string{"Environment=MSE_INSTALLATION=" + v.Installation}
+	var lines []string
 	quoting := strings.NewReplacer(`\`, `\\`, `"`, `\"`, "%", "%%")
 	for _, variable := range v.Environment {
 		lines = append(lines, `Environment="`+quoting.Replace(variable)+`"`)

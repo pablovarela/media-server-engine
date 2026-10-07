@@ -51,7 +51,8 @@ func (d Dependencies) update(cmd *cobra.Command, force bool) (selfupdate.Result,
 	case errors.Is(err, installation.ErrNoInstallation):
 		report.From(cmd.Context()).Say("No installation here; updating mse only.")
 	case errors.Is(err, installation.ErrSeveralInstallations):
-		report.From(cmd.Context()).Say("Several installations here; updating mse only. Choose one with --installation <name> to update its config too.")
+		names, _ := installation.Names(installation.BasesFrom(d.Environment, d.Home))
+		report.From(cmd.Context()).Say("Several installations here (" + strings.Join(names, ", ") + "), and a machine runs one; only mse is updated. Remove the ones this machine shouldn't have.")
 	case err != nil:
 		return selfupdate.Result{}, err
 	default:
@@ -149,7 +150,7 @@ func (d Dependencies) updateAndApply(cmd *cobra.Command, force bool) error {
 }
 
 func (d Dependencies) handOver(cmd *cobra.Command, path string, i *installation.Installation) error {
-	args := []string{path, "apply", "--after-update=" + runIDOf(cmd.Context()), "--installation", i.Name}
+	args := []string{path, "apply", "--after-update=" + runIDOf(cmd.Context())}
 	if verbose, _ := cmd.Flags().GetBool("verbose"); verbose {
 		args = append(args, "--verbose")
 	}

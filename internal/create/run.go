@@ -47,13 +47,13 @@ func Run(ctx context.Context, i Installation, steps Steps, r *report.Reporter, s
 	case err != nil && !created:
 		return discard(i, undos, err, shield)
 	case err != nil:
-		return fmt.Errorf("%w\n%s's repository exists and its config is committed in %s, but not pushed. Finish with:\n  git -C %s push --set-upstream origin main\n  mse backup --take-over --installation %s\n  mse apply --installation %s", err, i.Name, i.Config, i.Config, i.Name, i.Name)
+		return fmt.Errorf("%w\n%s's repository exists and its config is committed in %s, but not pushed. Finish with:\n  git -C %s push --set-upstream origin main\n  mse backup --take-over\n  mse apply", err, i.Name, i.Config, i.Config)
 	}
 	if err := steps.ClaimMain(ctx); err != nil {
-		return fmt.Errorf("%w\n%s is created and its config pushed. Finish with:\n  mse backup --take-over --installation %s\n  mse apply --installation %s", err, i.Name, i.Name, i.Name)
+		return fmt.Errorf("%w\n%s is created and its config pushed. Finish with:\n  mse backup --take-over\n  mse apply", err, i.Name)
 	}
 	if err := steps.Apply(ctx); err != nil {
-		return fmt.Errorf("%w\n%s is created, its config pushed and this machine is its main. Finish with:\n  mse apply --installation %s", err, i.Name, i.Name)
+		return fmt.Errorf("%w\n%s is created, its config pushed and this machine is its main. Finish with:\n  mse apply", err, i.Name)
 	}
 	r.Say(paint.Stdout.Success(steps.Summary(ctx)))
 	return nil

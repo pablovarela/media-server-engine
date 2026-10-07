@@ -149,9 +149,9 @@ func TestUpdateAndApply(t *testing.T) {
 	}{
 		"a new binary takes over": {
 			Given: Given{to: "v0.13.0"},
-			When:  []string{"update", "--apply", "--installation", "gorgon", "-v"},
+			When:  []string{"update", "--apply", "-v"},
 			Then: Then{
-				exec:  []string{"/opt/mse", "apply", "--after-update=<run id>", "--installation", "gorgon", "--verbose"},
+				exec:  []string{"/opt/mse", "apply", "--after-update=<run id>", "--verbose"},
 				pings: []string{"GET /ping-key/gorgon-update/start"},
 			},
 		},
@@ -160,7 +160,7 @@ func TestUpdateAndApply(t *testing.T) {
 			When:  []string{"update", "--apply"},
 			Then: Then{
 				code:  1,
-				exec:  []string{"/opt/mse", "apply", "--after-update=<run id>", "--installation", "gorgon"},
+				exec:  []string{"/opt/mse", "apply", "--after-update=<run id>"},
 				pings: []string{"GET /ping-key/gorgon-update/start", "GET /ping-key/gorgon-update/fail"},
 			},
 		},
@@ -310,7 +310,7 @@ func TestUpdateWithSeveralInstallationsUpdatesOnlyMse(t *testing.T) {
 	code := run(context.Background(), root, []string{"update"})
 
 	assert.Equal(t, 0, code, stderr.String())
-	assert.Contains(t, stdout.String(), "Several installations here; updating mse only. Choose one with --installation <name> to update its config too.\n")
+	assert.Contains(t, stdout.String(), "Several installations here (gorgon, trial), and a machine runs one; only mse is updated. Remove the ones this machine shouldn't have.\n")
 }
 
 func TestUpdateApplyReportsFailWhenTheBackupKeepsRunning(t *testing.T) {

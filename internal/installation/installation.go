@@ -44,13 +44,13 @@ func BasesFrom(getenv func(string) string, home string) Bases {
 	}
 }
 
-func Load(bases Bases, requested string, lookup func(string) string) (*Installation, error) {
+func Load(bases Bases, lookup func(string) string) (*Installation, error) {
 	root := filepath.Join(bases.Config, "mse")
 	names, err := installationsIn(root)
 	if err != nil {
 		return nil, err
 	}
-	name, err := choose(root, names, requested)
+	name, err := choose(root, names)
 	if err != nil {
 		return nil, err
 	}
@@ -98,21 +98,14 @@ func installationsIn(root string) ([]string, error) {
 	return names, nil
 }
 
-func choose(root string, names []string, requested string) (string, error) {
+func choose(root string, names []string) (string, error) {
 	switch {
-	case requested != "":
-		for _, name := range names {
-			if name == requested {
-				return name, nil
-			}
-		}
-		return "", errors.New(strings.TrimRight(fmt.Sprintf("no installation %s in %s\n%s", requested, root, listed(names)), "\n"))
 	case len(names) == 1:
 		return names[0], nil
 	case len(names) == 0:
 		return "", fmt.Errorf("%w in %s", ErrNoInstallation, root)
 	default:
-		return "", fmt.Errorf("%w in %s: choose one with --installation <name>\n%s", ErrSeveralInstallations, root, strings.TrimRight(listed(names), "\n"))
+		return "", fmt.Errorf("%w in %s: a machine runs one installation; remove the ones it shouldn't have:\n%s", ErrSeveralInstallations, root, strings.TrimRight(listed(names), "\n"))
 	}
 }
 

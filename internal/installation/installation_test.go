@@ -47,38 +47,24 @@ func TestLoad(t *testing.T) {
 		installations map[string]string
 		strays        []string
 	}
-	type When struct {
-		requested string
-	}
 	type Then struct {
 		name string
 		err  string
 	}
 	tests := map[string]struct {
 		Given Given
-		When  When
 		Then  Then
 	}{
 		"the only installation": {
 			Given: Given{installations: map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"}},
 			Then:  Then{name: "gorgon"},
 		},
-		"the requested one among several": {
-			Given: Given{installations: map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n", "trial": "INSTALLATION_NAME=trial\n"}},
-			When:  When{requested: "trial"},
-			Then:  Then{name: "trial"},
-		},
 		"none": {
 			Then: Then{err: "no installation in <config>/mse"},
 		},
-		"several and none requested": {
+		"several": {
 			Given: Given{installations: map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n", "trial": "INSTALLATION_NAME=trial\n"}},
-			Then:  Then{err: "several installations in <config>/mse: choose one with --installation <name>\n  gorgon\n  trial"},
-		},
-		"unknown name": {
-			Given: Given{installations: map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"}},
-			When:  When{requested: "nope"},
-			Then:  Then{err: "no installation nope in <config>/mse\n  gorgon"},
+			Then:  Then{err: "several installations in <config>/mse: a machine runs one installation; remove the ones it shouldn't have:\n  gorgon\n  trial"},
 		},
 		"folders without installation.env are ignored": {
 			Given: Given{installations: map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"}, strays: []string{"old"}},
@@ -105,7 +91,7 @@ func TestLoad(t *testing.T) {
 				require.NoError(t, os.MkdirAll(filepath.Join(bases.Config, "mse", dir), 0o755))
 			}
 
-			loaded, err := Load(bases, tt.When.requested, func(string) string { return "" })
+			loaded, err := Load(bases, func(string) string { return "" })
 
 			if tt.Then.err != "" {
 				assert.EqualError(t, err, replaceAll(tt.Then.err, "<config>", bases.Config))
@@ -164,7 +150,7 @@ func replaceAll(s, old, replacement string) string { return strings.ReplaceAll(s
 func TestNoInstallationIsRecognisable(t *testing.T) {
 	root := t.TempDir()
 
-	_, err := Load(Bases{Config: filepath.Join(root, "config")}, "", func(string) string { return "" })
+	_, err := Load(Bases{Config: filepath.Join(root, "config")}, func(string) string { return "" })
 
 	assert.ErrorIs(t, err, ErrNoInstallation)
 }
@@ -177,7 +163,7 @@ func TestSeveralInstallationsAreRecognisable(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "installation.env"), []byte("INSTALLATION_NAME="+name+"\n"), 0o644))
 	}
 
-	_, err := Load(Bases{Config: filepath.Join(root, "config")}, "", func(string) string { return "" })
+	_, err := Load(Bases{Config: filepath.Join(root, "config")}, func(string) string { return "" })
 
 	assert.ErrorIs(t, err, ErrSeveralInstallations)
 }

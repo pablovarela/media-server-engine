@@ -180,3 +180,15 @@ func TestRemovedCommands(t *testing.T) {
 		})
 	}
 }
+
+func TestOnlyApplyTakesAnInstallationFlag(t *testing.T) {
+	getenv, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"})
+	root := NewRootCommand(Dependencies{Environment: getenv, Home: home, Update: newMockUpdater(t)})
+	var stderr bytes.Buffer
+	root.SetErr(&stderr)
+
+	code := run(context.Background(), root, []string{"logins", "--installation", "gorgon"})
+
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stderr.String(), "unknown flag: --installation")
+}

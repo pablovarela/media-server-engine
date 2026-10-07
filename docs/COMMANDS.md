@@ -40,7 +40,7 @@
 | The secrets key | `~/.config/sops/age/keys.txt` | `SOPS_AGE_KEY_FILE` |
 
 - Media and downloads share one folder, `data/data/`, mounted as `/data` in Deluge, Radarr, Sonarr, Bazarr and Jellyfin: downloads in `/data/downloads`, films in `/data/media/movies`, series in `/data/media/tvshows`. One mount lets Radarr and Sonarr import a finished download as a hardlink, so it is neither written again nor stored twice; Linux refuses a hardlink across two mounts, even on one disk.
-- With one installation on the machine `mse` uses it; with several, `--installation <name>` or `MSE_INSTALLATION` chooses.
+- A machine runs one installation, and `mse` uses it. When it finds several under `~/.config/mse`, it refuses and lists them.
 - The age key can also come from `SOPS_AGE_KEY` or `SOPS_AGE_KEY_CMD`.
 - `mse` talks to the Docker daemon directly: no `sops` or `docker compose` command is needed.
 

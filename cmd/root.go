@@ -83,7 +83,6 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.SetVersionTemplate("{{.Version}}\n")
-	root.PersistentFlags().String("installation", "", "the installation to use, when there are several (or MSE_INSTALLATION)")
 	root.PersistentFlags().BoolP("verbose", "v", false, "show the output of restic and Compose too (the log always has it)")
 	root.Long = "Run a media-server installation.\n\nEvery run is logged to ~/.local/state/mse/<installation>/logs/mse.log, or ~/.local/state/mse/mse.log before an installation is known (under $XDG_STATE_HOME when it is set)."
 	root.PersistentPreRun = func(cmd *cobra.Command, args []string) {

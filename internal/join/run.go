@@ -36,18 +36,18 @@ func Run(ctx context.Context, i Installation, steps Steps, r *report.Reporter, s
 			stopped: "stopped while restoring " + i.Name + "'s data. Its config and key are on this machine",
 			kept:    i.Name + "'s config and key are on this machine; its data isn't restored",
 			still:   []string{restore, claimLeft, applyLeft},
-		}, i.Name)
+		})
 	}
 	if err := steps.Role(ctx); err != nil {
 		return left(err, remaining{
 			stopped: "stopped before choosing this machine's role. " + i.Name + "'s config, key and data are on this machine",
 			kept:    i.Name + "'s config, key and data are on this machine",
 			still:   []string{claimLeft, applyLeft},
-		}, i.Name)
+		})
 	}
 	if err := steps.Apply(ctx); err != nil {
 		kept := i.Name + "'s config, key and data are on this machine and its role is set"
-		return left(err, remaining{stopped: "stopped while applying. " + kept, kept: kept, still: []string{applyLeft}}, i.Name)
+		return left(err, remaining{stopped: "stopped while applying. " + kept, kept: kept, still: []string{applyLeft}})
 	}
 	r.Say(paint.Stdout.Success(steps.Summary(ctx)))
 	return nil
@@ -67,10 +67,10 @@ func local(ctx context.Context, steps Steps, undos *[]create.Undo) error {
 }
 
 const (
-	restoreLeft      = "mse restore --overwrite --installation %s"
-	plainRestoreLeft = "mse restore --installation %s"
-	claimLeft        = "mse backup --take-over --installation %s (to make this machine the main)"
-	applyLeft        = "mse apply --installation %s"
+	restoreLeft      = "mse restore --overwrite"
+	plainRestoreLeft = "mse restore"
+	claimLeft        = "mse backup --take-over (to make this machine the main)"
+	applyLeft        = "mse apply"
 )
 
 type remaining struct {
@@ -78,10 +78,10 @@ type remaining struct {
 	still         []string
 }
 
-func left(err error, r remaining, name string) error {
+func left(err error, r remaining) error {
 	finish := ""
 	for _, c := range r.still {
-		finish += "\n  " + fmt.Sprintf(c, name)
+		finish += "\n  " + c
 	}
 	if stopped(err) {
 		return fmt.Errorf("%s. Finish with:%s", r.stopped, finish)

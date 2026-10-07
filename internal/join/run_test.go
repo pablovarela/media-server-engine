@@ -119,17 +119,17 @@ func TestRunKeepsEverythingFromTheRestoreOn(t *testing.T) {
 	}{
 		"before restoring": {stepFailure{at: "data", err: errBroken}, "broken\n" +
 			"gorgon's config and key are on this machine; its data isn't restored. Finish with:\n" +
-			"  mse restore --installation gorgon\n  mse backup --take-over --installation gorgon (to make this machine the main)\n  mse apply --installation gorgon"},
+			"  mse restore\n  mse backup --take-over (to make this machine the main)\n  mse apply"},
 		"restore failed": {stepFailure{at: "data", err: errBroken, restoring: true}, "broken\n" +
 			"gorgon's config and key are on this machine; its data isn't restored. Finish with:\n" +
-			"  mse restore --overwrite --installation gorgon\n  mse backup --take-over --installation gorgon (to make this machine the main)\n  mse apply --installation gorgon"},
+			"  mse restore --overwrite\n  mse backup --take-over (to make this machine the main)\n  mse apply"},
 		"restore interrupted": {stepFailure{at: "data", err: context.Canceled, restoring: true}, "stopped while restoring gorgon's data. Its config and key are on this machine. Finish with:\n" +
-			"  mse restore --overwrite --installation gorgon\n  mse backup --take-over --installation gorgon (to make this machine the main)\n  mse apply --installation gorgon"},
+			"  mse restore --overwrite\n  mse backup --take-over (to make this machine the main)\n  mse apply"},
 		"claim failed": {stepFailure{at: "role", err: errBroken}, "broken\n" +
 			"gorgon's config, key and data are on this machine. Finish with:\n" +
-			"  mse backup --take-over --installation gorgon (to make this machine the main)\n  mse apply --installation gorgon"},
+			"  mse backup --take-over (to make this machine the main)\n  mse apply"},
 		"apply failed": {stepFailure{at: "apply", err: errBroken}, "broken\n" +
-			"gorgon's config, key and data are on this machine and its role is set. Finish with:\n  mse apply --installation gorgon"},
+			"gorgon's config, key and data are on this machine and its role is set. Finish with:\n  mse apply"},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -145,7 +145,7 @@ func TestRunKeepsEverythingWhenTheMainQuestionIsQuit(t *testing.T) {
 	f, err := failingRun(t, stepFailure{at: "role", err: configure.ErrAborted})
 
 	assert.EqualError(t, err, "stopped before choosing this machine's role. gorgon's config, key and data are on this machine. Finish with:\n"+
-		"  mse backup --take-over --installation gorgon (to make this machine the main)\n  mse apply --installation gorgon")
+		"  mse backup --take-over (to make this machine the main)\n  mse apply")
 	assert.Empty(t, f.undone)
 }
 
