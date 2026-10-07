@@ -12,8 +12,6 @@ import (
 )
 
 type Steps interface {
-	CheckMachine(ctx context.Context) error
-	CheckName(ctx context.Context) error
 	Clone(ctx context.Context) (create.Undo, error)
 	AddKey(ctx context.Context) (create.Undo, error)
 	Data(ctx context.Context) (restoring bool, err error)
@@ -25,12 +23,6 @@ type Steps interface {
 type Installation struct{ Name, Logs string }
 
 func Run(ctx context.Context, i Installation, steps Steps, r *report.Reporter, shield func() func()) error {
-	if err := steps.CheckMachine(ctx); err != nil {
-		return err
-	}
-	if err := steps.CheckName(ctx); err != nil {
-		return err
-	}
 	var undos []create.Undo
 	if err := local(ctx, steps, &undos); err != nil {
 		return discard(i, undos, err, shield)
@@ -114,7 +106,7 @@ func discard(i Installation, undos []create.Undo, err error, shield func() func(
 	if len(undos) > 0 {
 		kept += " apart from this run's log in " + i.Logs
 	}
-	again := "run mse join " + i.Name + " again."
+	again := "run mse setup " + i.Name + " again."
 	var changed *create.KeyFileChangedError
 	switch {
 	case len(failed) == 1 && errors.As(failed[0], &changed):

@@ -22,7 +22,7 @@ restic keeps 7 daily, 4 weekly and 6 monthly snapshots, and removes older ones a
 - One machine per installation backs up: its **main**, the machine that made the latest snapshot. Snapshots are tagged with the machine's id and name.
 - Any other machine refuses to back up, so two machines never write competing snapshots. The refusal names the main and when it last backed up, and isn't reported as a failure; checking the backups is refused the same way, since the main does that too.
 - `mse status` says which machine is the main. `mse backup --take-over` makes this machine the main: it backs up once, and from then on the old main refuses. When another machine is the main, it first names it and the time of its last backup, and asks; `--yes` takes over without asking.
-- `mse create` makes the new machine the main; `mse join` asks.
+- `mse setup` makes a new installation's machine the main; when it rebuilds an installation, it asks.
 
 ## Running a backup
 

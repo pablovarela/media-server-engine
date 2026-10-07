@@ -31,28 +31,6 @@ type configRepositories interface {
 
 const homepagePortKey = "HOMEPAGE_PORT"
 
-func newCreateCommand(deps Dependencies) *cobra.Command {
-	var owner, homepagePort string
-	command := &cobra.Command{
-		Use:   "create <name>",
-		Short: "Create a new installation on this machine: key, config, GitHub repository, backups and the stack",
-		Long: "Create a new installation on this machine. It checks the machine, makes a secrets key, writes the config from the template, " +
-			"asks for its settings, pushes it to a new private repository media-server-config-<name>, makes this machine the main and applies it.",
-		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := deps.canCreate(cmd, args[0], homepagePort); err != nil {
-				return err
-			}
-			c := deps.creation(cmd, args[0], owner)
-			c.homepagePort = homepagePort
-			return create.Run(cmd.Context(), create.Installation{Name: c.name, Config: c.config, Logs: filepath.Join(c.state, "logs")}, c, report.From(cmd.Context()), shieldSignals)
-		},
-	}
-	command.Flags().StringVar(&owner, "owner", "", "the GitHub organisation that owns the config repository (default: the user gh is logged in as)")
-	command.Flags().StringVar(&homepagePort, "homepage-port", "", "the landing page's port, when something else on this machine uses port 80")
-	return command
-}
-
 func (d Dependencies) canInstall(cmd *cobra.Command, verb, name string, more ...func() error) error {
 	switch {
 	case !d.Terminal():
@@ -69,10 +47,6 @@ func (d Dependencies) canInstall(cmd *cobra.Command, verb, name string, more ...
 		}
 	}
 	return d.noOtherInstallation(name)
-}
-
-func (d Dependencies) canCreate(cmd *cobra.Command, name, homepagePort string) error {
-	return d.canInstall(cmd, "create", name, func() error { return validHomepagePort(homepagePort) })
 }
 
 func (d Dependencies) machineReadyFor(cmd *cobra.Command, homepagePort, hint string) error {
@@ -128,30 +102,20 @@ type creation struct {
 	repository              gitconfig.Repository
 }
 
-func (d Dependencies) creation(cmd *cobra.Command, name, owner string) *creation {
+func (d Dependencies) creation(cmd *cobra.Command, name, owner, org string) *creation {
 	bases := installation.BasesFrom(d.Environment, d.Home)
 	config := filepath.Join(bases.Config, "mse", name)
 	tool := report.From(cmd.Context()).Tool("git")
 	return &creation{
-		d: d, cmd: cmd, name: name, owner: owner, org: owner, repo: "media-server-config-" + name,
+		d: d, cmd: cmd, name: name, owner: owner, org: org, repo: "media-server-config-" + name,
 		config: config, data: filepath.Join(bases.Data, "mse", name), state: filepath.Join(bases.State, "mse", name),
 		repository: gitconfig.Repository{Runner: d.Run(tool, tool), Dir: config},
 	}
 }
 
-func (c *creation) CheckMachine(context.Context) error {
-	hint := ""
-	if c.homepagePort == "" {
-		hint = "If port 80 is in use by something you keep, give the landing page another port: mse create " + c.name + " --homepage-port <port>"
-	}
-	return c.d.machineReadyFor(c.cmd, c.homepagePort, hint)
-}
-
 func (c *creation) CheckName(ctx context.Context) error {
-	for _, folder := range []string{c.config, c.data} {
-		if _, err := os.Stat(folder); err == nil {
-			return fmt.Errorf("%s already exists, so %s is already an installation here", folder, c.name)
-		}
+	if _, err := os.Stat(c.data); err == nil {
+		return fmt.Errorf("%s already exists, so %s is already an installation here", c.data, c.name)
 	}
 	tool := report.From(ctx).Tool("git")
 	known, err := gitconfig.Repository{Runner: c.d.Run(tool, tool), Dir: c.d.Home}.HasIdentity(ctx)
@@ -159,21 +123,17 @@ func (c *creation) CheckName(ctx context.Context) error {
 		return err
 	}
 	if !known {
-		return errors.New("git has no name or email to commit the config with; set them, then run mse create again:\n" +
+		return errors.New("git has no name or email to commit the config with; set them, then run mse setup again:\n" +
 			"  git config --global user.name \"Your Name\"\n  git config --global user.email you@example.com")
 	}
-	login, err := c.d.Repositories.Login(ctx)
-	if err != nil {
+	yes, err := c.d.Prompter(ctx).Ask(fmt.Sprintf("There's no %s under %s. Create a new installation called %s?", c.repo, c.owner, c.name), false)
+	switch {
+	case err != nil:
 		return err
+	case !yes:
+		return errors.New("nothing was created")
 	}
-	if c.owner == "" || strings.EqualFold(c.owner, login) {
-		c.owner, c.org = login, ""
-	}
-	exists, err := c.d.Repositories.RepositoryExists(ctx, c.owner, c.repo)
-	if err == nil && exists {
-		return fmt.Errorf("%s/%s already exists on GitHub; to add this machine to it, run mse join %s", c.owner, c.repo, c.name)
-	}
-	return err
+	return nil
 }
 
 func (c *creation) AddKey(ctx context.Context) (create.Undo, error) {
@@ -250,7 +210,7 @@ func (c *creation) checkHomepagePort(ctx context.Context, chosen string) error {
 		Ports: []machine.Port{{Number: number, Protocol: "tcp"}}, Project: compose.Stack.Name, Free: c.d.PortFree, Published: c.d.Published,
 	})
 	if result.Status != machine.Pass {
-		return step.FailWithoutTail(fmt.Errorf("%s; run mse create %s again with a free port", result.Detail, c.name))
+		return step.FailWithoutTail(fmt.Errorf("%s; run mse setup %s again with a free port", result.Detail, c.name))
 	}
 	step.Done("free")
 	return nil

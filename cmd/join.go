@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -18,46 +17,11 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/report"
 )
 
-var errBothRoles = errors.New("--main and --secondary can't both be given")
-
-func newJoinCommand(deps Dependencies) *cobra.Command {
-	var owner string
-	var flags join.Flags
-	var restoreOver bool
-	command := &cobra.Command{
-		Use:   "join <name>",
-		Short: "Add this machine to an installation whose config is on GitHub, or rebuild one: config, key, data, role and the stack",
-		Long: "Add this machine to an installation whose config is on GitHub, or rebuild one after losing its machine. It checks the machine, " +
-			"clones the config, takes the secrets key, restores the latest backup, asks whether this machine becomes the main and applies it.",
-		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			bothRoles := func() error {
-				if flags.Main && flags.Secondary {
-					return errBothRoles
-				}
-				return nil
-			}
-			if err := deps.canInstall(cmd, "join", args[0], bothRoles); err != nil {
-				return err
-			}
-			j := deps.joining(cmd, args[0], owner)
-			j.flags, j.restoreOver = flags, restoreOver
-			return join.Run(cmd.Context(), join.Installation{Name: j.name, Logs: filepath.Join(j.state, "logs")}, j, report.From(cmd.Context()), shieldSignals)
-		},
-	}
-	command.Flags().StringVar(&owner, "owner", "", "the GitHub organisation that owns the config repository (default: the user gh is logged in as)")
-	command.Flags().BoolVar(&flags.Main, "main", false, "make this machine the main without asking")
-	command.Flags().BoolVar(&flags.Secondary, "secondary", false, "keep this machine a secondary without asking")
-	command.Flags().BoolVar(&restoreOver, "restore-over", false, "move the app data already here aside and restore the latest backup")
-	return command
-}
-
 type joining struct {
 	d                           Dependencies
 	cmd                         *cobra.Command
 	name, owner, repo           string
 	config, data, state         string
-	flags                       join.Flags
 	restoreOver, restored, kept bool
 	role                        join.Role
 	current                     *backup.Main
@@ -70,28 +34,6 @@ func (d Dependencies) joining(cmd *cobra.Command, name, owner string) *joining {
 		d: d, cmd: cmd, name: name, owner: owner, repo: "media-server-config-" + name,
 		config: filepath.Join(bases.Config, "mse", name), data: filepath.Join(bases.Data, "mse", name), state: filepath.Join(bases.State, "mse", name),
 	}
-}
-
-func (j *joining) CheckMachine(context.Context) error {
-	return j.d.machineReadyFor(j.cmd, "", "If something else must keep port 80, change "+j.name+"'s homepage port with mse configure on a machine that has it.")
-}
-
-func (j *joining) CheckName(ctx context.Context) error {
-	if _, err := os.Stat(j.config); err == nil {
-		return fmt.Errorf("this machine already has %s in %s; mse update brings it up to date", j.name, j.config)
-	}
-	login, err := j.d.Repositories.Login(ctx)
-	if err != nil {
-		return err
-	}
-	if j.owner == "" || strings.EqualFold(j.owner, login) {
-		j.owner = login
-	}
-	exists, err := j.d.Repositories.RepositoryExists(ctx, j.owner, j.repo)
-	if err == nil && !exists {
-		return fmt.Errorf("%s/%s isn't on GitHub; to make a new installation, run mse create %s", j.owner, j.repo, j.name)
-	}
-	return err
 }
 
 func (j *joining) Clone(ctx context.Context) (create.Undo, error) {
@@ -200,7 +142,7 @@ func (j *joining) Data(ctx context.Context) (bool, error) {
 }
 
 func (j *joining) Role(ctx context.Context) error {
-	decision := join.Decide(j.name, j.current, j.d.Now(), j.flags, j.kept)
+	decision := join.Decide(j.name, j.current, j.d.Now(), j.kept)
 	if decision.Say != "" {
 		report.From(ctx).Say(decision.Say)
 	}

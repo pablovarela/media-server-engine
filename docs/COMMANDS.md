@@ -5,8 +5,7 @@
 - [Installing mse](#installing-mse)
 - [Where things live](#where-things-live)
 - [mse check-machine](#mse-check-machine)
-- [mse create](#mse-create)
-- [mse join](#mse-join)
+- [mse setup](#mse-setup)
 - [mse configure](#mse-configure)
 - [mse update](#mse-update)
 - [mse apply](#mse-apply)
@@ -59,38 +58,45 @@ In order:
 
 Each line is ✓, ✗ with the command that fixes it, ? when it couldn't be checked, or – when it waits for an earlier one. Run it again until it says `This machine is ready.`; it exits 1 until then.
 
-## mse create
+## mse setup
 
-`mse create <name>` makes a new installation on a ready machine. It runs the `check-machine` checks first, then:
+`mse setup <name>` sets up this machine for the installation `<name>`. It looks for its config repository, `media-server-config-<name>` under the user gh is logged in as (`--owner <org>` for an organisation), and takes one of two paths. It runs the `check-machine` checks first on both.
 
-1. **Name:** lowercase letters, digits and `-`, starting with a letter. It stops before writing anything when the name is taken here or on GitHub, or when the machine already runs another installation (one installation per machine).
-2. **Secrets key:** a new age key, added to `~/.config/sops/age/keys.txt` (or `SOPS_AGE_KEY_FILE`; it refuses while `SOPS_AGE_KEY` or `SOPS_AGE_KEY_CMD` is set). It is shown once, on the terminal only: save it. The name and the key rebuild the installation anywhere.
-3. **Config:** written from the template into `~/.config/mse/<name>`, then every configure section is asked in turn.
-4. **Repository:** a commit, a new private repository `media-server-config-<name>` under the user gh is logged in as (`--owner <org>` for an organisation), and a push.
-5. **Main:** it creates the backup repository and backs up the still-empty data folder, as `mse backup --take-over` does, so the repository records this machine as the main.
-6. **Apply:** `mse apply`.
+It refuses, before writing anything, when the name isn't valid (lowercase letters, digits and `-`, starting with a letter), when this machine already has `<name>` (`mse status` shows its state), or when it runs another installation (one installation per machine).
+
+### When the repository doesn't exist: a new installation
+
+It asks first: "There's no media-server-config-<name> under <owner>. Create a new installation called <name>?" No answer, or no, creates nothing. Then:
+
+1. **Secrets key:** a new age key, added to `~/.config/sops/age/keys.txt` (or `SOPS_AGE_KEY_FILE`; it refuses while `SOPS_AGE_KEY` or `SOPS_AGE_KEY_CMD` is set). It is shown once, on the terminal only: save it. The name and the key rebuild the installation anywhere.
+2. **Config:** written from the template into `~/.config/mse/<name>`, then every configure section is asked in turn.
+3. **Repository:** a commit, the new private repository and a push.
+4. **Main:** it creates the backup repository and backs up the still-empty data folder, as `mse backup --take-over` does, so the repository records this machine as the main.
+5. **Apply:** `mse apply`.
 
 - `--homepage-port <port>` puts the landing page on another port, for the checks and in the settings, when something else on the machine uses port 80.
 - If it fails, or you quit, before the repository exists, it removes what it wrote, the key included. After that, it says which commands finish the job.
 
-## mse join
+### When the repository exists: a rebuild
 
-`mse join <name>` adds this machine to an installation whose config is on GitHub, or rebuilds one after losing its machine. It runs the `check-machine` checks first, then:
+It says "Rebuilding <name> from <owner>/media-server-config-<name>." Then:
 
-1. **Clone:** `media-server-config-<name>` (from the user gh is logged in as, or `--owner <org>`) into `~/.config/mse/<name>`.
+1. **Clone:** the config into `~/.config/mse/<name>`.
 2. **Secrets key:** if no key on the machine decrypts the config's secrets, it asks for the key. It accepts only a key that opens every secret file, and adds it to `~/.config/sops/age/keys.txt`.
 3. **Data:**
    - an empty data folder gets the latest backup;
-   - app data already there is kept (a disk moved from the old machine); `--restore-over` replaces it;
+   - app data already there is kept (a disk moved from the old machine); `--overwrite` moves it aside and restores the latest backup;
    - with no backups yet, the apps start empty.
-4. **Main or secondary:** it says which machine is the main and asks whether this one takes over.
-   - "No" by default while the main backed up in the last two days, "yes" when it looks gone or there are no backups.
-   - `--main` and `--secondary` answer without asking. A main makes its first backup straight away.
-   - A machine that kept its own app data while the main backed up in the last two days stays a secondary, so that data can't become the latest backup; `--restore-over` or `--main` changes that.
+4. **Main:**
+   - when this machine made the latest backup, it is the main;
+   - otherwise setup asks whether this machine becomes the main: "yes" by default when there are no backups yet or the machine behind the latest one looks gone, "no" while that machine backed up in the last two days. A machine that becomes the main backs up straight away;
+   - a machine that kept its own app data while the main backed up in the last two days doesn't back up, so that data can't become the latest backup.
+
+   A machine that doesn't take over doesn't back up; `mse backup --take-over` changes that later.
 5. **Apply:** `mse apply`.
 
 - A backup holds app state, not media: copy the media over, or rescan each app.
-- The landing page's port belongs to the installation: if something else on the machine needs port 80, change it with `mse configure` from a machine that has the installation.
+- The landing page's port belongs to the installation: `--homepage-port` is refused here. If something else on the machine needs port 80, change it with `mse configure` from a machine that has the installation.
 - If it fails, or you quit, before the restore, it removes the clone and any key it added. After that, it says which commands finish the job.
 
 ## mse configure
@@ -158,7 +164,7 @@ Shows this machine's installation. It changes nothing and prints no passwords.
 - They are systemd user units in `~/.config/systemd/user`: `systemctl --user list-timers` lists them, and `journalctl --user-unit mse-<name>-update.service` shows a run.
 - They run with nobody logged in once lingering is on: `sudo loginctl enable-linger <user>`, once. Until then `mse apply` says so and leaves them out.
 - Add the user to the `docker` group before turning lingering on: the user's systemd keeps the groups it started with until it restarts. `mse apply` warns when it started without `docker`; `sudo systemctl restart user@<uid>`, or a reboot, fixes it.
-- Which machine is the main comes from the backup repository; a secondary has no backup timers.
+- Which machine is the main comes from the backup repository; any other machine has no backup timers.
 - The units call the installed `mse` by its full path and carry `XDG_*_HOME`, `SOPS_AGE_KEY_FILE` and `SOPS_AGE_KEY_CMD` as the shell running `mse apply` has them. A dev build sets up no timers.
 - The nightly update fetches the config from GitHub with nobody logged in, so `gh auth login` must have kept its token in `~/.config/gh/hosts.yml` (where it goes without a keyring); `mse apply` warns when it hasn't.
 

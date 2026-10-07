@@ -81,11 +81,16 @@ func (f *createFixture) create(t *testing.T, args ...string) (int, string, strin
 	var stdout, stderr bytes.Buffer
 	root.SetOut(&stdout)
 	root.SetErr(&stderr)
-	code := run(context.Background(), root, append([]string{"create"}, args...))
+	code := run(context.Background(), root, append([]string{"setup"}, args...))
 	return code, stdout.String(), stderr.String()
 }
 
 func (f *createFixture) nameIsFree() {
+	f.githubHasNoRepository()
+	f.prompter.EXPECT().Ask("There's no media-server-config-gorgon under pablovarela. Create a new installation called gorgon?", false).Return(true, nil).Once()
+}
+
+func (f *createFixture) githubHasNoRepository() {
 	f.repositories.EXPECT().Login(mock.Anything).Return("pablovarela", nil).Once()
 	f.repositories.EXPECT().RepositoryExists(mock.Anything, "pablovarela", "media-server-config-gorgon").Return(false, nil).Once()
 }
@@ -132,18 +137,18 @@ func (f *createFixture) nothingKept(t *testing.T) {
 	assert.NoFileExists(t, f.keys)
 }
 
-func TestCreateNeedsATerminal(t *testing.T) {
+func TestSetupCreatingNeedsATerminal(t *testing.T) {
 	f := newCreateFixture(t)
 	f.deps.Terminal = func() bool { return false }
 
 	code, _, stderr := f.create(t, "gorgon")
 
 	assert.Equal(t, 1, code)
-	assert.Equal(t, "mse: mse create needs a terminal; run it from an interactive shell (over ssh: ssh -t)\n", stderr)
+	assert.Equal(t, "mse: mse setup needs a terminal; run it from an interactive shell (over ssh: ssh -t)\n", stderr)
 	f.nothingKept(t)
 }
 
-func TestCreateRefusesAnInvalidName(t *testing.T) {
+func TestSetupCreatingRefusesAnInvalidName(t *testing.T) {
 	f := newCreateFixture(t)
 
 	code, stdout, stderr := f.create(t, "Gorgon")
@@ -153,7 +158,7 @@ func TestCreateRefusesAnInvalidName(t *testing.T) {
 	assert.Contains(t, stderr, "the installation name \"Gorgon\" must start with a lowercase letter")
 }
 
-func TestCreateStopsOnAMachineThatIsNotReady(t *testing.T) {
+func TestSetupCreatingStopsOnAMachineThatIsNotReady(t *testing.T) {
 	f := newCreateFixture(t)
 	delete(f.answers, "loginctl show-user pablo -p Linger")
 
@@ -165,31 +170,28 @@ func TestCreateStopsOnAMachineThatIsNotReady(t *testing.T) {
 	f.nothingKept(t)
 }
 
-func TestCreateRefusesATakenName(t *testing.T) {
+func TestSetupCreatingRefusesATakenName(t *testing.T) {
 	tests := map[string]struct {
 		given func(t *testing.T, f *createFixture)
 		err   string
 	}{
 		"config folder": {
 			given: func(t *testing.T, f *createFixture) { require.NoError(t, os.MkdirAll(f.config, 0o755)) },
-			err:   "already exists",
+			err:   "gorgon is already set up on this machine; mse status shows its state",
 		},
 		"data folder": {
 			given: func(t *testing.T, f *createFixture) {
+				f.githubHasNoRepository()
 				require.NoError(t, os.MkdirAll(filepath.Join(f.deps.Home, ".local", "share", "mse", "gorgon"), 0o755))
 			},
 			err: "already exists",
 		},
-		"repository": {
-			given: func(_ *testing.T, f *createFixture) {
-				f.repositories.EXPECT().Login(mock.Anything).Return("pablovarela", nil).Once()
-				f.repositories.EXPECT().RepositoryExists(mock.Anything, "pablovarela", "media-server-config-gorgon").Return(true, nil).Once()
-			},
-			err: "pablovarela/media-server-config-gorgon already exists on GitHub; to add this machine to it, run mse join gorgon",
-		},
 		"git identity": {
-			given: func(_ *testing.T, f *createFixture) { delete(f.answers, "git -C "+f.deps.Home+" config user.email") },
-			err:   "git config --global user.email you@example.com",
+			given: func(_ *testing.T, f *createFixture) {
+				f.githubHasNoRepository()
+				delete(f.answers, "git -C "+f.deps.Home+" config user.email")
+			},
+			err: "git config --global user.email you@example.com",
 		},
 	}
 	for name, tt := range tests {
@@ -206,7 +208,7 @@ func TestCreateRefusesATakenName(t *testing.T) {
 	}
 }
 
-func TestCreateUndoesWhenTheKeyIsNotSaved(t *testing.T) {
+func TestSetupCreatingUndoesWhenTheKeyIsNotSaved(t *testing.T) {
 	f := newCreateFixture(t)
 	f.nameIsFree()
 	f.prompter.EXPECT().Acknowledge(mock.Anything, mock.Anything, "saved").Return(configure.ErrAborted).Once()
@@ -214,12 +216,12 @@ func TestCreateUndoesWhenTheKeyIsNotSaved(t *testing.T) {
 	code, _, stderr := f.create(t, "gorgon")
 
 	assert.Equal(t, 1, code)
-	assert.Equal(t, "mse: stopped before gorgon was created. Nothing was kept; run mse create gorgon again.\n"+
+	assert.Equal(t, "mse: stopped before gorgon was created. Nothing was kept; run mse setup gorgon again.\n"+
 		"The secrets key shown for gorgon was removed; if you saved it, delete it from your password manager.\n", stderr)
 	f.nothingKept(t)
 }
 
-func TestCreateUndoesWhenSettingsAreQuit(t *testing.T) {
+func TestSetupCreatingUndoesWhenSettingsAreQuit(t *testing.T) {
 	f := newCreateFixture(t)
 	f.nameIsFree()
 	f.savesTheKey()
@@ -228,11 +230,11 @@ func TestCreateUndoesWhenSettingsAreQuit(t *testing.T) {
 	code, _, stderr := f.create(t, "gorgon")
 
 	assert.Equal(t, 1, code)
-	assert.Contains(t, stderr, "Nothing was kept apart from this run's log in "+filepath.Join(f.deps.Home, ".local", "state", "mse", "gorgon", "logs")+"; run mse create gorgon again.")
+	assert.Contains(t, stderr, "Nothing was kept apart from this run's log in "+filepath.Join(f.deps.Home, ".local", "state", "mse", "gorgon", "logs")+"; run mse setup gorgon again.")
 	f.nothingKept(t)
 }
 
-func TestCreateWritesCommitsAndPublishes(t *testing.T) {
+func TestSetupCreatingWritesCommitsAndPublishes(t *testing.T) {
 	f := newCreateFixture(t)
 	f.nameIsFree()
 	f.savesTheKey()
@@ -265,17 +267,17 @@ func TestCreateWritesCommitsAndPublishes(t *testing.T) {
 	assert.NotContains(t, string(log), "AGE-SECRET-KEY-")
 }
 
-func TestCreateRefusesTheInstallationFlag(t *testing.T) {
+func TestSetupCreatingRefusesTheInstallationFlag(t *testing.T) {
 	f := newCreateFixture(t)
 
 	code, stdout, stderr := f.create(t, "gorgon", "--installation", "gorgon")
 
 	assert.Equal(t, 1, code)
 	assert.Empty(t, stdout)
-	assert.Equal(t, "mse: mse create takes the installation's name as its argument; it has no --installation\n", stderr)
+	assert.Equal(t, "mse: mse setup takes the installation's name as its argument; it has no --installation\n", stderr)
 }
 
-func TestCreateRefusesASecondInstallationOnThisMachine(t *testing.T) {
+func TestSetupCreatingRefusesASecondInstallationOnThisMachine(t *testing.T) {
 	f := newCreateFixture(t)
 	other := filepath.Join(f.deps.Home, ".config", "mse", "gorgon")
 	require.NoError(t, os.MkdirAll(other, 0o755))
@@ -289,18 +291,17 @@ func TestCreateRefusesASecondInstallationOnThisMachine(t *testing.T) {
 	assert.NoFileExists(t, f.keys)
 }
 
-func TestCreateIgnoresTheDefaultInstallation(t *testing.T) {
+func TestSetupCreatingIgnoresTheDefaultInstallation(t *testing.T) {
 	f := newCreateFixture(t)
 	f.deps.Environment = func(key string) string { return map[string]string{"MSE_INSTALLATION": "gorgon"}[key] }
 	f.repositories.EXPECT().Login(mock.Anything).Return("", errors.New("stop here")).Once()
 
-	_, stdout, stderr := f.create(t, "gorgon")
+	_, _, stderr := f.create(t, "gorgon")
 
-	assert.Contains(t, stdout, "This machine is ready.")
 	assert.Equal(t, "mse: stop here\n", stderr)
 }
 
-func TestCreateChecksAndSetsTheHomepagePortItIsGiven(t *testing.T) {
+func TestSetupCreatingChecksAndSetsTheHomepagePortItIsGiven(t *testing.T) {
 	f := newCreateFixture(t)
 	f.nameIsFree()
 	f.savesTheKey()
@@ -321,7 +322,7 @@ func TestCreateChecksAndSetsTheHomepagePortItIsGiven(t *testing.T) {
 	assert.NotContains(t, checked, "80")
 }
 
-func TestCreateRefusesABadHomepagePort(t *testing.T) {
+func TestSetupCreatingRefusesABadHomepagePort(t *testing.T) {
 	f := newCreateFixture(t)
 
 	code, stdout, stderr := f.create(t, "gorgon", "--homepage-port", "eighty")
@@ -331,14 +332,14 @@ func TestCreateRefusesABadHomepagePort(t *testing.T) {
 	assert.Contains(t, stderr, "mse: --homepage-port: ")
 }
 
-func TestCreateSuggestsAnotherHomepagePortWhenThePortsAreTaken(t *testing.T) {
+func TestSetupCreatingSuggestsAnotherHomepagePortWhenThePortsAreTaken(t *testing.T) {
 	f := newCreateFixture(t)
 	f.deps.PortFree = func(p machine.Port) bool { return p.String() != "80" }
 
 	code, stdout, _ := f.create(t, "gorgon")
 
 	assert.Equal(t, 1, code)
-	assert.Contains(t, stdout, "If port 80 is in use by something you keep, give the landing page another port: mse create gorgon --homepage-port <port>\n")
+	assert.Contains(t, stdout, "If port 80 is in use by something you keep: a new installation takes another port with mse setup gorgon --homepage-port <port>; an existing one changes its homepage port with mse configure on a machine that has it.\n")
 }
 
 func (f *createFixture) reachesPublishing() {
@@ -348,7 +349,7 @@ func (f *createFixture) reachesPublishing() {
 	f.prompter.EXPECT().Confirm(mock.Anything, mock.Anything).Return(true, nil).Once()
 }
 
-func TestCreateFindsTheRepositoryAfterALostAnswer(t *testing.T) {
+func TestSetupCreatingFindsTheRepositoryAfterALostAnswer(t *testing.T) {
 	f := newCreateFixture(t)
 	f.reachesPublishing()
 	f.repositories.EXPECT().CreatePrivateRepository(mock.Anything, "", "media-server-config-gorgon").Return("", errors.New("timeout")).Once()
@@ -363,7 +364,7 @@ func TestCreateFindsTheRepositoryAfterALostAnswer(t *testing.T) {
 	assert.FileExists(t, f.keys)
 }
 
-func TestCreateDiscardsWhenTheRepositoryWasNotCreated(t *testing.T) {
+func TestSetupCreatingDiscardsWhenTheRepositoryWasNotCreated(t *testing.T) {
 	f := newCreateFixture(t)
 	f.reachesPublishing()
 	f.repositories.EXPECT().CreatePrivateRepository(mock.Anything, "", "media-server-config-gorgon").Return("", errors.New("timeout")).Once()
@@ -372,11 +373,11 @@ func TestCreateDiscardsWhenTheRepositoryWasNotCreated(t *testing.T) {
 	code, _, stderr := f.create(t, "gorgon")
 
 	assert.Equal(t, 1, code)
-	assert.Contains(t, stderr, "; run mse create gorgon again.")
+	assert.Contains(t, stderr, "; run mse setup gorgon again.")
 	f.nothingKept(t)
 }
 
-func TestCreatePointsATakenRepositoryAtJoin(t *testing.T) {
+func TestSetupCreatingPointsATakenRepositoryAtJoin(t *testing.T) {
 	f := newCreateFixture(t)
 	f.reachesPublishing()
 	f.repositories.EXPECT().CreatePrivateRepository(mock.Anything, "", "media-server-config-gorgon").
@@ -385,11 +386,11 @@ func TestCreatePointsATakenRepositoryAtJoin(t *testing.T) {
 	code, _, stderr := f.create(t, "gorgon")
 
 	assert.Equal(t, 1, code)
-	assert.Contains(t, stderr, "To add this machine to that installation, run mse join gorgon; otherwise choose another name.")
+	assert.Contains(t, stderr, "media-server-config-gorgon exists, but this gh login can't see it: check gh auth status and --owner, or choose another name.")
 	f.nothingKept(t)
 }
 
-func TestCreateTakesTheOwnerInAnyCase(t *testing.T) {
+func TestSetupCreatingTakesTheOwnerInAnyCase(t *testing.T) {
 	f := newCreateFixture(t)
 	f.nameIsFree()
 	f.prompter.EXPECT().Acknowledge(mock.Anything, mock.Anything, "saved").Return(configure.ErrAborted).Once()
@@ -399,16 +400,16 @@ func TestCreateTakesTheOwnerInAnyCase(t *testing.T) {
 	assert.Equal(t, 1, code)
 }
 
-func TestCreateSummary(t *testing.T) {
+func TestSetupCreatingSummary(t *testing.T) {
 	f := newCreateFixture(t)
 	_, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\nHOMEPAGE_PORT=8080\n"})
 	f.deps.Home = home
 	root := NewRootCommand(f.deps)
-	cmd, _, err := root.Find([]string{"create"})
+	cmd, _, err := root.Find([]string{"setup"})
 	require.NoError(t, err)
 	cmd.SetContext(context.Background())
 	require.NoError(t, cmd.ParseFlags([]string{"--installation", "gorgon"}))
-	c := f.deps.creation(cmd, "gorgon", "")
+	c := f.deps.creation(cmd, "gorgon", "", "")
 	c.remote = "github.com/pablovarela/media-server-config-gorgon"
 
 	summary := c.Summary(context.Background())
@@ -417,7 +418,7 @@ func TestCreateSummary(t *testing.T) {
 		"its data in "+filepath.Join(home, ".local", "share", "mse", "gorgon")+" and its landing page at http://pi.local:8080. mse status lists every app.", summary)
 }
 
-func TestCreateKeepsEverythingWhenGitHubCannotSay(t *testing.T) {
+func TestSetupCreatingKeepsEverythingWhenGitHubCannotSay(t *testing.T) {
 	f := newCreateFixture(t)
 	f.reachesPublishing()
 	f.repositories.EXPECT().CreatePrivateRepository(mock.Anything, "", "media-server-config-gorgon").Return("", errors.New("timeout")).Once()
@@ -433,7 +434,7 @@ func TestCreateKeepsEverythingWhenGitHubCannotSay(t *testing.T) {
 	assert.FileExists(t, f.keys)
 }
 
-func TestCreateChecksAHomepagePortChangedInTheSettings(t *testing.T) {
+func TestSetupCreatingChecksAHomepagePortChangedInTheSettings(t *testing.T) {
 	f := newCreateFixture(t)
 	f.homepagePort = "8443"
 	f.nameIsFree()
@@ -451,7 +452,7 @@ func TestCreateChecksAHomepagePortChangedInTheSettings(t *testing.T) {
 	f.nothingKept(t)
 }
 
-func TestCreateChecksTheHomepagePortBeforeOtherInstallations(t *testing.T) {
+func TestSetupCreatingChecksTheHomepagePortBeforeOtherInstallations(t *testing.T) {
 	f := newCreateFixture(t)
 	other := filepath.Join(f.deps.Home, ".config", "mse", "medusa")
 	require.NoError(t, os.MkdirAll(other, 0o755))
