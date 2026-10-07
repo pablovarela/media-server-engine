@@ -4,19 +4,72 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"os"
-	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
-	"testing/fstest"
 
+	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 
+	"github.com/pablovarela/media-server-engine/internal/compose"
 	"github.com/pablovarela/media-server-engine/internal/installation"
 	"github.com/pablovarela/media-server-engine/internal/process"
 )
+
+func TestBackupTakeOverRefusals(t *testing.T) {
+	type Given struct {
+		interactive bool
+		stdin       string
+	}
+	type When struct {
+		args []string
+	}
+	type Then struct {
+		stderr string
+	}
+	tests := map[string]struct {
+		Given Given
+		When  When
+		Then  Then
+	}{
+		"declined": {
+			Given: Given{interactive: true, stdin: "n\n"},
+			When:  When{args: []string{"backup", "--take-over"}},
+			Then:  Then{stderr: "mse: nothing was claimed\n"},
+		},
+		"no one to answer": {
+			When: When{args: []string{"backup", "--take-over"}},
+			Then: Then{stderr: "mse: nothing was claimed; mse backup --take-over --yes takes over without asking\n"},
+		},
+		"--yes without --take-over": {
+			When: When{args: []string{"backup", "--yes"}},
+			Then: Then{stderr: "mse: --yes only goes with --take-over\n"},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			home, _, _, tmp := backupHome(t)
+			runner := newMockCommandRunner(t)
+			runner.EXPECT().Output(mock.Anything, resticCall("cat", "config", "--no-lock")).Return(process.Result{}, nil).Maybe()
+			runner.EXPECT().Output(mock.Anything, resticCall("snapshots", "--no-lock", "--host", "gorgon", "--json")).Return(process.Result{Stdout: []byte(theirSnapshots)}, nil).Maybe()
+			composer := newMockComposeRunner(t)
+			composer.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, mock.Anything).Return(&types.Project{Name: "media-server"}, nil).Maybe()
+			var pings []string
+			root := NewRootCommand(backupDependencies(t, home, tmp, runner, composer, tt.Given.interactive, &pings))
+			var stdout, stderr bytes.Buffer
+			root.SetOut(&stdout)
+			root.SetErr(&stderr)
+			root.SetIn(strings.NewReader(tt.Given.stdin))
+
+			code := run(context.Background(), root, tt.When.args)
+
+			assert.Equal(t, 1, code)
+			assert.True(t, strings.HasSuffix(stderr.String(), tt.Then.stderr), stderr.String())
+			assert.Empty(t, pings)
+		})
+	}
+}
 
 func localRestic(context.Context) (string, error) { return "restic", nil }
 
@@ -25,67 +78,6 @@ func resticCall(args ...string) any {
 		return c.Name == "restic" && slices.Equal(args, c.Args) &&
 			slices.Contains(c.Env, "RESTIC_REPOSITORY=b2:bucket") && slices.Contains(c.Env, "RESTIC_PASSWORD=secret")
 	})
-}
-
-func TestBackupCommands(t *testing.T) {
-	type Given struct {
-		machineID string
-	}
-	type When struct {
-		args []string
-	}
-	type Then struct {
-		expect func(r *mockCommandRunner)
-		stdout string
-	}
-	tests := map[string]struct {
-		Given Given
-		When  When
-		Then  Then
-	}{
-		"unlock-backup --all": {
-			When: When{args: []string{"unlock-backup", "--all"}},
-			Then: Then{
-				expect: func(r *mockCommandRunner) {
-					r.EXPECT().Run(mock.Anything, resticCall("unlock", "--remove-all")).Return(0, nil)
-					r.EXPECT().Output(mock.Anything, resticCall("list", "locks", "--no-lock")).Return(process.Result{}, nil)
-				},
-				stdout: "Removing every lock... no locks left.\n",
-			},
-		},
-	}
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			getenv, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\nRESTIC_REPOSITORY=b2:bucket\n"})
-			machineID := filepath.Join(t.TempDir(), "machine-id")
-			if tt.Given.machineID != "" {
-				require.NoError(t, os.WriteFile(machineID, []byte(tt.Given.machineID), 0o644))
-			}
-			runner := newMockCommandRunner(t)
-			tt.Then.expect(runner)
-			deps := Dependencies{
-				ResticBinary: localRestic,
-				Environment:  getenv, Home: home, Update: newMockUpdater(t),
-				Decrypt: func(string) ([]byte, error) {
-					return []byte("RESTIC_PASSWORD=secret\n"), nil
-				},
-				Host:          installation.Host{GOOS: "linux", Hostname: func() (string, error) { return "gorgon.local", nil }},
-				Engine:        fstest.MapFS{"scripts/backup-excludes.txt": {Data: []byte("logs\n")}},
-				Run:           func(_, _ io.Writer) commandRunner { return runner },
-				MachineIDFile: machineID,
-			}
-			root := NewRootCommand(deps)
-			var stdout, stderr bytes.Buffer
-			root.SetOut(&stdout)
-			root.SetErr(&stderr)
-
-			code := run(context.Background(), root, tt.When.args)
-
-			assert.Equal(t, 0, code, stderr.String())
-			assert.Equal(t, tt.Then.stdout, stdout.String())
-			assert.NoFileExists(t, filepath.Join(home, ".local", "share", "mse", "gorgon", ".machine-id"), "only the commands that need it read the machine's identity")
-		})
-	}
 }
 
 func TestBackupCommandsNeedARepository(t *testing.T) {
@@ -100,7 +92,7 @@ func TestBackupCommandsNeedARepository(t *testing.T) {
 	var stderr bytes.Buffer
 	root.SetErr(&stderr)
 
-	code := run(context.Background(), root, []string{"unlock-backup"})
+	code := run(context.Background(), root, []string{"verify-backup"})
 
 	assert.Equal(t, 1, code)
 	assert.Equal(t, "mse: gorgon has no backup repository: set RESTIC_REPOSITORY in installation.env\n", stderr.String())

@@ -84,7 +84,7 @@ func (e *LockedError) Error() string {
 	for _, lock := range e.Locks {
 		message.WriteString("\n  " + lock.String())
 	}
-	message.WriteString("\nIf none of those machines is running restic now, remove every lock with: mse unlock-backup --all")
+	message.WriteString("\nIf none of those machines is running restic now, the lock goes stale 30 minutes after its last refresh, and the next run clears it.")
 	return message.String()
 }
 
@@ -110,9 +110,6 @@ func (r Restic) Init(ctx context.Context) error {
 }
 func (r Restic) Unlock(ctx context.Context) error {
 	return r.run(ctx, process.Command{Args: []string{"unlock"}})
-}
-func (r Restic) UnlockAll(ctx context.Context) error {
-	return r.run(ctx, process.Command{Args: []string{"unlock", "--remove-all"}})
 }
 func (r Restic) Check(ctx context.Context) error {
 	return r.run(ctx, process.Command{Args: []string{"check", retryLock, waitForLocks}})

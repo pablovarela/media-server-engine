@@ -348,68 +348,6 @@ func (_c *mockRepository_Init_Call) RunAndReturn(run func(ctx context.Context) e
 	return _c
 }
 
-// Locks provides a mock function for the type mockRepository
-func (_mock *mockRepository) Locks(ctx context.Context) ([]restic.Lock, error) {
-	ret := _mock.Called(ctx)
-
-	if len(ret) == 0 {
-		panic("no return value specified for Locks")
-	}
-
-	var r0 []restic.Lock
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context) ([]restic.Lock, error)); ok {
-		return returnFunc(ctx)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context) []restic.Lock); ok {
-		r0 = returnFunc(ctx)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]restic.Lock)
-		}
-	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context) error); ok {
-		r1 = returnFunc(ctx)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// mockRepository_Locks_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Locks'
-type mockRepository_Locks_Call struct {
-	*mock.Call
-}
-
-// Locks is a helper method to define mock.On call
-//   - ctx context.Context
-func (_e *mockRepository_Expecter) Locks(ctx any) *mockRepository_Locks_Call {
-	return &mockRepository_Locks_Call{Call: _e.mock.On("Locks", ctx)}
-}
-
-func (_c *mockRepository_Locks_Call) Run(run func(ctx context.Context)) *mockRepository_Locks_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		run(
-			arg0,
-		)
-	})
-	return _c
-}
-
-func (_c *mockRepository_Locks_Call) Return(locks []restic.Lock, err error) *mockRepository_Locks_Call {
-	_c.Call.Return(locks, err)
-	return _c
-}
-
-func (_c *mockRepository_Locks_Call) RunAndReturn(run func(ctx context.Context) ([]restic.Lock, error)) *mockRepository_Locks_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // Prune provides a mock function for the type mockRepository
 func (_mock *mockRepository) Prune(ctx context.Context, inherit []*os.File) error {
 	ret := _mock.Called(ctx, inherit)
@@ -639,57 +577,6 @@ func (_c *mockRepository_Unlock_Call) Return(err error) *mockRepository_Unlock_C
 }
 
 func (_c *mockRepository_Unlock_Call) RunAndReturn(run func(ctx context.Context) error) *mockRepository_Unlock_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// UnlockAll provides a mock function for the type mockRepository
-func (_mock *mockRepository) UnlockAll(ctx context.Context) error {
-	ret := _mock.Called(ctx)
-
-	if len(ret) == 0 {
-		panic("no return value specified for UnlockAll")
-	}
-
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context) error); ok {
-		r0 = returnFunc(ctx)
-	} else {
-		r0 = ret.Error(0)
-	}
-	return r0
-}
-
-// mockRepository_UnlockAll_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UnlockAll'
-type mockRepository_UnlockAll_Call struct {
-	*mock.Call
-}
-
-// UnlockAll is a helper method to define mock.On call
-//   - ctx context.Context
-func (_e *mockRepository_Expecter) UnlockAll(ctx any) *mockRepository_UnlockAll_Call {
-	return &mockRepository_UnlockAll_Call{Call: _e.mock.On("UnlockAll", ctx)}
-}
-
-func (_c *mockRepository_UnlockAll_Call) Run(run func(ctx context.Context)) *mockRepository_UnlockAll_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		run(
-			arg0,
-		)
-	})
-	return _c
-}
-
-func (_c *mockRepository_UnlockAll_Call) Return(err error) *mockRepository_UnlockAll_Call {
-	_c.Call.Return(err)
-	return _c
-}
-
-func (_c *mockRepository_UnlockAll_Call) RunAndReturn(run func(ctx context.Context) error) *mockRepository_UnlockAll_Call {
 	_c.Call.Return(run)
 	return _c
 }

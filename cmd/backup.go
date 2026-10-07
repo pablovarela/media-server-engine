@@ -3,6 +3,7 @@ package cmd
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -39,11 +40,10 @@ var (
 	backingUp = backupNeeds{stack: true, identity: true, excludes: true}
 	restoring = backupNeeds{stack: true}
 	telling   = backupNeeds{identity: true}
-	unlocking = backupNeeds{}
 )
 
 func newBackupCommands(deps Dependencies) []*cobra.Command {
-	var yes, all, overwrite bool
+	var takeOver, yes, overwrite bool
 	backupCommand := func(use, short string, needs backupNeeds, do func(cmd *cobra.Command, b *backup.Backups) error) *cobra.Command {
 		return &cobra.Command{Use: use, Short: short, Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 			b, err := deps.backups(cmd, needs)
@@ -53,26 +53,27 @@ func newBackupCommands(deps Dependencies) []*cobra.Command {
 			return do(cmd, b)
 		}}
 	}
-	claim := backupCommand("claim-backup-main", "Make this machine the installation's main, the one that backs up", backingUp, func(cmd *cobra.Command, b *backup.Backups) error {
-		return b.Claim(cmd.Context(), yes)
+	backupNow := backupCommand("backup", "Back up the apps' data now (stops them for a few minutes; only on the installation's main)", backingUp, func(cmd *cobra.Command, b *backup.Backups) error {
+		switch {
+		case takeOver:
+			return b.Claim(cmd.Context(), yes)
+		case yes:
+			return errors.New("--yes only goes with --take-over")
+		}
+		return b.Backup(cmd.Context())
 	})
-	claim.Flags().BoolVar(&yes, "yes", false, "take over from another main without asking")
-	unlock := backupCommand("unlock-backup", "Remove stale locks from the backup repository and show the ones left", unlocking, func(cmd *cobra.Command, b *backup.Backups) error {
-		return b.Unlock(cmd.Context(), all)
-	})
-	unlock.Flags().BoolVar(&all, "all", false, "remove every lock: only when no machine is running restic")
+	backupNow.Flags().BoolVar(&takeOver, "take-over", false, "make this machine the main, after asking when another machine is, then back up")
+	backupNow.Flags().BoolVar(&yes, "yes", false, "with --take-over, take over without asking")
 	restore := backupCommand("restore", "Restore volumes/ from the latest backup", restoring, func(cmd *cobra.Command, b *backup.Backups) error {
 		return b.Restore(cmd.Context(), overwrite)
 	})
 	restore.Flags().BoolVar(&overwrite, "overwrite", false, "move the existing volumes/ aside and restore over it")
 	return []*cobra.Command{
-		backupCommand("backup", "Back up the apps' data now (stops them for a few minutes; only on the installation's main)", backingUp, func(cmd *cobra.Command, b *backup.Backups) error {
-			return b.Backup(cmd.Context())
-		}),
+		backupNow,
 		backupCommand("verify-backup", "Check the backups: restic check and a test restore of the latest snapshot's databases", telling, func(cmd *cobra.Command, b *backup.Backups) error {
 			return b.Verify(cmd.Context())
 		}),
-		claim, unlock, restore,
+		restore,
 	}
 }
 

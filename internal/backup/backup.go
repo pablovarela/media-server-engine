@@ -36,7 +36,7 @@ func (b *Backups) Claim(ctx context.Context, yes bool) error {
 		return err
 	}
 	if !held && latest != nil {
-		return fmt.Errorf("volumes/ in %s holds no app data, so claiming would make an empty backup %s's latest; restore first with mse restore, then claim", b.Installation.Data, b.Installation.Name)
+		return fmt.Errorf("volumes/ in %s holds no app data, so claiming would make an empty backup %s's latest; restore first with mse restore, then mse backup --take-over", b.Installation.Data, b.Installation.Name)
 	}
 	if err := b.backup(ctx, true); err != nil {
 		return err
@@ -56,7 +56,7 @@ func (b *Backups) confirmTakingOver(ctx context.Context, yes bool) (*restic.Snap
 	b.Report.Warn(fmt.Sprintf("%s's main is %s. Taking over makes it refuse to back up.", b.Installation.Name, describe(latest)))
 	answer, interactive := b.Ask("Make this machine the main instead? (y/n) ")
 	if !interactive {
-		return nil, errors.New("nothing was claimed; --yes takes over without asking")
+		return nil, errors.New("nothing was claimed; mse backup --take-over --yes takes over without asking")
 	}
 	if answer != "y" && answer != "Y" {
 		return nil, errors.New("nothing was claimed")

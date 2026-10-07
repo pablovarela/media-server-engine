@@ -67,7 +67,7 @@ Each line is ✓, ✗ with the command that fixes it, ? when it couldn't be chec
 2. **Secrets key:** a new age key, added to `~/.config/sops/age/keys.txt` (or `SOPS_AGE_KEY_FILE`; it refuses while `SOPS_AGE_KEY` or `SOPS_AGE_KEY_CMD` is set). It is shown once, on the terminal only: save it. The name and the key rebuild the installation anywhere.
 3. **Config:** written from the template into `~/.config/mse/<name>`, then every configure section is asked in turn.
 4. **Repository:** a commit, a new private repository `media-server-config-<name>` under the user gh is logged in as (`--owner <org>` for an organisation), and a push.
-5. **Main:** `claim-backup-main` creates the backup repository and backs up the still-empty data folder, so the repository records this machine as the main.
+5. **Main:** it creates the backup repository and backs up the still-empty data folder, as `mse backup --take-over` does, so the repository records this machine as the main.
 6. **Apply:** `mse apply`.
 
 - `--homepage-port <port>` puts the landing page on another port, for the checks and in the settings, when something else on the machine uses port 80.
@@ -164,9 +164,9 @@ Shows this machine's installation. It changes nothing and prints no passwords.
 
 ## Backups
 
-- **Commands:** `mse backup`, `mse verify-backup`, `mse restore`, `mse claim-backup-main`, `mse unlock-backup`.
+- **Commands:** `mse backup [--take-over [--yes]]`, `mse verify-backup`, `mse restore`.
 - **Repository:** `RESTIC_REPOSITORY` in the config's `installation.env`, with its credentials in `secrets/backup.sops.env`.
-- **The main:** only the installation's main backs up: the machine that made the latest snapshot. `mse status` says which; `mse claim-backup-main` takes over.
+- **The main:** only the installation's main backs up: the machine that made the latest snapshot. `mse status` says which. On any other machine `mse backup` says so and exits without failing; `mse backup --take-over` makes this machine the main, after asking when another machine is, and backs up (`--yes` skips the question).
 - **Healthchecks:** `mse backup` and `mse verify-backup` report to healthchecks.io themselves when the config has a ping key, so a run by hand counts like a timer run.
 - **Paths:** a backup runs restic from the data folder with symlinks resolved, so a data folder linked to another path backs up under the same paths as before.
 - **More:** [Backups](BACKUP.md) and [Restoring](RESTORE.md).

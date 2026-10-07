@@ -73,7 +73,7 @@ func TestDecideKeepsTheMainThatMadeTheLatestBackup(t *testing.T) {
 
 func TestDecideKeepsASecondaryThatKeptItsOwnData(t *testing.T) {
 	kept := "Kept this machine a secondary: its app data wasn't restored, and gorgon-pi backed up at 2026-10-06 06:00, so backing this data up would make it gorgon's latest. " +
-		"--restore-over restores the latest backup first; mse claim-backup-main takes over later."
+		"--restore-over restores the latest backup first; mse backup --take-over takes over later."
 	assert.Equal(t, Decision{Say: kept, Role: Secondary}, Decide("gorgon", mainAt(6), now, Flags{}, true))
 	assert.Equal(t, Decision{Role: Primary}, Decide("gorgon", mainAt(6), now, Flags{Main: true}, true), "--main is explicit")
 	assert.True(t, Decide("gorgon", mainAt(72), now, Flags{}, true).Ask, "a main that looks gone can be taken over with the disk's data")

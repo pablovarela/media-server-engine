@@ -246,7 +246,7 @@ func TestCreateWritesCommitsAndPublishes(t *testing.T) {
 
 	assert.Equal(t, 1, code)
 	assert.Contains(t, stdout, "Creating github.com/pablovarela/media-server-config-gorgon (private)... done")
-	assert.Contains(t, stderr, "no Docker here\ngorgon is created and its config pushed. Finish with:\n  mse claim-backup-main --installation gorgon\n  mse apply --installation gorgon")
+	assert.Contains(t, stderr, "no Docker here\ngorgon is created and its config pushed. Finish with:\n  mse backup --take-over --installation gorgon\n  mse apply --installation gorgon")
 	assert.FileExists(t, filepath.Join(f.deps.Home, ".local", "state", "mse", "gorgon", ".secrets", "apps.env"))
 	env, err := os.ReadFile(filepath.Join(f.config, "installation.env"))
 	require.NoError(t, err)

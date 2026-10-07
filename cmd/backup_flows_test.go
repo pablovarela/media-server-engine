@@ -128,8 +128,8 @@ func TestBackupCommandFlows(t *testing.T) {
 				pings:  []string{"/ping-key/gorgon-backup/start", "/ping-key/gorgon-backup"},
 			},
 		},
-		"claim-backup-main --yes": {
-			When: When{args: []string{"claim-backup-main", "--yes"}},
+		"backup --take-over --yes": {
+			When: When{args: []string{"backup", "--take-over", "--yes"}},
 			Then: Then{
 				expect: func(r *mockCommandRunner, c *mockComposeRunner, data, _ string) {
 					r.EXPECT().Output(mock.Anything, resticCall("cat", "config", "--no-lock")).Return(process.Result{}, nil)
@@ -140,9 +140,9 @@ func TestBackupCommandFlows(t *testing.T) {
 				pings:  []string{"/ping-key/gorgon-backup/start", "/ping-key/gorgon-backup"},
 			},
 		},
-		"claim-backup-main asks first": {
+		"backup --take-over asks first": {
 			Given: Given{interactive: true, stdin: "y\n"},
-			When:  When{args: []string{"claim-backup-main"}},
+			When:  When{args: []string{"backup", "--take-over"}},
 			Then: Then{
 				expect: func(r *mockCommandRunner, c *mockComposeRunner, data, _ string) {
 					r.EXPECT().Output(mock.Anything, resticCall("cat", "config", "--no-lock")).Return(process.Result{}, nil)

@@ -273,7 +273,7 @@ func TestClaim(t *testing.T) {
 				m.repository.EXPECT().HasRepository(mock.Anything).Return(true, nil)
 				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(theirs, nil)
 			}},
-			Then: Then{errOut: "gorgon's main is pi2, last backup 2026-10-04 04:30. Taking over makes it refuse to back up.\n", err: "nothing was claimed; --yes takes over without asking"},
+			Then: Then{errOut: "gorgon's main is pi2, last backup 2026-10-04 04:30. Taking over makes it refuse to back up.\n", err: "nothing was claimed; mse backup --take-over --yes takes over without asking"},
 		},
 		"unreadable repository": {
 			Given: Given{yes: true, expect: func(m mocks) {
@@ -425,6 +425,6 @@ func TestClaimWithoutAppDataRefusesWhenThereAreBackups(t *testing.T) {
 
 	err := b.Claim(context.Background(), true)
 
-	assert.EqualError(t, err, "volumes/ in "+b.Installation.Data+" holds no app data, so claiming would make an empty backup gorgon's latest; restore first with mse restore, then claim")
+	assert.EqualError(t, err, "volumes/ in "+b.Installation.Data+" holds no app data, so claiming would make an empty backup gorgon's latest; restore first with mse restore, then mse backup --take-over")
 	assert.NoFileExists(t, filepath.Join(b.Installation.Data, ".backup-main"))
 }

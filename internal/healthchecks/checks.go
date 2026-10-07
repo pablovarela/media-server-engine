@@ -124,7 +124,7 @@ func description(job string, facts Facts) string {
 	switch job {
 	case backupJob:
 		return fmt.Sprintf("Nightly backup of %s's app state (libraries, history, users, settings) to %s with restic. Media files are not included. "+
-			"%s on the main machine %s. %s --since today; mse unlock-backup clears a stale lock.", facts.Name, destination(facts.Repository), runs, timer, login)
+			"%s on the main machine %s. %s --since today; a stale lock is cleared before the next run.", facts.Name, destination(facts.Repository), runs, timer, login)
 	case verifyJob:
 		return fmt.Sprintf("Weekly check that %s's backups in %s can be read back (restic check). %s on the main machine %s. %s --since -7d -n 200.",
 			facts.Name, destination(facts.Repository), runs, timer, login)
