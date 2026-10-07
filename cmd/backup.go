@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/spf13/cobra"
@@ -22,6 +24,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/process"
 	"github.com/pablovarela/media-server-engine/internal/report"
 	"github.com/pablovarela/media-server-engine/internal/restic"
+	"github.com/pablovarela/media-server-engine/internal/runs"
 	"github.com/pablovarela/media-server-engine/internal/secrets"
 )
 
@@ -175,12 +178,50 @@ func resticFor(binary string, runner commandRunner, repository map[string]string
 	return restic.Restic{Binary: binary, Runner: runner, Env: env, Log: tool}
 }
 
-func (d Dependencies) pinger(cmd *cobra.Command, i *installation.Installation) *healthchecks.Pings {
+func (d Dependencies) pinger(cmd *cobra.Command, i *installation.Installation) recordedPings {
 	short, role := d.shortHost(), i.Role()
-	return &healthchecks.Pings{
-		Client: d.HTTP, URL: healthchecks.PingURL, Key: healthchecksKey(i, "HEALTHCHECKS_PING_KEY"), Sleep: d.Sleep, ErrOut: cmd.ErrOrStderr(),
-		Slug: func(job string) string { return healthchecks.Slug(i.Name, job, role, short) },
+	return recordedPings{
+		pings: &healthchecks.Pings{
+			Client: d.HTTP, URL: healthchecks.PingURL, Key: healthchecksKey(i, "HEALTHCHECKS_PING_KEY"), Sleep: d.Sleep, ErrOut: cmd.ErrOrStderr(),
+			Slug: func(job string) string { return healthchecks.Slug(i.Name, job, role, short) },
+		},
+		runs:   d.recorder(i),
+		errOut: cmd.ErrOrStderr(),
 	}
+}
+
+type recordedPings struct {
+	pings  *healthchecks.Pings
+	runs   runs.Recorder
+	errOut io.Writer
+}
+
+func (p recordedPings) Ping(ctx context.Context, job, suffix string) {
+	var err error
+	switch suffix {
+	case "/start":
+		err = p.runs.Start(job)
+	case "":
+		err = p.runs.Finish(job, false)
+	case "/fail":
+		err = p.runs.Finish(job, true)
+	}
+	if err != nil {
+		_, _ = fmt.Fprintf(p.errOut, "could not record the %s run for mse status: %v\n", job, err)
+	}
+	p.pings.Ping(ctx, job, suffix)
+}
+
+func (d Dependencies) recorder(i *installation.Installation) runs.Recorder {
+	now := d.Now
+	if now == nil {
+		now = time.Now
+	}
+	return runs.Recorder{Dir: runsDir(i), Now: now, PID: os.Getpid()}
+}
+
+func runsDir(i *installation.Installation) string {
+	return filepath.Join(i.State, "runs")
 }
 
 func (d Dependencies) shortHost() string {

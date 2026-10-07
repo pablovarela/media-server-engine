@@ -22,6 +22,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/compose"
 	"github.com/pablovarela/media-server-engine/internal/installation"
 	"github.com/pablovarela/media-server-engine/internal/process"
+	"github.com/pablovarela/media-server-engine/internal/runs"
 )
 
 const (
@@ -81,6 +82,18 @@ func withoutSystemMachineID(t *testing.T, deps *Dependencies, without bool) {
 	}
 }
 
+func assertRecordedSuccess(t *testing.T, home, job string) {
+	if job == "" {
+		return
+	}
+	run, recorded, err := runs.Read(filepath.Join(home, ".local", "state", "mse", "gorgon", "runs"), job)
+	require.NoError(t, err)
+	assert.True(t, recorded, job)
+	assert.False(t, run.Started.IsZero(), job)
+	assert.False(t, run.Ended.IsZero(), job)
+	assert.False(t, run.Failed, job)
+}
+
 func assertIdentityUnread(t *testing.T, unread bool, data string) {
 	if unread {
 		assert.NoFileExists(t, filepath.Join(data, ".machine-id"), "only the commands that need it read the machine's identity")
@@ -102,6 +115,7 @@ func TestBackupCommandFlows(t *testing.T) {
 		stderr     string
 		pings      []string
 		noIdentity bool
+		recorded   string
 	}
 	backsUp := func(r *mockCommandRunner, c *mockComposeRunner, data string) {
 		c.EXPECT().RunningServices(mock.Anything, project).Return([]string{"jellyfin"}, nil)
@@ -134,8 +148,9 @@ func TestBackupCommandFlows(t *testing.T) {
 					r.EXPECT().Output(mock.Anything, resticCall("snapshots", "--no-lock", "--host", "gorgon", "--json")).Return(process.Result{Stdout: []byte(ourSnapshots)}, nil)
 					backsUp(r, c, data)
 				},
-				stdout: backedUp,
-				pings:  []string{"/ping-key/gorgon-backup/start", "/ping-key/gorgon-backup"},
+				stdout:   backedUp,
+				pings:    []string{"/ping-key/gorgon-backup/start", "/ping-key/gorgon-backup"},
+				recorded: "backup",
 			},
 		},
 		"backup --take-over --yes": {
@@ -201,8 +216,9 @@ func TestBackupCommandFlows(t *testing.T) {
 						return 0, nil
 					})
 				},
-				stdout: "Checking the repository... no errors.\nRestoring the databases of the latest snapshot... restored 1 databases.\nChecking the databases... 1 intact.\nThe backups check out.\n",
-				pings:  []string{"/ping-key/gorgon-verify/start", "/ping-key/gorgon-verify"},
+				stdout:   "Checking the repository... no errors.\nRestoring the databases of the latest snapshot... restored 1 databases.\nChecking the databases... 1 intact.\nThe backups check out.\n",
+				pings:    []string{"/ping-key/gorgon-verify/start", "/ping-key/gorgon-verify"},
+				recorded: "verify",
 			},
 		},
 	}
@@ -229,6 +245,7 @@ func TestBackupCommandFlows(t *testing.T) {
 			assert.Equal(t, tt.Then.stderr, stderr.String())
 			assert.Equal(t, tt.Then.pings, pings)
 			assertIdentityUnread(t, tt.Then.noIdentity, data)
+			assertRecordedSuccess(t, home, tt.Then.recorded)
 		})
 	}
 }

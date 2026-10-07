@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/pablovarela/media-server-engine/internal/backup"
-	"github.com/pablovarela/media-server-engine/internal/timers"
+	"github.com/pablovarela/media-server-engine/internal/runs"
 )
 
 var now = time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
@@ -19,8 +19,8 @@ func healthy() Report {
 		Main:    &backup.Main{Machine: "pi", Time: now.Add(-7 * time.Hour), ThisMachine: true},
 		Running: 12, Services: 12,
 		Timers: []Timer{
-			{Label: "update", Status: timers.JobStatus{Result: "success", LastRun: now.Add(-7 * time.Hour), Next: now.Add(17 * time.Hour)}},
-			{Label: "backup", Status: timers.JobStatus{Result: "success", LastRun: now.Add(-7 * time.Hour), Next: now.Add(16 * time.Hour)}},
+			{Label: "update", Next: now.Add(17 * time.Hour), Recorded: true, Last: runs.Run{Started: now.Add(-7 * time.Hour)}, State: runs.Succeeded},
+			{Label: "backup", Next: now.Add(16 * time.Hour), Recorded: true, Last: runs.Run{Started: now.Add(-7 * time.Hour)}, State: runs.Succeeded},
 		},
 		Apps: []App{{Name: "Jellyfin", Address: "http://media.local:8096"}},
 	}
@@ -57,8 +57,8 @@ func TestRender(t *testing.T) {
 			Given: func(r *Report) { r.Timers, r.NoSystemd = nil, true },
 			Then:  []string{"No timers on this machine (no systemd)."},
 		},
-		"a failed timer": {
-			Given: func(r *Report) { r.Timers[1].Status.Result = "exit-code" },
+		"a failed run": {
+			Given: func(r *Report) { r.Timers[1].State = runs.Failed },
 			Then:  []string{"last ran 7 Oct 05:00, failed"},
 		},
 		"stack unreadable": {
@@ -69,14 +69,18 @@ func TestRender(t *testing.T) {
 			Given: func(r *Report) { r.Running, r.Services = 0, 0 },
 			Then:  []string{"Stack: no containers; mse apply starts it"},
 		},
-		"a failure with no exit time": {
-			Given: func(r *Report) {
-				r.Timers[0].Status = timers.JobStatus{Result: "start-limit-hit", Next: now.Add(time.Hour)}
-			},
-			Then: []string{"last run failed (start-limit-hit)"},
+		"a run that stopped before finishing": {
+			Given: func(r *Report) { r.Timers[0].State = runs.Interrupted },
+			Then:  []string{"started 7 Oct 05:00, stopped before finishing"},
 		},
-		"a timer that hasn't run": {
-			Given: func(r *Report) { r.Timers[0].Status.LastRun = time.Time{} },
+		"running now": {
+			Given: func(r *Report) {
+				r.Timers[1].Last, r.Timers[1].State, r.Timers[1].Next = runs.Run{Started: now.Add(-time.Minute)}, runs.Running, time.Time{}
+			},
+			Then: []string{"running now, since 7 Oct 11:59"},
+		},
+		"no run recorded": {
+			Given: func(r *Report) { r.Timers[0].Recorded = false },
 			Then:  []string{"hasn't run yet"},
 		},
 		"apps unreadable": {
@@ -104,17 +108,16 @@ func TestAttention(t *testing.T) {
 		Then  []string
 	}{
 		"nothing":                        {Given: func(*Report) {}},
-		"a failed timer":                 {Given: func(r *Report) { r.Timers[1].Status.Result = "exit-code" }, Then: []string{"backup's last run failed"}},
-		"a timer that never ran is fine": {Given: func(r *Report) { r.Timers[1].Status.LastRun = time.Time{} }},
-		"a failure with no exit time": {
-			Given: func(r *Report) { r.Timers[0].Status = timers.JobStatus{Result: "start-limit-hit"} }, Then: []string{"update's last run failed"},
-		},
-		"no containers":              {Given: func(r *Report) { r.Running, r.Services = 0, 0 }, Then: []string{"the stack isn't running"}},
-		"timers unreadable":          {Given: func(r *Report) { r.Timers, r.TimersErr = nil, errors.New("no bus") }, Then: []string{"the timers couldn't be read"}},
-		"apps unreadable alone":      {Given: func(r *Report) { r.Apps, r.AppsErr = nil, errors.New("no hostname") }},
-		"a service down":             {Given: func(r *Report) { r.Running = 11 }, Then: []string{"1 of 12 services isn't running"}},
-		"two services down":          {Given: func(r *Report) { r.Running = 10 }, Then: []string{"2 of 12 services aren't running"}},
-		"the main's backup is stale": {Given: func(r *Report) { r.Main.Time = now.Add(-49 * time.Hour) }, Then: []string{"the latest backup is more than 2 days old"}},
+		"a failed run":                   {Given: func(r *Report) { r.Timers[1].State = runs.Failed }, Then: []string{"backup's last run failed"}},
+		"a run that stopped unfinished":  {Given: func(r *Report) { r.Timers[0].State = runs.Interrupted }, Then: []string{"update's last run stopped before finishing"}},
+		"running now is fine":            {Given: func(r *Report) { r.Timers[1].State = runs.Running }},
+		"a timer that never ran is fine": {Given: func(r *Report) { r.Timers[1].Recorded = false }},
+		"no containers":                  {Given: func(r *Report) { r.Running, r.Services = 0, 0 }, Then: []string{"the stack isn't running"}},
+		"timers unreadable":              {Given: func(r *Report) { r.Timers, r.TimersErr = nil, errors.New("no bus") }, Then: []string{"the timers couldn't be read"}},
+		"apps unreadable alone":          {Given: func(r *Report) { r.Apps, r.AppsErr = nil, errors.New("no hostname") }},
+		"a service down":                 {Given: func(r *Report) { r.Running = 11 }, Then: []string{"1 of 12 services isn't running"}},
+		"two services down":              {Given: func(r *Report) { r.Running = 10 }, Then: []string{"2 of 12 services aren't running"}},
+		"the main's backup is stale":     {Given: func(r *Report) { r.Main.Time = now.Add(-49 * time.Hour) }, Then: []string{"the latest backup is more than 2 days old"}},
 		"another main's stale backup is not this machine's concern": {
 			Given: func(r *Report) { r.Main = &backup.Main{Machine: "laptop", Time: now.Add(-100 * time.Hour)} },
 		},

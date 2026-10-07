@@ -6,14 +6,17 @@ import (
 	"time"
 
 	"github.com/pablovarela/media-server-engine/internal/backup"
-	"github.com/pablovarela/media-server-engine/internal/timers"
+	"github.com/pablovarela/media-server-engine/internal/runs"
 )
 
 const staleBackup = 48 * time.Hour
 
 type Timer struct {
-	Label  string
-	Status timers.JobStatus
+	Label    string
+	Next     time.Time
+	Recorded bool
+	Last     runs.Run
+	State    runs.State
 }
 
 type App struct{ Name, Address string }
@@ -89,22 +92,24 @@ func (r Report) timers(now time.Time) string {
 	var out strings.Builder
 	out.WriteString("Timers:\n")
 	for _, timer := range r.Timers {
-		ran := lastRun(timer.Status, now)
-		fmt.Fprintf(&out, "  %-16s %-36s next %s\n", timer.Label, ran, when(timer.Status.Next, now))
+		fmt.Fprintf(&out, "  %-16s %-40s next %s\n", timer.Label, timer.lastRun(now), when(timer.Next, now))
 	}
 	return out.String()
 }
 
-func lastRun(s timers.JobStatus, now time.Time) string {
+func (t Timer) lastRun(now time.Time) string {
+	started := when(t.Last.Started, now)
 	switch {
-	case !s.Succeeded() && s.LastRun.IsZero():
-		return "last run failed (" + s.Result + ")"
-	case !s.Succeeded():
-		return "last ran " + when(s.LastRun, now) + ", failed"
-	case s.LastRun.IsZero():
+	case !t.Recorded:
 		return "hasn't run yet"
+	case t.State == runs.Running:
+		return "running now, since " + started
+	case t.State == runs.Interrupted:
+		return "started " + started + ", stopped before finishing"
+	case t.State == runs.Failed:
+		return "last ran " + started + ", failed"
 	}
-	return "last ran " + when(s.LastRun, now) + ", succeeded"
+	return "last ran " + started + ", succeeded"
 }
 
 func when(t, now time.Time) string {
@@ -121,8 +126,12 @@ func (r Report) Attention(now time.Time) []string {
 func (r Report) timersAttention() []string {
 	var needs []string
 	for _, timer := range r.Timers {
-		if !timer.Status.Succeeded() {
+		switch {
+		case !timer.Recorded:
+		case timer.State == runs.Failed:
 			needs = append(needs, timer.Label+"'s last run failed")
+		case timer.State == runs.Interrupted:
+			needs = append(needs, timer.Label+"'s last run stopped before finishing")
 		}
 	}
 	if r.TimersErr != nil {

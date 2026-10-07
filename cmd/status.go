@@ -10,6 +10,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/compose"
 	"github.com/pablovarela/media-server-engine/internal/installation"
 	"github.com/pablovarela/media-server-engine/internal/report"
+	"github.com/pablovarela/media-server-engine/internal/runs"
 	"github.com/pablovarela/media-server-engine/internal/status"
 	"github.com/pablovarela/media-server-engine/internal/timers"
 )
@@ -104,7 +105,13 @@ func (d Dependencies) statusOfTimers(cmd *cobra.Command, i *installation.Install
 		return
 	}
 	for _, state := range states {
-		r.Timers = append(r.Timers, status.Timer{Label: timerLabels[state.Job.Name], Status: state})
+		timer := status.Timer{Label: timerLabels[state.Job.Name], Next: state.Next}
+		if timer.Last, timer.Recorded, err = runs.Read(runsDir(i), state.Job.Name); err != nil {
+			r.TimersErr = err
+			return
+		}
+		timer.State = timer.Last.State(runs.Alive)
+		r.Timers = append(r.Timers, timer)
 	}
 }
 

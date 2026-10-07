@@ -28,9 +28,9 @@ func succeededTimers(units []string) string {
 	var blocks []string
 	for _, unit := range units {
 		if strings.HasSuffix(unit, ".service") {
-			blocks = append(blocks, "Result=success\nExecMainExitTimestamp=Mon 2026-10-05 03:31:41 UTC\nId="+unit+"\nLoadState=loaded")
+			blocks = append(blocks, "ActiveState=inactive\nResult=success\nId="+unit+"\nLoadState=loaded")
 		} else if strings.HasSuffix(unit, ".timer") {
-			blocks = append(blocks, "NextElapseUSecRealtime=Tue 2026-10-06 03:30:00 UTC\nResult=success\nId="+unit+"\nLoadState=loaded")
+			blocks = append(blocks, "LastTriggerUSec=Mon 2026-10-05 03:30:58 UTC\nNextElapseUSecRealtime=Tue 2026-10-06 03:30:00 UTC\nResult=success\nId="+unit+"\nLoadState=loaded")
 		}
 	}
 	return strings.Join(blocks, "\n\n") + "\n"
@@ -43,6 +43,7 @@ type statusGiven struct {
 	apps      string
 	settings  string
 	dockerErr error
+	records   map[string]string
 }
 
 func statusDependencies(t *testing.T, given statusGiven) (string, Dependencies, *[]string) {
@@ -53,6 +54,11 @@ func statusDependencies(t *testing.T, given statusGiven) (string, Dependencies, 
 		current, err := os.ReadFile(filepath.Join(config, "installation.env"))
 		require.NoError(t, err)
 		require.NoError(t, os.WriteFile(filepath.Join(config, "installation.env"), append(current, given.settings...), 0o644))
+	}
+	for job, record := range given.records {
+		dir := filepath.Join(home, ".local", "state", "mse", "gorgon", "runs")
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, job+".json"), []byte(record), 0o644))
 	}
 	if given.apps != "" {
 		require.NoError(t, os.WriteFile(filepath.Join(config, "secrets", "apps.sops.env"), []byte(given.apps), 0o644))
@@ -135,6 +141,12 @@ func TestStatus(t *testing.T) {
 		"docker unreachable": {
 			Given: Given{snapshots: healthy.snapshots, systemd: true, dockerErr: errors.New("Cannot connect to the Docker daemon")},
 			Then:  Then{code: 1, contains: []string{"Stack: couldn't read it: Cannot connect to the Docker daemon", "This machine is the main", "check-backup", "Jellyfin"}},
+		},
+		"a recorded failure": {
+			Given: Given{running: healthy.running, snapshots: healthy.snapshots, systemd: true,
+				records: map[string]string{"update": `{"started":"2026-10-05T04:00:58Z","pid":1,"ended":"2026-10-05T04:03:00Z","failed":true}`,
+					"backup": `{"started":"2026-10-05T03:30:58Z","pid":1,"ended":"2026-10-05T03:31:41Z"}`}},
+			Then: Then{code: 1, contains: []string{"last ran 5 Oct 04:00, failed", "last ran 5 Oct 03:30, succeeded", "update's last run failed"}},
 		},
 		"no passwords": {
 			Given: Given{running: healthy.running, snapshots: healthy.snapshots, systemd: true, apps: "JELLYFIN_ADMIN_PASSWORD=s3cret\n"},
