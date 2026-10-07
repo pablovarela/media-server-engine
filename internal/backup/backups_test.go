@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/media"
 	"github.com/pablovarela/media-server-engine/internal/report"
 	"github.com/pablovarela/media-server-engine/internal/restic"
 )
@@ -18,18 +19,23 @@ type mocks struct {
 	repository *mockRepository
 	stack      *mockStack
 	pinger     *mockPinger
+	media      *mockRepository
 }
 
 func fixture(t *testing.T) (*Backups, mocks, *bytes.Buffer, *bytes.Buffer) {
 	t.Helper()
-	m := mocks{repository: newMockRepository(t), stack: newMockStack(t), pinger: newMockPinger(t)}
+	m := mocks{repository: newMockRepository(t), stack: newMockStack(t), pinger: newMockPinger(t), media: newMockRepository(t)}
 	var out, errOut bytes.Buffer
 	data := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(data, "volumes", "jellyfin"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(data, "data", "media"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(data, "data", "media", "film.mkv"), []byte("film"), 0o644))
 	b := &Backups{
 		Installation:       &installation.Installation{Name: "gorgon", Data: data, State: t.TempDir()},
 		Repository:         m.repository,
 		RepositoryLocation: "b2:bucket",
+		MediaRepository:    m.media,
+		Media:              media.Settings{Enabled: true, Repository: "b2:bucket:restic-media", KeepWeekly: 4, CheckSubset: "5%"},
 		Stack:              m.stack,
 		Pinger:             m.pinger,
 		MachineID:          "this",
