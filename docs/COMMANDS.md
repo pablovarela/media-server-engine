@@ -7,8 +7,8 @@
 | install | `mse check-machine`, `mse setup <name> [--owner] [--homepage-port] [--overwrite]` |
 | personalize | `mse configure` |
 | run | `mse apply`, `mse update [--apply] [--force]`, `mse stack up\|down\|ps\|logs\|restart` |
-| back up | `mse backup --apps [--take-over [--yes]]`, `mse check-backup` |
-| recover | `mse restore --apps [--overwrite]` |
+| back up | `mse backup --apps [--take-over [--yes]]`, `mse backup --media`, `mse check-backup` |
+| recover | `mse restore --apps [--overwrite]`, `mse restore --media` |
 | look | `mse status`, `mse logins`, `mse version` |
 | housekeeping, run by a timer | `mse clean-downloads` |
 
@@ -171,6 +171,7 @@ Shows this machine's installation. It changes nothing and prints no passwords.
 | `mse-<name>-download-cleanup` | `mse clean-downloads` | every 15 minutes | every machine |
 | `mse-<name>-backup` | `mse backup --apps` | daily at 04:30 | the main |
 | `mse-<name>-verify` | `mse check-backup` | Sundays at 05:30 | the main |
+| `mse-<name>-media-backup` | `mse backup --media` | `MEDIA_BACKUP_SCHEDULE`, Sundays at 01:00 by default | the main, when the media backup is on |
 
 - They are systemd user units in `~/.config/systemd/user`: `systemctl --user list-timers` lists them, and `journalctl --user-unit mse-<name>-update.service` shows a run.
 - They run with nobody logged in once lingering is on: `sudo loginctl enable-linger <user>`, once. Until then `mse apply` says so and leaves them out.
@@ -181,7 +182,8 @@ Shows this machine's installation. It changes nothing and prints no passwords.
 
 ## Backups
 
-- **Commands:** `mse backup --apps [--take-over [--yes]]`, `mse check-backup`, `mse restore --apps`.
+- **Commands:** `mse backup --apps [--take-over [--yes]]`, `mse backup --media`, `mse check-backup`, `mse restore --apps`, `mse restore --media`. `mse backup` and `mse restore` need `--apps`, `--media` or both; with both, the apps go first.
+- **Media:** the optional media backup has its own repository and weekly timer; see [Media backup](BACKUP.md#media-backup).
 - **Repository:** `RESTIC_REPOSITORY` in the config's `installation.env`, with its credentials in `secrets/backup.sops.env`.
 - **The main:** only the installation's main backs up: the machine that made the latest snapshot. `mse status` says which. On any other machine `mse backup --apps` and `mse check-backup` say so and exit without failing; `mse backup --apps --take-over` makes this machine the main, after asking when another machine is, and backs up (`--yes` skips the question).
 - **Healthchecks:** `mse backup --apps` and `mse check-backup` report to healthchecks.io themselves when the config has a ping key, so a run by hand counts like a timer run.

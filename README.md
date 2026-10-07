@@ -48,6 +48,7 @@ Run `mse check-machine` until it says the machine is ready; each missing piece c
 | `mse logins` | the apps' users and passwords |
 | `mse stack down`, `mse stack up` | stop and start the apps |
 | `mse backup --apps`, `mse check-backup` | back up now, check the backups now |
+| `mse backup --media` | back up the media now, when the media backup is on |
 | `mse restore --apps --overwrite` | with the apps stopped, roll this machine's app state back to the latest backup |
 | `mse version` | the `mse` release running |
 
