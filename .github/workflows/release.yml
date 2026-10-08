@@ -4,9 +4,21 @@ on:
   push:
     tags:
       - "v*"
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+      notes:
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: write
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   release:
@@ -14,6 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.tag || github.ref }}
           fetch-depth: 0
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -28,7 +41,7 @@ jobs:
           key: go-release-${{ runner.os }}-${{ hashFiles('go.sum', 'tools/go.sum') }}
           restore-keys: go-release-check-${{ runner.os }}-
       - name: Check the tag's major is the template's config schema
-        run: scripts/check-release-schema.sh "$GITHUB_REF_NAME" config-template/config.yml
+        run: scripts/check-release-schema.sh "$TAG" config-template/config.yml
       - name: Read the GoReleaser version from tools/go.mod
         id: tools
         run: echo "goreleaser=$(go list -modfile=tools/go.mod -m -f '{{.Version}}' github.com/goreleaser/goreleaser/v2)" >> "$GITHUB_OUTPUT"
@@ -38,3 +51,12 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ env.TAG }}
+      - name: Set the release notes
+        if: inputs.notes != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          printf '%s\n' "$NOTES" > "$RUNNER_TEMP/notes.md"
+          gh release edit "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
