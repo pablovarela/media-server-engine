@@ -1,0 +1,83 @@
+name: weekly-release
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: report what would be released, without releasing
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      tag: ${{ steps.plan.outputs.tag }}
+      notes: ${{ steps.plan.outputs.notes }}
+      commit: ${{ steps.plan.outputs.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          plan=$(scripts/weekly-release-plan.sh)
+          commit=$(git rev-parse HEAD)
+          printf '%s\n' "$plan" >> "$GITHUB_STEP_SUMMARY"
+          first=$(head -n 1 <<<"$plan")
+          case "$first" in
+            "release "*) ;;
+            *) exit 0 ;;
+          esac
+          ci=$(gh run list --workflow test.yml --commit "$commit" --json status,conclusion --jq '.[0] | "\(.status) \(.conclusion)"')
+          if [ "$ci" != "completed success" ]; then
+            printf '\nNot releasing: main'"'"'s test workflow on %s is "%s", not a success.\n' "$commit" "${ci:-not run}" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          {
+            echo "tag=${first#release }"
+            echo "commit=$commit"
+            echo "notes<<NOTES_END"
+            tail -n +3 <<<"$plan"
+            echo "NOTES_END"
+          } >> "$GITHUB_OUTPUT"
+
+  tag:
+    needs: plan
+    if: needs.plan.outputs.tag != '' && !inputs.dry_run
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.commit }}
+      - env:
+          TAG: ${{ needs.plan.outputs.tag }}
+          COMMIT: ${{ needs.plan.outputs.commit }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "$TAG" "$COMMIT"
+          git push origin "$TAG"
+
+  release:
+    needs: [plan, tag]
+    if: needs.plan.outputs.tag != '' && !inputs.dry_run
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.plan.outputs.tag }}
+      notes: ${{ needs.plan.outputs.notes }}

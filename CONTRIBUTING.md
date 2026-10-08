@@ -40,3 +40,5 @@ Releases are tags on `main`, `vMAJOR.MINOR.PATCH`. The major version is also the
 3. Replace the release's body with notes that say what changes for an installation and whether its config needs anything: `gh release edit v0.9.0 --notes-file notes.md`.
 
 An installation picks up the release with `mse update`, which takes the newest release of its major version.
+
+Every Monday at 06:00 UTC the `weekly-release` workflow releases a patch version when everything merged since the last release is a Renovate update or a change to Markdown files only, and main's `test` workflow passed on it. Its notes list the updates by kind. Anything else since the last release, such as a feature or a fix, holds it: the run's summary lists those commits, and they are released by hand with a tag as above. Run it on command from the Actions tab or with `gh workflow run weekly-release.yml`; `-f dry_run=true` reports what it would release without releasing.
