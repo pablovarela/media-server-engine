@@ -27,8 +27,19 @@ teardown() {
 
 @test "the release workflow checks the schema before publishing" {
   workflow="$REPO/.github/workflows/release.yml"
-  check=$(grep -n 'scripts/check-release-schema.sh "$GITHUB_REF_NAME" config-template/config.yml' "$workflow" | cut -d: -f1)
+  check=$(grep -n 'scripts/check-release-schema.sh "$TAG" config-template/config.yml' "$workflow" | cut -d: -f1)
   publish=$(grep -n 'goreleaser/goreleaser-action' "$workflow" | cut -d: -f1)
   [ -n "$check" ]
   [ "$check" -lt "$publish" ]
+}
+
+@test "the release workflow can be called with a tag and notes, and still runs on a pushed tag" {
+  workflow="$REPO/.github/workflows/release.yml"
+  grep -q '^  workflow_call:' "$workflow"
+  grep -q '^      tag:' "$workflow"
+  grep -q '^      notes:' "$workflow"
+  grep -q '^    tags:' "$workflow"
+  grep -qF 'TAG: ${{ inputs.tag || github.ref_name }}' "$workflow"
+  grep -qF 'ref: ${{ inputs.tag || github.ref }}' "$workflow"
+  grep -qF 'gh release edit "$TAG" --notes-file' "$workflow"
 }
