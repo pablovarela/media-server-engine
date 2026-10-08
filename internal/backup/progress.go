@@ -28,7 +28,8 @@ func (b *Backups) progress(step *report.Step) func(restic.Progress) {
 			return
 		}
 		shown = now
-		since := recentSample(samples, now)
+		samples = sinceSpeedWindow(samples, now)
+		since := samples[0]
 		samples = append(samples, progressSample{at: now, done: p.Done})
 		line := fmt.Sprintf("%d%% of %s", int(p.Done*100), restic.Size(p.TotalBytes))
 		if gained := p.Done - since.done; gained > 0 {
@@ -39,13 +40,11 @@ func (b *Backups) progress(step *report.Step) func(restic.Progress) {
 	}
 }
 
-func recentSample(samples []progressSample, now time.Time) progressSample {
-	for _, sample := range samples {
-		if now.Sub(sample.at) <= speedOver {
-			return sample
-		}
+func sinceSpeedWindow(samples []progressSample, now time.Time) []progressSample {
+	for len(samples) > 1 && now.Sub(samples[1].at) >= speedOver {
+		samples = samples[1:]
 	}
-	return samples[len(samples)-1]
+	return samples
 }
 
 func timeLeft(left time.Duration, now time.Time) string {
@@ -54,11 +53,10 @@ func timeLeft(left time.Duration, now time.Time) string {
 	if left >= 20*time.Hour {
 		finish = now.Add(left).Format("Mon 15:04")
 	}
-	return fmt.Sprintf("about %s left (done around %s)", roughly(left), finish)
+	return fmt.Sprintf("about %s left (done around %s)", inWords(int(left.Minutes())), finish)
 }
 
-func roughly(d time.Duration) string {
-	minutes := int(d.Minutes())
+func inWords(minutes int) string {
 	switch {
 	case minutes < 60:
 		return fmt.Sprintf("%d min", minutes)
