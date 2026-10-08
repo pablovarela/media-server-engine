@@ -52,7 +52,7 @@ func (r Report) Render(now time.Time) string {
 	fmt.Fprintf(&out, "%s on mse %s\n%s\n\n", r.Installation, r.Version, r.role())
 	fmt.Fprintf(&out, "Stack: %s\n", r.stack())
 	if r.Main != nil {
-		fmt.Fprintf(&out, "Last backup: %s by %s\n", when(r.Main.Time, now), r.Main.Machine)
+		fmt.Fprintf(&out, "Last apps backup: %s by %s\n", when(r.Main.Time, now), r.Main.Machine)
 	}
 	out.WriteString(r.media(now))
 	out.WriteString("\n" + r.timers(now) + "\n" + r.apps())

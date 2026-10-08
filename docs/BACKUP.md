@@ -72,7 +72,7 @@ The repository holds the library plus what changed in the weeks kept: roughly th
 
 ### The first run
 
-Run `mse backup --media` once by hand after turning it on: the first upload sends the whole library and can take hours or days, longer with an upload cap. Later runs send only what changed. The media backup tells healthchecks.io only how it ended, not when it started, so a long upload isn't reported as stuck; if it is still running when the next weekly run is due, that run says a media backup is already running.
+Run `mse backup --media` once by hand after turning it on: the first upload sends the whole library and can take hours or days, longer with an upload cap. Later runs send only what changed. A media backup or restore prints its progress about once a minute, with the time left and when it should finish. The media backup tells healthchecks.io only how it ended, not when it started, so a long upload isn't reported as stuck; if it is still running when the next weekly run is due, that run says a media backup is already running.
 
 ## Being told when something fails
 

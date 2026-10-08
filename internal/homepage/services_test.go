@@ -170,36 +170,35 @@ func TestTheHealthchecksTileInTheStatusGroup(t *testing.T) {
 func TestTheDefaultPageLeadsItsStatusGroupWithTheHealthchecksTile(t *testing.T) {
 	text, err := os.ReadFile("../../homepage/services.yaml")
 	require.NoError(t, err)
-	checks := checksAnswer{slugs: map[string]bool{"gorgon-backup": true, "gorgon-update": true, "gorgon-verify": true}}
+	checks := checksAnswer{slugs: map[string]bool{"gorgon-backup": true, "gorgon-media-backup": true, "gorgon-update": true, "gorgon-verify": true}}
 
-	rendered, err := renderServices(context.Background(), string(text), func(job string) string { return "gorgon-" + strings.ToLower(job) }, "k", checks, &bytes.Buffer{})
+	rendered, err := renderServices(context.Background(), string(text), slugFor("gorgon", Inputs{Role: "main", ShortHost: "pi"}), "k", checks, &bytes.Buffer{})
 
 	require.NoError(t, err)
-	var groups []map[string][]map[string]struct {
+	type tile struct {
 		Href    string `yaml:"href"`
 		Widgets []struct {
-			URL string `yaml:"url"`
+			URL      string `yaml:"url"`
+			Mappings []struct {
+				Label string `yaml:"label"`
+			} `yaml:"mappings"`
 		} `yaml:"widgets"`
 	}
+	var groups []map[string][]map[string]tile
 	require.NoError(t, yaml.Unmarshal([]byte(rendered), &groups))
-	var status []map[string]struct {
-		Href    string `yaml:"href"`
-		Widgets []struct {
-			URL string `yaml:"url"`
-		} `yaml:"widgets"`
-	}
+	var status []map[string]tile
 	for _, group := range groups {
 		if tiles, found := group["Status"]; found {
 			status = tiles
 		}
 	}
 	require.NotEmpty(t, status)
-	tile, found := status[0]["Healthchecks"]
+	healthchecks, found := status[0]["Healthchecks"]
 	require.True(t, found, "the Status group starts with the Healthchecks tile")
-	assert.Equal(t, "https://healthchecks.io/", tile.Href)
-	var slugs []string
-	for _, widget := range tile.Widgets {
-		slugs = append(slugs, strings.SplitN(widget.URL, "slug=", 2)[1])
+	assert.Equal(t, "https://healthchecks.io/", healthchecks.Href)
+	var rows []string
+	for _, widget := range healthchecks.Widgets {
+		rows = append(rows, widget.Mappings[0].Label+" "+strings.SplitN(widget.URL, "slug=", 2)[1])
 	}
-	assert.Equal(t, []string{"gorgon-backup", "gorgon-update", "gorgon-verify"}, slugs)
+	assert.Equal(t, []string{"Apps backup gorgon-backup", "Media backup gorgon-media-backup", "Update gorgon-update", "Verify gorgon-verify"}, rows)
 }

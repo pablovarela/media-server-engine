@@ -336,3 +336,39 @@ func TestForgetKeeps(t *testing.T) {
 		})
 	}
 }
+
+func TestBackupReportsProgress(t *testing.T) {
+	runner := newMockRunner(t)
+	runner.EXPECT().Run(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, c process.Command) (int, error) {
+		_, _ = io.WriteString(c.Stdout, `{"message_type":"status","percent_done":0.1,"total_bytes":45000000000,"bytes_done":4500000000}`+"\n"+
+			`{"message_type":"summary","snapshot_id":"7d2e9c41aa00"}`+"\n")
+		return 0, nil
+	})
+	var seen []Progress
+
+	_, err := Restic{Binary: binary, Runner: runner, Env: env}.Backup(context.Background(), BackupOptions{Host: "gorgon", Paths: []string{"."}, Progress: func(p Progress) { seen = append(seen, p) }})
+
+	require.NoError(t, err)
+	assert.Equal(t, []Progress{{Done: 0.1, TotalBytes: 45000000000, BytesDone: 4500000000}}, seen)
+}
+
+func TestRestoreReportsProgress(t *testing.T) {
+	var logged bytes.Buffer
+	runner := newMockRunner(t)
+	runner.EXPECT().Run(mock.Anything, mock.MatchedBy(func(c process.Command) bool {
+		return slices.Equal([]string{"restore", "--retry-lock", "2h", "--json", "latest", "--host", "gorgon", "--target", "/data/media", "--overwrite", "if-changed"}, c.Args)
+	})).RunAndReturn(func(_ context.Context, c process.Command) (int, error) {
+		_, _ = io.WriteString(c.Stdout, `{"message_type":"status","percent_done":0.5,"total_bytes":400,"bytes_restored":200}`+"\n"+
+			`{"message_type":"summary","total_files":1,"files_restored":1,"total_bytes":400,"bytes_restored":400}`+"\n")
+		return 0, nil
+	})
+	var seen []Progress
+
+	err := Restic{Binary: binary, Runner: runner, Env: env, Log: &logged}.Restore(context.Background(), RestoreOptions{
+		Snapshot: "latest", Host: "gorgon", Target: "/data/media", Overwrite: "if-changed", Progress: func(p Progress) { seen = append(seen, p) },
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, []Progress{{Done: 0.5, TotalBytes: 400, BytesDone: 200}}, seen)
+	assert.Contains(t, logged.String(), `"files_restored":1`)
+}

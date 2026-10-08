@@ -103,7 +103,22 @@
             refreshInterval: 60000
             mappings:
               - field: checks.0.status
-                label: Backup
+                label: Apps backup
+                remap:
+                  - value: up
+                    to: "🟢 Up"
+                  - value: grace
+                    to: "🟠 Late"
+                  - value: down
+                    to: "🔴 Down"
+          - type: customapi
+            url: https://healthchecks.io/api/v3/checks/?slug=@HEALTHCHECK_MEDIA_BACKUP@
+            headers:
+              X-Api-Key: "{{HOMEPAGE_VAR_HEALTHCHECKS_KEY}}"
+            refreshInterval: 60000
+            mappings:
+              - field: checks.0.status
+                label: Media backup
                 remap:
                   - value: up
                     to: "🟢 Up"

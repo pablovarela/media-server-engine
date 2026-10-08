@@ -21,7 +21,7 @@ func mediaOptions(b *Backups, limit int) any {
 	return mock.MatchedBy(func(o restic.BackupOptions) bool {
 		return o.Host == "gorgon" && assert.ObjectsAreEqual([]string{"machine:this", "machine-name:pi", "weekly"}, o.Tags) &&
 			o.ExcludeFile == "" && o.Dir == resolved && assert.ObjectsAreEqual([]string{"."}, o.Paths) &&
-			o.LimitUpload == limit && len(o.Inherit) == 1
+			o.LimitUpload == limit && len(o.Inherit) == 1 && o.Progress != nil
 	})
 }
 

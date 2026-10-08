@@ -129,6 +129,7 @@ func (b *Backups) snapshotMedia(ctx context.Context, lock *heldLock, dir string)
 		Paths:       []string{"."},
 		LimitUpload: b.Media.UploadLimit,
 		Inherit:     lock.files(),
+		Progress:    b.progress(step),
 	})
 	if err != nil {
 		return step.Fail(err)

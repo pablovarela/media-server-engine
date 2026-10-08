@@ -121,7 +121,7 @@ func TestStatus(t *testing.T) {
 		"a healthy main": {
 			Given: healthy,
 			Then: Then{contains: []string{"gorgon on mse v0.23.0", "This machine is the main", "Stack: 2 of 2 services running",
-				"Last backup: 5 Oct 03:30 by gorgon", "check-backup", "clean-downloads", "Jellyfin", "http://gorgon.local:8096"}},
+				"Last apps backup: 5 Oct 03:30 by gorgon", "check-backup", "clean-downloads", "Jellyfin", "http://gorgon.local:8096"}},
 		},
 		"a service down": {
 			Given: Given{running: []string{"jellyfin"}, snapshots: healthy.snapshots, systemd: true},
