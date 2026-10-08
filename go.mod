@@ -8,7 +8,7 @@ require (
 	filippo.io/age v1.3.2
 	github.com/compose-spec/compose-go/v2 v2.16.1
 	github.com/containerd/errdefs v1.0.0
-	github.com/docker/cli v29.8.2+incompatible
+	github.com/docker/cli v29.9.0+incompatible
 	github.com/docker/compose/v5 v5.6.0
 	github.com/fatih/color v1.19.0
 	github.com/getsops/sops/v3 v3.13.3
