@@ -74,7 +74,7 @@ func (b *Backups) RestoreMedia(ctx context.Context) error {
 	if err := b.MediaRepository.Unlock(ctx); err != nil {
 		return step.Fail(err)
 	}
-	if err := b.MediaRepository.Restore(ctx, restic.RestoreOptions{Snapshot: "latest", Host: b.Installation.Name, Target: target, Overwrite: "if-changed"}); err != nil {
+	if err := b.MediaRepository.Restore(ctx, restic.RestoreOptions{Snapshot: "latest", Host: b.Installation.Name, Target: target, Overwrite: "if-changed", Progress: b.progress(step)}); err != nil {
 		return step.Fail(err)
 	}
 	if _, err := ClearMediaRestorePending(b.Installation.Data); err != nil {
@@ -142,7 +142,7 @@ func (b *Backups) freeIn(dir string) string {
 	if err != nil {
 		return ""
 	}
-	return fmt.Sprintf("%d GB free; ", free/1_000_000_000)
+	return restic.Size(int64(free)) + " free; " //nolint:gosec // free space on a disk fits in an int64
 }
 
 func FreeSpace(dir string) (uint64, error) {

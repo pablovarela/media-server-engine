@@ -94,6 +94,14 @@ func (s *Step) Done(result string) {
 	s.r.logLine("", s.title+"... "+result+".")
 }
 
+func (s *Step) Progress(line string) {
+	s.r.mu.Lock()
+	defer s.r.mu.Unlock()
+	s.r.endOpenLine()
+	_, _ = fmt.Fprintln(s.r.out, "  "+line)
+	s.r.logLine("", s.title+": "+line)
+}
+
 func (s *Step) Fail(err error) error {
 	s.r.mu.Lock()
 	defer s.r.mu.Unlock()

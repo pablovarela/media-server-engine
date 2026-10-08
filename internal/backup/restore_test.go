@@ -136,9 +136,11 @@ func TestRestoreMedia(t *testing.T) {
 				m.stack.EXPECT().AnyRunning(mock.Anything).Return(false, nil)
 				m.media.EXPECT().Snapshots(mock.Anything, "gorgon").Return(theirs, nil)
 				m.media.EXPECT().Unlock(mock.Anything).Return(nil)
-				m.media.EXPECT().Restore(mock.Anything, restic.RestoreOptions{Snapshot: "latest", Host: "gorgon", Target: target, Overwrite: "if-changed"}).Return(nil)
+				m.media.EXPECT().Restore(mock.Anything, mock.MatchedBy(func(o restic.RestoreOptions) bool {
+					return o.Snapshot == "latest" && o.Host == "gorgon" && o.Target == target && o.Overwrite == "if-changed" && o.Progress != nil
+				})).Return(nil)
 			},
-			out: "Restoring the media from the latest media backup into <target> (1834 GB free; files already there that match are kept)... restored.\n",
+			out: "Restoring the media from the latest media backup into <target> (1.7 TiB free; files already there that match are kept)... restored.\n",
 		},
 		"the stack is running": {
 			expect: func(_ *Backups, m mocks) { m.stack.EXPECT().AnyRunning(mock.Anything).Return(true, nil) },

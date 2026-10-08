@@ -69,6 +69,18 @@ func TestSteps(t *testing.T) {
 				errOut: "  line 3\n  line 4\n  line 5\n  line 6\n  line 7\n  line 8\n  line 9\n  line 10\n  line 11\n  line 12\n",
 			},
 		},
+		"progress shows under the step, which ends indented": {
+			When: func(r *Reporter) {
+				s := r.Step("Backing up the media")
+				s.Progress("12% of 45 GB, about 48 min left")
+				s.Progress("25% of 45 GB, about 40 min left")
+				s.Done("snapshot 7d2e9c41")
+			},
+			Then: Then{
+				out: "Backing up the media...\n  12% of 45 GB, about 48 min left\n  25% of 45 GB, about 40 min left\n  snapshot 7d2e9c41.\n",
+				log: []string{"Backing up the media...", "Backing up the media: 12% of 45 GB, about 48 min left", "Backing up the media: 25% of 45 GB, about 40 min left", "Backing up the media... snapshot 7d2e9c41."},
+			},
+		},
 		"plain lines go through and are logged": {
 			When: func(r *Reporter) {
 				_, _ = fmt.Fprintln(r.Stdout(), "Backup done.")

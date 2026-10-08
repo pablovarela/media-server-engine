@@ -96,6 +96,13 @@ type BackupOptions struct {
 	Paths       []string
 	LimitUpload int
 	Inherit     []*os.File
+	Progress    func(Progress)
+}
+
+type Progress struct {
+	Done       float64
+	TotalBytes int64
+	BytesDone  int64
 }
 
 type RestoreOptions struct {
@@ -105,6 +112,7 @@ type RestoreOptions struct {
 	Include   []string
 	Exclude   []string
 	Overwrite string
+	Progress  func(Progress)
 }
 
 type Keep struct {
@@ -153,7 +161,7 @@ func (r Restic) Backup(ctx context.Context, o BackupOptions) (BackupSummary, err
 	if o.LimitUpload > 0 {
 		args = append(args, "--limit-upload", strconv.Itoa(o.LimitUpload))
 	}
-	messages, problems := &backupMessages{log: r.Log}, &backupMessages{log: r.Log}
+	messages, problems := &backupMessages{log: r.Log, progress: o.Progress}, &backupMessages{log: r.Log}
 	err := r.run(ctx, process.Command{Args: append(args, o.Paths...), Dir: o.Dir, ExtraFiles: o.Inherit, Stdout: messages, Stderr: problems})
 	return messages.summary, err
 }
@@ -190,7 +198,11 @@ func (r Restic) Prune(ctx context.Context, inherit []*os.File) error {
 }
 
 func (r Restic) Restore(ctx context.Context, o RestoreOptions) error {
-	args := []string{"restore", retryLock, waitForLocks, o.Snapshot}
+	args := []string{"restore", retryLock, waitForLocks}
+	if o.Progress != nil {
+		args = append(args, "--json")
+	}
+	args = append(args, o.Snapshot)
 	if o.Host != "" {
 		args = append(args, "--host", o.Host)
 	}
@@ -204,7 +216,11 @@ func (r Restic) Restore(ctx context.Context, o RestoreOptions) error {
 	if o.Overwrite != "" {
 		args = append(args, "--overwrite", o.Overwrite)
 	}
-	return r.run(ctx, process.Command{Args: args})
+	c := process.Command{Args: args}
+	if o.Progress != nil {
+		c.Stdout = &backupMessages{log: r.Log, progress: o.Progress, restoring: true}
+	}
+	return r.run(ctx, c)
 }
 
 func (r Restic) HasRepository(ctx context.Context) (bool, error) {
@@ -298,10 +314,10 @@ func (s BackupSummary) String() string {
 	if len(id) > 8 {
 		id = id[:8]
 	}
-	return fmt.Sprintf("snapshot %s: %d new, %d changed, %d unchanged files; %s added (%s stored)", id, s.FilesNew, s.FilesChanged, s.FilesUnmodified, size(s.DataAdded), size(s.DataAddedPacked))
+	return fmt.Sprintf("snapshot %s: %d new, %d changed, %d unchanged files; %s added (%s stored)", id, s.FilesNew, s.FilesChanged, s.FilesUnmodified, Size(s.DataAdded), Size(s.DataAddedPacked))
 }
 
-func size(bytes int64) string {
+func Size(bytes int64) string {
 	value, units := float64(bytes), []string{"B", "KiB", "MiB", "GiB", "TiB"}
 	unit := 0
 	for value >= 1024 && unit < len(units)-1 {
@@ -332,9 +348,11 @@ func (s ForgetSummary) String() string {
 }
 
 type backupMessages struct {
-	log     io.Writer
-	summary BackupSummary
-	pending strings.Builder
+	log       io.Writer
+	progress  func(Progress)
+	restoring bool
+	summary   BackupSummary
+	pending   strings.Builder
 }
 
 func (m *backupMessages) Write(b []byte) (int, error) {
@@ -368,19 +386,37 @@ func (m *backupMessages) read(line string) {
 		m.say(line)
 		return
 	}
-	switch message.Type {
-	case "status":
-	case "summary":
+	switch {
+	case message.Type == "status":
+		m.report(line)
+	case message.Type == "summary" && m.restoring:
+		m.say(line)
+	case message.Type == "summary":
 		_ = json.Unmarshal([]byte(line), &m.summary)
 		m.say(m.summary.String())
-	case "error":
+	case message.Type == "error":
 		m.say(fmt.Sprintf("error during %s: %s: %s", message.During, message.Item, message.Error.Message))
-	case "exit_error":
+	case message.Type == "exit_error":
 		m.say(message.Message)
-	case "verbose_status":
+	case message.Type == "verbose_status":
 		m.say(message.Action + " " + message.Item)
 	default:
 		m.say(line)
+	}
+}
+
+func (m *backupMessages) report(line string) {
+	if m.progress == nil {
+		return
+	}
+	var status struct {
+		Done          float64 `json:"percent_done"`
+		TotalBytes    int64   `json:"total_bytes"`
+		BytesDone     int64   `json:"bytes_done"`
+		BytesRestored int64   `json:"bytes_restored"`
+	}
+	if json.Unmarshal([]byte(line), &status) == nil {
+		m.progress(Progress{Done: status.Done, TotalBytes: status.TotalBytes, BytesDone: status.BytesDone + status.BytesRestored})
 	}
 }
 
