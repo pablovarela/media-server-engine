@@ -2,7 +2,8 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended",
-    "docker:pinDigests"
+    "docker:pinDigests",
+    "helpers:pinGitHubActionDigests"
   ],
   "dependencyDashboard": true,
   "automerge": false,
@@ -38,6 +39,17 @@
         "ghcr.io/raydak-labs/configarr"
       ],
       "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-(?<compatibility>alpine[\\d.]+)$"
+    },
+    {
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "digest",
+        "pinDigest"
+      ],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": false
     }
   ]
 }

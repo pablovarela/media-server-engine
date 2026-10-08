@@ -21,6 +21,16 @@ Edit these with any editor.
 | `configarr/config.yml` | Sonarr's and Radarr's quality profiles, custom formats, root folders (`/data/media/tvshows`, `/data/media/movies`), download client and naming, applied by Configarr. `!secret NAME` refers to a key in `secrets/apps.sops.env`; Configarr is given only the keys referred to. |
 | `compose.override.yml` | Optional additions or changes to the engine's compose file, for example an extra volume. |
 
+## Image updates
+
+Renovate proposes a pull request for each image update in `images.yml`, and for the actions this repository's workflow uses.
+
+- **Minor, patch and digest updates merge themselves** once the `check` workflow has passed on the pull request: `mse check-config` with the latest `mse`. Each machine applies them at its next nightly update.
+- **Major updates wait** for a person to review and merge them.
+- **A pull request whose check fails stays open**, and so does one with no checks at all.
+- **To stop an update,** close its pull request; Renovate won't propose that version again.
+- **To undo one,** revert its merge; the next `mse apply` goes back to the previous image. If the app changed its database in between, restore the apps backup from before it as well.
+
 ## The landing page
 
 The page at `http://<machine>` comes from the files in `homepage/`, in Homepage's own format ([its documentation](https://gethomepage.dev/configs/)). A new installation starts with a copy of the engine's default page there; from then on these files are the page, used as written, so anything Homepage offers can be changed:

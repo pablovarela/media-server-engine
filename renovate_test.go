@@ -124,9 +124,31 @@ func TestTheRenovateConfigs(t *testing.T) {
 		},
 		"the template's image versioning rules are the engine's too": {
 			Then: func(t *testing.T, engine, template renovateConfig) {
-				require.NotEmpty(t, template.PackageRules)
+				versioning := 0
 				for _, rule := range template.PackageRules {
-					assert.Contains(t, engine.PackageRules, rule)
+					if _, found := rule["versioning"]; found {
+						versioning++
+						assert.Contains(t, engine.PackageRules, rule)
+					}
+				}
+				assert.NotZero(t, versioning)
+			},
+		},
+		"the template's merges minor, patch and digest updates itself, never majors": {
+			Then: func(t *testing.T, _, template renovateConfig) {
+				assert.Contains(t, template.PackageRules, map[string]any{
+					"matchUpdateTypes": []any{"minor", "patch", "digest", "pinDigest"},
+					"automerge":        true, "automergeType": "pr", "platformAutomerge": false,
+				})
+				assert.Contains(t, template.Extends, "helpers:pinGitHubActionDigests")
+			},
+		},
+		"no waiting period": {
+			Then: func(t *testing.T, engine, template renovateConfig) {
+				for _, config := range []renovateConfig{engine, template} {
+					for _, rule := range config.PackageRules {
+						assert.NotContains(t, rule, "minimumReleaseAge")
+					}
 				}
 			},
 		},
