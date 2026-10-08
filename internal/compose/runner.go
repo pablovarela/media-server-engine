@@ -268,7 +268,15 @@ func (r *Runner) Pull(ctx context.Context, project *types.Project) (Pulled, erro
 	if err != nil {
 		return Pulled{}, err
 	}
-	if err := r.service.Pull(ctx, project, api.PullOptions{}); err != nil {
+	toPull := servicesToPull(project, before)
+	if len(toPull) == 0 {
+		return Pulled{Total: len(images)}, nil
+	}
+	selected, err := project.WithSelectedServices(toPull, types.IgnoreDependencies)
+	if err != nil {
+		return Pulled{}, err
+	}
+	if err := r.service.Pull(ctx, selected, api.PullOptions{}); err != nil {
 		return Pulled{}, err
 	}
 	after, err := r.imageIDs(ctx, images)
@@ -282,6 +290,20 @@ func (r *Runner) Pull(ctx context.Context, project *types.Project) (Pulled, erro
 		}
 	}
 	return pulled, nil
+}
+
+func servicesToPull(project *types.Project, present map[string]string) []string {
+	var names []string
+	for name, service := range project.Services {
+		if service.Image == "" {
+			continue
+		}
+		if present[service.Image] == "" || !strings.Contains(service.Image, "@sha256:") {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
 }
 
 func (r *Runner) imageIDs(ctx context.Context, images map[string]bool) (map[string]string, error) {

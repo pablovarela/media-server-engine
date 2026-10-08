@@ -280,22 +280,28 @@ func TestBindSources(t *testing.T) {
 func TestPullAndRecreate(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("pull pulls the whole project and counts the images that were new", func(t *testing.T) {
+	inspected := func(id string) client.ImageInspectResult {
+		result := client.ImageInspectResult{}
+		result.ID = id
+		return result
+	}
+	servicesPulled := func(names ...string) any {
+		return mock.MatchedBy(func(p *types.Project) bool {
+			return assert.ObjectsAreEqual(names, p.ServiceNames())
+		})
+	}
+
+	t.Run("pull pulls only what isn't here at its pinned digest, and counts the images that were new", func(t *testing.T) {
 		pinned := &types.Project{Name: "media-server", Services: types.Services{
 			"sonarr":    {Name: "sonarr", Image: "sonarr@sha256:a"},
 			"radarr":    {Name: "radarr", Image: "radarr@sha256:b"},
 			"configarr": {Name: "configarr", Image: "radarr@sha256:b"},
 			"built":     {Name: "built"},
+			"override":  {Name: "override", Image: "busybox:latest"},
 		}}
 		service := newMockService(t)
-		service.EXPECT().Pull(ctx, pinned, api.PullOptions{}).Return(nil)
-		pinned.Services["override"] = types.ServiceConfig{Name: "override", Image: "busybox:latest"}
+		service.EXPECT().Pull(ctx, servicesPulled("configarr", "override", "radarr"), api.PullOptions{}).Return(nil)
 		docker := newMockContainers(t)
-		inspected := func(id string) client.ImageInspectResult {
-			result := client.ImageInspectResult{}
-			result.ID = id
-			return result
-		}
 		docker.EXPECT().ImageInspect(ctx, "sonarr@sha256:a").Return(inspected("s1"), nil).Twice()
 		docker.EXPECT().ImageInspect(ctx, "radarr@sha256:b").Return(client.ImageInspectResult{}, cerrdefs.ErrNotFound).Once()
 		docker.EXPECT().ImageInspect(ctx, "radarr@sha256:b").Return(inspected("r1"), nil).Once()
@@ -306,6 +312,21 @@ func TestPullAndRecreate(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, Pulled{New: 2, Total: 3}, pulled)
+	})
+
+	t.Run("every pinned image already here asks no registry", func(t *testing.T) {
+		pinned := &types.Project{Name: "media-server", Services: types.Services{
+			"sonarr": {Name: "sonarr", Image: "sonarr@sha256:a"},
+			"radarr": {Name: "radarr", Image: "radarr:6.4@sha256:b"},
+		}}
+		docker := newMockContainers(t)
+		docker.EXPECT().ImageInspect(ctx, "sonarr@sha256:a").Return(inspected("s1"), nil)
+		docker.EXPECT().ImageInspect(ctx, "radarr:6.4@sha256:b").Return(inspected("r1"), nil)
+
+		pulled, err := (&Runner{service: newMockService(t), docker: docker}).Pull(ctx, pinned)
+
+		require.NoError(t, err)
+		assert.Equal(t, Pulled{Total: 2}, pulled)
 	})
 
 	t.Run("an image docker cannot inspect stops the pull", func(t *testing.T) {

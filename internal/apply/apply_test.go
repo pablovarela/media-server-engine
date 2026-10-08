@@ -15,7 +15,10 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/report"
 )
 
-var errRegistryLimit = errors.New("toomanyrequests: You have reached your pull rate limit")
+var (
+	errRegistryLimit   = errors.New("toomanyrequests: You have reached your pull rate limit")
+	errRegistryTimeout = errors.New(`error response from daemon: Get "https://lscr.io/v2/": context deadline exceeded (Client.Timeout exceeded while awaiting headers)`)
+)
 
 type Given struct {
 	pulls    []error
@@ -64,6 +67,17 @@ func TestRun(t *testing.T) {
 			Given: Given{pulls: []error{errRegistryLimit, errRegistryLimit, errRegistryLimit, errRegistryLimit}},
 			Then: Then{
 				err:   "a registry kept refusing pulls as too many requests; try again later",
+				slept: []time.Duration{30 * time.Second, 60 * time.Second, 90 * time.Second},
+			},
+		},
+		"a registry timing out, then pulled": {
+			Given: Given{pulls: []error{errRegistryTimeout, nil}},
+			Then:  Then{reattach: true, reloaded: true, pruned: true, slept: []time.Duration{30 * time.Second}},
+		},
+		"a registry timing out every time restarts nothing": {
+			Given: Given{pulls: []error{errRegistryTimeout, errRegistryTimeout, errRegistryTimeout, errRegistryTimeout}},
+			Then: Then{
+				err:   "a registry kept timing out; try again later",
 				slept: []time.Duration{30 * time.Second, 60 * time.Second, 90 * time.Second},
 			},
 		},
