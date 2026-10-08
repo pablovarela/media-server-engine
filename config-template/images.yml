@@ -16,7 +16,7 @@ services:
   deluge:
     image: lscr.io/linuxserver/deluge:2.2.0-ls383@sha256:1254a0821a2d8768aba9d1258de381f2633890bf9f44f412eead2744b17a391d
   portainer:
-    image: portainer/portainer-ce:2.45.1@sha256:4d616db18cfeb5dd41a69c0958bc825c84483ea9cde1106eb82a5d26f3bd8b0e
+    image: portainer/portainer-ce:2.45.2@sha256:03f94a406496dc84d37b552795fc424ccad8d0d7200353b6a82915f6e8f73ab0
   configarr:
     image: ghcr.io/raydak-labs/configarr:1.34.1-alpine3.22@sha256:91849f0044b6100914c01abe0f42d13eee43bdd5af95e659c427fa76ac30c0d4
   seerr:
