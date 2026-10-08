@@ -258,33 +258,33 @@ type Pulled struct {
 }
 
 func (r *Runner) Pull(ctx context.Context, project *types.Project) (Pulled, error) {
-	images := map[string]bool{}
-	for _, service := range project.Services {
+	servicesOf := map[string][]string{}
+	for name, service := range project.Services {
 		if service.Image != "" {
-			images[service.Image] = true
+			servicesOf[service.Image] = append(servicesOf[service.Image], name)
 		}
 	}
-	before, err := r.imageIDs(ctx, images)
+	before, err := r.imageIDs(ctx, servicesOf)
 	if err != nil {
 		return Pulled{}, err
 	}
-	toPull := servicesToPull(project, before)
-	if len(toPull) == 0 {
-		return Pulled{Total: len(images)}, nil
+	missing := toPull(servicesOf, before)
+	if len(missing) == 0 {
+		return Pulled{Total: len(servicesOf)}, nil
 	}
-	selected, err := project.WithSelectedServices(toPull, types.IgnoreDependencies)
+	selected, err := project.WithSelectedServices(missing, types.IgnoreDependencies)
 	if err != nil {
 		return Pulled{}, err
 	}
 	if err := r.service.Pull(ctx, selected, api.PullOptions{}); err != nil {
 		return Pulled{}, err
 	}
-	after, err := r.imageIDs(ctx, images)
+	after, err := r.imageIDs(ctx, servicesOf)
 	if err != nil {
 		return Pulled{}, err
 	}
-	pulled := Pulled{Total: len(images)}
-	for image := range images {
+	pulled := Pulled{Total: len(servicesOf)}
+	for image := range servicesOf {
 		if before[image] != after[image] {
 			pulled.New++
 		}
@@ -292,21 +292,18 @@ func (r *Runner) Pull(ctx context.Context, project *types.Project) (Pulled, erro
 	return pulled, nil
 }
 
-func servicesToPull(project *types.Project, present map[string]string) []string {
-	var names []string
-	for name, service := range project.Services {
-		if service.Image == "" {
-			continue
-		}
-		if present[service.Image] == "" || !strings.Contains(service.Image, "@sha256:") {
-			names = append(names, name)
+func toPull(servicesOf map[string][]string, present map[string]string) []string {
+	var services []string
+	for image, names := range servicesOf {
+		if present[image] == "" || !strings.Contains(image, "@sha256:") {
+			services = append(services, names...)
 		}
 	}
-	sort.Strings(names)
-	return names
+	sort.Strings(services)
+	return services
 }
 
-func (r *Runner) imageIDs(ctx context.Context, images map[string]bool) (map[string]string, error) {
+func (r *Runner) imageIDs(ctx context.Context, images map[string][]string) (map[string]string, error) {
 	ids := map[string]string{}
 	for image := range images {
 		inspected, err := r.docker.ImageInspect(ctx, image)

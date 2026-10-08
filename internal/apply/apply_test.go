@@ -81,6 +81,10 @@ func TestRun(t *testing.T) {
 				slept: []time.Duration{30 * time.Second, 60 * time.Second, 90 * time.Second},
 			},
 		},
+		"a connection reset by the local Docker daemon isn't retried": {
+			Given: Given{pulls: []error{errors.New("error during connect: read unix /var/run/docker.sock: connection reset by peer")}},
+			Then:  Then{err: "error during connect: read unix /var/run/docker.sock: connection reset by peer"},
+		},
 		"another pull failure restarts nothing": {
 			Given: Given{pulls: []error{errors.New("manifest unknown")}},
 			Then:  Then{err: "manifest unknown"},
@@ -372,4 +376,25 @@ func TestApplyKeepingTheStackStoppedPullsAndSetsUpTheTimersOnly(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Creating the data folders... done.\nPulling images... pulled 2 images.\nLeaving the stack stopped: the media is still to be restored.\n"+
 		"Setting up the timers... all 4 unchanged.\n", stdout.String())
+}
+
+func TestTheRunsOwnDeadlineIsNotARegistryTimeout(t *testing.T) {
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+	stack := newMockStack(t)
+	stack.EXPECT().BindSources().Return(nil)
+	stack.EXPECT().Pull(ctx).Return("", errRegistryTimeout).Once()
+	var stdout bytes.Buffer
+
+	err := (&Apply{
+		Stack: stack, MkdirAll: func(string) error { return nil },
+		Sleep: func(context.Context, time.Duration) error {
+			t.Fatal("no retry after the run's own deadline")
+			return nil
+		},
+		Report: report.New(&stdout, &stdout, nil),
+	}).Run(ctx)
+
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.NotContains(t, stdout.String(), "isn't answering")
 }

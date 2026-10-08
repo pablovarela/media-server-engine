@@ -17,26 +17,32 @@ var (
 )
 
 type registryTrouble struct {
-	signs  []string
-	now    string
-	gaveUp error
+	signs          []string
+	namesARegistry bool
+	retryMessage   string
+	gaveUp         error
 }
 
 var registryTroubles = []registryTrouble{
 	{
-		signs: []string{"toomanyrequests", "Too Many Requests"},
-		now:   "A registry is limiting requests", gaveUp: errors.New("a registry kept refusing pulls as too many requests; try again later"),
+		signs:        []string{"toomanyrequests", "Too Many Requests"},
+		retryMessage: "A registry is limiting requests", gaveUp: errors.New("a registry kept refusing pulls as too many requests; try again later"),
 	},
 	{
-		signs: []string{"context deadline exceeded", "i/o timeout", "TLS handshake timeout", "connection reset by peer"},
-		now:   "A registry isn't answering", gaveUp: errors.New("a registry kept timing out; try again later"),
+		signs:          []string{"context deadline exceeded", "i/o timeout", "TLS handshake timeout", "connection reset by peer"},
+		namesARegistry: true,
+		retryMessage:   "A registry isn't answering", gaveUp: errors.New("a registry kept timing out; try again later"),
 	},
 }
 
 func troubleWith(err error) (registryTrouble, bool) {
+	text := err.Error()
 	for _, trouble := range registryTroubles {
+		if trouble.namesARegistry && !strings.Contains(text, "https://") {
+			continue
+		}
 		for _, sign := range trouble.signs {
-			if strings.Contains(err.Error(), sign) {
+			if strings.Contains(text, sign) {
 				return trouble, true
 			}
 		}
@@ -185,15 +191,18 @@ func (a *Apply) pull(ctx context.Context) error {
 			if err == nil {
 				return result, nil
 			}
-			trouble, passing := troubleWith(err)
-			if !passing {
+			if ctx.Err() != nil {
+				return "", ctx.Err()
+			}
+			trouble, retryable := troubleWith(err)
+			if !retryable {
 				return "", err
 			}
 			if attempt == PullAttempts {
 				return "", trouble.gaveUp
 			}
 			wait := PullRetry * time.Duration(attempt)
-			a.Report.Say(fmt.Sprintf("%s; trying the pull again in %s...", trouble.now, wait))
+			a.Report.Say(fmt.Sprintf("%s; trying the pull again in %s...", trouble.retryMessage, wait))
 			if err := a.Sleep(ctx, wait); err != nil {
 				return "", err
 			}
