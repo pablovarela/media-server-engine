@@ -143,6 +143,28 @@ func TestTheRenovateConfigs(t *testing.T) {
 				assert.Contains(t, template.Extends, "helpers:pinGitHubActionDigests")
 			},
 		},
+		"the engine's merges the template's minor, patch and digest updates itself, one at a time": {
+			Then: func(t *testing.T, engine, _ renovateConfig) {
+				assert.Contains(t, engine.PackageRules, map[string]any{
+					"matchFileNames":   []any{"config-template/**"},
+					"matchUpdateTypes": []any{"minor", "patch", "digest", "pinDigest"},
+					"automerge":        true, "automergeType": "pr", "platformAutomerge": false, "automergeStrategy": "squash",
+				})
+				for _, rule := range engine.PackageRules {
+					assert.NotContains(t, rule, "groupName")
+					assert.NotContains(t, rule, "schedule")
+				}
+			},
+		},
+		"the engine's merges nothing else itself": {
+			Then: func(t *testing.T, engine, _ renovateConfig) {
+				for _, rule := range engine.PackageRules {
+					if rule["automerge"] == true {
+						assert.Equal(t, []any{"config-template/**"}, rule["matchFileNames"])
+					}
+				}
+			},
+		},
 		"no waiting period": {
 			Then: func(t *testing.T, engine, template renovateConfig) {
 				for _, config := range []renovateConfig{engine, template} {
