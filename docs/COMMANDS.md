@@ -5,7 +5,7 @@
 | To | Commands |
 |---|---|
 | install | `mse check-machine`, `mse setup <name> [--owner] [--homepage-port] [--overwrite]` |
-| personalize | `mse configure` |
+| personalize | `mse configure`, `mse check-config [dir]` |
 | run | `mse apply`, `mse update [--apply] [--force]`, `mse stack up\|down\|ps\|logs\|restart` |
 | back up | `mse backup --apps [--take-over [--yes]]`, `mse backup --media`, `mse check-backup` |
 | recover | `mse restore --apps [--overwrite]`, `mse restore --media` |
@@ -17,6 +17,7 @@
 - [mse check-machine](#mse-check-machine)
 - [mse setup](#mse-setup)
 - [mse configure](#mse-configure)
+- [mse check-config](#mse-check-config)
 - [mse update](#mse-update)
 - [mse apply](#mse-apply)
 - [mse status](#mse-status)
@@ -121,6 +122,17 @@ Changes the installation's settings and secrets from a menu in the terminal, the
 - Lines it doesn't manage, comments included, stay as they are.
 - Nothing is applied on the machine it runs on: run `mse apply`, or wait for the nightly update.
 - It needs a terminal, and a git name and email for the config.
+
+## mse check-config
+
+`mse check-config [dir]` checks a config folder (the current one by default) without its secrets key, so a config's CI can run it on every pull request:
+
+- **Schema:** `config.yml` declares a schema this `mse` reads.
+- **Settings:** every setting in `installation.env` passes the check `mse configure` gives it, and the ones it needs are there.
+- **Secrets:** every `secrets/*.sops.env` file is encrypted by sops for the recipients in `.sops.yaml`, and has the keys `mse configure` needs. Only the key names are read; the values stay encrypted.
+- **Stack:** the stack loads from the engine's compose file, `images.yml` and `compose.override.yml`, with nothing started and nothing pulled.
+
+Each check prints one line, and any failure makes it exit 1 with the reasons under the check.
 
 ## mse update
 
