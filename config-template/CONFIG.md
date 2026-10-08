@@ -28,8 +28,9 @@ Renovate proposes a pull request for each image update in `images.yml`, and for 
 - **Minor, patch and digest updates merge themselves** once the `check` workflow has passed on the pull request: `mse check-config` with the latest `mse`. Each machine applies them at its next nightly update.
 - **Major updates wait** for a person to review and merge them.
 - **A pull request whose check fails stays open**, and so does one with no checks at all.
-- **To stop an update,** close its pull request; Renovate won't propose that version again.
+- **To stop an update,** close its pull request; Renovate won't propose that version again. To stop updates merging themselves altogether, remove the rule with `"automerge": true` from `renovate.json`.
 - **To undo one,** revert its merge; the next `mse apply` goes back to the previous image. If the app changed its database in between, restore the apps backup from before it as well.
+- **A config made before this** gets it by copying `.github/workflows/check.yml` and the `automerge` rule in `renovate.json` from the engine's `config-template/`, replacing `ENGINE_REPOSITORY` in the workflow with the engine's repository (`owner/name`).
 
 ## The landing page
 
