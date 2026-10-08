@@ -24,3 +24,14 @@ setup() {
   grep -qF 'tag: ${{ needs.plan.outputs.tag }}' "$WORKFLOW"
   grep -qF 'notes: ${{ needs.plan.outputs.notes }}' "$WORKFLOW"
 }
+
+@test "a missing test run reads as not run, not null" {
+  grep -qF -- "--jq '.[0] // empty | " "$WORKFLOW"
+}
+
+@test "it checks the tag against the template's schema before tagging" {
+  check=$(grep -n 'scripts/check-release-schema.sh' "$WORKFLOW" | cut -d: -f1)
+  tag=$(grep -n 'git tag -a' "$WORKFLOW" | cut -d: -f1)
+  [ -n "$check" ]
+  [ "$check" -lt "$tag" ]
+}

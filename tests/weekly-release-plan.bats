@@ -1,3 +1,5 @@
+bats_require_minimum_version 1.5.0
+
 RENOVATE='29139614+renovate[bot]@users.noreply.github.com'
 
 setup() {
@@ -109,9 +111,10 @@ plan() {
   [ "$output" = "nothing to release since v0.1.1" ]
 }
 
-@test "no tag to release from" {
+@test "no tag to release from: the reason goes to stderr, so a workflow capturing the plan still shows it" {
   git tag -d v0.1.0 >/dev/null
-  plan
+  run --separate-stderr "$REPO/scripts/weekly-release-plan.sh"
   [ "$status" -eq 1 ]
-  [ "$output" = "no v* tag to release from" ]
+  [ "$output" = "" ]
+  [ "$stderr" = "no v* tag to release from" ]
 }

@@ -40,11 +40,12 @@ jobs:
             "release "*) ;;
             *) exit 0 ;;
           esac
-          ci=$(gh run list --workflow test.yml --commit "$commit" --json status,conclusion --jq '.[0] | "\(.status) \(.conclusion)"')
+          ci=$(gh run list --workflow test.yml --commit "$commit" --json status,conclusion --jq '.[0] // empty | "\(.status) \(.conclusion)"')
           if [ "$ci" != "completed success" ]; then
             printf '\nNot releasing: main'"'"'s test workflow on %s is "%s", not a success.\n' "$commit" "${ci:-not run}" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
+          scripts/check-release-schema.sh "${first#release }" config-template/config.yml
           {
             echo "tag=${first#release }"
             echo "commit=$commit"

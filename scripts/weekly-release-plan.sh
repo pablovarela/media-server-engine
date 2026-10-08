@@ -5,7 +5,7 @@ renovate='29139614+renovate[bot]@users.noreply.github.com'
 
 latest=$(git tag --list 'v*' --sort=-version:refname | head -n 1)
 if [ -z "$latest" ]; then
-  echo "no v* tag to release from"
+  echo "no v* tag to release from" >&2
   exit 1
 fi
 
