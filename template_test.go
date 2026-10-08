@@ -108,3 +108,16 @@ func TestTheConfigTemplate(t *testing.T) {
 		})
 	}
 }
+
+func TestTheTemplatesCheckWorkflow(t *testing.T) {
+	text, err := os.ReadFile("config-template/.github/workflows/check.yml")
+	require.NoError(t, err)
+
+	assert.Regexp(t, `uses: actions/checkout@[0-9a-f]{40}`, string(text))
+	assert.Contains(t, string(text), "https://github.com/ENGINE_REPOSITORY/releases/download/${version}/install.sh")
+	assert.Contains(t, string(text), "--repo ENGINE_REPOSITORY")
+	assert.Contains(t, string(text), `MSE_VERSION="$version"`)
+	assert.Contains(t, string(text), "config.yml", "it installs the newest release of the config's own major")
+	assert.Contains(t, string(text), "mse check-config")
+	assert.Contains(t, string(text), "pull_request:")
+}

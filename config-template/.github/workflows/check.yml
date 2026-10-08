@@ -1,0 +1,24 @@
+name: check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install the newest mse of this config's schema
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          major=$(sed -n 's/^config: *\([0-9][0-9]*\).*/\1/p' config.yml)
+          version=$(gh release list --repo ENGINE_REPOSITORY --exclude-drafts --exclude-pre-releases --limit 100 --json tagName --jq '.[].tagName' | grep "^v${major}\." | sort -V | tail -n 1)
+          curl -fsSL "https://github.com/ENGINE_REPOSITORY/releases/download/${version}/install.sh" | MSE_VERSION="$version" sh
+      - name: Check the config
+        run: ~/.local/bin/mse check-config

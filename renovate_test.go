@@ -124,9 +124,53 @@ func TestTheRenovateConfigs(t *testing.T) {
 		},
 		"the template's image versioning rules are the engine's too": {
 			Then: func(t *testing.T, engine, template renovateConfig) {
-				require.NotEmpty(t, template.PackageRules)
+				versioning := 0
 				for _, rule := range template.PackageRules {
-					assert.Contains(t, engine.PackageRules, rule)
+					if _, found := rule["versioning"]; found {
+						versioning++
+						assert.Contains(t, engine.PackageRules, rule)
+					}
+				}
+				assert.NotZero(t, versioning)
+			},
+		},
+		"the template's merges minor, patch and digest updates itself, never majors": {
+			Then: func(t *testing.T, _, template renovateConfig) {
+				assert.Contains(t, template.PackageRules, map[string]any{
+					"matchUpdateTypes": []any{"minor", "patch", "digest", "pinDigest"},
+					"automerge":        true, "automergeType": "pr", "platformAutomerge": false,
+				})
+				assert.Contains(t, template.Extends, "helpers:pinGitHubActionDigests")
+			},
+		},
+		"the engine's merges the template's minor, patch and digest updates itself, one at a time": {
+			Then: func(t *testing.T, engine, _ renovateConfig) {
+				assert.Contains(t, engine.PackageRules, map[string]any{
+					"matchFileNames":   []any{"config-template/**"},
+					"matchUpdateTypes": []any{"minor", "patch", "digest", "pinDigest"},
+					"automerge":        true, "automergeType": "pr", "platformAutomerge": false, "automergeStrategy": "squash",
+				})
+				for _, rule := range engine.PackageRules {
+					assert.NotContains(t, rule, "groupName")
+					assert.NotContains(t, rule, "schedule")
+				}
+			},
+		},
+		"the engine's merges nothing else itself": {
+			Then: func(t *testing.T, engine, _ renovateConfig) {
+				for _, rule := range engine.PackageRules {
+					if rule["automerge"] == true {
+						assert.Equal(t, []any{"config-template/**"}, rule["matchFileNames"])
+					}
+				}
+			},
+		},
+		"no waiting period": {
+			Then: func(t *testing.T, engine, template renovateConfig) {
+				for _, config := range []renovateConfig{engine, template} {
+					for _, rule := range config.PackageRules {
+						assert.NotContains(t, rule, "minimumReleaseAge")
+					}
 				}
 			},
 		},
