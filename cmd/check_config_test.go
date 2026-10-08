@@ -71,13 +71,34 @@ func TestCheckConfig(t *testing.T) {
 			change: func(c string) {
 				_ = os.WriteFile(filepath.Join(c, "installation.env"), []byte("INSTALLATION_NAME=gorgon\nTZ=Europe/Madird\nJELLYFIN_ADMIN_USER=pablo\nRESTIC_REPOSITORY=/mnt/backup\n"), 0o644)
 			},
-			code: 1, problem: "TZ: Europe/Madird isn't a time zone",
+			code: 1, problem: "installation.env: TZ: Europe/Madird isn't a time zone",
 		},
 		"a b2 repository without its keys": {
 			change: func(c string) {
 				_ = os.WriteFile(filepath.Join(c, "installation.env"), []byte("INSTALLATION_NAME=gorgon\nTZ=Europe/London\nJELLYFIN_ADMIN_USER=pablo\nRESTIC_REPOSITORY=b2:bucket:restic\n"), 0o644)
 			},
-			code: 1, problem: "B2_ACCOUNT_ID: needed for a b2: repository",
+			code: 1, problem: "secrets/backup.sops.env: B2_ACCOUNT_ID: needed for a b2: repository",
+		},
+		"no installation name": {
+			change: func(c string) {
+				_ = os.WriteFile(filepath.Join(c, "installation.env"), []byte("TZ=Europe/London\nJELLYFIN_ADMIN_USER=pablo\nRESTIC_REPOSITORY=/mnt/backup\n"), 0o644)
+			},
+			code: 1, problem: "installation.env: INSTALLATION_NAME: can't be empty",
+		},
+		"empty B2 keys for a b2 repository": {
+			change: func(c string) {
+				_ = os.WriteFile(filepath.Join(c, "installation.env"), []byte("INSTALLATION_NAME=gorgon\nTZ=Europe/London\nJELLYFIN_ADMIN_USER=pablo\nRESTIC_REPOSITORY=b2:bucket:restic\n"), 0o644)
+				sealed, _ := os.ReadFile(filepath.Join(c, "secrets", "backup.sops.env"))
+				_ = os.WriteFile(filepath.Join(c, "secrets", "backup.sops.env"), append([]byte("B2_ACCOUNT_ID=\nB2_ACCOUNT_KEY=\n"), sealed...), 0o644)
+			},
+			code: 1, problem: "secrets/backup.sops.env: B2_ACCOUNT_ID: needed for a b2: repository",
+		},
+		"a value added in plain text to a secrets file": {
+			change: func(c string) {
+				sealed, _ := os.ReadFile(filepath.Join(c, "secrets", "vpn.sops.env"))
+				_ = os.WriteFile(filepath.Join(c, "secrets", "vpn.sops.env"), append([]byte("SERVER_COUNTRIES=Netherlands\n"), sealed...), 0o644)
+			},
+			code: 1, problem: "secrets/vpn.sops.env: SERVER_COUNTRIES isn't encrypted; set it with mse configure",
 		},
 		"a secrets file in plain text": {
 			change: func(c string) {

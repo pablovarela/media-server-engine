@@ -24,10 +24,10 @@ func TestSealedKeys(t *testing.T) {
 	tests := map[string]struct {
 		sealedFor, rule string
 		plain           bool
-		keys            []string
+		keys            map[string]bool
 		err             string
 	}{
-		"its key names, sorted":   {sealedFor: testRecipient, rule: testRecipient, keys: []string{"B2_ACCOUNT_ID", "RESTIC_PASSWORD"}},
+		"its key names, sorted":   {sealedFor: testRecipient, rule: testRecipient, keys: map[string]bool{"B2_ACCOUNT_ID": true, "RESTIC_PASSWORD": true}},
 		"another recipient":       {sealedFor: otherRecipient, rule: testRecipient, err: "secrets/backup.sops.env is encrypted for " + otherRecipient + ", not for " + testRecipient + " as .sops.yaml says"},
 		"committed in plain text": {plain: true, rule: testRecipient, err: "secrets/backup.sops.env isn't encrypted by sops"},
 	}
@@ -44,6 +44,35 @@ func TestSealedKeys(t *testing.T) {
 				require.NoError(t, err)
 			}
 			require.NoError(t, os.WriteFile(path, text, 0o644))
+
+			keys, err := SealedKeys(sopsConfig, path)
+
+			if tt.err != "" {
+				assert.EqualError(t, err, tt.err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.keys, keys)
+		})
+	}
+}
+
+func TestSealedKeysOfValuesAddedByHand(t *testing.T) {
+	tests := map[string]struct {
+		added string
+		keys  map[string]bool
+		err   string
+	}{
+		"a value added in plain text": {added: "SERVER_COUNTRIES=Netherlands\n", err: "secrets/backup.sops.env: SERVER_COUNTRIES isn't encrypted; set it with mse configure"},
+		"an empty value":              {added: "B2_ACCOUNT_KEY=\n", keys: map[string]bool{"B2_ACCOUNT_ID": true, "B2_ACCOUNT_KEY": false, "RESTIC_PASSWORD": true}},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			config, sopsConfig := sealedConfig(t, testRecipient)
+			path := filepath.Join(config, "secrets", "backup.sops.env")
+			sealed, err := SopsEncrypter(t.TempDir(), sopsConfig)(path, []byte("RESTIC_PASSWORD=p\nB2_ACCOUNT_ID=i\n"))
+			require.NoError(t, err)
+			require.NoError(t, os.WriteFile(path, append([]byte(tt.added), sealed...), 0o644))
 
 			keys, err := SealedKeys(sopsConfig, path)
 

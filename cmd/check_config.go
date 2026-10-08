@@ -100,8 +100,12 @@ func sealedValues(config string) secrets.Decrypter {
 			return nil, err
 		}
 		var lines strings.Builder
-		for _, key := range keys {
-			lines.WriteString(key + "=sealed-by-sops\n")
+		for key, held := range keys {
+			value := ""
+			if held {
+				value = "sealed-by-sops"
+			}
+			lines.WriteString(key + "=" + value + "\n")
 		}
 		return []byte(lines.String()), nil
 	}

@@ -13,7 +13,7 @@ import (
 	"github.com/getsops/sops/v3/stores/dotenv"
 )
 
-func SealedKeys(sopsConfig, path string) ([]string, error) {
+func SealedKeys(sopsConfig, path string) (map[string]bool, error) {
 	shown := filepath.Join(filepath.Base(filepath.Dir(path)), filepath.Base(path))
 	text, err := os.ReadFile(path) //nolint:gosec // a secrets file of the config being checked
 	if err != nil {
@@ -31,14 +31,19 @@ func SealedKeys(sopsConfig, path string) ([]string, error) {
 	if !slices.Equal(have, want) {
 		return nil, fmt.Errorf("%s is encrypted for %s, not for %s as .sops.yaml says", shown, strings.Join(have, ", "), strings.Join(want, ", "))
 	}
-	var names []string
+	held := map[string]bool{}
 	for _, item := range tree.Branches[0] {
-		if name, ok := item.Key.(string); ok {
-			names = append(names, name)
+		name, ok := item.Key.(string)
+		if !ok {
+			continue
 		}
+		value, _ := item.Value.(string)
+		if value != "" && !strings.HasPrefix(value, "ENC[") {
+			return nil, fmt.Errorf("%s: %s isn't encrypted; set it with mse configure", shown, name)
+		}
+		held[name] = value != ""
 	}
-	sort.Strings(names)
-	return names, nil
+	return held, nil
 }
 
 func recipients(groups []sops.KeyGroup) []string {
