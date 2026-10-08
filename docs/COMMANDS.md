@@ -136,7 +136,7 @@ Applies the config on disk to the machine, uncommitted changes included:
 
 1. writes the secrets and draws the landing page;
 2. sets up the healthchecks.io checks (under systemd, with `HEALTHCHECKS_MANAGE_KEY`);
-3. pulls the stack's images, trying again when a registry limits requests; a failed pull stops it before anything restarts;
+3. pulls the images that aren't on the machine at their pinned digest (so a run with no image changes asks no registry), trying again when a registry limits requests or times out; a failed pull stops it before anything restarts;
 4. starts the stack, and puts Prowlarr, FlareSolverr and Deluge back on gluetun's network if they lost it;
 5. wires the apps as the config's `apps.yml` and `prowlarr.yml` declare: Prowlarr, Jellyfin, Sonarr's and Radarr's library updates, Deluge, Configarr, Seerr, Bazarr, Maintainerr;
 6. reloads Homepage and removes outdated images;

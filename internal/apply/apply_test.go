@@ -15,7 +15,10 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/report"
 )
 
-var errRegistryLimit = errors.New("toomanyrequests: You have reached your pull rate limit")
+var (
+	errRegistryLimit   = errors.New("toomanyrequests: You have reached your pull rate limit")
+	errRegistryTimeout = errors.New(`error response from daemon: Get "https://lscr.io/v2/": context deadline exceeded (Client.Timeout exceeded while awaiting headers)`)
+)
 
 type Given struct {
 	pulls    []error
@@ -66,6 +69,21 @@ func TestRun(t *testing.T) {
 				err:   "a registry kept refusing pulls as too many requests; try again later",
 				slept: []time.Duration{30 * time.Second, 60 * time.Second, 90 * time.Second},
 			},
+		},
+		"a registry timing out, then pulled": {
+			Given: Given{pulls: []error{errRegistryTimeout, nil}},
+			Then:  Then{reattach: true, reloaded: true, pruned: true, slept: []time.Duration{30 * time.Second}},
+		},
+		"a registry timing out every time restarts nothing": {
+			Given: Given{pulls: []error{errRegistryTimeout, errRegistryTimeout, errRegistryTimeout, errRegistryTimeout}},
+			Then: Then{
+				err:   "a registry kept timing out; try again later",
+				slept: []time.Duration{30 * time.Second, 60 * time.Second, 90 * time.Second},
+			},
+		},
+		"a connection reset by the local Docker daemon isn't retried": {
+			Given: Given{pulls: []error{errors.New("error during connect: read unix /var/run/docker.sock: connection reset by peer")}},
+			Then:  Then{err: "error during connect: read unix /var/run/docker.sock: connection reset by peer"},
 		},
 		"another pull failure restarts nothing": {
 			Given: Given{pulls: []error{errors.New("manifest unknown")}},
@@ -358,4 +376,25 @@ func TestApplyKeepingTheStackStoppedPullsAndSetsUpTheTimersOnly(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Creating the data folders... done.\nPulling images... pulled 2 images.\nLeaving the stack stopped: the media is still to be restored.\n"+
 		"Setting up the timers... all 4 unchanged.\n", stdout.String())
+}
+
+func TestTheRunsOwnDeadlineIsNotARegistryTimeout(t *testing.T) {
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+	stack := newMockStack(t)
+	stack.EXPECT().BindSources().Return(nil)
+	stack.EXPECT().Pull(ctx).Return("", errRegistryTimeout).Once()
+	var stdout bytes.Buffer
+
+	err := (&Apply{
+		Stack: stack, MkdirAll: func(string) error { return nil },
+		Sleep: func(context.Context, time.Duration) error {
+			t.Fatal("no retry after the run's own deadline")
+			return nil
+		},
+		Report: report.New(&stdout, &stdout, nil),
+	}).Run(ctx)
+
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.NotContains(t, stdout.String(), "isn't answering")
 }

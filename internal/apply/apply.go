@@ -16,7 +16,39 @@ var (
 	PullRetry    = 30 * time.Second
 )
 
-var errRateLimited = errors.New("a registry kept refusing pulls as too many requests; try again later")
+type registryTrouble struct {
+	signs          []string
+	namesARegistry bool
+	retryMessage   string
+	gaveUp         error
+}
+
+var registryTroubles = []registryTrouble{
+	{
+		signs:        []string{"toomanyrequests", "Too Many Requests"},
+		retryMessage: "A registry is limiting requests", gaveUp: errors.New("a registry kept refusing pulls as too many requests; try again later"),
+	},
+	{
+		signs:          []string{"context deadline exceeded", "i/o timeout", "TLS handshake timeout", "connection reset by peer"},
+		namesARegistry: true,
+		retryMessage:   "A registry isn't answering", gaveUp: errors.New("a registry kept timing out; try again later"),
+	},
+}
+
+func troubleWith(err error) (registryTrouble, bool) {
+	text := err.Error()
+	for _, trouble := range registryTroubles {
+		if trouble.namesARegistry && !strings.Contains(text, "https://") {
+			continue
+		}
+		for _, sign := range trouble.signs {
+			if strings.Contains(text, sign) {
+				return trouble, true
+			}
+		}
+	}
+	return registryTrouble{}, false
+}
 
 type Stack interface {
 	BindSources() []string
@@ -156,23 +188,26 @@ func (a *Apply) pull(ctx context.Context) error {
 	return a.step("Pulling images", func() (string, error) {
 		for attempt := 1; ; attempt++ {
 			result, err := a.Stack.Pull(ctx)
-			if err == nil || !rateLimited(err) {
-				return result, err
+			if err == nil {
+				return result, nil
+			}
+			if ctx.Err() != nil {
+				return "", ctx.Err()
+			}
+			trouble, retryable := troubleWith(err)
+			if !retryable {
+				return "", err
 			}
 			if attempt == PullAttempts {
-				return "", errRateLimited
+				return "", trouble.gaveUp
 			}
 			wait := PullRetry * time.Duration(attempt)
-			a.Report.Say(fmt.Sprintf("A registry is limiting requests; trying the pull again in %s...", wait))
+			a.Report.Say(fmt.Sprintf("%s; trying the pull again in %s...", trouble.retryMessage, wait))
 			if err := a.Sleep(ctx, wait); err != nil {
 				return "", err
 			}
 		}
 	})
-}
-
-func rateLimited(err error) bool {
-	return strings.Contains(err.Error(), "toomanyrequests") || strings.Contains(err.Error(), "Too Many Requests")
 }
 
 func (a *Apply) start(ctx context.Context) error {
