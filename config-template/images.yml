@@ -18,7 +18,7 @@ services:
   portainer:
     image: portainer/portainer-ce:2.45.2@sha256:03f94a406496dc84d37b552795fc424ccad8d0d7200353b6a82915f6e8f73ab0
   configarr:
-    image: ghcr.io/raydak-labs/configarr:1.34.1-alpine3.22@sha256:91849f0044b6100914c01abe0f42d13eee43bdd5af95e659c427fa76ac30c0d4
+    image: ghcr.io/raydak-labs/configarr:1.35.0-alpine3.22@sha256:ec45316830df5b100e52fa034603b1c1cf49e93b74381376c29e96782aad9723
   seerr:
     image: ghcr.io/seerr-team/seerr:v3.5.0@sha256:27602401178d54f1964442287b9f23f67a3fa2252645ee8065839ea1c3f69e45
   maintainerr:
