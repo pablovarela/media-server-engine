@@ -13,6 +13,7 @@ require (
 	github.com/fatih/color v1.19.0
 	github.com/getsops/sops/v3 v3.13.3
 	github.com/google/go-github/v92 v92.0.0
+	github.com/google/go-github/v93 v93.0.0
 	github.com/moby/moby/api v1.56.1
 	github.com/moby/moby/client v0.6.2
 	github.com/spf13/cobra v1.10.2
