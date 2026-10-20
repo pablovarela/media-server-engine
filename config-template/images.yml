@@ -2,7 +2,7 @@ services:
   jellyfin:
     image: lscr.io/linuxserver/jellyfin:12.2ubu2604-ls54@sha256:799509f8ef3be7037478699cc6fd14d19dd75faac5e474ed219e98ae78a5b3e4
   gluetun:
-    image: qmcgaw/gluetun:latest@sha256:3b3e0e7e522c003e64927d6cc59858fa1c48b5188e65253c214c7f2ef504231e
+    image: qmcgaw/gluetun:latest@sha256:c2ee4191762fca6b6a3c3359a731198a95d9c9af4db32d466e223bf3a84e779b
   sonarr:
     image: lscr.io/linuxserver/sonarr:4.0.20.3014-ls329@sha256:44b06045a98bc1f237b9ffefc4b28dab64cb29305e4a2a94875ae93b5224e4cc
   radarr:
