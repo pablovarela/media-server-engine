@@ -76,14 +76,16 @@ Run `mse backup --media` once by hand after turning it on: the first upload send
 
 ## Being told when something fails
 
-With a healthchecks.io ping key in `secrets/healthchecks.sops.env`, backups, checks and nightly updates ping their check:
+With a healthchecks.io ping key in `secrets/healthchecks.sops.env`, every timed job pings its check, named like its timer:
 
 | Check | Pinged by | Schedule | Grace |
 |---|---|---|---|
-| `<name>-backup` | every backup, on the main | `30 4 * * *` | 2 hours |
-| `<name>-verify` | every backup check, on the main | `30 5 * * 0` | 4 hours |
-| `<name>-media-backup` | every media backup, on the main | from `MEDIA_BACKUP_SCHEDULE` | 24 hours |
-| `<name>-update` | the nightly update on the main | `0 5 * * *` | 2 hours |
-| `<name>-update-<host>` | the nightly update on other machines | `0 5 * * *` | 2 hours |
+| `mse-<name>-backup-apps` | every apps backup, on the main | `30 4 * * *` | 2 hours |
+| `mse-<name>-check-backup` | every backup check, on the main | `30 5 * * 0` | 4 hours |
+| `mse-<name>-backup-media` | every media backup, on the main | from `MEDIA_BACKUP_SCHEDULE` | 24 hours |
+| `mse-<name>-update` | the nightly update on the main | `0 5 * * *` | 2 hours |
+| `mse-<name>-update-<host>` | the nightly update on other machines | `0 5 * * *` | 2 hours |
+| `mse-<name>-clean-downloads` | every download cleanup on the main | `*/15 * * * *` | 30 minutes |
+| `mse-<name>-clean-downloads-<host>` | every download cleanup on other machines | `*/15 * * * *` | 30 minutes |
 
-With a read-write API key (`HEALTHCHECKS_MANAGE_KEY`), `mse apply` on a machine with systemd sets up the checks this machine pings: schedule (in the timers' time zone), grace, the project's integrations, a tag and a description of what to do when it fails. On the main, it deletes `<name>-media-backup` while the media backup is off, so turning it off doesn't leave a check that goes down a week later. Without it, checks are created by their first ping with healthchecks.io's defaults.
+With a read-write API key (`HEALTHCHECKS_MANAGE_KEY`), `mse apply` on a machine with systemd sets up the checks this machine pings: schedule (in the timers' time zone), grace, the project's integrations, a tag and a description of what to do when it fails. On the main, it deletes `mse-<name>-backup-media` while the media backup is off, so turning it off doesn't leave a check that goes down a week later. Without it, checks are created by their first ping with healthchecks.io's defaults.

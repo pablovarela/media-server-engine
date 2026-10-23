@@ -40,6 +40,11 @@ func (d Dependencies) timersOrNil(cmd *cobra.Command, i *installation.Installati
 	return &appliedTimers{d: d, cmd: cmd, i: i}
 }
 
+func (t *appliedTimers) installer() timers.Installer {
+	others, _ := installation.Names(installation.Bases{Config: filepath.Dir(filepath.Dir(t.i.Config))})
+	return timers.Installer{Runner: t.d.Run(io.Discard, io.Discard), Dir: t.d.unitDir(), Installations: others}
+}
+
 func (t *appliedTimers) Set(ctx context.Context) (string, []string, error) {
 	if !semver.IsValid(t.d.Build.Version) {
 		return "skipped: a dev build can't be updated by mse update", nil, nil
@@ -71,12 +76,7 @@ func (t *appliedTimers) Set(ctx context.Context) (string, []string, error) {
 	if warning != "" {
 		warnings = append(warnings, warning)
 	}
-	others, err := installation.Names(installation.Bases{Config: filepath.Dir(filepath.Dir(t.i.Config))})
-	if err != nil {
-		return "", warnings, err
-	}
-	installer := timers.Installer{Runner: t.d.Run(io.Discard, io.Discard), Dir: t.d.unitDir(), Installations: others}
-	outcome, err := installer.Install(ctx, role, timing.Enabled, values)
+	outcome, err := t.installer().Install(ctx, role, timing.Enabled, values)
 	if err != nil {
 		return "", warnings, err
 	}
