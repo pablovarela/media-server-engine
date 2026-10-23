@@ -68,9 +68,9 @@ func TestStatus(t *testing.T) {
 				service("check-backup"), timer("check-backup", upcoming), service("backup-media"), timer("backup-media", upcoming),
 				service("clean-downloads"), timer("clean-downloads", upcoming))},
 			Then: Then{statuses: []JobStatus{
-				{Job: Update, Next: next, Result: "success"}, {Job: Backup, Next: next, Result: "success"},
-				{Job: Verify, Next: next, Result: "success"}, {Job: MediaBackup, Next: next, Result: "success"},
-				{Job: Cleanup, Next: next, Result: "success"},
+				{Job: Update, Next: next, Result: "success"}, {Job: BackupApps, Next: next, Result: "success"},
+				{Job: CheckBackup, Next: next, Result: "success"}, {Job: BackupMedia, Next: next, Result: "success"},
+				{Job: CleanDownloads, Next: next, Result: "success"},
 			}},
 		},
 		"a service systemd couldn't run": {
@@ -83,7 +83,7 @@ func TestStatus(t *testing.T) {
 			Given: Given{stdout: shown(
 				service("update"), timer("update", upcoming), missing("backup-apps"), missing("check-backup"), missing("backup-media"),
 				service("clean-downloads"), timer("clean-downloads", ""))},
-			Then: Then{statuses: []JobStatus{{Job: Update, Next: next, Result: "success"}, {Job: Cleanup, Result: "success"}}},
+			Then: Then{statuses: []JobStatus{{Job: Update, Next: next, Result: "success"}, {Job: CleanDownloads, Result: "success"}}},
 		},
 		"a time systemd printed in an unexpected form": {
 			Given: Given{stdout: shown(

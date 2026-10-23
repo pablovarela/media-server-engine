@@ -8,8 +8,6 @@ const (
 	CleanDownloads = "clean-downloads"
 )
 
-var All = []string{Update, BackupApps, CheckBackup, BackupMedia, CleanDownloads}
-
 func Unit(installation, job string) string {
 	return "mse-" + installation + "-" + job
 }

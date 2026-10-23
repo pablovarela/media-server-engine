@@ -54,7 +54,7 @@ const enableAll = "--user enable --now mse-gorgon-update.timer mse-gorgon-clean-
 
 func TestNothingChangedWritesNothingAndStillEnablesTheTimers(t *testing.T) {
 	dir := t.TempDir()
-	place(t, dir, Update, Cleanup, Backup, Verify)
+	place(t, dir, Update, CleanDownloads, BackupApps, CheckBackup)
 	old := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	require.NoError(t, os.Chtimes(filepath.Join(dir, "mse-gorgon-update.service"), old, old))
 	runner, s := recording(t, nil, nil)
@@ -71,7 +71,7 @@ func TestNothingChangedWritesNothingAndStillEnablesTheTimers(t *testing.T) {
 
 func TestAChangedUnitIsRewritten(t *testing.T) {
 	dir := t.TempDir()
-	place(t, dir, Update, Cleanup, Backup, Verify)
+	place(t, dir, Update, CleanDownloads, BackupApps, CheckBackup)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "mse-gorgon-update.service"), []byte("[Service]\nExecStart=/old/mse update\n"), 0o644))
 	runner, s := recording(t, nil, nil)
 
@@ -102,7 +102,7 @@ func TestAFreshMachineGetsItsUnitDirectoryAndEveryFile(t *testing.T) {
 
 func TestAFormerMainDisablesItsBackupTimersBeforeRemovingThem(t *testing.T) {
 	dir := t.TempDir()
-	place(t, dir, Update, Cleanup, Backup, Verify)
+	place(t, dir, Update, CleanDownloads, BackupApps, CheckBackup)
 	runner, s := recording(t, nil, func(call string) {
 		if strings.HasPrefix(call, "--user disable") {
 			assert.FileExists(t, filepath.Join(dir, strings.TrimPrefix(call, "--user disable --now ")))
@@ -118,7 +118,7 @@ func TestAFormerMainDisablesItsBackupTimersBeforeRemovingThem(t *testing.T) {
 		"--user daemon-reload",
 		"--user enable --now mse-gorgon-update.timer mse-gorgon-clean-downloads.timer",
 	}, s.calls)
-	for _, file := range append(Backup.Files("gorgon"), Verify.Files("gorgon")...) {
+	for _, file := range append(BackupApps.Files("gorgon"), CheckBackup.Files("gorgon")...) {
 		assert.NoFileExists(t, filepath.Join(dir, file))
 	}
 	assert.Equal(t, "mse-gorgon-update, mse-gorgon-clean-downloads unchanged; mse-gorgon-backup-apps, mse-gorgon-check-backup removed", outcome.String())
@@ -126,8 +126,8 @@ func TestAFormerMainDisablesItsBackupTimersBeforeRemovingThem(t *testing.T) {
 
 func TestALeftoverServiceWithoutItsTimerIsRemovedToo(t *testing.T) {
 	dir := t.TempDir()
-	place(t, dir, Update, Cleanup)
-	text, err := Render(Backup, ".service", gorgon)
+	place(t, dir, Update, CleanDownloads)
+	text, err := Render(BackupApps, ".service", gorgon)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "mse-gorgon-backup-apps.service"), []byte(text), 0o644))
 	runner, s := recording(t, nil, nil)
@@ -142,7 +142,7 @@ func TestALeftoverServiceWithoutItsTimerIsRemovedToo(t *testing.T) {
 
 func TestAnUnknownMainLeavesTheBackupTimersAsTheyAre(t *testing.T) {
 	dir := t.TempDir()
-	place(t, dir, Update, Cleanup)
+	place(t, dir, Update, CleanDownloads)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "mse-gorgon-backup-apps.service"), []byte("an older backup unit\n"), 0o644))
 	runner, s := recording(t, nil, nil)
 
@@ -189,7 +189,7 @@ func TestAMainWithAMediaBackupGetsItsTimer(t *testing.T) {
 
 func TestTurningTheMediaBackupOffRemovesItsTimer(t *testing.T) {
 	dir := t.TempDir()
-	place(t, dir, Update, Cleanup, Backup, Verify, MediaBackup)
+	place(t, dir, Update, CleanDownloads, BackupApps, CheckBackup, BackupMedia)
 	runner, s := recording(t, nil, nil)
 
 	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Main, false, gorgon)
@@ -228,7 +228,7 @@ func TestTheUnitsOfRenamedJobsAreRemoved(t *testing.T) {
 
 func TestAnUnknownMainRemovesNothing(t *testing.T) {
 	dir := t.TempDir()
-	place(t, dir, Update, Cleanup)
+	place(t, dir, Update, CleanDownloads)
 	unitFiles(t, dir, "mse-gorgon-backup.service", "mse-gorgon-backup.timer", "mse-gorgon-verify.service", "mse-gorgon-verify.timer")
 	runner, s := recording(t, nil, nil)
 

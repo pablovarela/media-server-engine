@@ -22,11 +22,11 @@ type Job struct {
 }
 
 var (
-	Update      = Job{Name: jobs.Update}
-	Cleanup     = Job{Name: jobs.CleanDownloads}
-	Backup      = Job{Name: jobs.BackupApps}
-	Verify      = Job{Name: jobs.CheckBackup}
-	MediaBackup = Job{Name: jobs.BackupMedia}
+	Update         = Job{Name: jobs.Update}
+	CleanDownloads = Job{Name: jobs.CleanDownloads}
+	BackupApps     = Job{Name: jobs.BackupApps}
+	CheckBackup    = Job{Name: jobs.CheckBackup}
+	BackupMedia    = Job{Name: jobs.BackupMedia}
 )
 
 func (j Job) Unit(installation string) string {
@@ -49,13 +49,13 @@ const (
 func Plan(role Role, media bool) (install []Job, prune bool) {
 	switch {
 	case role == Main && media:
-		return []Job{Update, Cleanup, Backup, Verify, MediaBackup}, true
+		return []Job{Update, CleanDownloads, BackupApps, CheckBackup, BackupMedia}, true
 	case role == Main:
-		return []Job{Update, Cleanup, Backup, Verify}, true
+		return []Job{Update, CleanDownloads, BackupApps, CheckBackup}, true
 	case role == Secondary:
-		return []Job{Update, Cleanup}, true
+		return []Job{Update, CleanDownloads}, true
 	}
-	return []Job{Update, Cleanup}, false
+	return []Job{Update, CleanDownloads}, false
 }
 
 func Render(job Job, suffix string, v Values) (string, error) {
