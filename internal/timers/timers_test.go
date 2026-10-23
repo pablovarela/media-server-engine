@@ -14,7 +14,7 @@ func TestTheServicesRunMse(t *testing.T) {
 	tests := map[Job]string{
 		Update: `[Unit]
 Description=Bring the media server up to date with its config (gorgon)
-After=mse-gorgon-backup.service
+After=mse-gorgon-backup-apps.service
 
 [Service]
 Type=oneshot
@@ -33,7 +33,7 @@ IOSchedulingClass=idle
 `,
 		Verify: `[Unit]
 Description=Check the media server's backups can be restored (gorgon)
-After=mse-gorgon-backup.service
+After=mse-gorgon-backup-apps.service
 
 [Service]
 Type=oneshot
@@ -95,8 +95,8 @@ func TestTheTimersKeepTheirSchedules(t *testing.T) {
 }
 
 func TestTheUnitsAreNamedForTheInstallation(t *testing.T) {
-	assert.Equal(t, "mse-gorgon-download-cleanup", Cleanup.Unit("gorgon"))
-	assert.Equal(t, []string{"mse-gorgon-backup.service", "mse-gorgon-backup.timer"}, Backup.Files("gorgon"))
+	assert.Equal(t, "mse-gorgon-clean-downloads", Cleanup.Unit("gorgon"))
+	assert.Equal(t, []string{"mse-gorgon-backup-apps.service", "mse-gorgon-backup-apps.timer"}, Backup.Files("gorgon"))
 }
 
 func TestNoUnitLeavesAPlaceholder(t *testing.T) {

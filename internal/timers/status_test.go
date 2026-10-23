@@ -22,8 +22,8 @@ type showRunner struct {
 func (s showRunner) Output(_ context.Context, c process.Command) (process.Result, error) {
 	assert.Equal(s.t, "systemctl", c.Name)
 	assert.Equal(s.t, []string{"--user", "show",
-		"mse-home-update.service", "mse-home-update.timer", "mse-home-backup.service", "mse-home-backup.timer",
-		"mse-home-verify.service", "mse-home-verify.timer", "mse-home-media-backup.service", "mse-home-media-backup.timer", "mse-home-download-cleanup.service", "mse-home-download-cleanup.timer",
+		"mse-home-update.service", "mse-home-update.timer", "mse-home-backup-apps.service", "mse-home-backup-apps.timer",
+		"mse-home-check-backup.service", "mse-home-check-backup.timer", "mse-home-backup-media.service", "mse-home-backup-media.timer", "mse-home-clean-downloads.service", "mse-home-clean-downloads.timer",
 		"--property=Id,LoadState,Result,InactiveEnterTimestamp,NextElapseUSecRealtime"}, c.Args)
 	assert.Equal(s.t, []string{"TZ=UTC"}, c.Env)
 	return process.Result{Stdout: []byte(s.stdout)}, s.err
@@ -64,9 +64,9 @@ func TestStatus(t *testing.T) {
 	}{
 		"a main's five timers": {
 			Given: Given{stdout: shown(
-				service("update"), timer("update", upcoming), service("backup"), timer("backup", upcoming),
-				service("verify"), timer("verify", upcoming), service("media-backup"), timer("media-backup", upcoming),
-				service("download-cleanup"), timer("download-cleanup", upcoming))},
+				service("update"), timer("update", upcoming), service("backup-apps"), timer("backup-apps", upcoming),
+				service("check-backup"), timer("check-backup", upcoming), service("backup-media"), timer("backup-media", upcoming),
+				service("clean-downloads"), timer("clean-downloads", upcoming))},
 			Then: Then{statuses: []JobStatus{
 				{Job: Update, Next: next, Result: "success"}, {Job: Backup, Next: next, Result: "success"},
 				{Job: Verify, Next: next, Result: "success"}, {Job: MediaBackup, Next: next, Result: "success"},
@@ -76,18 +76,18 @@ func TestStatus(t *testing.T) {
 		"a service systemd couldn't run": {
 			Given: Given{stdout: shown(
 				failedService("update", "start-limit-hit", "Wed 2026-10-07 04:00:02 UTC"), timer("update", upcoming),
-				missing("backup"), missing("verify"), missing("media-backup"), missing("download-cleanup"))},
+				missing("backup-apps"), missing("check-backup"), missing("backup-media"), missing("clean-downloads"))},
 			Then: Then{statuses: []JobStatus{{Job: Update, Next: next, Result: "start-limit-hit", Stopped: time.Date(2026, 10, 7, 4, 0, 2, 0, time.UTC)}}},
 		},
 		"a copy without backup timers, one running with no next run until it ends": {
 			Given: Given{stdout: shown(
-				service("update"), timer("update", upcoming), missing("backup"), missing("verify"), missing("media-backup"),
-				service("download-cleanup"), timer("download-cleanup", ""))},
+				service("update"), timer("update", upcoming), missing("backup-apps"), missing("check-backup"), missing("backup-media"),
+				service("clean-downloads"), timer("clean-downloads", ""))},
 			Then: Then{statuses: []JobStatus{{Job: Update, Next: next, Result: "success"}, {Job: Cleanup, Result: "success"}}},
 		},
 		"a time systemd printed in an unexpected form": {
 			Given: Given{stdout: shown(
-				service("update"), timer("update", "2026-10-08T03:30:00Z"), missing("backup"), missing("verify"), missing("media-backup"), missing("download-cleanup"))},
+				service("update"), timer("update", "2026-10-08T03:30:00Z"), missing("backup-apps"), missing("check-backup"), missing("backup-media"), missing("clean-downloads"))},
 			Then: Then{err: `read the timers from systemd: mse-home-update.timer's NextElapseUSecRealtime "2026-10-08T03:30:00Z" isn't a time`},
 		},
 		"systemctl failing": {

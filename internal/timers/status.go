@@ -16,13 +16,13 @@ type JobStatus struct {
 	Stopped time.Time
 }
 
-var jobs = []Job{Update, Backup, Verify, MediaBackup, Cleanup}
+var statusJobs = []Job{Update, Backup, Verify, MediaBackup, Cleanup}
 
 const systemdTime = "Mon 2006-01-02 15:04:05 MST"
 
 func Status(ctx context.Context, r runner, installation string) ([]JobStatus, error) {
 	args := []string{"--user", "show"}
-	for _, job := range jobs {
+	for _, job := range statusJobs {
 		args = append(args, job.Files(installation)...)
 	}
 	args = append(args, "--property=Id,LoadState,Result,InactiveEnterTimestamp,NextElapseUSecRealtime")
@@ -32,7 +32,7 @@ func Status(ctx context.Context, r runner, installation string) ([]JobStatus, er
 	}
 	shown := unitProperties(string(result.Stdout))
 	var statuses []JobStatus
-	for _, job := range jobs {
+	for _, job := range statusJobs {
 		unit := job.Unit(installation)
 		service, timer := shown[unit+".service"], shown[unit+".timer"]
 		if timer["LoadState"] != "loaded" {

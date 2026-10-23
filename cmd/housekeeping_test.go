@@ -23,7 +23,7 @@ func TestRemoveExecutableDownloadsWithoutKeys(t *testing.T) {
 
 	assert.Equal(t, 0, code)
 	assert.Equal(t, "sonarr: queue not reachable, skipped\nradarr: queue not reachable, skipped\n", stdout.String())
-	run, recorded, err := runs.Read(filepath.Join(home, ".local", "state", "mse", "gorgon", "runs"), "download-cleanup")
+	run, recorded, err := runs.Read(filepath.Join(home, ".local", "state", "mse", "gorgon", "runs"), "clean-downloads")
 	require.NoError(t, err)
 	assert.True(t, recorded, "the run is recorded for mse status")
 	assert.False(t, run.Ended.IsZero())
@@ -44,5 +44,5 @@ func TestCleanDownloadsStillCleansWhenItsRunCannotBeRecorded(t *testing.T) {
 
 	assert.Equal(t, 0, code)
 	assert.Contains(t, stdout.String(), "sonarr: queue not reachable, skipped\n")
-	assert.Contains(t, stderr.String(), "could not record the download-cleanup run for mse status")
+	assert.Contains(t, stderr.String(), "could not record the clean-downloads run for mse status")
 }

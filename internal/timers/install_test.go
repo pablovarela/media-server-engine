@@ -50,7 +50,7 @@ func place(t *testing.T, dir string, jobs ...Job) {
 	}
 }
 
-const enableAll = "--user enable --now mse-gorgon-update.timer mse-gorgon-download-cleanup.timer mse-gorgon-backup.timer mse-gorgon-verify.timer"
+const enableAll = "--user enable --now mse-gorgon-update.timer mse-gorgon-clean-downloads.timer mse-gorgon-backup-apps.timer mse-gorgon-check-backup.timer"
 
 func TestNothingChangedWritesNothingAndStillEnablesTheTimers(t *testing.T) {
 	dir := t.TempDir()
@@ -84,7 +84,7 @@ func TestAChangedUnitIsRewritten(t *testing.T) {
 	want, err := Render(Update, ".service", gorgon)
 	require.NoError(t, err)
 	assert.Equal(t, want, string(written))
-	assert.Equal(t, "mse-gorgon-update changed; mse-gorgon-download-cleanup, mse-gorgon-backup, mse-gorgon-verify unchanged", outcome.String())
+	assert.Equal(t, "mse-gorgon-update changed; mse-gorgon-clean-downloads, mse-gorgon-backup-apps, mse-gorgon-check-backup unchanged", outcome.String())
 }
 
 func TestAFreshMachineGetsItsUnitDirectoryAndEveryFile(t *testing.T) {
@@ -97,7 +97,7 @@ func TestAFreshMachineGetsItsUnitDirectoryAndEveryFile(t *testing.T) {
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
 	assert.Len(t, entries, 4)
-	assert.Equal(t, "mse-gorgon-update, mse-gorgon-download-cleanup changed", outcome.String())
+	assert.Equal(t, "mse-gorgon-update, mse-gorgon-clean-downloads changed", outcome.String())
 }
 
 func TestAFormerMainDisablesItsBackupTimersBeforeRemovingThem(t *testing.T) {
@@ -113,15 +113,15 @@ func TestAFormerMainDisablesItsBackupTimersBeforeRemovingThem(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{
-		"--user disable --now mse-gorgon-backup.timer",
-		"--user disable --now mse-gorgon-verify.timer",
+		"--user disable --now mse-gorgon-backup-apps.timer",
+		"--user disable --now mse-gorgon-check-backup.timer",
 		"--user daemon-reload",
-		"--user enable --now mse-gorgon-update.timer mse-gorgon-download-cleanup.timer",
+		"--user enable --now mse-gorgon-update.timer mse-gorgon-clean-downloads.timer",
 	}, s.calls)
 	for _, file := range append(Backup.Files("gorgon"), Verify.Files("gorgon")...) {
 		assert.NoFileExists(t, filepath.Join(dir, file))
 	}
-	assert.Equal(t, "mse-gorgon-update, mse-gorgon-download-cleanup unchanged; mse-gorgon-backup, mse-gorgon-verify removed", outcome.String())
+	assert.Equal(t, "mse-gorgon-update, mse-gorgon-clean-downloads unchanged; mse-gorgon-backup-apps, mse-gorgon-check-backup removed", outcome.String())
 }
 
 func TestALeftoverServiceWithoutItsTimerIsRemovedToo(t *testing.T) {
@@ -129,27 +129,27 @@ func TestALeftoverServiceWithoutItsTimerIsRemovedToo(t *testing.T) {
 	place(t, dir, Update, Cleanup)
 	text, err := Render(Backup, ".service", gorgon)
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "mse-gorgon-backup.service"), []byte(text), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "mse-gorgon-backup-apps.service"), []byte(text), 0o644))
 	runner, s := recording(t, nil, nil)
 
 	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Secondary, false, gorgon)
 
 	require.NoError(t, err)
-	assert.NotContains(t, s.calls, "--user disable --now mse-gorgon-backup.timer", "systemctl can't disable a timer whose file is gone")
-	assert.NoFileExists(t, filepath.Join(dir, "mse-gorgon-backup.service"))
-	assert.Equal(t, []string{"mse-gorgon-backup"}, outcome.Removed)
+	assert.NotContains(t, s.calls, "--user disable --now mse-gorgon-backup-apps.timer", "systemctl can't disable a timer whose file is gone")
+	assert.NoFileExists(t, filepath.Join(dir, "mse-gorgon-backup-apps.service"))
+	assert.Equal(t, []string{"mse-gorgon-backup-apps"}, outcome.Removed)
 }
 
 func TestAnUnknownMainLeavesTheBackupTimersAsTheyAre(t *testing.T) {
 	dir := t.TempDir()
 	place(t, dir, Update, Cleanup)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "mse-gorgon-backup.service"), []byte("an older backup unit\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "mse-gorgon-backup-apps.service"), []byte("an older backup unit\n"), 0o644))
 	runner, s := recording(t, nil, nil)
 
 	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Unknown, false, gorgon)
 
 	require.NoError(t, err)
-	kept, err := os.ReadFile(filepath.Join(dir, "mse-gorgon-backup.service"))
+	kept, err := os.ReadFile(filepath.Join(dir, "mse-gorgon-backup-apps.service"))
 	require.NoError(t, err)
 	assert.Equal(t, "an older backup unit\n", string(kept))
 	assert.NotContains(t, strings.Join(s.calls, "\n"), "backup")
@@ -180,11 +180,11 @@ func TestAMainWithAMediaBackupGetsItsTimer(t *testing.T) {
 	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Main, true, gorgon)
 
 	require.NoError(t, err)
-	assert.Contains(t, s.calls, enableAll+" mse-gorgon-media-backup.timer")
-	timer, err := os.ReadFile(filepath.Join(dir, "mse-gorgon-media-backup.timer"))
+	assert.Contains(t, s.calls, enableAll+" mse-gorgon-backup-media.timer")
+	timer, err := os.ReadFile(filepath.Join(dir, "mse-gorgon-backup-media.timer"))
 	require.NoError(t, err)
 	assert.Contains(t, string(timer), "OnCalendar=Sun *-*-* 01:00:00\n")
-	assert.Contains(t, outcome.Changed, "mse-gorgon-media-backup")
+	assert.Contains(t, outcome.Changed, "mse-gorgon-backup-media")
 }
 
 func TestTurningTheMediaBackupOffRemovesItsTimer(t *testing.T) {
@@ -195,7 +195,7 @@ func TestTurningTheMediaBackupOffRemovesItsTimer(t *testing.T) {
 	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Main, false, gorgon)
 
 	require.NoError(t, err)
-	assert.Contains(t, s.calls, "--user disable --now mse-gorgon-media-backup.timer")
-	assert.NoFileExists(t, filepath.Join(dir, "mse-gorgon-media-backup.timer"))
-	assert.Equal(t, "mse-gorgon-update, mse-gorgon-download-cleanup, mse-gorgon-backup, mse-gorgon-verify unchanged; mse-gorgon-media-backup removed", outcome.String())
+	assert.Contains(t, s.calls, "--user disable --now mse-gorgon-backup-media.timer")
+	assert.NoFileExists(t, filepath.Join(dir, "mse-gorgon-backup-media.timer"))
+	assert.Equal(t, "mse-gorgon-update, mse-gorgon-clean-downloads, mse-gorgon-backup-apps, mse-gorgon-check-backup unchanged; mse-gorgon-backup-media removed", outcome.String())
 }

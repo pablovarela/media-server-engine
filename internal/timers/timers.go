@@ -3,6 +3,8 @@ package timers
 import (
 	"embed"
 	"strings"
+
+	"github.com/pablovarela/media-server-engine/internal/jobs"
 )
 
 //go:embed units
@@ -20,15 +22,15 @@ type Job struct {
 }
 
 var (
-	Update      = Job{Name: "update"}
-	Cleanup     = Job{Name: "download-cleanup"}
-	Backup      = Job{Name: "backup"}
-	Verify      = Job{Name: "verify"}
-	MediaBackup = Job{Name: "media-backup"}
+	Update      = Job{Name: jobs.Update}
+	Cleanup     = Job{Name: jobs.CleanDownloads}
+	Backup      = Job{Name: jobs.BackupApps}
+	Verify      = Job{Name: jobs.CheckBackup}
+	MediaBackup = Job{Name: jobs.BackupMedia}
 )
 
 func (j Job) Unit(installation string) string {
-	return "mse-" + installation + "-" + j.Name
+	return jobs.Unit(installation, j.Name)
 }
 
 func (j Job) Files(installation string) []string {
