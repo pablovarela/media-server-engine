@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	"errors"
+	"io"
 
 	"github.com/spf13/cobra"
 
@@ -20,11 +22,19 @@ func newRemoveExecutableDownloadsCommand(deps Dependencies) *cobra.Command {
 				return err
 			}
 			pings := deps.pinger(cmd, i)
+			if healthchecksKey(i, "HEALTHCHECKS_PING_KEY") == "" {
+				pings.pings.ErrOut = io.Discard
+			}
 			finishing := context.WithoutCancel(cmd.Context())
 			pings.Ping(cmd.Context(), jobs.CleanDownloads, "/start")
 			err = downloads.Clean(cmd.Context(), deps.HTTP, i, 200, cmd.OutOrStdout(), cmd.ErrOrStderr())
 			defer shieldSignals()()
-			if err != nil {
+			switch {
+			case errors.Is(err, downloads.ErrNotRead):
+				// Without a success ping healthchecks.io calls the check down only once the queue stays unreadable past its grace.
+				pings.runs.finish(jobs.CleanDownloads, false)
+				return nil
+			case err != nil:
 				pings.Ping(finishing, jobs.CleanDownloads, "/fail")
 				return err
 			}

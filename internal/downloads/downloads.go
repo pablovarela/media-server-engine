@@ -20,6 +20,7 @@ const flag = "Found executable file"
 
 var (
 	ErrNotAllRemoved = errors.New("some flagged downloads could not be removed")
+	ErrNotRead       = errors.New("a queue could not be read")
 	apiKey           = regexp.MustCompile(`<ApiKey>(.*)</ApiKey>`)
 	apps             = []struct {
 		name, title string
@@ -41,12 +42,13 @@ type record struct {
 }
 
 func Clean(ctx context.Context, client *http.Client, i *installation.Installation, pageSize int, out, errOut io.Writer) error {
-	allRemoved := true
+	allRemoved, allRead := true, true
 	for _, app := range apps {
 		q := queue{client: client, base: fmt.Sprintf("http://localhost:%d/api/v3/queue", app.port), title: app.title, key: keyIn(filepath.Join(i.Data, app.config))}
 		found, total, err := q.flagged(ctx, pageSize)
 		if q.key == "" || err != nil {
 			_, _ = fmt.Fprintf(out, "%s: queue not reachable, skipped\n", app.name)
+			allRead = allRead && q.key == ""
 			continue
 		}
 		downloads := oncePerDownload(found)
@@ -62,6 +64,9 @@ func Clean(ctx context.Context, client *http.Client, i *installation.Installatio
 	}
 	if !allRemoved {
 		return ErrNotAllRemoved
+	}
+	if !allRead {
+		return ErrNotRead
 	}
 	return nil
 }

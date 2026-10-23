@@ -21,13 +21,15 @@ import (
 func TestRemoveExecutableDownloadsWithoutKeys(t *testing.T) {
 	getenv, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"})
 	root := NewRootCommand(Dependencies{Environment: getenv, Home: home, Update: newMockUpdater(t), Host: thisHost})
-	var stdout bytes.Buffer
+	var stdout, stderr bytes.Buffer
 	root.SetOut(&stdout)
+	root.SetErr(&stderr)
 
 	code := run(context.Background(), root, []string{"clean-downloads"})
 
 	assert.Equal(t, 0, code)
 	assert.Equal(t, "sonarr: queue not reachable, skipped\nradarr: queue not reachable, skipped\n", stdout.String())
+	assert.NotContains(t, stderr.String(), "ping key", "a job that runs every 15 minutes doesn't warn about a missing ping key")
 	run, recorded, err := runs.Read(filepath.Join(home, ".local", "state", "mse", "gorgon", "runs"), "clean-downloads")
 	require.NoError(t, err)
 	assert.True(t, recorded, "the run is recorded for mse status")
@@ -54,13 +56,15 @@ func TestCleanDownloadsStillCleansWhenItsRunCannotBeRecorded(t *testing.T) {
 
 func TestCleanDownloadsReportsItsRunToHealthchecks(t *testing.T) {
 	tests := map[string]struct {
-		removal int
-		pings   []string
-		failed  bool
+		removal     int
+		unreachable bool
+		pings       []string
+		failed      bool
 	}{
 		"a clean run": {removal: http.StatusOK, pings: []string{"/ping-key/mse-gorgon-clean-downloads/start", "/ping-key/mse-gorgon-clean-downloads"}},
 		"a download that can't be removed": {removal: http.StatusInternalServerError, failed: true,
 			pings: []string{"/ping-key/mse-gorgon-clean-downloads/start", "/ping-key/mse-gorgon-clean-downloads/fail"}},
+		"a queue that can't be read": {unreachable: true, pings: []string{"/ping-key/mse-gorgon-clean-downloads/start"}},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -78,6 +82,8 @@ func TestCleanDownloadsReportsItsRunToHealthchecks(t *testing.T) {
 				case r.URL.Host == "hc-ping.com":
 					pings = append(pings, r.URL.Path)
 					return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("OK"))}, nil
+				case r.URL.Host == "localhost:8989" && tt.unreachable:
+					return nil, errors.New("connection refused")
 				case r.URL.Host == "localhost:8989" && r.Method == http.MethodGet:
 					return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(
 						`{"totalRecords":1,"records":[{"id":7,"title":"Show.S01E01","statusMessages":[{"messages":["Found executable file"]}]}]}`))}, nil
