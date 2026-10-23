@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"context"
+
 	"github.com/spf13/cobra"
 
 	"github.com/pablovarela/media-server-engine/internal/downloads"
@@ -18,13 +20,15 @@ func newRemoveExecutableDownloadsCommand(deps Dependencies) *cobra.Command {
 				return err
 			}
 			pings := deps.pinger(cmd, i)
+			finishing := context.WithoutCancel(cmd.Context())
 			pings.Ping(cmd.Context(), jobs.CleanDownloads, "/start")
 			err = downloads.Clean(cmd.Context(), deps.HTTP, i, 200, cmd.OutOrStdout(), cmd.ErrOrStderr())
+			defer shieldSignals()()
 			if err != nil {
-				pings.Ping(cmd.Context(), jobs.CleanDownloads, "/fail")
+				pings.Ping(finishing, jobs.CleanDownloads, "/fail")
 				return err
 			}
-			pings.Ping(cmd.Context(), jobs.CleanDownloads, "")
+			pings.Ping(finishing, jobs.CleanDownloads, "")
 			return nil
 		},
 	}

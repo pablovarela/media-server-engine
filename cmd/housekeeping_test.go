@@ -102,3 +102,32 @@ func TestCleanDownloadsReportsItsRunToHealthchecks(t *testing.T) {
 }
 
 var thisHost = installation.Host{GOOS: "linux", Hostname: func() (string, error) { return "gorgon.local", nil }}
+
+func TestCleanDownloadsStillReportsWhenStoppedMidRun(t *testing.T) {
+	getenv, home := xdgHome(t, map[string]string{"gorgon": "INSTALLATION_NAME=gorgon\n"})
+	state := filepath.Join(home, ".local", "state", "mse", "gorgon")
+	require.NoError(t, os.MkdirAll(filepath.Join(state, ".secrets"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(state, ".secrets", "healthchecks.env"), []byte("HEALTHCHECKS_PING_KEY=ping-key\n"), 0o600))
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".local", "share", "mse", "gorgon"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".local", "share", "mse", "gorgon", ".backup-main"), nil, 0o644))
+	ctx, stop := context.WithCancel(context.Background())
+	var pings []string
+	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Host != "hc-ping.com" {
+			return nil, errors.New("not reachable")
+		}
+		if err := r.Context().Err(); err != nil {
+			return nil, err
+		}
+		pings = append(pings, r.URL.Path)
+		stop()
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("OK"))}, nil
+	})}
+	root := NewRootCommand(Dependencies{Environment: getenv, Home: home, Update: newMockUpdater(t), Host: thisHost, HTTP: client})
+	root.SetOut(io.Discard)
+	root.SetErr(io.Discard)
+
+	run(ctx, root, []string{"clean-downloads"})
+
+	assert.Equal(t, []string{"/ping-key/mse-gorgon-clean-downloads/start", "/ping-key/mse-gorgon-clean-downloads"}, pings)
+}
