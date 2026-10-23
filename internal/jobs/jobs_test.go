@@ -35,3 +35,30 @@ func TestOnlyUpdateAndCleanDownloadsRunOnEveryMachine(t *testing.T) {
 		})
 	}
 }
+
+func TestWhichJobsAMachineRuns(t *testing.T) {
+	tests := map[string]struct {
+		main, media bool
+		want        []string
+	}{
+		"main":            {main: true, want: []string{Update, CleanDownloads, BackupApps, CheckBackup}},
+		"main with media": {main: true, media: true, want: []string{Update, CleanDownloads, BackupApps, CheckBackup, BackupMedia}},
+		"other machine":   {media: true, want: []string{Update, CleanDownloads}},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tt.want, Planned(tt.main, tt.media))
+		})
+	}
+}
+
+func TestEveryJobHasALabelForMseStatus(t *testing.T) {
+	assert.Equal(t, []string{Update, CleanDownloads, BackupApps, CheckBackup, BackupMedia}, Names())
+	labels := map[string]string{}
+	for _, job := range Names() {
+		labels[job] = Label(job)
+	}
+	assert.Equal(t, map[string]string{
+		Update: "update", CleanDownloads: "clean-downloads", BackupApps: "apps backup", CheckBackup: "check-backup", BackupMedia: "media backup",
+	}, labels)
+}

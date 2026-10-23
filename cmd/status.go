@@ -11,6 +11,7 @@ import (
 
 	"github.com/pablovarela/media-server-engine/internal/compose"
 	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/jobs"
 	"github.com/pablovarela/media-server-engine/internal/media"
 	"github.com/pablovarela/media-server-engine/internal/report"
 	"github.com/pablovarela/media-server-engine/internal/runs"
@@ -24,11 +25,6 @@ var apps = []struct {
 }{
 	{"Jellyfin", 8096}, {"Seerr", 5055}, {"Sonarr", 8989}, {"Radarr", 7878}, {"Prowlarr", 9696},
 	{"Bazarr", 6767}, {"Deluge", 8112}, {"Maintainerr", 6246}, {"Portainer", 9000},
-}
-
-var timerLabels = map[string]string{
-	timers.Update.Name: "update", timers.BackupApps.Name: "apps backup", timers.CheckBackup.Name: "check-backup", timers.CleanDownloads.Name: "clean-downloads",
-	timers.BackupMedia.Name: "media backup",
 }
 
 func newStatusCommand(deps Dependencies) *cobra.Command {
@@ -142,7 +138,7 @@ func (d Dependencies) statusOfTimers(cmd *cobra.Command, i *installation.Install
 	}
 	alive := runs.Alive(runs.BootID())
 	for _, state := range states {
-		timer := status.Timer{Label: timerLabels[state.Job.Name], Next: state.Next, Result: state.Result, Stopped: state.Stopped}
+		timer := status.Timer{Label: jobs.Label(state.Job.Name), Next: state.Next, Result: state.Result, Stopped: state.Stopped}
 		timer.Last, _, timer.Err = runs.Read(runsDir(i), state.Job.Name)
 		timer.State = timer.Last.State(alive)
 		r.Timers = append(r.Timers, timer)

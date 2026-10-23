@@ -51,13 +51,7 @@ var schedules = map[string]schedule{
 var weekdays = []string{"Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"}
 
 func ChecksFor(name, role, shortHost, mediaCron string) []Check {
-	planned := []string{jobs.Update, jobs.CleanDownloads}
-	if role == mainRole {
-		planned = []string{jobs.BackupApps, jobs.CheckBackup, jobs.Update, jobs.CleanDownloads}
-		if mediaCron != "" {
-			planned = []string{jobs.BackupApps, jobs.CheckBackup, jobs.BackupMedia, jobs.Update, jobs.CleanDownloads}
-		}
-	}
+	planned := jobs.Planned(role == mainRole, mediaCron != "")
 	checks := make([]Check, 0, len(planned))
 	for _, job := range planned {
 		cron := schedules[job].cron

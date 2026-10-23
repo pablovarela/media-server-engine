@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pablovarela/media-server-engine/internal/jobs"
 	"github.com/pablovarela/media-server-engine/internal/process"
 )
 
@@ -16,11 +17,13 @@ type JobStatus struct {
 	Stopped time.Time
 }
 
-var statusJobs = []Job{Update, BackupApps, CheckBackup, BackupMedia, CleanDownloads}
-
 const systemdTime = "Mon 2006-01-02 15:04:05 MST"
 
 func Status(ctx context.Context, r runner, installation string) ([]JobStatus, error) {
+	var statusJobs []Job
+	for _, name := range jobs.Names() {
+		statusJobs = append(statusJobs, Job{Name: name})
+	}
 	args := []string{"--user", "show"}
 	for _, job := range statusJobs {
 		args = append(args, job.Files(installation)...)

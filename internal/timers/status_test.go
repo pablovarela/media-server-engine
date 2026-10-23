@@ -22,8 +22,8 @@ type showRunner struct {
 func (s showRunner) Output(_ context.Context, c process.Command) (process.Result, error) {
 	assert.Equal(s.t, "systemctl", c.Name)
 	assert.Equal(s.t, []string{"--user", "show",
-		"mse-home-update.service", "mse-home-update.timer", "mse-home-backup-apps.service", "mse-home-backup-apps.timer",
-		"mse-home-check-backup.service", "mse-home-check-backup.timer", "mse-home-backup-media.service", "mse-home-backup-media.timer", "mse-home-clean-downloads.service", "mse-home-clean-downloads.timer",
+		"mse-home-update.service", "mse-home-update.timer", "mse-home-clean-downloads.service", "mse-home-clean-downloads.timer", "mse-home-backup-apps.service", "mse-home-backup-apps.timer",
+		"mse-home-check-backup.service", "mse-home-check-backup.timer", "mse-home-backup-media.service", "mse-home-backup-media.timer",
 		"--property=Id,LoadState,Result,InactiveEnterTimestamp,NextElapseUSecRealtime"}, c.Args)
 	assert.Equal(s.t, []string{"TZ=UTC"}, c.Env)
 	return process.Result{Stdout: []byte(s.stdout)}, s.err
@@ -68,9 +68,9 @@ func TestStatus(t *testing.T) {
 				service("check-backup"), timer("check-backup", upcoming), service("backup-media"), timer("backup-media", upcoming),
 				service("clean-downloads"), timer("clean-downloads", upcoming))},
 			Then: Then{statuses: []JobStatus{
-				{Job: Update, Next: next, Result: "success"}, {Job: BackupApps, Next: next, Result: "success"},
-				{Job: CheckBackup, Next: next, Result: "success"}, {Job: BackupMedia, Next: next, Result: "success"},
-				{Job: CleanDownloads, Next: next, Result: "success"},
+				{Job: Update, Next: next, Result: "success"}, {Job: CleanDownloads, Next: next, Result: "success"},
+				{Job: BackupApps, Next: next, Result: "success"}, {Job: CheckBackup, Next: next, Result: "success"},
+				{Job: BackupMedia, Next: next, Result: "success"},
 			}},
 		},
 		"a service systemd couldn't run": {

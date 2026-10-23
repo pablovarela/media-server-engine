@@ -47,15 +47,10 @@ const (
 )
 
 func Plan(role Role, media bool) (install []Job, prune bool) {
-	switch {
-	case role == Main && media:
-		return []Job{Update, CleanDownloads, BackupApps, CheckBackup, BackupMedia}, true
-	case role == Main:
-		return []Job{Update, CleanDownloads, BackupApps, CheckBackup}, true
-	case role == Secondary:
-		return []Job{Update, CleanDownloads}, true
+	for _, name := range jobs.Planned(role == Main, media) {
+		install = append(install, Job{Name: name})
 	}
-	return []Job{Update, CleanDownloads}, false
+	return install, role != Unknown
 }
 
 func Render(job Job, suffix string, v Values) (string, error) {
