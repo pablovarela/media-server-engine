@@ -71,7 +71,11 @@ func (t *appliedTimers) Set(ctx context.Context) (string, []string, error) {
 	if warning != "" {
 		warnings = append(warnings, warning)
 	}
-	installer := timers.Installer{Runner: t.d.Run(io.Discard, io.Discard), Dir: t.d.unitDir()}
+	others, err := installation.Names(installation.Bases{Config: filepath.Dir(filepath.Dir(t.i.Config))})
+	if err != nil {
+		return "", warnings, err
+	}
+	installer := timers.Installer{Runner: t.d.Run(io.Discard, io.Discard), Dir: t.d.unitDir(), Installations: others}
 	outcome, err := installer.Install(ctx, role, timing.Enabled, values)
 	if err != nil {
 		return "", warnings, err

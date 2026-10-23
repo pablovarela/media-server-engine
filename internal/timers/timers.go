@@ -46,16 +46,16 @@ const (
 	Unknown
 )
 
-func Plan(role Role, media bool) (install, remove []Job) {
+func Plan(role Role, media bool) (install, keep []Job) {
 	switch {
 	case role == Main && media:
 		return []Job{Update, Cleanup, Backup, Verify, MediaBackup}, nil
 	case role == Main:
-		return []Job{Update, Cleanup, Backup, Verify}, []Job{MediaBackup}
+		return []Job{Update, Cleanup, Backup, Verify}, nil
 	case role == Secondary:
-		return []Job{Update, Cleanup}, []Job{Backup, Verify, MediaBackup}
+		return []Job{Update, Cleanup}, nil
 	}
-	return []Job{Update, Cleanup}, nil
+	return []Job{Update, Cleanup}, []Job{Backup, Verify, MediaBackup}
 }
 
 func Render(job Job, suffix string, v Values) (string, error) {

@@ -199,3 +199,65 @@ func TestTurningTheMediaBackupOffRemovesItsTimer(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(dir, "mse-gorgon-backup-media.timer"))
 	assert.Equal(t, "mse-gorgon-update, mse-gorgon-clean-downloads, mse-gorgon-backup-apps, mse-gorgon-check-backup unchanged; mse-gorgon-backup-media removed", outcome.String())
 }
+
+func unitFiles(t *testing.T, dir string, names ...string) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	for _, name := range names {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("[Unit]\n"), 0o644))
+	}
+}
+
+func TestTheUnitsOfRenamedJobsAreRemoved(t *testing.T) {
+	dir := t.TempDir()
+	unitFiles(t, dir, "mse-gorgon-backup.service", "mse-gorgon-backup.timer", "mse-gorgon-verify.service", "mse-gorgon-verify.timer",
+		"mse-gorgon-media-backup.service", "mse-gorgon-media-backup.timer", "mse-gorgon-download-cleanup.service", "mse-gorgon-download-cleanup.timer")
+	runner, s := recording(t, nil, nil)
+
+	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Main, true, gorgon)
+
+	require.NoError(t, err)
+	for _, unit := range []string{"mse-gorgon-backup", "mse-gorgon-download-cleanup", "mse-gorgon-media-backup", "mse-gorgon-verify"} {
+		assert.Contains(t, s.calls, "--user disable --now "+unit+".timer")
+		assert.NoFileExists(t, filepath.Join(dir, unit+".service"))
+		assert.NoFileExists(t, filepath.Join(dir, unit+".timer"))
+	}
+	assert.Equal(t, []string{"mse-gorgon-backup", "mse-gorgon-download-cleanup", "mse-gorgon-media-backup", "mse-gorgon-verify"}, outcome.Removed)
+	assert.Contains(t, s.calls, enableAll+" mse-gorgon-backup-media.timer")
+}
+
+func TestAnUnknownMainKeepsItsBackupTimersButNotRenamedOnes(t *testing.T) {
+	dir := t.TempDir()
+	place(t, dir, Update, Cleanup, Backup, Verify, MediaBackup)
+	unitFiles(t, dir, "mse-gorgon-verify.service", "mse-gorgon-verify.timer")
+	runner, s := recording(t, nil, nil)
+
+	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Unknown, true, gorgon)
+
+	require.NoError(t, err)
+	for _, job := range []Job{Backup, Verify, MediaBackup} {
+		assert.NotContains(t, s.calls, "--user disable --now "+job.Unit("gorgon")+".timer")
+		for _, file := range job.Files("gorgon") {
+			assert.FileExists(t, filepath.Join(dir, file))
+		}
+	}
+	assert.Contains(t, s.calls, "--user disable --now mse-gorgon-verify.timer")
+	assert.Equal(t, []string{"mse-gorgon-verify"}, outcome.Removed)
+}
+
+func TestOtherInstallationsAndOtherFilesAreLeftAlone(t *testing.T) {
+	files := []string{"mse-gorgonx-update.service", "mse-gorgonx-update.timer", "mse-gorgon-x-update.service", "mse-gorgon-x-update.timer",
+		"other.timer", "mse-gorgon-notes.txt"}
+	dir := t.TempDir()
+	unitFiles(t, dir, files...)
+	runner, s := recording(t, nil, nil)
+
+	outcome, err := Installer{Runner: runner, Dir: dir, Installations: []string{"gorgon", "gorgon-x", "gorgonx"}}.Install(context.Background(), Main, false, gorgon)
+
+	require.NoError(t, err)
+	for _, file := range files {
+		assert.FileExists(t, filepath.Join(dir, file))
+	}
+	assert.NotContains(t, strings.Join(s.calls, "\n"), "disable")
+	assert.Empty(t, outcome.Removed)
+}
