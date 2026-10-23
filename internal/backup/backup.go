@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/pablovarela/media-server-engine/internal/jobs"
 	"github.com/pablovarela/media-server-engine/internal/paint"
 	"github.com/pablovarela/media-server-engine/internal/restic"
 )
@@ -86,7 +87,7 @@ func (b *Backups) backupHolding(ctx context.Context, lock *heldLock, claiming bo
 		release()
 	}()
 	if !claiming {
-		_, refused, err := b.refuseOnCopy(ctx, "backup", "This machine doesn't back up; mse backup --apps --take-over makes it the main and backs up now.")
+		_, refused, err := b.refuseOnCopy(ctx, jobs.BackupApps, "This machine doesn't back up; mse backup --apps --take-over makes it the main and backs up now.")
 		if err != nil {
 			return fmt.Errorf("%w; nothing was backed up", err)
 		}
@@ -94,7 +95,7 @@ func (b *Backups) backupHolding(ctx context.Context, lock *heldLock, claiming bo
 			return nil
 		}
 	}
-	b.Pinger.Ping(ctx, "backup", "/start")
+	b.Pinger.Ping(ctx, jobs.BackupApps, "/start")
 	dir, err := b.dataToBackUp(claiming)
 	if err != nil {
 		return err
@@ -116,7 +117,7 @@ func (b *Backups) backupHolding(ctx context.Context, lock *heldLock, claiming bo
 	if err := markMain(b.Installation.Data); err != nil {
 		return err
 	}
-	b.Pinger.Ping(ctx, "backup", "")
+	b.Pinger.Ping(ctx, jobs.BackupApps, "")
 	b.Report.Say(paint.Stdout.Success("Backup done."))
 	return nil
 }
@@ -174,7 +175,7 @@ func (b *Backups) finish(ctx context.Context, stopped []string, err error) error
 		err = errors.Join(err, startErr)
 	}
 	if err != nil {
-		b.Pinger.Ping(ctx, "backup", "/fail")
+		b.Pinger.Ping(ctx, jobs.BackupApps, "/fail")
 	}
 	return err
 }

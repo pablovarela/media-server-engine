@@ -14,7 +14,7 @@ func TestTheServicesRunMse(t *testing.T) {
 	tests := map[Job]string{
 		Update: `[Unit]
 Description=Bring the media server up to date with its config (gorgon)
-After=mse-gorgon-backup.service
+After=mse-gorgon-backup-apps.service
 
 [Service]
 Type=oneshot
@@ -22,7 +22,7 @@ ExecStart=/home/pablo/.local/bin/mse update --apply
 Nice=10
 IOSchedulingClass=idle
 `,
-		Backup: `[Unit]
+		BackupApps: `[Unit]
 Description=Back up the media server's app state (gorgon)
 
 [Service]
@@ -31,9 +31,9 @@ ExecStart=/home/pablo/.local/bin/mse backup --apps
 Nice=10
 IOSchedulingClass=idle
 `,
-		Verify: `[Unit]
+		CheckBackup: `[Unit]
 Description=Check the media server's backups can be restored (gorgon)
-After=mse-gorgon-backup.service
+After=mse-gorgon-backup-apps.service
 
 [Service]
 Type=oneshot
@@ -41,7 +41,7 @@ ExecStart=/home/pablo/.local/bin/mse check-backup
 Nice=10
 IOSchedulingClass=idle
 `,
-		MediaBackup: `[Unit]
+		BackupMedia: `[Unit]
 Description=Back up the media server's media (gorgon)
 
 [Service]
@@ -50,7 +50,7 @@ ExecStart=/home/pablo/.local/bin/mse backup --media
 Nice=10
 IOSchedulingClass=idle
 `,
-		Cleanup: `[Unit]
+		CleanDownloads: `[Unit]
 Description=Remove downloads Sonarr or Radarr flagged as executables (gorgon)
 
 [Service]
@@ -75,11 +75,11 @@ func TestTheTimersKeepTheirSchedules(t *testing.T) {
 		schedule   string
 		persistent bool
 	}{
-		Update:      {"OnCalendar=*-*-* 05:00:00", true},
-		Backup:      {"OnCalendar=*-*-* 04:30:00", true},
-		Verify:      {"OnCalendar=Sun *-*-* 05:30:00", true},
-		Cleanup:     {"OnCalendar=*:0/15", false},
-		MediaBackup: {"OnCalendar=Sun *-*-* 01:00:00", true},
+		Update:         {"OnCalendar=*-*-* 05:00:00", true},
+		BackupApps:     {"OnCalendar=*-*-* 04:30:00", true},
+		CheckBackup:    {"OnCalendar=Sun *-*-* 05:30:00", true},
+		CleanDownloads: {"OnCalendar=*:0/15", false},
+		BackupMedia:    {"OnCalendar=Sun *-*-* 01:00:00", true},
 	}
 	for job, tt := range tests {
 		t.Run(job.Name, func(t *testing.T) {
@@ -95,12 +95,12 @@ func TestTheTimersKeepTheirSchedules(t *testing.T) {
 }
 
 func TestTheUnitsAreNamedForTheInstallation(t *testing.T) {
-	assert.Equal(t, "mse-gorgon-download-cleanup", Cleanup.Unit("gorgon"))
-	assert.Equal(t, []string{"mse-gorgon-backup.service", "mse-gorgon-backup.timer"}, Backup.Files("gorgon"))
+	assert.Equal(t, "mse-gorgon-clean-downloads", CleanDownloads.Unit("gorgon"))
+	assert.Equal(t, []string{"mse-gorgon-backup-apps.service", "mse-gorgon-backup-apps.timer"}, BackupApps.Files("gorgon"))
 }
 
 func TestNoUnitLeavesAPlaceholder(t *testing.T) {
-	for _, job := range []Job{Update, Cleanup, Backup, Verify, MediaBackup} {
+	for _, job := range []Job{Update, CleanDownloads, BackupApps, CheckBackup, BackupMedia} {
 		for _, suffix := range []string{".service", ".timer"} {
 			text, err := Render(job, suffix, gorgon)
 
@@ -114,7 +114,7 @@ func TestTheEnvironmentTheInstallationNeedsReachesTheServices(t *testing.T) {
 	v := gorgon
 	v.Environment = []string{"XDG_DATA_HOME=/mnt/ssd/share", `SOPS_AGE_KEY_CMD=op read "op://vault/age key" --at 100% \n`}
 
-	text, err := Render(Backup, ".service", v)
+	text, err := Render(BackupApps, ".service", v)
 
 	require.NoError(t, err)
 	assert.Contains(t, text, "Type=oneshot\n"+
@@ -125,22 +125,22 @@ func TestTheEnvironmentTheInstallationNeedsReachesTheServices(t *testing.T) {
 
 func TestWhichTimersEachMachineRuns(t *testing.T) {
 	tests := map[string]struct {
-		role            Role
-		media           bool
-		install, remove []Job
+		role          Role
+		media         bool
+		install, keep []Job
 	}{
-		"main":                 {role: Main, install: []Job{Update, Cleanup, Backup, Verify}, remove: []Job{MediaBackup}},
-		"main with media":      {role: Main, media: true, install: []Job{Update, Cleanup, Backup, Verify, MediaBackup}},
-		"secondary":            {role: Secondary, install: []Job{Update, Cleanup}, remove: []Job{Backup, Verify, MediaBackup}},
-		"secondary with media": {role: Secondary, media: true, install: []Job{Update, Cleanup}, remove: []Job{Backup, Verify, MediaBackup}},
-		"unknown":              {role: Unknown, media: true, install: []Job{Update, Cleanup}},
+		"main":                 {role: Main, install: []Job{Update, CleanDownloads, BackupApps, CheckBackup}},
+		"main with media":      {role: Main, media: true, install: []Job{Update, CleanDownloads, BackupApps, CheckBackup, BackupMedia}},
+		"secondary":            {role: Secondary, install: []Job{Update, CleanDownloads}},
+		"secondary with media": {role: Secondary, media: true, install: []Job{Update, CleanDownloads}},
+		"unknown":              {role: Unknown, media: true, install: []Job{Update, CleanDownloads}, keep: []Job{BackupApps, CheckBackup, BackupMedia}},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			install, remove := Plan(tt.role, tt.media)
+			install, keep := Plan(tt.role, tt.media)
 
 			assert.Equal(t, tt.install, install)
-			assert.Equal(t, tt.remove, remove)
+			assert.Equal(t, tt.keep, keep)
 		})
 	}
 }

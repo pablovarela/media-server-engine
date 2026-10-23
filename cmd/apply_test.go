@@ -130,9 +130,9 @@ func TestApplyCommand(t *testing.T) {
 			Given: Given{systemd: true},
 			When:  []string{"apply"},
 			Then: Then{
-				requests: []string{"POST /api/v3/checks/", "POST /api/v3/checks/", "POST /api/v3/checks/", "GET /api/v3/checks/"},
+				requests: []string{"POST /api/v3/checks/", "POST /api/v3/checks/", "POST /api/v3/checks/", "POST /api/v3/checks/", "GET /api/v3/checks/"},
 				stdout: []string{
-					"Setting up the Healthchecks checks... gorgon-backup, gorgon-verify, gorgon-update.\n",
+					"Setting up the Healthchecks checks... mse-gorgon-update, mse-gorgon-clean-downloads, mse-gorgon-backup-apps, mse-gorgon-check-backup.\n",
 					"Pulling images... pulled 2 new images, 11 up to date.\n", "Starting the stack...", "Reattaching to gluetun... nothing to reattach.\n",
 					"Reloading Homepage... not running.\n", "Removing outdated images...",
 				},
@@ -144,12 +144,12 @@ func TestApplyCommand(t *testing.T) {
 		},
 		"after an update it reports success": {
 			When: []string{"apply", "--after-update=a1b2c3", "--verbose"},
-			Then: Then{requests: []string{"GET /ping-key/gorgon-update"}},
+			Then: Then{requests: []string{"GET /ping-key/mse-gorgon-update"}},
 		},
 		"after an update a failure reports fail": {
 			Given: Given{pullErr: errors.New("manifest unknown")},
 			When:  []string{"apply", "--after-update=a1b2c3"},
-			Then:  Then{code: 1, requests: []string{"GET /ping-key/gorgon-update/fail"}},
+			Then:  Then{code: 1, requests: []string{"GET /ping-key/mse-gorgon-update/fail"}},
 		},
 	}
 	for name, tt := range tests {
@@ -247,7 +247,7 @@ func TestApplyAfterAnUpdateReportsFailWhenTheConfigNeedsAnotherMajor(t *testing.
 	code := run(context.Background(), root, []string{"apply", "--after-update=a1b2c3"})
 
 	assert.Equal(t, 1, code)
-	assert.Equal(t, []string{"GET /ping-key/gorgon-update/fail"}, *f.requests)
+	assert.Equal(t, []string{"GET /ping-key/mse-gorgon-update/fail"}, *f.requests)
 }
 
 func TestApplyRefusesARunIDThatIsNotOne(t *testing.T) {
@@ -348,7 +348,7 @@ func TestAPanicAfterAnUpdateStillReportsFail(t *testing.T) {
 
 	assert.Panics(t, func() { run(context.Background(), root, []string{"apply", "--after-update=a1b2c3"}) })
 
-	assert.Equal(t, []string{"GET /ping-key/gorgon-update/fail"}, *f.requests)
+	assert.Equal(t, []string{"GET /ping-key/mse-gorgon-update/fail"}, *f.requests)
 }
 
 func TestThePullSaysHowManyImagesWereNew(t *testing.T) {

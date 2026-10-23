@@ -59,16 +59,16 @@ func TestDraw(t *testing.T) {
 		Then  Then
 	}{
 		"the default page on the main": {
-			Given: Given{role: "main", checks: map[string]bool{"gorgon-update": true}},
+			Given: Given{role: "main", checks: map[string]bool{"mse-gorgon-update": true}},
 			Then: Then{
 				settings: "title: \"gorgon\"\n",
-				services: "- Healthchecks:\n    - Update:\n        description: \"gorgon-update\"\n- Apps:\n    - Home:\n        href: http://gorgon.local\n",
+				services: "- Healthchecks:\n    - Update:\n        description: \"mse-gorgon-update\"\n- Apps:\n    - Home:\n        href: http://gorgon.local\n",
 				widgets:  "- greeting:\n    text: \"engine v0.9.1\"\n",
 			},
 		},
 		"a secondary's update check names its host": {
-			Given: Given{role: "secondary", checks: map[string]bool{"gorgon-update-pi2": true}},
-			Then:  Then{services: "- Healthchecks:\n    - Update:\n        description: \"gorgon-update-pi2\"\n- Apps:\n    - Home:\n        href: http://gorgon.local\n"},
+			Given: Given{role: "secondary", checks: map[string]bool{"mse-gorgon-update-pi2": true}},
+			Then:  Then{services: "- Healthchecks:\n    - Update:\n        description: \"mse-gorgon-update-pi2\"\n- Apps:\n    - Home:\n        href: http://gorgon.local\n"},
 		},
 		"the config's file wins": {
 			Given: Given{role: "main", settings: "title: Mine\n"},

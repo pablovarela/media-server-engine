@@ -3,6 +3,8 @@ package timers
 import (
 	"embed"
 	"strings"
+
+	"github.com/pablovarela/media-server-engine/internal/jobs"
 )
 
 //go:embed units
@@ -20,15 +22,15 @@ type Job struct {
 }
 
 var (
-	Update      = Job{Name: "update"}
-	Cleanup     = Job{Name: "download-cleanup"}
-	Backup      = Job{Name: "backup"}
-	Verify      = Job{Name: "verify"}
-	MediaBackup = Job{Name: "media-backup"}
+	Update         = Job{Name: jobs.Update}
+	CleanDownloads = Job{Name: jobs.CleanDownloads}
+	BackupApps     = Job{Name: jobs.BackupApps}
+	CheckBackup    = Job{Name: jobs.CheckBackup}
+	BackupMedia    = Job{Name: jobs.BackupMedia}
 )
 
 func (j Job) Unit(installation string) string {
-	return "mse-" + installation + "-" + j.Name
+	return jobs.Unit(installation, j.Name)
 }
 
 func (j Job) Files(installation string) []string {
@@ -44,16 +46,18 @@ const (
 	Unknown
 )
 
-func Plan(role Role, media bool) (install, remove []Job) {
-	switch {
-	case role == Main && media:
-		return []Job{Update, Cleanup, Backup, Verify, MediaBackup}, nil
-	case role == Main:
-		return []Job{Update, Cleanup, Backup, Verify}, []Job{MediaBackup}
-	case role == Secondary:
-		return []Job{Update, Cleanup}, []Job{Backup, Verify, MediaBackup}
+func Plan(role Role, media bool) (install, keep []Job) {
+	for _, name := range jobs.Planned(role == Main, media) {
+		install = append(install, Job{Name: name})
 	}
-	return []Job{Update, Cleanup}, nil
+	if role == Unknown {
+		for _, name := range jobs.Planned(true, true) {
+			if !jobs.OnEveryMachine(name) {
+				keep = append(keep, Job{Name: name})
+			}
+		}
+	}
+	return install, keep
 }
 
 func Render(job Job, suffix string, v Values) (string, error) {

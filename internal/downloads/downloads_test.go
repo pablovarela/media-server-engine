@@ -104,7 +104,7 @@ func TestClean(t *testing.T) {
 		},
 		"unreachable queue": {
 			Given: Given{exchanges: []exchange{{"GET", fmt.Sprintf(sonarrQueue, 1), 0, ""}}},
-			Then:  Then{out: "sonarr: queue not reachable, skipped\nradarr: queue not reachable, skipped\n"},
+			Then:  Then{out: "sonarr: queue not reachable, skipped\nradarr: queue not reachable, skipped\n", err: "a queue could not be read"},
 		},
 		"failed removal": {
 			Given: Given{exchanges: []exchange{

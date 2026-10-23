@@ -1,6 +1,6 @@
 [Unit]
 Description=Check the media server's backups can be restored (@NAME@)
-After=mse-@NAME@-backup.service
+After=mse-@NAME@-backup-apps.service
 
 [Service]
 Type=oneshot

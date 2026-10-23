@@ -167,12 +167,12 @@ func TestTheHealthchecksTileInTheStatusGroup(t *testing.T) {
 	}
 }
 
-func TestTheDefaultPageLeadsItsStatusGroupWithTheHealthchecksTile(t *testing.T) {
+func healthchecksRows(t *testing.T, in Inputs, checks checksAnswer) []string {
+	t.Helper()
 	text, err := os.ReadFile("../../homepage/services.yaml")
 	require.NoError(t, err)
-	checks := checksAnswer{slugs: map[string]bool{"gorgon-backup": true, "gorgon-media-backup": true, "gorgon-update": true, "gorgon-verify": true}}
 
-	rendered, err := renderServices(context.Background(), string(text), slugFor("gorgon", Inputs{Role: "main", ShortHost: "pi"}), "k", checks, &bytes.Buffer{})
+	rendered, err := renderServices(context.Background(), string(text), slugFor("gorgon", in), "k", checks, &bytes.Buffer{})
 
 	require.NoError(t, err)
 	type tile struct {
@@ -200,5 +200,23 @@ func TestTheDefaultPageLeadsItsStatusGroupWithTheHealthchecksTile(t *testing.T) 
 	for _, widget := range healthchecks.Widgets {
 		rows = append(rows, widget.Mappings[0].Label+" "+strings.SplitN(widget.URL, "slug=", 2)[1])
 	}
-	assert.Equal(t, []string{"Apps backup gorgon-backup", "Media backup gorgon-media-backup", "Update gorgon-update", "Verify gorgon-verify"}, rows)
+	return rows
+}
+
+func TestTheDefaultPageLeadsItsStatusGroupWithTheHealthchecksTile(t *testing.T) {
+	checks := checksAnswer{slugs: map[string]bool{"mse-gorgon-backup-apps": true, "mse-gorgon-backup-media": true, "mse-gorgon-check-backup": true,
+		"mse-gorgon-update": true, "mse-gorgon-clean-downloads": true}}
+
+	rows := healthchecksRows(t, Inputs{Role: "main", ShortHost: "pi"}, checks)
+
+	assert.Equal(t, []string{"Apps backup mse-gorgon-backup-apps", "Media backup mse-gorgon-backup-media", "Check backup mse-gorgon-check-backup",
+		"Update mse-gorgon-update", "Clean downloads mse-gorgon-clean-downloads"}, rows)
+}
+
+func TestTheDefaultPageOnACopyShowsItsOwnChecksOnly(t *testing.T) {
+	checks := checksAnswer{slugs: map[string]bool{"mse-gorgon-update-pi": true, "mse-gorgon-clean-downloads-pi": true}}
+
+	rows := healthchecksRows(t, Inputs{Role: "secondary", ShortHost: "pi"}, checks)
+
+	assert.Equal(t, []string{"Update mse-gorgon-update-pi", "Clean downloads mse-gorgon-clean-downloads-pi"}, rows)
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/pablovarela/media-server-engine/internal/process"
@@ -27,7 +28,7 @@ type Outcome struct {
 }
 
 func (in Installer) Install(ctx context.Context, role Role, media bool, v Values) (Outcome, error) {
-	install, remove := Plan(role, media)
+	install, keep := Plan(role, media)
 	var outcome Outcome
 	for _, job := range install {
 		changed, err := in.write(job, v)
@@ -40,14 +41,18 @@ func (in Installer) Install(ctx context.Context, role Role, media bool, v Values
 			outcome.Unchanged = append(outcome.Unchanged, job.Unit(v.Installation))
 		}
 	}
-	for _, job := range remove {
-		removed, err := in.remove(ctx, job, v.Installation)
-		if err != nil {
+	stale, err := in.stale(v.Installation, install)
+	if err != nil {
+		return Outcome{}, err
+	}
+	for _, unit := range stale {
+		if in.runsOneOf(unit, keep, v) {
+			continue
+		}
+		if err := in.remove(ctx, unit); err != nil {
 			return Outcome{}, err
 		}
-		if removed {
-			outcome.Removed = append(outcome.Removed, job.Unit(v.Installation))
-		}
+		outcome.Removed = append(outcome.Removed, unit)
 	}
 	if err := in.systemctl(ctx, "daemon-reload"); err != nil {
 		return Outcome{}, err
@@ -81,31 +86,70 @@ func (in Installer) write(job Job, v Values) (bool, error) {
 	return changed, nil
 }
 
-func (in Installer) remove(ctx context.Context, job Job, installation string) (bool, error) {
-	files := job.Files(installation)
-	if !in.present(files) {
-		return false, nil
+func (in Installer) stale(installation string, planned []Job) ([]string, error) {
+	entries, err := os.ReadDir(in.Dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
 	}
-	if _, err := os.Stat(filepath.Join(in.Dir, files[1])); err == nil {
-		if err := in.systemctl(ctx, "disable", "--now", files[1]); err != nil {
-			return false, err
+	if err != nil {
+		return nil, err
+	}
+	wanted := map[string]bool{}
+	for _, job := range planned {
+		wanted[job.Unit(installation)] = true
+	}
+	var units []string
+	for _, entry := range entries {
+		unit, ok := unitOf(installation, entry.Name())
+		if ok && !wanted[unit] && !slices.Contains(units, unit) {
+			units = append(units, unit)
 		}
 	}
-	for _, file := range files {
-		if err := os.Remove(filepath.Join(in.Dir, file)); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return false, err
-		}
-	}
-	return true, nil
+	return units, nil
 }
 
-func (in Installer) present(files []string) bool {
-	for _, file := range files {
-		if _, err := os.Stat(filepath.Join(in.Dir, file)); err == nil {
+// A unit renamed since it was installed is recognised by the command it runs.
+func (in Installer) runsOneOf(unit string, keep []Job, v Values) bool {
+	current, _ := os.ReadFile(filepath.Join(in.Dir, unit+".service")) //nolint:gosec // the user's own unit
+	for _, job := range keep {
+		if unit == job.Unit(v.Installation) {
+			return true
+		}
+		text, err := Render(job, ".service", v)
+		if err == nil && execStart(text) != "" && execStart(text) == execStart(string(current)) {
 			return true
 		}
 	}
 	return false
+}
+
+func execStart(unit string) string {
+	for _, line := range strings.Split(unit, "\n") {
+		if strings.HasPrefix(line, "ExecStart=") {
+			return line
+		}
+	}
+	return ""
+}
+
+func unitOf(installation, file string) (string, bool) {
+	unit := strings.TrimSuffix(strings.TrimSuffix(file, ".service"), ".timer")
+	return unit, unit != file && strings.HasPrefix(unit, "mse-"+installation+"-")
+}
+
+func (in Installer) remove(ctx context.Context, unit string) error {
+	timer := filepath.Join(in.Dir, unit+".timer")
+	if _, err := os.Stat(timer); err == nil {
+		if err := in.systemctl(ctx, "disable", "--now", unit+".timer"); err != nil {
+			return err
+		}
+	}
+	for _, file := range []string{unit + ".service", unit + ".timer"} {
+		if err := os.Remove(filepath.Join(in.Dir, file)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	return nil
 }
 
 func (in Installer) systemctl(ctx context.Context, args ...string) error {

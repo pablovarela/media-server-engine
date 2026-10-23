@@ -153,7 +153,7 @@ func TestUpdateAndApply(t *testing.T) {
 			When:  []string{"update", "--apply", "-v"},
 			Then: Then{
 				exec:  []string{"/opt/mse", "apply", "--after-update=<run id>", "--verbose"},
-				pings: []string{"GET /ping-key/gorgon-update/start"},
+				pings: []string{"GET /ping-key/mse-gorgon-update/start"},
 			},
 		},
 		"the new binary cannot run": {
@@ -162,12 +162,12 @@ func TestUpdateAndApply(t *testing.T) {
 			Then: Then{
 				code:  1,
 				exec:  []string{"/opt/mse", "apply", "--after-update=<run id>"},
-				pings: []string{"GET /ping-key/gorgon-update/start", "GET /ping-key/gorgon-update/fail"},
+				pings: []string{"GET /ping-key/mse-gorgon-update/start", "GET /ping-key/mse-gorgon-update/fail"},
 			},
 		},
 		"the same binary applies in-process": {
 			When: []string{"update", "--apply"},
-			Then: Then{pings: []string{"GET /ping-key/gorgon-update/start", "GET /ping-key/gorgon-update"}},
+			Then: Then{pings: []string{"GET /ping-key/mse-gorgon-update/start", "GET /ping-key/mse-gorgon-update"}},
 		},
 	}
 	for name, tt := range tests {
@@ -276,7 +276,7 @@ func TestUpdateApplyReportsFailWhenInterrupted(t *testing.T) {
 	code := run(ctx, root, []string{"update", "--apply"})
 
 	assert.Equal(t, 1, code)
-	assert.Equal(t, []string{"GET /ping-key/gorgon-update/start", "GET /ping-key/gorgon-update/fail"}, *f.requests)
+	assert.Equal(t, []string{"GET /ping-key/mse-gorgon-update/start", "GET /ping-key/mse-gorgon-update/fail"}, *f.requests)
 }
 
 func TestUpdateApplyReportsFailWhenInterruptedWaitingForTheBackup(t *testing.T) {
@@ -297,7 +297,7 @@ func TestUpdateApplyReportsFailWhenInterruptedWaitingForTheBackup(t *testing.T) 
 	code := run(context.Background(), root, []string{"update", "--apply"})
 
 	assert.Equal(t, 1, code)
-	assert.Equal(t, []string{"GET /ping-key/gorgon-update/start", "GET /ping-key/gorgon-update/fail"}, *f.requests)
+	assert.Equal(t, []string{"GET /ping-key/mse-gorgon-update/start", "GET /ping-key/mse-gorgon-update/fail"}, *f.requests)
 }
 
 func TestUpdateWithSeveralInstallationsUpdatesOnlyMse(t *testing.T) {
@@ -335,7 +335,7 @@ func TestUpdateApplyReportsFailWhenTheBackupKeepsRunning(t *testing.T) {
 
 	assert.Equal(t, 1, code)
 	assert.Contains(t, stderr.String(), "a backup is still running; run mse update --apply again once it has finished")
-	assert.Equal(t, []string{"GET /ping-key/gorgon-update/start", "GET /ping-key/gorgon-update/fail"}, *f.requests)
+	assert.Equal(t, []string{"GET /ping-key/mse-gorgon-update/start", "GET /ping-key/mse-gorgon-update/fail"}, *f.requests)
 }
 
 func TestTheUpdateRecordSpansTheHandOver(t *testing.T) {

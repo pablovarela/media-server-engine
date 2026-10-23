@@ -13,6 +13,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/backup"
 	"github.com/pablovarela/media-server-engine/internal/gitconfig"
 	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/jobs"
 	"github.com/pablovarela/media-server-engine/internal/paint"
 	"github.com/pablovarela/media-server-engine/internal/report"
 	"github.com/pablovarela/media-server-engine/internal/selfupdate"
@@ -129,7 +130,7 @@ func (d Dependencies) updateAndApply(cmd *cobra.Command, force bool) error {
 	if err != nil {
 		return err
 	}
-	d.pinger(cmd, i).Ping(cmd.Context(), "update", "/start")
+	d.pinger(cmd, i).Ping(cmd.Context(), jobs.Update, "/start")
 	err = d.reported(cmd, i, func() error {
 		if err := d.waitForBackup(cmd, i); err != nil {
 			return err

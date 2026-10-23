@@ -26,7 +26,7 @@ func mediaOptions(b *Backups, limit int) any {
 }
 
 func backsUpMedia(b *Backups, m mocks, exists bool, limit int) {
-	m.pinger.EXPECT().Ping(mock.Anything, "media-backup", "/start").Return()
+	m.pinger.EXPECT().Ping(mock.Anything, "backup-media", "/start").Return()
 	m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(ours, nil)
 	m.media.EXPECT().HasRepository(mock.Anything).Return(exists, nil)
 	if !exists {
@@ -39,7 +39,7 @@ func backsUpMedia(b *Backups, m mocks, exists bool, limit int) {
 
 func checkedMedia(m mocks) {
 	m.media.EXPECT().Check(mock.Anything, "5%").Return(nil)
-	m.pinger.EXPECT().Ping(mock.Anything, "media-backup", "").Return()
+	m.pinger.EXPECT().Ping(mock.Anything, "backup-media", "").Return()
 }
 
 func TestBackupMedia(t *testing.T) {
@@ -74,18 +74,18 @@ func TestBackupMedia(t *testing.T) {
 		},
 		"the apps repository can't be read": {
 			Given: Given{expect: func(b *Backups, m mocks) {
-				m.pinger.EXPECT().Ping(mock.Anything, "media-backup", "/start").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup-media", "/start").Return()
 				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(nil, errors.New("restic snapshots failed (exit 1)"))
-				m.pinger.EXPECT().Ping(mock.Anything, "media-backup", "/fail").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup-media", "/fail").Return()
 			}},
 			Then: Then{err: "cannot read the backup repository to tell which machine is gorgon's main (restic snapshots failed (exit 1)); nothing was backed up"},
 		},
 		"the key can't reach the repository": {
 			Given: Given{expect: func(b *Backups, m mocks) {
-				m.pinger.EXPECT().Ping(mock.Anything, "media-backup", "/start").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup-media", "/start").Return()
 				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(ours, nil)
 				m.media.EXPECT().HasRepository(mock.Anything).Return(false, errors.New("restic cat failed (exit 1): Fatal: unable to open config file: b2_download_file_by_name: 401: unauthorized"))
-				m.pinger.EXPECT().Ping(mock.Anything, "media-backup", "/fail").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup-media", "/fail").Return()
 			}},
 			Then: Then{err: "restic cat failed (exit 1): Fatal: unable to open config file: b2_download_file_by_name: 401: unauthorized\n" +
 				"The storage refused the key for b2:bucket:restic-media. A B2 key limited to a file-name prefix can't reach a repository outside it; give the media backup a key that covers the whole bucket"},
@@ -94,7 +94,7 @@ func TestBackupMedia(t *testing.T) {
 			Given: Given{expect: func(b *Backups, m mocks) {
 				backsUpMedia(b, m, true, 0)
 				m.media.EXPECT().Check(mock.Anything, "5%").Return(errors.New("restic check failed (exit 1)"))
-				m.pinger.EXPECT().Ping(mock.Anything, "media-backup", "/fail").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup-media", "/fail").Return()
 			}},
 			Then: Then{err: "restic check failed (exit 1)"},
 		},
@@ -136,7 +136,7 @@ func TestBackupMediaReadsAMediaFolderOnAnotherDisk(t *testing.T) {
 	require.NoError(t, os.RemoveAll(MediaDir(b.Installation.Data)))
 	require.NoError(t, os.Symlink(elsewhere, MediaDir(b.Installation.Data)))
 	resolved, _ := filepath.EvalSymlinks(elsewhere)
-	m.pinger.EXPECT().Ping(mock.Anything, "media-backup", mock.Anything).Return()
+	m.pinger.EXPECT().Ping(mock.Anything, "backup-media", mock.Anything).Return()
 	m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(nil, nil)
 	m.media.EXPECT().HasRepository(mock.Anything).Return(true, nil)
 	m.media.EXPECT().Unlock(mock.Anything).Return(nil)
@@ -150,9 +150,9 @@ func TestBackupMediaReadsAMediaFolderOnAnotherDisk(t *testing.T) {
 func TestBackupMediaWithoutAMediaFolder(t *testing.T) {
 	b, m, _, _ := fixture(t)
 	require.NoError(t, os.RemoveAll(MediaDir(b.Installation.Data)))
-	m.pinger.EXPECT().Ping(mock.Anything, "media-backup", "/start").Return()
+	m.pinger.EXPECT().Ping(mock.Anything, "backup-media", "/start").Return()
 	m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(nil, nil)
-	m.pinger.EXPECT().Ping(mock.Anything, "media-backup", "/fail").Return()
+	m.pinger.EXPECT().Ping(mock.Anything, "backup-media", "/fail").Return()
 
 	err := b.BackupMedia(context.Background())
 
@@ -174,9 +174,9 @@ func TestOneMediaBackupAtATime(t *testing.T) {
 func TestBackupMediaRefusesAnEmptyMediaFolder(t *testing.T) {
 	b, m, _, _ := fixture(t)
 	require.NoError(t, os.Remove(filepath.Join(MediaDir(b.Installation.Data), "film.mkv")))
-	m.pinger.EXPECT().Ping(mock.Anything, "media-backup", "/start").Return()
+	m.pinger.EXPECT().Ping(mock.Anything, "backup-media", "/start").Return()
 	m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(ours, nil)
-	m.pinger.EXPECT().Ping(mock.Anything, "media-backup", "/fail").Return()
+	m.pinger.EXPECT().Ping(mock.Anything, "backup-media", "/fail").Return()
 
 	err := b.BackupMedia(context.Background())
 
@@ -186,9 +186,9 @@ func TestBackupMediaRefusesAnEmptyMediaFolder(t *testing.T) {
 func TestBackupMediaRefusesWhileTheMediaIsStillToBeRestored(t *testing.T) {
 	b, m, _, _ := fixture(t)
 	require.NoError(t, MarkMediaRestorePending(b.Installation.Data))
-	m.pinger.EXPECT().Ping(mock.Anything, "media-backup", "/start").Return()
+	m.pinger.EXPECT().Ping(mock.Anything, "backup-media", "/start").Return()
 	m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(ours, nil)
-	m.pinger.EXPECT().Ping(mock.Anything, "media-backup", "/fail").Return()
+	m.pinger.EXPECT().Ping(mock.Anything, "backup-media", "/fail").Return()
 
 	err := b.BackupMedia(context.Background())
 

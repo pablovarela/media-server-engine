@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/pablovarela/media-server-engine/internal/jobs"
 )
 
 const ChecksURL = "https://healthchecks.io/api/v3/checks/"
@@ -17,13 +19,6 @@ const ChecksURL = "https://healthchecks.io/api/v3/checks/"
 const hour = 3600
 
 const mainRole = "main"
-
-const (
-	backupJob = "backup"
-	updateJob = "update"
-	verifyJob = "verify"
-	mediaJob  = "media-backup"
-)
 
 type Facts struct {
 	Name            string
@@ -46,26 +41,21 @@ type schedule struct {
 }
 
 var schedules = map[string]schedule{
-	backupJob: {cron: "30 4 * * *", grace: 2 * hour, command: "mse backup --apps"},
-	updateJob: {cron: "0 5 * * *", grace: 2 * hour, command: "mse update --apply"},
-	verifyJob: {cron: "30 5 * * 0", grace: 4 * hour, command: "mse check-backup"},
-	mediaJob:  {grace: 24 * hour, command: "mse backup --media"},
+	jobs.BackupApps:     {cron: "30 4 * * *", grace: 2 * hour, command: "mse backup --apps"},
+	jobs.Update:         {cron: "0 5 * * *", grace: 2 * hour, command: "mse update --apply"},
+	jobs.CheckBackup:    {cron: "30 5 * * 0", grace: 4 * hour, command: "mse check-backup"},
+	jobs.BackupMedia:    {grace: 24 * hour, command: "mse backup --media"},
+	jobs.CleanDownloads: {cron: "*/15 * * * *", grace: hour / 2, command: "mse clean-downloads"},
 }
 
 var weekdays = []string{"Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"}
 
 func ChecksFor(name, role, shortHost, mediaCron string) []Check {
-	jobs := []string{updateJob}
-	if role == mainRole {
-		jobs = []string{backupJob, verifyJob, updateJob}
-		if mediaCron != "" {
-			jobs = []string{backupJob, verifyJob, mediaJob, updateJob}
-		}
-	}
-	checks := make([]Check, 0, len(jobs))
-	for _, job := range jobs {
+	planned := jobs.Planned(role == mainRole, mediaCron != "")
+	checks := make([]Check, 0, len(planned))
+	for _, job := range planned {
 		cron := schedules[job].cron
-		if job == mediaJob {
+		if job == jobs.BackupMedia {
 			cron = mediaCron
 		}
 		checks = append(checks, Check{Job: job, Slug: Slug(name, job, role, shortHost), Cron: cron})
@@ -102,7 +92,7 @@ func RetiredFor(name, role, mediaCron string) []string {
 	if role != mainRole || mediaCron != "" {
 		return nil
 	}
-	return []string{name + "-" + mediaJob}
+	return []string{Slug(name, jobs.BackupMedia, role, "")}
 }
 
 func (m Manage) Retire(ctx context.Context, slugs []string) (removed, failures []string) {
@@ -180,19 +170,22 @@ func description(check Check, facts Facts) string {
 	job := check.Job
 	s := schedules[job]
 	runs := "Runs " + when(check.Cron)
-	unit := "mse-" + facts.Name + "-" + job
+	unit := jobs.Unit(facts.Name, job)
 	timer := fmt.Sprintf("via the %s timer (%s)", unit, s.command)
 	login := fmt.Sprintf("If it fails: ssh %s, journalctl --user-unit %s.service", facts.SSH, unit)
 	switch job {
-	case backupJob:
+	case jobs.BackupApps:
 		return fmt.Sprintf("Nightly backup of %s's app state (libraries, history, users, settings) to %s with restic. Media files are not included. "+
 			"%s on the main machine %s. %s --since today; a stale lock is cleared before the next run.", facts.Name, destination(facts.Repository), runs, timer, login)
-	case mediaJob:
+	case jobs.BackupMedia:
 		return fmt.Sprintf("Weekly backup of %s's media (data/media) to %s with restic, followed by a check that reads a sample of it. %s on the main machine %s. %s --since -7d -n 200.",
 			facts.Name, destination(facts.MediaRepository), runs, timer, login)
-	case verifyJob:
+	case jobs.CheckBackup:
 		return fmt.Sprintf("Weekly check that %s's backups in %s can be read back (restic check). %s on the main machine %s. %s --since -7d -n 200.",
 			facts.Name, destination(facts.Repository), runs, timer, login)
+	case jobs.CleanDownloads:
+		return fmt.Sprintf("Removes and blocklists %s's downloads that Sonarr and Radarr flag as executable. %s on every machine %s. %s --since -1h.",
+			facts.Name, runs, timer, login)
 	}
 	return fmt.Sprintf("Daily update of %s: pulls the config and the newest compatible mse, pulls images and brings the apps up. %s %s. "+
 		"It refuses to run while the config has uncommitted changes. %s --since today, then systemctl --user start %s.service to retry.",
@@ -201,6 +194,9 @@ func description(check Check, facts Facts) string {
 
 func when(cron string) string {
 	fields := strings.Fields(cron)
+	if every, repeating := strings.CutPrefix(fields[0], "*/"); repeating && fields[1] == "*" {
+		return "every " + every + " minutes"
+	}
 	minute, _ := strconv.Atoi(fields[0])
 	hourOfDay, _ := strconv.Atoi(fields[1])
 	at := fmt.Sprintf("%02d:%02d", hourOfDay, minute)

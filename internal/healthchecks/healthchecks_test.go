@@ -22,9 +22,11 @@ func TestSlug(t *testing.T) {
 		Given struct{ job, role string }
 		Then  struct{ slug string }
 	}{
-		"backup":                {Given: struct{ job, role string }{"backup", "main"}, Then: struct{ slug string }{"gorgon-backup"}},
-		"update on the main":    {Given: struct{ job, role string }{"update", "main"}, Then: struct{ slug string }{"gorgon-update"}},
-		"update on a secondary": {Given: struct{ job, role string }{"update", "secondary"}, Then: struct{ slug string }{"gorgon-update-pi2"}},
+		"apps backup":                    {Given: struct{ job, role string }{"backup-apps", "main"}, Then: struct{ slug string }{"mse-gorgon-backup-apps"}},
+		"update on the main":             {Given: struct{ job, role string }{"update", "main"}, Then: struct{ slug string }{"mse-gorgon-update"}},
+		"update on a secondary":          {Given: struct{ job, role string }{"update", "secondary"}, Then: struct{ slug string }{"mse-gorgon-update-pi2"}},
+		"clean-downloads on the main":    {Given: struct{ job, role string }{"clean-downloads", "main"}, Then: struct{ slug string }{"mse-gorgon-clean-downloads"}},
+		"clean-downloads on a secondary": {Given: struct{ job, role string }{"clean-downloads", "secondary"}, Then: struct{ slug string }{"mse-gorgon-clean-downloads-pi2"}},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {

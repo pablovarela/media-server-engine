@@ -1,10 +1,14 @@
 package cmd
 
 import (
+	"context"
+	"errors"
+	"io"
+
 	"github.com/spf13/cobra"
 
 	"github.com/pablovarela/media-server-engine/internal/downloads"
-	"github.com/pablovarela/media-server-engine/internal/timers"
+	"github.com/pablovarela/media-server-engine/internal/jobs"
 )
 
 func newRemoveExecutableDownloadsCommand(deps Dependencies) *cobra.Command {
@@ -17,11 +21,25 @@ func newRemoveExecutableDownloadsCommand(deps Dependencies) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			record := deps.recorder(cmd, i)
-			record.start(timers.Cleanup.Name)
+			pings := deps.pinger(cmd, i)
+			if healthchecksKey(i, "HEALTHCHECKS_PING_KEY") == "" {
+				pings.pings.ErrOut = io.Discard
+			}
+			finishing := context.WithoutCancel(cmd.Context())
+			pings.Ping(cmd.Context(), jobs.CleanDownloads, "/start")
 			err = downloads.Clean(cmd.Context(), deps.HTTP, i, 200, cmd.OutOrStdout(), cmd.ErrOrStderr())
-			record.finish(timers.Cleanup.Name, err != nil)
-			return err
+			defer shieldSignals()()
+			switch {
+			case errors.Is(err, downloads.ErrNotRead):
+				// Without a success ping healthchecks.io calls the check down only once the queue stays unreadable past its grace.
+				pings.runs.finish(jobs.CleanDownloads, false)
+				return nil
+			case err != nil:
+				pings.Ping(finishing, jobs.CleanDownloads, "/fail")
+				return err
+			}
+			pings.Ping(finishing, jobs.CleanDownloads, "")
+			return nil
 		},
 	}
 }

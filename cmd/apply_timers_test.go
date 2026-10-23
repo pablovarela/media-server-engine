@@ -137,7 +137,7 @@ func (tf *timersFixture) unit(t *testing.T, file string) string {
 func (tf *timersFixture) placeBackupUnits(t *testing.T) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(tf.units, 0o755))
-	for _, file := range []string{"mse-gorgon-backup.service", "mse-gorgon-backup.timer", "mse-gorgon-verify.service", "mse-gorgon-verify.timer"} {
+	for _, file := range []string{"mse-gorgon-backup-apps.service", "mse-gorgon-backup-apps.timer", "mse-gorgon-check-backup.service", "mse-gorgon-check-backup.timer"} {
 		require.NoError(t, os.WriteFile(filepath.Join(tf.units, file), []byte("placed before\n"), 0o644))
 	}
 }
@@ -148,11 +148,11 @@ func TestApplySetsUpTheMainsTimers(t *testing.T) {
 	code, stdout, stderr := tf.apply(t)
 
 	require.Equal(t, 0, code, stderr)
-	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update, mse-gorgon-download-cleanup, mse-gorgon-backup, mse-gorgon-verify changed.\n")
+	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update, mse-gorgon-clean-downloads, mse-gorgon-backup-apps, mse-gorgon-check-backup changed.\n")
 	update := tf.unit(t, "mse-gorgon-update.service")
 	assert.Contains(t, update, "ExecStart="+tf.mse+" update --apply\n")
 	assert.NotContains(t, update, "MSE_INSTALLATION")
-	assert.Contains(t, tf.systemctl, "--user enable --now mse-gorgon-update.timer mse-gorgon-download-cleanup.timer mse-gorgon-backup.timer mse-gorgon-verify.timer")
+	assert.Contains(t, tf.systemctl, "--user enable --now mse-gorgon-update.timer mse-gorgon-clean-downloads.timer mse-gorgon-backup-apps.timer mse-gorgon-check-backup.timer")
 	assert.Equal(t, []string{"env", "-i", "HOME=" + tf.deps.Home, "USER=pablo", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "gh", "auth", "token"}, tf.tokenCall)
 }
 
@@ -164,8 +164,8 @@ func TestAMachineAnotherOneBacksUpForLosesItsBackupTimers(t *testing.T) {
 	code, stdout, stderr := tf.apply(t)
 
 	require.Equal(t, 0, code, stderr)
-	assert.Contains(t, stdout, "mse-gorgon-backup, mse-gorgon-verify removed")
-	assert.NoFileExists(t, filepath.Join(tf.units, "mse-gorgon-backup.timer"))
+	assert.Contains(t, stdout, "mse-gorgon-backup-apps, mse-gorgon-check-backup removed")
+	assert.NoFileExists(t, filepath.Join(tf.units, "mse-gorgon-backup-apps.timer"))
 	assert.NoFileExists(t, filepath.Join(tf.f.data, ".backup-main"))
 }
 
@@ -212,8 +212,8 @@ func TestTheCarriedVariablesReachTheUnitsAndTheTokenCheck(t *testing.T) {
 	code, _, stderr := tf.apply(t)
 
 	require.Equal(t, 0, code, stderr)
-	assert.Contains(t, tf.unit(t, "mse-gorgon-backup.service"), "Environment=\"SOPS_AGE_KEY_FILE=/keys/age.txt\"\n")
-	assert.Contains(t, tf.unit(t, "mse-gorgon-backup.service"), "Environment=\"XDG_CACHE_HOME=/cache\"\n")
+	assert.Contains(t, tf.unit(t, "mse-gorgon-backup-apps.service"), "Environment=\"SOPS_AGE_KEY_FILE=/keys/age.txt\"\n")
+	assert.Contains(t, tf.unit(t, "mse-gorgon-backup-apps.service"), "Environment=\"XDG_CACHE_HOME=/cache\"\n")
 	assert.Contains(t, tf.tokenCall, "SOPS_AGE_KEY_FILE=/keys/age.txt")
 }
 
@@ -241,8 +241,8 @@ func TestAnUnreadableRepositoryLeavesTheBackupTimersAsTheyAre(t *testing.T) {
 	assert.Contains(t, stderr, "cannot read the backup repository to tell which machine is gorgon's main (")
 	assert.Contains(t, stderr, "); the backup timers are left as they are")
 	assert.NotContains(t, stderr, "could not tell")
-	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update, mse-gorgon-download-cleanup changed.\n")
-	assert.Equal(t, "placed before\n", tf.unit(t, "mse-gorgon-backup.timer"))
+	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update, mse-gorgon-clean-downloads changed.\n")
+	assert.Equal(t, "placed before\n", tf.unit(t, "mse-gorgon-backup-apps.timer"))
 }
 
 func TestWithoutSystemdThereIsNoTimersStep(t *testing.T) {
@@ -275,7 +275,7 @@ func TestAFreshInstallationSaysHowToMakeAMain(t *testing.T) {
 	code, stdout, stderr := tf.apply(t)
 
 	require.Equal(t, 0, code, stderr)
-	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update, mse-gorgon-download-cleanup changed; no backups yet (mse backup --apps --take-over makes this machine the main).\n")
+	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update, mse-gorgon-clean-downloads changed; no backups yet (mse backup --apps --take-over makes this machine the main).\n")
 }
 
 func TestAnInstallationWithoutABackupRepositoryGetsNoBackupTimersQuietly(t *testing.T) {
@@ -286,7 +286,7 @@ func TestAnInstallationWithoutABackupRepositoryGetsNoBackupTimersQuietly(t *test
 	code, stdout, stderr := tf.apply(t)
 
 	require.Equal(t, 0, code, stderr)
-	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update, mse-gorgon-download-cleanup changed.\n")
+	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update, mse-gorgon-clean-downloads changed.\n")
 	assert.NotContains(t, stderr, "backup")
 }
 
@@ -392,10 +392,10 @@ func TestAMainWithAMediaBackupGetsItsTimerOnItsSchedule(t *testing.T) {
 	code, stdout, stderr := tf.apply(t)
 
 	require.Equal(t, 0, code, stderr)
-	assert.Contains(t, stdout, "mse-gorgon-media-backup changed")
-	assert.Contains(t, stdout, "Setting up the Healthchecks checks... gorgon-backup, gorgon-verify, gorgon-media-backup, gorgon-update.\n")
-	assert.Contains(t, tf.unit(t, "mse-gorgon-media-backup.timer"), "OnCalendar=Sat *-*-* 02:30:00\n")
-	assert.Contains(t, tf.unit(t, "mse-gorgon-media-backup.service"), "ExecStart="+tf.mse+" backup --media\n")
+	assert.Contains(t, stdout, "mse-gorgon-backup-media changed")
+	assert.Contains(t, stdout, "Setting up the Healthchecks checks... mse-gorgon-update, mse-gorgon-clean-downloads, mse-gorgon-backup-apps, mse-gorgon-check-backup, mse-gorgon-backup-media.\n")
+	assert.Contains(t, tf.unit(t, "mse-gorgon-backup-media.timer"), "OnCalendar=Sat *-*-* 02:30:00\n")
+	assert.Contains(t, tf.unit(t, "mse-gorgon-backup-media.service"), "ExecStart="+tf.mse+" backup --media\n")
 }
 
 func TestABadMediaScheduleFailsTheTimersStep(t *testing.T) {
@@ -406,7 +406,7 @@ func TestABadMediaScheduleFailsTheTimersStep(t *testing.T) {
 
 	assert.Equal(t, 1, code)
 	assert.Contains(t, stderr, "MEDIA_BACKUP_SCHEDULE: Sunday isn't a weekday and time like Sun 01:00")
-	assert.NoFileExists(t, filepath.Join(tf.units, "mse-gorgon-media-backup.timer"))
+	assert.NoFileExists(t, filepath.Join(tf.units, "mse-gorgon-backup-media.timer"))
 }
 
 func TestApplyOnAMainWithoutAMediaBackupRemovesItsCheck(t *testing.T) {
@@ -416,7 +416,7 @@ func TestApplyOnAMainWithoutAMediaBackupRemovesItsCheck(t *testing.T) {
 		requests = append(requests, r.Method+" "+r.URL.RequestURI())
 		body := "{}"
 		if r.Method == http.MethodGet {
-			body = `{"checks":[{"slug":"gorgon-media-backup","uuid":"5f1e"}]}`
+			body = `{"checks":[{"slug":"mse-gorgon-backup-media","uuid":"5f1e"}]}`
 		}
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body))}, nil
 	})}
@@ -424,6 +424,6 @@ func TestApplyOnAMainWithoutAMediaBackupRemovesItsCheck(t *testing.T) {
 	code, stdout, stderr := tf.apply(t)
 
 	require.Equal(t, 0, code, stderr)
-	assert.Contains(t, stdout, "Setting up the Healthchecks checks... gorgon-backup, gorgon-verify, gorgon-update; gorgon-media-backup removed.\n")
+	assert.Contains(t, stdout, "Setting up the Healthchecks checks... mse-gorgon-update, mse-gorgon-clean-downloads, mse-gorgon-backup-apps, mse-gorgon-check-backup; mse-gorgon-backup-media removed.\n")
 	assert.Contains(t, requests, "DELETE /api/v3/checks/5f1e")
 }
