@@ -17,9 +17,8 @@ type runner interface {
 }
 
 type Installer struct {
-	Runner        runner
-	Dir           string
-	Installations []string
+	Runner runner
+	Dir    string
 }
 
 type Outcome struct {
@@ -29,7 +28,7 @@ type Outcome struct {
 }
 
 func (in Installer) Install(ctx context.Context, role Role, media bool, v Values) (Outcome, error) {
-	install, keep := Plan(role, media)
+	install, prune := Plan(role, media)
 	var outcome Outcome
 	for _, job := range install {
 		changed, err := in.write(job, v)
@@ -42,15 +41,17 @@ func (in Installer) Install(ctx context.Context, role Role, media bool, v Values
 			outcome.Unchanged = append(outcome.Unchanged, job.Unit(v.Installation))
 		}
 	}
-	stale, err := in.stale(v.Installation, append(install, keep...))
-	if err != nil {
-		return Outcome{}, err
-	}
-	for _, unit := range stale {
-		if err := in.remove(ctx, unit); err != nil {
+	if prune {
+		stale, err := in.stale(v.Installation, install)
+		if err != nil {
 			return Outcome{}, err
 		}
-		outcome.Removed = append(outcome.Removed, unit)
+		for _, unit := range stale {
+			if err := in.remove(ctx, unit); err != nil {
+				return Outcome{}, err
+			}
+			outcome.Removed = append(outcome.Removed, unit)
+		}
 	}
 	if err := in.systemctl(ctx, "daemon-reload"); err != nil {
 		return Outcome{}, err
@@ -98,7 +99,7 @@ func (in Installer) stale(installation string, planned []Job) ([]string, error) 
 	}
 	var units []string
 	for _, entry := range entries {
-		unit, ok := in.unitOf(installation, entry.Name())
+		unit, ok := unitOf(installation, entry.Name())
 		if ok && !wanted[unit] && !slices.Contains(units, unit) {
 			units = append(units, unit)
 		}
@@ -106,17 +107,9 @@ func (in Installer) stale(installation string, planned []Job) ([]string, error) 
 	return units, nil
 }
 
-func (in Installer) unitOf(installation, file string) (string, bool) {
+func unitOf(installation, file string) (string, bool) {
 	unit := strings.TrimSuffix(strings.TrimSuffix(file, ".service"), ".timer")
-	if unit == file || !strings.HasPrefix(unit, "mse-"+installation+"-") {
-		return "", false
-	}
-	for _, other := range in.Installations {
-		if strings.HasPrefix(other, installation+"-") && strings.HasPrefix(unit, "mse-"+other+"-") {
-			return "", false
-		}
-	}
-	return unit, true
+	return unit, unit != file && strings.HasPrefix(unit, "mse-"+installation+"-")
 }
 
 func (in Installer) remove(ctx context.Context, unit string) error {

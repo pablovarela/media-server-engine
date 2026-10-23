@@ -226,33 +226,29 @@ func TestTheUnitsOfRenamedJobsAreRemoved(t *testing.T) {
 	assert.Contains(t, s.calls, enableAll+" mse-gorgon-backup-media.timer")
 }
 
-func TestAnUnknownMainKeepsItsBackupTimersButNotRenamedOnes(t *testing.T) {
+func TestAnUnknownMainRemovesNothing(t *testing.T) {
 	dir := t.TempDir()
-	place(t, dir, Update, Cleanup, Backup, Verify, MediaBackup)
-	unitFiles(t, dir, "mse-gorgon-verify.service", "mse-gorgon-verify.timer")
+	place(t, dir, Update, Cleanup)
+	unitFiles(t, dir, "mse-gorgon-backup.service", "mse-gorgon-backup.timer", "mse-gorgon-verify.service", "mse-gorgon-verify.timer")
 	runner, s := recording(t, nil, nil)
 
 	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Unknown, true, gorgon)
 
 	require.NoError(t, err)
-	for _, job := range []Job{Backup, Verify, MediaBackup} {
-		assert.NotContains(t, s.calls, "--user disable --now "+job.Unit("gorgon")+".timer")
-		for _, file := range job.Files("gorgon") {
-			assert.FileExists(t, filepath.Join(dir, file))
-		}
+	for _, file := range []string{"mse-gorgon-backup.service", "mse-gorgon-backup.timer", "mse-gorgon-verify.service", "mse-gorgon-verify.timer"} {
+		assert.FileExists(t, filepath.Join(dir, file))
 	}
-	assert.Contains(t, s.calls, "--user disable --now mse-gorgon-verify.timer")
-	assert.Equal(t, []string{"mse-gorgon-verify"}, outcome.Removed)
+	assert.NotContains(t, strings.Join(s.calls, "\n"), "disable")
+	assert.Empty(t, outcome.Removed)
 }
 
 func TestOtherInstallationsAndOtherFilesAreLeftAlone(t *testing.T) {
-	files := []string{"mse-gorgonx-update.service", "mse-gorgonx-update.timer", "mse-gorgon-x-update.service", "mse-gorgon-x-update.timer",
-		"other.timer", "mse-gorgon-notes.txt"}
+	files := []string{"mse-gorgonx-update.service", "mse-gorgonx-update.timer", "other.timer", "other.service", "mse-gorgon-notes.txt"}
 	dir := t.TempDir()
 	unitFiles(t, dir, files...)
 	runner, s := recording(t, nil, nil)
 
-	outcome, err := Installer{Runner: runner, Dir: dir, Installations: []string{"gorgon", "gorgon-x", "gorgonx"}}.Install(context.Background(), Main, false, gorgon)
+	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Main, false, gorgon)
 
 	require.NoError(t, err)
 	for _, file := range files {
