@@ -42,7 +42,7 @@ func TestBackup(t *testing.T) {
 	}{
 		"the main backs up": {
 			Given: Given{expect: func(b *Backups, m mocks, _ context.CancelFunc) {
-				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/start").Return()
 				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(ours, nil)
 				m.stack.EXPECT().RunningServices(mock.Anything).Return([]string{"jellyfin", "sonarr"}, nil)
 				m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
@@ -50,20 +50,20 @@ func TestBackup(t *testing.T) {
 				m.repository.EXPECT().Backup(mock.Anything, backupOptions(b)).Return(restic.BackupSummary{SnapshotID: "40c4a929f0d1e2b3"}, nil)
 				m.stack.EXPECT().Start(mock.Anything, []string{"jellyfin", "sonarr"}).Return("started", nil)
 				m.repository.EXPECT().Forget(mock.Anything, "gorgon", restic.Keep{Daily: 7, Weekly: 4, Monthly: 6}, mock.Anything).Return(restic.ForgetSummary{Kept: 5}, nil)
-				m.pinger.EXPECT().Ping(mock.Anything, "backup", "").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "").Return()
 			}},
 			Then: Then{out: "Stopping the stack... stopped.\nBacking up volumes/... snapshot 40c4a929: 0 new, 0 changed, 0 unchanged files; 0 B added (0 B stored).\nStarting the services again... started.\nRemoving old snapshots... kept 5, removed 0.\nBackup done.\n", marked: true},
 		},
 		"nothing was running": {
 			Given: Given{expect: func(b *Backups, m mocks, _ context.CancelFunc) {
-				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/start").Return()
 				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(nil, nil)
 				m.stack.EXPECT().RunningServices(mock.Anything).Return(nil, nil)
 				m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
 				m.stack.EXPECT().Stop(mock.Anything).Return("stopped", nil)
 				m.repository.EXPECT().Backup(mock.Anything, backupOptions(b)).Return(restic.BackupSummary{SnapshotID: "40c4a929f0d1e2b3"}, nil)
 				m.repository.EXPECT().Forget(mock.Anything, "gorgon", restic.Keep{Daily: 7, Weekly: 4, Monthly: 6}, mock.Anything).Return(restic.ForgetSummary{Kept: 5}, nil)
-				m.pinger.EXPECT().Ping(mock.Anything, "backup", "").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "").Return()
 			}},
 			Then: Then{out: "Stopping the stack... stopped.\nBacking up volumes/... snapshot 40c4a929: 0 new, 0 changed, 0 unchanged files; 0 B added (0 B stored).\nRemoving old snapshots... kept 5, removed 0.\nBackup done.\n", marked: true},
 		},
@@ -76,28 +76,28 @@ func TestBackup(t *testing.T) {
 		},
 		"unreadable repository": {
 			Given: Given{expect: func(b *Backups, m mocks, _ context.CancelFunc) {
-				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/start").Return()
 				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(nil, errors.New("restic snapshots failed (exit 1)"))
-				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/fail").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/fail").Return()
 			}},
 			Then: Then{err: "cannot read the backup repository to tell which machine is gorgon's main (restic snapshots failed (exit 1)); nothing was backed up"},
 		},
 		"restic fails: the services start again": {
 			Given: Given{expect: func(b *Backups, m mocks, _ context.CancelFunc) {
-				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/start").Return()
 				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(ours, nil)
 				m.stack.EXPECT().RunningServices(mock.Anything).Return([]string{"jellyfin"}, nil)
 				m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
 				m.stack.EXPECT().Stop(mock.Anything).Return("stopped", nil)
 				m.repository.EXPECT().Backup(mock.Anything, backupOptions(b)).Return(restic.BackupSummary{}, errors.New("restic backup failed (exit 3)"))
 				m.stack.EXPECT().Start(mock.Anything, []string{"jellyfin"}).Return("started", nil)
-				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/fail").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/fail").Return()
 			}},
 			Then: Then{out: "Stopping the stack... stopped.\nBacking up volumes/... failed.\nStarting the services again... started.\n", err: "restic backup failed (exit 3)"},
 		},
 		"interrupted mid-backup": {
 			Given: Given{expect: func(b *Backups, m mocks, cancel context.CancelFunc) {
-				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/start").Return()
 				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(ours, nil)
 				m.stack.EXPECT().RunningServices(mock.Anything).Return([]string{"jellyfin"}, nil)
 				m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
@@ -107,32 +107,32 @@ func TestBackup(t *testing.T) {
 					return restic.BackupSummary{}, errors.New("restic was interrupted")
 				})
 				m.stack.EXPECT().Start(mock.MatchedBy(notCancelled), []string{"jellyfin"}).Return("started", nil)
-				m.pinger.EXPECT().Ping(mock.MatchedBy(notCancelled), "backup", "/fail").Return()
+				m.pinger.EXPECT().Ping(mock.MatchedBy(notCancelled), "backup-apps", "/fail").Return()
 			}},
 			Then: Then{out: "Stopping the stack... stopped.\nBacking up volumes/... failed.\nStarting the services again... started.\n", err: "restic was interrupted"},
 		},
 		"listing the running services fails": {
 			Given: Given{expect: func(b *Backups, m mocks, _ context.CancelFunc) {
-				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/start").Return()
 				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(ours, nil)
 				m.stack.EXPECT().RunningServices(mock.Anything).Return(nil, errors.New("cannot connect"))
-				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/fail").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/fail").Return()
 			}},
 			Then: Then{out: "Stopping the stack... failed.\n", err: "cannot connect"},
 		},
 		"unlock fails: nothing is stopped": {
 			Given: Given{expect: func(b *Backups, m mocks, _ context.CancelFunc) {
-				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/start").Return()
 				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(ours, nil)
 				m.stack.EXPECT().RunningServices(mock.Anything).Return([]string{"jellyfin"}, nil)
 				m.repository.EXPECT().Unlock(mock.Anything).Return(errors.New("restic unlock failed (exit 1)"))
-				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/fail").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/fail").Return()
 			}},
 			Then: Then{out: "Stopping the stack... failed.\n", err: "restic unlock failed (exit 1)"},
 		},
 		"starting after the backup fails: tried once more": {
 			Given: Given{expect: func(b *Backups, m mocks, _ context.CancelFunc) {
-				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/start").Return()
 				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(ours, nil)
 				m.stack.EXPECT().RunningServices(mock.Anything).Return([]string{"jellyfin"}, nil)
 				m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
@@ -140,13 +140,13 @@ func TestBackup(t *testing.T) {
 				m.repository.EXPECT().Backup(mock.Anything, backupOptions(b)).Return(restic.BackupSummary{SnapshotID: "40c4a929f0d1e2b3"}, nil)
 				m.stack.EXPECT().Start(mock.Anything, []string{"jellyfin"}).Return("", errors.New("port busy")).Once()
 				m.stack.EXPECT().Start(mock.Anything, []string{"jellyfin"}).Return("started", nil).Once()
-				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/fail").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/fail").Return()
 			}},
 			Then: Then{out: "Stopping the stack... stopped.\nBacking up volumes/... snapshot 40c4a929: 0 new, 0 changed, 0 unchanged files; 0 B added (0 B stored).\nStarting the services again... failed.\nStarting the services again... started.\n", err: "port busy"},
 		},
 		"forget fails: the services stay up": {
 			Given: Given{expect: func(b *Backups, m mocks, _ context.CancelFunc) {
-				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/start").Return()
 				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(ours, nil)
 				m.stack.EXPECT().RunningServices(mock.Anything).Return([]string{"jellyfin"}, nil)
 				m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
@@ -154,19 +154,19 @@ func TestBackup(t *testing.T) {
 				m.repository.EXPECT().Backup(mock.Anything, backupOptions(b)).Return(restic.BackupSummary{SnapshotID: "40c4a929f0d1e2b3"}, nil)
 				m.stack.EXPECT().Start(mock.Anything, []string{"jellyfin"}).Return("started", nil).Once()
 				m.repository.EXPECT().Forget(mock.Anything, "gorgon", restic.Keep{Daily: 7, Weekly: 4, Monthly: 6}, mock.Anything).Return(restic.ForgetSummary{}, errors.New("restic forget failed (exit 1)"))
-				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/fail").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/fail").Return()
 			}},
 			Then: Then{out: "Stopping the stack... stopped.\nBacking up volumes/... snapshot 40c4a929: 0 new, 0 changed, 0 unchanged files; 0 B added (0 B stored).\nStarting the services again... started.\nRemoving old snapshots... failed.\n", err: "restic forget failed (exit 1)"},
 		},
 		"starting again fails too": {
 			Given: Given{expect: func(b *Backups, m mocks, _ context.CancelFunc) {
-				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/start").Return()
 				m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(ours, nil)
 				m.stack.EXPECT().RunningServices(mock.Anything).Return([]string{"jellyfin"}, nil)
 				m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
 				m.stack.EXPECT().Stop(mock.Anything).Return("", errors.New("docker is gone"))
 				m.stack.EXPECT().Start(mock.Anything, []string{"jellyfin"}).Return("", errors.New("docker is still gone"))
-				m.pinger.EXPECT().Ping(mock.Anything, "backup", "/fail").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/fail").Return()
 			}},
 			Then: Then{out: "Stopping the stack... failed.\nStarting the services again... failed.\n", err: "docker is gone\ndocker is still gone"},
 		},
@@ -213,13 +213,13 @@ func TestBackupRefusesWhileAnotherRuns(t *testing.T) {
 func TestClaim(t *testing.T) {
 	theirs := []restic.Snapshot{snapshot("other", "pi2", "2026-10-04 04:30")}
 	backsUp := func(m mocks) {
-		m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+		m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/start").Return()
 		m.stack.EXPECT().RunningServices(mock.Anything).Return(nil, nil)
 		m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
 		m.stack.EXPECT().Stop(mock.Anything).Return("stopped", nil)
 		m.repository.EXPECT().Backup(mock.Anything, mock.Anything).Return(restic.BackupSummary{SnapshotID: "40c4a929f0d1e2b3"}, nil)
 		m.repository.EXPECT().Forget(mock.Anything, "gorgon", restic.Keep{Daily: 7, Weekly: 4, Monthly: 6}, mock.Anything).Return(restic.ForgetSummary{Kept: 5}, nil)
-		m.pinger.EXPECT().Ping(mock.Anything, "backup", "").Return()
+		m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "").Return()
 	}
 	claimed := "Stopping the stack... stopped.\nBacking up volumes/... snapshot 40c4a929: 0 new, 0 changed, 0 unchanged files; 0 B added (0 B stored).\nRemoving old snapshots... kept 5, removed 0.\nBackup done.\nThis machine is now gorgon's main; backups from any other machine are refused.\n"
 	type Given struct {
@@ -310,7 +310,7 @@ func TestTheRestartIsShieldedFromSignals(t *testing.T) {
 		shielded = true
 		return func() { shielded = false }
 	}
-	m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+	m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/start").Return()
 	m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(nil, nil)
 	m.stack.EXPECT().RunningServices(mock.Anything).Return([]string{"jellyfin"}, nil)
 	m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
@@ -326,7 +326,7 @@ func TestTheRestartIsShieldedFromSignals(t *testing.T) {
 		assert.True(t, shielded, "signals are shielded while the services start again")
 		return "started", nil
 	})
-	m.pinger.EXPECT().Ping(mock.Anything, "backup", "/fail").Return()
+	m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/fail").Return()
 
 	assert.EqualError(t, b.Backup(context.Background()), "restic was interrupted")
 	assert.False(t, shielded, "the shield is released")
@@ -341,14 +341,14 @@ func TestBackupRunsResticInTheResolvedDataDirectory(t *testing.T) {
 	b.Installation.Data = linked
 	resolved, err := filepath.EvalSymlinks(real)
 	require.NoError(t, err)
-	m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+	m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/start").Return()
 	m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(nil, nil)
 	m.stack.EXPECT().RunningServices(mock.Anything).Return(nil, nil)
 	m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
 	m.stack.EXPECT().Stop(mock.Anything).Return("stopped", nil)
 	m.repository.EXPECT().Backup(mock.Anything, mock.MatchedBy(func(o restic.BackupOptions) bool { return o.Dir == resolved })).Return(restic.BackupSummary{SnapshotID: "40c4a929f0d1e2b3"}, nil)
 	m.repository.EXPECT().Forget(mock.Anything, "gorgon", restic.Keep{Daily: 7, Weekly: 4, Monthly: 6}, mock.Anything).Return(restic.ForgetSummary{Kept: 5}, nil)
-	m.pinger.EXPECT().Ping(mock.Anything, "backup", "").Return()
+	m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "").Return()
 
 	require.NoError(t, b.Backup(context.Background()))
 }
@@ -356,9 +356,9 @@ func TestBackupRunsResticInTheResolvedDataDirectory(t *testing.T) {
 func TestBackupRefusesAnEmptyDataDirectory(t *testing.T) {
 	b, m, _, _ := fixture(t)
 	require.NoError(t, os.RemoveAll(filepath.Join(b.Installation.Data, "volumes")))
-	m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+	m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/start").Return()
 	m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(nil, nil)
-	m.pinger.EXPECT().Ping(mock.Anything, "backup", "/fail").Return()
+	m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/fail").Return()
 
 	err := b.Backup(context.Background())
 
@@ -368,14 +368,14 @@ func TestBackupRefusesAnEmptyDataDirectory(t *testing.T) {
 func TestBackupFailsWhenItCannotMarkTheMain(t *testing.T) {
 	b, m, _, _ := fixture(t)
 	require.NoError(t, os.Mkdir(filepath.Join(b.Installation.Data, ".backup-main"), 0o755))
-	m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+	m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/start").Return()
 	m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(nil, nil)
 	m.stack.EXPECT().RunningServices(mock.Anything).Return(nil, nil)
 	m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
 	m.stack.EXPECT().Stop(mock.Anything).Return("stopped", nil)
 	m.repository.EXPECT().Backup(mock.Anything, mock.Anything).Return(restic.BackupSummary{SnapshotID: "40c4a929f0d1e2b3"}, nil)
 	m.repository.EXPECT().Forget(mock.Anything, "gorgon", restic.Keep{Daily: 7, Weekly: 4, Monthly: 6}, mock.Anything).Return(restic.ForgetSummary{Kept: 5}, nil)
-	m.pinger.EXPECT().Ping(mock.Anything, "backup", "/fail").Return()
+	m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/fail").Return()
 
 	assert.ErrorContains(t, b.Backup(context.Background()), ".backup-main")
 }
@@ -383,7 +383,7 @@ func TestBackupFailsWhenItCannotMarkTheMain(t *testing.T) {
 func TestOldSnapshotsArePrunedOnlyWhenSomeWereRemoved(t *testing.T) {
 	b, m, out, _ := fixture(t)
 	removed := time.Date(2026, 10, 5, 4, 31, 0, 0, time.UTC)
-	m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+	m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/start").Return()
 	m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(nil, nil)
 	m.stack.EXPECT().RunningServices(mock.Anything).Return(nil, nil)
 	m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
@@ -391,7 +391,7 @@ func TestOldSnapshotsArePrunedOnlyWhenSomeWereRemoved(t *testing.T) {
 	m.repository.EXPECT().Backup(mock.Anything, mock.Anything).Return(restic.BackupSummary{SnapshotID: "40c4a929f0d1e2b3"}, nil)
 	m.repository.EXPECT().Forget(mock.Anything, "gorgon", restic.Keep{Daily: 7, Weekly: 4, Monthly: 6}, mock.Anything).Return(restic.ForgetSummary{Kept: 5, Removed: []time.Time{removed}}, nil)
 	m.repository.EXPECT().Prune(mock.Anything, mock.Anything).Return(nil)
-	m.pinger.EXPECT().Ping(mock.Anything, "backup", "").Return()
+	m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "").Return()
 
 	require.NoError(t, b.Backup(context.Background()))
 
@@ -403,13 +403,13 @@ func TestClaimWithoutAppDataAndNoBackups(t *testing.T) {
 	require.NoError(t, os.RemoveAll(b.Installation.Data))
 	m.repository.EXPECT().HasRepository(mock.Anything).Return(true, nil)
 	m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(nil, nil).Once()
-	m.pinger.EXPECT().Ping(mock.Anything, "backup", "/start").Return()
+	m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "/start").Return()
 	m.stack.EXPECT().RunningServices(mock.Anything).Return(nil, nil)
 	m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
 	m.stack.EXPECT().Stop(mock.Anything).Return("stopped", nil)
 	m.repository.EXPECT().Backup(mock.Anything, mock.Anything).Return(restic.BackupSummary{SnapshotID: "40c4a929f0d1e2b3"}, nil)
 	m.repository.EXPECT().Forget(mock.Anything, "gorgon", restic.Keep{Daily: 7, Weekly: 4, Monthly: 6}, mock.Anything).Return(restic.ForgetSummary{Kept: 1}, nil)
-	m.pinger.EXPECT().Ping(mock.Anything, "backup", "").Return()
+	m.pinger.EXPECT().Ping(mock.Anything, "backup-apps", "").Return()
 
 	err := b.Claim(context.Background(), true)
 

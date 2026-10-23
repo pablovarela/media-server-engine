@@ -14,6 +14,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
+	"github.com/pablovarela/media-server-engine/internal/jobs"
 	"github.com/pablovarela/media-server-engine/internal/paint"
 	"github.com/pablovarela/media-server-engine/internal/restic"
 )
@@ -25,17 +26,17 @@ func (b *Backups) Verify(ctx context.Context) (err error) {
 	defer func() {
 		if err != nil {
 			defer b.shielded()()
-			b.Pinger.Ping(finishing, "verify", "/fail")
+			b.Pinger.Ping(finishing, jobs.CheckBackup, "/fail")
 		}
 	}()
-	latest, refused, err := b.refuseOnCopy(ctx, "verify", "Its backups are checked there; mse backup --apps --take-over makes this machine the main.")
+	latest, refused, err := b.refuseOnCopy(ctx, jobs.CheckBackup, "Its backups are checked there; mse backup --apps --take-over makes this machine the main.")
 	if err != nil {
 		return fmt.Errorf("%w; nothing was checked", err)
 	}
 	if refused {
 		return nil
 	}
-	b.Pinger.Ping(ctx, "verify", "/start")
+	b.Pinger.Ping(ctx, jobs.CheckBackup, "/start")
 	if err := b.Repository.Unlock(ctx); err != nil {
 		return err
 	}
@@ -61,7 +62,7 @@ func (b *Backups) Verify(ctx context.Context) (err error) {
 	if err := b.checkDatabases(ctx, dir, found); err != nil {
 		return err
 	}
-	b.Pinger.Ping(ctx, "verify", "")
+	b.Pinger.Ping(ctx, jobs.CheckBackup, "")
 	b.Report.Say(paint.Stdout.Success("The backups check out."))
 	return nil
 }

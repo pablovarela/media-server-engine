@@ -8,11 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/pablovarela/media-server-engine/internal/jobs"
 	"github.com/pablovarela/media-server-engine/internal/paint"
 	"github.com/pablovarela/media-server-engine/internal/restic"
 )
-
-const MediaJob = "media-backup"
 
 func MediaDir(data string) string {
 	return filepath.Join(data, "data", "media")
@@ -53,17 +52,17 @@ func (b *Backups) BackupMedia(ctx context.Context) (err error) {
 	defer func() {
 		if err != nil {
 			defer b.shielded()()
-			b.Pinger.Ping(finishing, MediaJob, "/fail")
+			b.Pinger.Ping(finishing, jobs.BackupMedia, "/fail")
 		}
 	}()
-	_, refused, err := b.refuseOnCopy(ctx, MediaJob, "Its media is backed up there; mse backup --apps --take-over makes this machine the main.")
+	_, refused, err := b.refuseOnCopy(ctx, jobs.BackupMedia, "Its media is backed up there; mse backup --apps --take-over makes this machine the main.")
 	if err != nil {
 		return fmt.Errorf("%w; nothing was backed up", err)
 	}
 	if refused {
 		return nil
 	}
-	b.Pinger.Ping(ctx, MediaJob, "/start")
+	b.Pinger.Ping(ctx, jobs.BackupMedia, "/start")
 	dir, err := b.mediaToBackUp()
 	if err != nil {
 		return err
@@ -77,7 +76,7 @@ func (b *Backups) BackupMedia(ctx context.Context) (err error) {
 	if err := b.checkMedia(ctx); err != nil {
 		return err
 	}
-	b.Pinger.Ping(ctx, MediaJob, "")
+	b.Pinger.Ping(ctx, jobs.BackupMedia, "")
 	b.Report.Say(paint.Stdout.Success("Media backup done."))
 	return nil
 }

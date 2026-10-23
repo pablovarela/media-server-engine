@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/pablovarela/media-server-engine/internal/jobs"
 	"github.com/pablovarela/media-server-engine/internal/paint"
 )
 
@@ -17,8 +18,8 @@ const PingURL = "https://hc-ping.com"
 var retryAfter = []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}
 
 func Slug(name, job, role, shortHost string) string {
-	slug := name + "-" + job
-	if job == updateJob && role != mainRole {
+	slug := jobs.Unit(name, job)
+	if jobs.OnEveryMachine(job) && role != mainRole {
 		slug += "-" + shortHost
 	}
 	return slug

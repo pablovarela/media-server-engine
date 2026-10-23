@@ -20,6 +20,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/healthchecks"
 	"github.com/pablovarela/media-server-engine/internal/images"
 	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/jobs"
 	"github.com/pablovarela/media-server-engine/internal/media"
 	"github.com/pablovarela/media-server-engine/internal/paint"
 	"github.com/pablovarela/media-server-engine/internal/process"
@@ -69,10 +70,10 @@ func (d Dependencies) reported(cmd *cobra.Command, i *installation.Installation,
 		defer shieldSignals()()
 		pings := d.pinger(cmd, i)
 		if err != nil {
-			pings.Ping(finishing, "update", "/fail")
+			pings.Ping(finishing, jobs.Update, "/fail")
 			return
 		}
-		pings.Ping(finishing, "update", "")
+		pings.Ping(finishing, jobs.Update, "")
 	}()
 	return do()
 }

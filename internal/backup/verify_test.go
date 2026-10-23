@@ -75,7 +75,7 @@ func TestVerify(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			b, m, out, _ := fixture(t)
-			m.pinger.EXPECT().Ping(mock.Anything, "verify", "/start").Return()
+			m.pinger.EXPECT().Ping(mock.Anything, "check-backup", "/start").Return()
 			m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(tt.Given.snapshots, nil)
 			m.repository.EXPECT().Unlock(mock.Anything).Return(nil)
 			m.repository.EXPECT().Check(mock.Anything, "").Return(nil)
@@ -87,9 +87,9 @@ func TestVerify(t *testing.T) {
 				return nil
 			})
 			if tt.Then.err == "" {
-				m.pinger.EXPECT().Ping(mock.Anything, "verify", "").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "check-backup", "").Return()
 			} else {
-				m.pinger.EXPECT().Ping(mock.Anything, "verify", "/fail").Return()
+				m.pinger.EXPECT().Ping(mock.Anything, "check-backup", "/fail").Return()
 			}
 
 			err := b.Verify(context.Background())
@@ -137,7 +137,7 @@ func TestVerifyRunsOnTheMainOnly(t *testing.T) {
 			b, m, out, _ := fixture(t)
 			m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(tt.Given.snapshots, tt.Given.err)
 			var pings []string
-			m.pinger.EXPECT().Ping(mock.Anything, "verify", mock.Anything).RunAndReturn(func(_ context.Context, _, suffix string) {
+			m.pinger.EXPECT().Ping(mock.Anything, "check-backup", mock.Anything).RunAndReturn(func(_ context.Context, _, suffix string) {
 				pings = append(pings, suffix)
 			}).Maybe()
 
@@ -161,10 +161,10 @@ func TestTheVerifyCleanupIsShieldedFromSignals(t *testing.T) {
 		shielded = true
 		return func() { shielded = false }
 	}
-	m.pinger.EXPECT().Ping(mock.Anything, "verify", "/start").Return()
+	m.pinger.EXPECT().Ping(mock.Anything, "check-backup", "/start").Return()
 	m.repository.EXPECT().Snapshots(mock.Anything, "gorgon").Return(nil, nil)
 	m.repository.EXPECT().Unlock(mock.Anything).Return(errors.New("restic unlock failed (exit 1)"))
-	m.pinger.EXPECT().Ping(mock.Anything, "verify", "/fail").RunAndReturn(func(context.Context, string, string) {
+	m.pinger.EXPECT().Ping(mock.Anything, "check-backup", "/fail").RunAndReturn(func(context.Context, string, string) {
 		assert.True(t, shielded, "signals are shielded while the failure is reported")
 	})
 

@@ -187,8 +187,8 @@ func TestBackupCommandFlows(t *testing.T) {
 					backsUp(r, c, data)
 				},
 				stdout:   backedUp,
-				pings:    []string{"/ping-key/gorgon-backup/start", "/ping-key/gorgon-backup"},
-				recorded: "backup",
+				pings:    []string{"/ping-key/mse-gorgon-backup-apps/start", "/ping-key/mse-gorgon-backup-apps"},
+				recorded: "backup-apps",
 			},
 		},
 		"backup --media": {
@@ -200,8 +200,8 @@ func TestBackupCommandFlows(t *testing.T) {
 					backsUpMedia(r, data)
 				},
 				stdout:   backedUpMedia,
-				pings:    []string{"/ping-key/gorgon-media-backup"},
-				recorded: "media-backup",
+				pings:    []string{"/ping-key/mse-gorgon-backup-media"},
+				recorded: "backup-media",
 			},
 		},
 		"backup --apps --media": {
@@ -214,8 +214,8 @@ func TestBackupCommandFlows(t *testing.T) {
 					backsUpMedia(r, data)
 				},
 				stdout:   backedUp + backedUpMedia,
-				pings:    []string{"/ping-key/gorgon-backup/start", "/ping-key/gorgon-backup", "/ping-key/gorgon-media-backup"},
-				recorded: "media-backup",
+				pings:    []string{"/ping-key/mse-gorgon-backup-apps/start", "/ping-key/mse-gorgon-backup-apps", "/ping-key/mse-gorgon-backup-media"},
+				recorded: "backup-media",
 			},
 		},
 		"backup --take-over --yes": {
@@ -227,7 +227,7 @@ func TestBackupCommandFlows(t *testing.T) {
 					backsUp(r, c, data)
 				},
 				stdout: backedUp + "This machine is now gorgon's main; backups from any other machine are refused.\n",
-				pings:  []string{"/ping-key/gorgon-backup/start", "/ping-key/gorgon-backup"},
+				pings:  []string{"/ping-key/mse-gorgon-backup-apps/start", "/ping-key/mse-gorgon-backup-apps"},
 			},
 		},
 		"backup --take-over asks first": {
@@ -241,7 +241,7 @@ func TestBackupCommandFlows(t *testing.T) {
 				},
 				stdout: backedUp + "This machine is now gorgon's main; backups from any other machine are refused.\n",
 				stderr: "gorgon's main is pi2, last backup 2026-10-04 04:30. Taking over makes it refuse to back up.\nMake this machine the main instead? (y/n) ",
-				pings:  []string{"/ping-key/gorgon-backup/start", "/ping-key/gorgon-backup"},
+				pings:  []string{"/ping-key/mse-gorgon-backup-apps/start", "/ping-key/mse-gorgon-backup-apps"},
 			},
 		},
 		"restore --overwrite": {
@@ -282,8 +282,8 @@ func TestBackupCommandFlows(t *testing.T) {
 					})
 				},
 				stdout:   "Checking the repository... no errors.\nRestoring the databases of the latest snapshot... restored 1 databases.\nChecking the databases... 1 intact.\nThe backups check out.\n",
-				pings:    []string{"/ping-key/gorgon-verify/start", "/ping-key/gorgon-verify"},
-				recorded: "verify",
+				pings:    []string{"/ping-key/mse-gorgon-check-backup/start", "/ping-key/mse-gorgon-check-backup"},
+				recorded: "check-backup",
 			},
 		},
 	}

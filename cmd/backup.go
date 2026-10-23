@@ -22,6 +22,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/files"
 	"github.com/pablovarela/media-server-engine/internal/healthchecks"
 	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/jobs"
 	"github.com/pablovarela/media-server-engine/internal/media"
 	"github.com/pablovarela/media-server-engine/internal/process"
 	"github.com/pablovarela/media-server-engine/internal/report"
@@ -328,7 +329,7 @@ func (p recordedPings) Ping(ctx context.Context, job, suffix string) {
 
 // A first media upload can take days; with a start ping healthchecks.io would call it down once it outlasts the grace.
 func timedByHealthchecks(job string) bool {
-	return job != backup.MediaJob
+	return job != jobs.BackupMedia
 }
 
 type runRecorder struct {

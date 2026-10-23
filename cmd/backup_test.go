@@ -125,7 +125,7 @@ func TestAFailedAppsBackupSkipsTheMedia(t *testing.T) {
 
 	assert.Equal(t, 1, code)
 	assert.Contains(t, stderr.String(), "Fatal: unreachable")
-	assert.Equal(t, []string{"/ping-key/gorgon-backup/start", "/ping-key/gorgon-backup/fail"}, pings)
+	assert.Equal(t, []string{"/ping-key/mse-gorgon-backup-apps/start", "/ping-key/mse-gorgon-backup-apps/fail"}, pings)
 }
 
 func localRestic(context.Context) (string, error) { return "restic", nil }
