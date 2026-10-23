@@ -28,7 +28,7 @@ type Outcome struct {
 }
 
 func (in Installer) Install(ctx context.Context, role Role, media bool, v Values) (Outcome, error) {
-	install, prune := Plan(role, media)
+	install, keep := Plan(role, media)
 	var outcome Outcome
 	for _, job := range install {
 		changed, err := in.write(job, v)
@@ -41,17 +41,18 @@ func (in Installer) Install(ctx context.Context, role Role, media bool, v Values
 			outcome.Unchanged = append(outcome.Unchanged, job.Unit(v.Installation))
 		}
 	}
-	if prune {
-		stale, err := in.stale(v.Installation, install)
-		if err != nil {
+	stale, err := in.stale(v.Installation, install)
+	if err != nil {
+		return Outcome{}, err
+	}
+	for _, unit := range stale {
+		if in.runsOneOf(unit, keep, v) {
+			continue
+		}
+		if err := in.remove(ctx, unit); err != nil {
 			return Outcome{}, err
 		}
-		for _, unit := range stale {
-			if err := in.remove(ctx, unit); err != nil {
-				return Outcome{}, err
-			}
-			outcome.Removed = append(outcome.Removed, unit)
-		}
+		outcome.Removed = append(outcome.Removed, unit)
 	}
 	if err := in.systemctl(ctx, "daemon-reload"); err != nil {
 		return Outcome{}, err
@@ -105,6 +106,30 @@ func (in Installer) stale(installation string, planned []Job) ([]string, error) 
 		}
 	}
 	return units, nil
+}
+
+// A unit renamed since it was installed is recognised by the command it runs.
+func (in Installer) runsOneOf(unit string, keep []Job, v Values) bool {
+	current, _ := os.ReadFile(filepath.Join(in.Dir, unit+".service")) //nolint:gosec // the user's own unit
+	for _, job := range keep {
+		if unit == job.Unit(v.Installation) {
+			return true
+		}
+		text, err := Render(job, ".service", v)
+		if err == nil && execStart(text) != "" && execStart(text) == execStart(string(current)) {
+			return true
+		}
+	}
+	return false
+}
+
+func execStart(unit string) string {
+	for _, line := range strings.Split(unit, "\n") {
+		if strings.HasPrefix(line, "ExecStart=") {
+			return line
+		}
+	}
+	return ""
 }
 
 func unitOf(installation, file string) (string, bool) {

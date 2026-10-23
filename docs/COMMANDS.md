@@ -188,7 +188,7 @@ Shows this machine's installation. It changes nothing and prints no passwords.
 - They are systemd user units in `~/.config/systemd/user`: `systemctl --user list-timers` lists them, and `journalctl --user-unit mse-<name>-update.service` shows a run.
 - They run with nobody logged in once lingering is on: `sudo loginctl enable-linger <user>`, once. Until then `mse apply` says so and leaves them out.
 - Add the user to the `docker` group before turning lingering on: the user's systemd keeps the groups it started with until it restarts. `mse apply` warns when it started without `docker`; `sudo systemctl restart user@<uid>`, or a reboot, fixes it.
-- Which machine is the main comes from the backup repository; any other machine has no backup timers. `mse apply` removes this installation's units that are no longer planned. While the backup repository can't be reached it removes none.
+- Which machine is the main comes from the backup repository; any other machine has no backup timers. `mse apply` removes this installation's units that are no longer planned. While the backup repository can't be reached it keeps every unit that runs a backup or a backup check, under any name, and removes the others. Units named `mse-<name>-*` in that folder belong to mse: don't keep units of your own under that prefix.
 - The units call the installed `mse` by its full path and carry `XDG_*_HOME`, `SOPS_AGE_KEY_FILE` and `SOPS_AGE_KEY_CMD` as the shell running `mse apply` has them. A dev build sets up no timers.
 - The nightly update fetches the config from GitHub with nobody logged in, so `gh auth login` must have kept its token in `~/.config/gh/hosts.yml` (where it goes without a keyring); `mse apply` warns when it hasn't.
 

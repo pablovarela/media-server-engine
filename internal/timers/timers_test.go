@@ -125,23 +125,22 @@ func TestTheEnvironmentTheInstallationNeedsReachesTheServices(t *testing.T) {
 
 func TestWhichTimersEachMachineRuns(t *testing.T) {
 	tests := map[string]struct {
-		role    Role
-		media   bool
-		install []Job
-		prune   bool
+		role          Role
+		media         bool
+		install, keep []Job
 	}{
-		"main":                 {role: Main, install: []Job{Update, CleanDownloads, BackupApps, CheckBackup}, prune: true},
-		"main with media":      {role: Main, media: true, install: []Job{Update, CleanDownloads, BackupApps, CheckBackup, BackupMedia}, prune: true},
-		"secondary":            {role: Secondary, install: []Job{Update, CleanDownloads}, prune: true},
-		"secondary with media": {role: Secondary, media: true, install: []Job{Update, CleanDownloads}, prune: true},
-		"unknown":              {role: Unknown, media: true, install: []Job{Update, CleanDownloads}},
+		"main":                 {role: Main, install: []Job{Update, CleanDownloads, BackupApps, CheckBackup}},
+		"main with media":      {role: Main, media: true, install: []Job{Update, CleanDownloads, BackupApps, CheckBackup, BackupMedia}},
+		"secondary":            {role: Secondary, install: []Job{Update, CleanDownloads}},
+		"secondary with media": {role: Secondary, media: true, install: []Job{Update, CleanDownloads}},
+		"unknown":              {role: Unknown, media: true, install: []Job{Update, CleanDownloads}, keep: []Job{BackupApps, CheckBackup, BackupMedia}},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			install, prune := Plan(tt.role, tt.media)
+			install, keep := Plan(tt.role, tt.media)
 
 			assert.Equal(t, tt.install, install)
-			assert.Equal(t, tt.prune, prune)
+			assert.Equal(t, tt.keep, keep)
 		})
 	}
 }

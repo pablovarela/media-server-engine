@@ -226,20 +226,35 @@ func TestTheUnitsOfRenamedJobsAreRemoved(t *testing.T) {
 	assert.Contains(t, s.calls, enableAll+" mse-gorgon-backup-media.timer")
 }
 
-func TestAnUnknownMainRemovesNothing(t *testing.T) {
+func renamed(t *testing.T, dir, unit string, job Job) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	for _, suffix := range []string{".service", ".timer"} {
+		text, err := Render(job, suffix, gorgon)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(filepath.Join(dir, unit+suffix), []byte(text), 0o644))
+	}
+}
+
+func TestAnUnknownMainKeepsWhatBacksUpAndRemovesTheRest(t *testing.T) {
 	dir := t.TempDir()
 	place(t, dir, Update, CleanDownloads)
-	unitFiles(t, dir, "mse-gorgon-backup.service", "mse-gorgon-backup.timer", "mse-gorgon-verify.service", "mse-gorgon-verify.timer")
+	renamed(t, dir, "mse-gorgon-backup", BackupApps)
+	renamed(t, dir, "mse-gorgon-verify", CheckBackup)
+	renamed(t, dir, "mse-gorgon-media-backup", BackupMedia)
+	renamed(t, dir, "mse-gorgon-download-cleanup", CleanDownloads)
 	runner, s := recording(t, nil, nil)
 
 	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Unknown, true, gorgon)
 
 	require.NoError(t, err)
-	for _, file := range []string{"mse-gorgon-backup.service", "mse-gorgon-backup.timer", "mse-gorgon-verify.service", "mse-gorgon-verify.timer"} {
-		assert.FileExists(t, filepath.Join(dir, file))
+	for _, unit := range []string{"mse-gorgon-backup", "mse-gorgon-verify", "mse-gorgon-media-backup"} {
+		assert.FileExists(t, filepath.Join(dir, unit+".timer"))
+		assert.NotContains(t, s.calls, "--user disable --now "+unit+".timer")
 	}
-	assert.NotContains(t, strings.Join(s.calls, "\n"), "disable")
-	assert.Empty(t, outcome.Removed)
+	assert.Contains(t, s.calls, "--user disable --now mse-gorgon-download-cleanup.timer")
+	assert.NoFileExists(t, filepath.Join(dir, "mse-gorgon-download-cleanup.service"))
+	assert.Equal(t, []string{"mse-gorgon-download-cleanup"}, outcome.Removed)
 }
 
 func TestOtherInstallationsAndOtherFilesAreLeftAlone(t *testing.T) {

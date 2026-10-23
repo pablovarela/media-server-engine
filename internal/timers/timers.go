@@ -46,11 +46,18 @@ const (
 	Unknown
 )
 
-func Plan(role Role, media bool) (install []Job, prune bool) {
+func Plan(role Role, media bool) (install, keep []Job) {
 	for _, name := range jobs.Planned(role == Main, media) {
 		install = append(install, Job{Name: name})
 	}
-	return install, role != Unknown
+	if role == Unknown {
+		for _, name := range jobs.Planned(true, true) {
+			if !jobs.OnEveryMachine(name) {
+				keep = append(keep, Job{Name: name})
+			}
+		}
+	}
+	return install, keep
 }
 
 func Render(job Job, suffix string, v Values) (string, error) {
