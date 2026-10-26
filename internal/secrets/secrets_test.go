@@ -156,3 +156,69 @@ func TestApps(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{"DELUGE_WEB_PASSWORD": "d"}, apps)
 }
+
+func TestTheVPNEnvForGluetun(t *testing.T) {
+	tests := map[string]struct {
+		decrypted  string
+		forwarding bool
+		want       string
+	}{
+		"forwarding off": {
+			decrypted: "VPN_SERVICE_PROVIDER=protonvpn\nOPENVPN_USER=abc\n",
+			want:      "VPN_SERVICE_PROVIDER=protonvpn\nOPENVPN_USER=abc\n",
+		},
+		"a proton user": {
+			decrypted: "VPN_SERVICE_PROVIDER=protonvpn\nOPENVPN_USER=abc\nOPENVPN_PASSWORD=pw\n", forwarding: true,
+			want: "VPN_SERVICE_PROVIDER=protonvpn\nOPENVPN_USER=abc+pmp\nOPENVPN_PASSWORD=pw\nVPN_PORT_FORWARDING=on\n",
+		},
+		"a proton user that already ends in +pmp": {
+			decrypted: "VPN_SERVICE_PROVIDER=protonvpn\nOPENVPN_USER=abc+pmp\n", forwarding: true,
+			want: "VPN_SERVICE_PROVIDER=protonvpn\nOPENVPN_USER=abc+pmp\nVPN_PORT_FORWARDING=on\n",
+		},
+		"a proton user with another suffix": {
+			decrypted: "VPN_SERVICE_PROVIDER=protonvpn\nOPENVPN_USER=abc+f1\n", forwarding: true,
+			want: "VPN_SERVICE_PROVIDER=protonvpn\nOPENVPN_USER=abc+f1+pmp\nVPN_PORT_FORWARDING=on\n",
+		},
+		"another provider": {
+			decrypted: "VPN_SERVICE_PROVIDER=mullvad\nOPENVPN_USER=abc\n", forwarding: true,
+			want: "VPN_SERVICE_PROVIDER=mullvad\nOPENVPN_USER=abc\nVPN_PORT_FORWARDING=on\n",
+		},
+		"forwarding set off by hand": {
+			decrypted: "VPN_SERVICE_PROVIDER=protonvpn\nVPN_PORT_FORWARDING=off\nOPENVPN_USER=abc\n", forwarding: true,
+			want: "VPN_SERVICE_PROVIDER=protonvpn\nOPENVPN_USER=abc+pmp\nVPN_PORT_FORWARDING=on\n",
+		},
+		"no final newline": {
+			decrypted: "VPN_SERVICE_PROVIDER=protonvpn\nOPENVPN_USER=abc", forwarding: true,
+			want: "VPN_SERVICE_PROVIDER=protonvpn\nOPENVPN_USER=abc+pmp\nVPN_PORT_FORWARDING=on\n",
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tt.want, string(vpnEnv([]byte(tt.decrypted), tt.forwarding)))
+		})
+	}
+}
+
+func TestWriteAllForwardsAPortWhenTheSettingSaysSo(t *testing.T) {
+	i := newInstallation(t, false, "")
+	i.Settings = map[string]string{"VPN_PORT_FORWARDING": "yes"}
+	decrypt := decrypting(map[string]string{"vpn.sops.env": "VPN_SERVICE_PROVIDER=protonvpn\nOPENVPN_USER=abc\n", "apps.sops.env": ""})
+
+	require.NoError(t, WriteAll(i, decrypt, fixedKey))
+
+	written, err := os.ReadFile(filepath.Join(i.State, ".secrets", "vpn.env"))
+	require.NoError(t, err)
+	assert.Equal(t, "VPN_SERVICE_PROVIDER=protonvpn\nOPENVPN_USER=abc+pmp\nVPN_PORT_FORWARDING=on\n", string(written))
+	source, err := os.ReadFile(filepath.Join(i.Config, "secrets", "vpn.sops.env"))
+	require.NoError(t, err)
+	assert.Equal(t, "encrypted", string(source))
+}
+
+func TestWriteAllRefusesAnInvalidForwardingSetting(t *testing.T) {
+	i := newInstallation(t, false, "")
+	i.Settings = map[string]string{"VPN_PORT_FORWARDING": "on"}
+
+	err := WriteAll(i, decrypting(map[string]string{"vpn.sops.env": "", "apps.sops.env": ""}), fixedKey)
+
+	assert.EqualError(t, err, "VPN_PORT_FORWARDING: must be yes or no")
+}
