@@ -30,7 +30,7 @@ type portFile struct {
 
 func (p portFile) Exec(_ context.Context, container, _ string, command []string) (string, error) {
 	assert.Equal(p.t, "gluetun", container)
-	assert.Equal(p.t, []string{"cat", "/tmp/gluetun/forwarded_port"}, command)
+	assert.Equal(p.t, []string{"wget", "-qO-", "--header", "X-API-Key: control-key", "http://127.0.0.1:8000/v1/portforward"}, command)
 	return p.output, p.err
 }
 
@@ -40,7 +40,7 @@ type forwardingHome struct {
 	state  string
 }
 
-func newForwardingHome(t *testing.T, settings, apps string) forwardingHome {
+func newForwardingHome(t *testing.T, settings, apps string, key bool) forwardingHome {
 	t.Helper()
 	getenv, home := xdgHome(t, map[string]string{"home": "INSTALLATION_NAME=home\n" + settings})
 	state := filepath.Join(home, ".local", "state", "mse", "home")
@@ -50,6 +50,9 @@ func newForwardingHome(t *testing.T, settings, apps string) forwardingHome {
 	data := filepath.Join(home, ".local", "share", "mse", "home")
 	require.NoError(t, os.MkdirAll(data, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(data, ".backup-main"), nil, 0o644))
+	if key {
+		require.NoError(t, wiring.State{Dir: filepath.Join(data, "volumes", ".wiring")}.Remember("gluetun-control.key", "control-key"))
+	}
 	return forwardingHome{getenv: getenv, home: home, state: state}
 }
 
@@ -96,6 +99,7 @@ func TestForwardPort(t *testing.T) {
 	type Given struct {
 		settings string
 		apps     string
+		noKey    bool
 		portFile portFile
 	}
 	type Then struct {
@@ -103,6 +107,7 @@ func TestForwardPort(t *testing.T) {
 		stdout string
 		stderr string
 		pings  []string
+		failed bool
 	}
 	start, success, failure := "/ping-key/mse-home-forward-port/start", "/ping-key/mse-home-forward-port", "/ping-key/mse-home-forward-port/fail"
 	tests := map[string]struct {
@@ -114,26 +119,35 @@ func TestForwardPort(t *testing.T) {
 			Then:  Then{stdout: "port forwarding is off (VPN_PORT_FORWARDING)\n"},
 		},
 		"Deluge moves to the forwarded port": {
-			Given: Given{settings: "VPN_PORT_FORWARDING=yes\n", apps: apps, portFile: portFile{output: "51234\n"}},
+			Given: Given{settings: "VPN_PORT_FORWARDING=yes\n", apps: apps, portFile: portFile{output: `{"port":51234,"ports":[51234]}`}},
 			Then:  Then{stdout: "moved Deluge to forwarded port 51234\n", pings: []string{start, success}},
 		},
 		"the VPN has no forwarded port": {
-			Given: Given{settings: "VPN_PORT_FORWARDING=yes\n", apps: apps, portFile: portFile{err: errors.New("cat: can't open '/tmp/gluetun/forwarded_port': No such file or directory")}},
-			Then:  Then{code: 1, stderr: "the VPN has no forwarded port; downloads continue without incoming connections", pings: []string{start, failure}},
+			Given: Given{settings: "VPN_PORT_FORWARDING=yes\n", apps: apps, portFile: portFile{output: `{"port":0,"ports":[]}`}},
+			Then:  Then{code: 1, stderr: "the VPN has no forwarded port; downloads continue without incoming connections", pings: []string{start, failure}, failed: true},
+		},
+		"gluetun is stopped, as during a backup": {
+			Given: Given{settings: "VPN_PORT_FORWARDING=yes\n", apps: apps, portFile: portFile{err: errors.New("container 1a2b is not running")}},
+			Then:  Then{stdout: "gluetun isn't running; nothing to check\n", pings: []string{start}},
 		},
 		"no Deluge password": {
-			Given: Given{settings: "VPN_PORT_FORWARDING=yes\n", portFile: portFile{output: "51234\n"}},
-			Then:  Then{code: 1, stderr: "DELUGE_WEB_PASSWORD is not in the app secrets", pings: []string{start, failure}},
+			Given: Given{settings: "VPN_PORT_FORWARDING=yes\n", portFile: portFile{output: `{"port":51234}`}},
+			Then:  Then{code: 1, stderr: "DELUGE_WEB_PASSWORD is not in the app secrets", pings: []string{start, failure}, failed: true},
+		},
+		"no gluetun control key": {
+			Given: Given{settings: "VPN_PORT_FORWARDING=yes\n", apps: apps, noKey: true},
+			Then:  Then{code: 1, stderr: "gluetun's control key is missing; mse apply creates it", pings: []string{start, failure}, failed: true},
 		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			h := newForwardingHome(t, tt.Given.settings, tt.Given.apps)
+			h := newForwardingHome(t, tt.Given.settings, tt.Given.apps, !tt.Given.noKey)
 			var pings []string
 			tt.Given.portFile.t = t
 			root := NewRootCommand(Dependencies{
 				Environment: h.getenv, Home: h.home, Update: newMockUpdater(t), Host: thisHost, HTTP: delugeOnPort(t, 6881, &pings),
 				Docker: func() (portforward.Docker, error) { return tt.Given.portFile, nil },
+				Pause:  func(context.Context, time.Duration) error { return nil },
 			})
 			var stdout, stderr bytes.Buffer
 			root.SetOut(&stdout)
@@ -149,7 +163,7 @@ func TestForwardPort(t *testing.T) {
 				record, recorded, err := runs.Read(filepath.Join(h.state, "runs"), "forward-port")
 				require.NoError(t, err)
 				require.True(t, recorded, "the run is recorded for mse status")
-				assert.Equal(t, tt.Then.code != 0, record.Failed)
+				assert.Equal(t, tt.Then.failed, record.Failed)
 			}
 		})
 	}
@@ -164,9 +178,9 @@ func (c *countedPortFile) Exec(context.Context, string, string, []string) (strin
 	answer := c.answers[min(c.reads, len(c.answers)-1)]
 	c.reads++
 	if answer == "" {
-		return "", errors.New("cat: can't open '/tmp/gluetun/forwarded_port': No such file or directory")
+		return `{"port":0,"ports":[]}`, nil
 	}
-	return answer, nil
+	return `{"port":` + strings.TrimSpace(answer) + `}`, nil
 }
 
 func forwardingInstallation(t *testing.T, settings map[string]string, marked bool) *installation.Installation {
@@ -175,8 +189,10 @@ func forwardingInstallation(t *testing.T, settings map[string]string, marked boo
 	i := &installation.Installation{Name: "home", Settings: settings, Data: filepath.Join(root, "data"), State: filepath.Join(root, "state")}
 	require.NoError(t, os.MkdirAll(filepath.Join(i.State, ".secrets"), 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(i.State, ".secrets", "apps.env"), []byte("DELUGE_WEB_PASSWORD=pw\n"), 0o600))
+	state := wiring.State{Dir: filepath.Join(i.Data, "volumes", ".wiring")}
+	require.NoError(t, state.Remember("gluetun-control.key", "control-key"))
 	if marked {
-		require.NoError(t, wiring.State{Dir: filepath.Join(i.Data, "volumes", ".wiring")}.Remember(portforward.Marker, "yes"))
+		require.NoError(t, state.Remember(portforward.Marker, "yes"))
 	}
 	return i
 }
@@ -233,4 +249,33 @@ func TestApplyPutsDelugeBackOnARandomPortWhenForwardingIsTurnedOff(t *testing.T)
 
 func TestApplyHasNoForwardingStepWhileItWasNeverOn(t *testing.T) {
 	assert.Nil(t, Dependencies{}.forwarding(forwardingInstallation(t, map[string]string{}, false)))
+}
+
+type refusingFirst struct {
+	refusals int
+	next     http.RoundTripper
+}
+
+func (r *refusingFirst) RoundTrip(req *http.Request) (*http.Response, error) {
+	if r.refusals > 0 {
+		r.refusals--
+		return nil, errors.New("connection refused")
+	}
+	return r.next.RoundTrip(req)
+}
+
+func TestApplyWaitsForDelugeToStart(t *testing.T) {
+	var pings []string
+	var paused []time.Duration
+	d := Dependencies{
+		HTTP:   &http.Client{Transport: &refusingFirst{refusals: 2, next: delugeOnPort(t, 6881, &pings).Transport}},
+		Docker: func() (portforward.Docker, error) { return &countedPortFile{answers: []string{"51234"}}, nil },
+		Pause:  func(_ context.Context, d time.Duration) error { paused = append(paused, d); return nil },
+	}
+
+	result, err := d.forwarding(forwardingInstallation(t, map[string]string{"VPN_PORT_FORWARDING": "yes"}, false)).Sync(context.Background())
+
+	assert.NoError(t, err)
+	assert.Equal(t, "moved Deluge to forwarded port 51234", result)
+	assert.Len(t, paused, 2)
 }

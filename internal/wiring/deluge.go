@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -127,8 +128,13 @@ func buildScript(plugin map[string]any) string {
 		`tar xzf src.tgz; cd */; python3 setup.py -q bdist_egg; cp dist/*.egg /config/plugins/`
 }
 
+var forwardedPortKeys = []string{"random_port", "listen_ports"}
+
 func (d *deluge) wireCore(settings map[string]any, plugins []map[string]any) {
 	for _, key := range sortedKeys(settings) {
+		if d.env.Settings["VPN_PORT_FORWARDING"] == "yes" && slices.Contains(forwardedPortKeys, key) {
+			continue
+		}
 		value := pythonValue(settings[key])
 		if !same(d.core.body[key], value) {
 			d.env.Change(delugeApp, fmt.Sprintf("set %s %s -> %s", key, show(d.core.body[key]), show(value)))

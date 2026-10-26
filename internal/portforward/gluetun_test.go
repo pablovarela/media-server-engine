@@ -21,19 +21,20 @@ func TestGluetunPort(t *testing.T) {
 		Given Given
 		Then  Then
 	}{
-		"a forwarded port": {Given: Given{output: "51234\n"}, Then: Then{port: 51234}},
-		"an empty file":    {Given: Given{output: ""}, Then: Then{err: ErrNoPort}},
-		"port zero":        {Given: Given{output: "0\n"}, Then: Then{err: ErrNoPort}},
-		"not a number":     {Given: Given{output: "abc\n"}, Then: Then{err: ErrNoPort}},
-		"no file":          {Given: Given{err: errors.New("cat: can't open '/tmp/gluetun/forwarded_port': No such file or directory")}, Then: Then{err: ErrNoPort}},
-		"gluetun is down":  {Given: Given{err: errors.New("container 1a2b is not running")}, Then: Then{err: ErrGluetun}},
+		"a forwarded port":           {Given: Given{output: `{"port":51234,"ports":[51234]}`}, Then: Then{port: 51234}},
+		"an older gluetun":           {Given: Given{output: `{"port":51234}`}, Then: Then{port: 51234}},
+		"a gluetun without port":     {Given: Given{output: `{"ports":[51234]}`}, Then: Then{port: 51234}},
+		"no forwarded port":          {Given: Given{output: `{"port":0,"ports":[]}`}, Then: Then{err: ErrNoPort}},
+		"an unreadable answer":       {Given: Given{output: "<html>"}, Then: Then{err: ErrGluetun}},
+		"the control server is down": {Given: Given{err: errors.New("wget: unable to connect to remote host: Connection refused")}, Then: Then{err: ErrGluetun}},
+		"gluetun is down":            {Given: Given{err: errors.New("container 1a2b is not running")}, Then: Then{err: ErrGluetunStopped}},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			docker := newMockDocker(t)
-			docker.EXPECT().Exec(context.Background(), "gluetun", "", []string{"cat", "/tmp/gluetun/forwarded_port"}).Return(tt.Given.output, tt.Given.err)
+			docker.EXPECT().Exec(context.Background(), "gluetun", "", []string{"wget", "-qO-", "--header", "X-API-Key: control-key", "http://127.0.0.1:8000/v1/portforward"}).Return(tt.Given.output, tt.Given.err)
 
-			port, err := Gluetun{Docker: docker}.Port(context.Background())
+			port, err := Gluetun{Docker: docker, Key: "control-key"}.Port(context.Background())
 
 			assert.Equal(t, tt.Then.port, port)
 			if tt.Then.err == nil {
@@ -43,4 +44,14 @@ func TestGluetunPort(t *testing.T) {
 			assert.ErrorIs(t, err, tt.Then.err)
 		})
 	}
+}
+
+func TestGluetunErrorsDoNotShowTheKey(t *testing.T) {
+	docker := newMockDocker(t)
+	docker.EXPECT().Exec(context.Background(), "gluetun", "", []string{"wget", "-qO-", "--header", "X-API-Key: control-key", "http://127.0.0.1:8000/v1/portforward"}).
+		Return("", errors.New("wget --header X-API-Key: control-key failed"))
+
+	_, err := Gluetun{Docker: docker, Key: "control-key"}.Port(context.Background())
+
+	assert.NotContains(t, err.Error(), "control-key")
 }

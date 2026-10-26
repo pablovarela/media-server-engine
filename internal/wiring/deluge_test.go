@@ -356,3 +356,34 @@ func TestADeclaredNullThatDelugeDoesNotHaveIsNoChange(t *testing.T) {
 	_, core := readConf(t, filepath.Join(f.config, "core.conf"))
 	assert.NotContains(t, core, "proxy")
 }
+
+func TestWithPortForwardingTheListenPortIsLeftToTheForwarding(t *testing.T) {
+	tests := map[string]struct {
+		forwarding string
+		random     bool
+		ports      []any
+		restarts   []string
+	}{
+		"forwarding on":  {forwarding: "yes", random: false, ports: []any{float64(51234), float64(51234)}},
+		"forwarding off": {forwarding: "no", random: true, ports: []any{float64(6881), float64(6891)}, restarts: []string{"stop deluge", "start deluge"}},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			f := newDelugeFixture(t, "pw")
+			f.env.Settings["VPN_PORT_FORWARDING"] = tt.forwarding
+			require.NoError(t, os.WriteFile(filepath.Join(f.env.Config, "apps.yml"), []byte("deluge:\n  core:\n    random_port: true\n    listen_ports: [6881, 6891]\n"), 0o644))
+			writeConf(t, filepath.Join(f.config, "core.conf"), `{"file": 1, "format": 1}`, `{"enabled_plugins": [], "random_port": false, "listen_ports": [51234, 51234]}`)
+			salt := "s"
+			sum := sha1.Sum([]byte(salt + "pw")) //nolint:gosec // Deluge's own password hash
+			writeConf(t, filepath.Join(f.config, "web.conf"), `{"file": 2, "format": 1}`, `{"pwd_salt": "s", "pwd_sha1": "`+hex.EncodeToString(sum[:])+`", "first_login": false}`)
+			f.dockerAnswers(nil)
+
+			require.NoError(t, f.wire())
+
+			_, core := readConf(t, filepath.Join(f.config, "core.conf"))
+			assert.Equal(t, tt.random, core["random_port"])
+			assert.Equal(t, tt.ports, core["listen_ports"])
+			assert.Equal(t, tt.restarts, f.restarts())
+		})
+	}
+}

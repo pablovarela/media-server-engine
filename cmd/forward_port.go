@@ -42,9 +42,15 @@ func newForwardPortCommand(deps Dependencies) *cobra.Command {
 			}
 			finishing := context.WithoutCancel(cmd.Context())
 			pings.Ping(cmd.Context(), jobs.ForwardPort, "/start")
-			result, err := deps.forwardPort(cmd.Context(), i)
+			result, err := deps.waitForPort(cmd.Context(), i)
 			defer shieldSignals()()
-			if err != nil {
+			switch {
+			case errors.Is(err, portforward.ErrGluetunStopped):
+				// The backups stop the stack; without a ping healthchecks.io calls the check down only if gluetun stays stopped past its grace.
+				pings.runs.finish(jobs.ForwardPort, false)
+				_, err := fmt.Fprintln(cmd.OutOrStdout(), "gluetun isn't running; nothing to check")
+				return err
+			case err != nil:
 				pings.Ping(finishing, jobs.ForwardPort, "/fail")
 				return err
 			}
@@ -80,7 +86,7 @@ func (d Dependencies) waitForPort(ctx context.Context, i *installation.Installat
 	}
 	for waited := time.Duration(0); ; waited += portRetry {
 		result, err := sync.Forward(ctx)
-		if !errors.Is(err, portforward.ErrNoPort) || waited >= portWait {
+		if !startingUp(err) || waited >= portWait {
 			if err != nil {
 				return "", err
 			}
@@ -90,6 +96,10 @@ func (d Dependencies) waitForPort(ctx context.Context, i *installation.Installat
 			return "", err
 		}
 	}
+}
+
+func startingUp(err error) bool {
+	return errors.Is(err, portforward.ErrNoPort) || errors.Is(err, portforward.ErrGluetun) || errors.Is(err, portforward.ErrDeluge)
 }
 
 func (d Dependencies) restorePort(ctx context.Context, i *installation.Installation) (string, error) {
@@ -114,25 +124,21 @@ func delugeURL(i *installation.Installation) string {
 	return wiring.Env{Settings: i.Settings}.URL("DELUGE_URL", "http://localhost:8112")
 }
 
-func (d Dependencies) forwardPort(ctx context.Context, i *installation.Installation) (portforward.Result, error) {
-	sync, err := d.portSync(i)
-	if err != nil {
-		return portforward.Result{}, err
-	}
-	return sync.Forward(ctx)
-}
-
 func (d Dependencies) portSync(i *installation.Installation) (portforward.Sync, error) {
 	password := secrets.Dotenv(readSecretsFile(i, "apps.env"))["DELUGE_WEB_PASSWORD"]
 	if password == "" {
 		return portforward.Sync{}, errors.New("DELUGE_WEB_PASSWORD is not in the app secrets")
+	}
+	key := wiringState(i).Remembered("gluetun-control.key")
+	if key == "" {
+		return portforward.Sync{}, errors.New("gluetun's control key is missing; mse apply creates it")
 	}
 	docker, err := d.Docker()
 	if err != nil {
 		return portforward.Sync{}, err
 	}
 	return portforward.Sync{
-		Gluetun: portforward.Gluetun{Docker: docker},
+		Gluetun: portforward.Gluetun{Docker: docker, Key: key},
 		Deluge:  portforward.NewDeluge(delugeURL(i), password, d.HTTP.Transport),
 		State:   wiringState(i),
 	}, nil
