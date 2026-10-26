@@ -93,7 +93,10 @@ func (d Dependencies) applyByHand(cmd *cobra.Command) error {
 }
 
 func (d Dependencies) apply(cmd *cobra.Command) error {
-	o, err := d.openProject(cmd, compose.Stack, drawingWhenPinned)
+	setUpChecksForThePage := func(i *installation.Installation, network string) {
+		apply.SetUpChecks(cmd.Context(), d.checks(i, network), report.From(cmd.Context()))
+	}
+	o, err := d.openProjectAfter(cmd, compose.Stack, drawingWhenPinned, setUpChecksForThePage)
 	if err != nil {
 		return err
 	}
@@ -107,7 +110,6 @@ func (d Dependencies) apply(cmd *cobra.Command) error {
 	}
 	return (&apply.Apply{
 		Stack:       appliedStack{runner: o.runner, project: o.project, wired: wired, outcomes: o.outcomes, data: o.installation.Data, config: o.installation.Config},
-		Checks:      d.checks(o.installation, o.network),
 		Wiring:      wires,
 		Forwarding:  d.forwarding(o.installation),
 		Timers:      d.timersOrNil(cmd, o.installation),

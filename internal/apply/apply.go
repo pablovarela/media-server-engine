@@ -178,18 +178,22 @@ func (a *Apply) step(title string, do func() (string, error)) error {
 }
 
 func (a *Apply) setUpChecks(ctx context.Context) {
-	if a.Checks == nil {
+	SetUpChecks(ctx, a.Checks, a.Report)
+}
+
+func SetUpChecks(ctx context.Context, checks Checks, r *report.Reporter) {
+	if checks == nil {
 		return
 	}
-	s := a.Report.Step("Setting up the Healthchecks checks")
-	set, failures := a.Checks.SetUp(ctx)
+	s := r.Step("Setting up the Healthchecks checks")
+	set, failures := checks.SetUp(ctx)
 	if len(set) > 0 {
 		s.Done(strings.Join(set, ", "))
 	} else {
 		s.Done("none set up")
 	}
 	for _, failure := range failures {
-		a.Report.Warn(paint.Stderr.Warning("healthchecks: could not set up " + failure))
+		r.Warn(paint.Stderr.Warning("healthchecks: could not set up " + failure))
 	}
 }
 

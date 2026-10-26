@@ -146,13 +146,15 @@ Each check prints one line, and any failure makes it exit 1 with the reasons und
 
 Applies the config on disk to the machine, uncommitted changes included:
 
-1. writes the secrets and draws the landing page;
+1. writes the secrets;
 2. sets up the healthchecks.io checks (under systemd, with `HEALTHCHECKS_MANAGE_KEY`);
-3. pulls the images that aren't on the machine at their pinned digest (so a run with no image changes asks no registry), trying again when a registry limits requests or times out; a failed pull stops it before anything restarts;
-4. starts the stack, and puts Prowlarr, FlareSolverr and Deluge back on gluetun's network if they lost it;
-5. wires the apps as the config's `apps.yml` and `prowlarr.yml` declare: Prowlarr, Jellyfin, Sonarr's and Radarr's library updates, Deluge, Configarr, Seerr, Bazarr, Maintainerr;
-6. reloads Homepage and removes outdated images;
-7. sets up the timers (below), even when an earlier step failed, so the nightly update is there to try again.
+3. draws the landing page, so the checks it shows include any just set up;
+4. pulls the images that aren't on the machine at their pinned digest (so a run with no image changes asks no registry), trying again when a registry limits requests or times out; a failed pull stops it before anything restarts;
+5. starts the stack, and puts Prowlarr, FlareSolverr and Deluge back on gluetun's network if they lost it;
+6. wires the apps as the config's `apps.yml` and `prowlarr.yml` declare: Prowlarr, Jellyfin, Sonarr's and Radarr's library updates, Deluge, Configarr, Seerr, Bazarr, Maintainerr;
+7. with `VPN_PORT_FORWARDING=yes`, moves Deluge to the VPN's forwarded port, waiting up to a minute for one and only warning when there is none;
+8. reloads Homepage and removes outdated images;
+9. sets up the timers (below), even when an earlier step failed, so the nightly update is there to try again.
 
 Each change the wiring makes is one line. An app that fails or doesn't answer within five minutes is named, the others are still wired, and the command fails.
 
