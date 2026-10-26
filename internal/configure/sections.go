@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pablovarela/media-server-engine/internal/media"
+	"github.com/pablovarela/media-server-engine/internal/portforward"
 )
 
 const (
@@ -61,11 +62,12 @@ func Sections() []Section {
 			{Key: media.ScheduleSetting, Title: "When it runs, weekday and time (empty for Sun 01:00)", File: PlainFile, Optional: true, check: media.CheckSchedule},
 			{Key: media.CheckSubsetSetting, Title: "Share of the media each run reads back (empty for 5%)", File: PlainFile, Optional: true, check: media.CheckSubset},
 		}},
-		{Name: "VPN", Summary: "provider, user, password, countries", Fields: []Field{
+		{Name: "VPN", Summary: "provider, user, password, countries, port forwarding", Fields: []Field{
 			{Key: "VPN_SERVICE_PROVIDER", Title: "VPN provider (as gluetun names it)", File: vpnFile},
 			{Key: "OPENVPN_USER", Title: "OpenVPN user (none for WireGuard)", File: vpnFile, Masked: true, Optional: true},
 			{Key: "OPENVPN_PASSWORD", Title: "OpenVPN password (none for WireGuard)", File: vpnFile, Masked: true, Optional: true},
 			{Key: "SERVER_COUNTRIES", Title: "Server countries, comma-separated", File: vpnFile, Optional: true},
+			{Key: portforward.Setting, Title: "Forward a port from the VPN to Deluge? yes or no (empty for no; ProtonVPN only)", File: PlainFile, Optional: true, check: portforward.CheckEnabled, against: protonOnly},
 		}},
 		{Name: "Healthchecks", Summary: "ping, API and manage keys", Fields: []Field{
 			{Key: "HEALTHCHECKS_PING_KEY", Title: "Ping key (without one there are no pings)", File: healthchecksFile, Masked: true, Optional: true},
@@ -132,6 +134,13 @@ func mediaRepositoryUnderivable(v Values) string {
 		return ""
 	}
 	return media.NeededFor
+}
+
+func protonOnly(forwarding string, v Values) error {
+	if forwarding == "yes" && v.Get(vpnFile, "VPN_SERVICE_PROVIDER") != "protonvpn" {
+		return errors.New("port forwarding works with protonvpn only")
+	}
+	return nil
 }
 
 func timeZone(value string) error {

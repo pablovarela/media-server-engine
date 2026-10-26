@@ -33,6 +33,8 @@ func TestTheSections(t *testing.T) {
 	assert.True(t, field(t, "OPENVPN_PASSWORD").Masked)
 	assert.False(t, field(t, "VPN_SERVICE_PROVIDER").Masked)
 	assert.True(t, field(t, "SERVER_COUNTRIES").Optional)
+	assert.Equal(t, PlainFile, field(t, "VPN_PORT_FORWARDING").File)
+	assert.True(t, field(t, "VPN_PORT_FORWARDING").Optional)
 }
 
 func TestTheChecks(t *testing.T) {
@@ -57,6 +59,8 @@ func TestTheChecks(t *testing.T) {
 		"media backup yes":           {key: "MEDIA_BACKUP", value: "yes"},
 		"media backup maybe":         {key: "MEDIA_BACKUP", value: "maybe", err: "MEDIA_BACKUP: must be yes or no"},
 		"no media backup setting":    {key: "MEDIA_BACKUP", value: ""},
+		"port forwarding on":         {key: "VPN_PORT_FORWARDING", value: "yes"},
+		"port forwarding maybe":      {key: "VPN_PORT_FORWARDING", value: "on", err: "VPN_PORT_FORWARDING: must be yes or no"},
 		"no weeks kept":              {key: "MEDIA_BACKUP_KEEP_WEEKLY", value: "0", err: "MEDIA_BACKUP_KEEP_WEEKLY: must be a whole number above 0"},
 		"an upload cap":              {key: "MEDIA_BACKUP_UPLOAD_LIMIT", value: "2048"},
 		"a loose schedule":           {key: "MEDIA_BACKUP_SCHEDULE", value: "Sun 1am", err: "MEDIA_BACKUP_SCHEDULE: Sun 1am isn't a weekday and time like Sun 01:00"},
@@ -97,6 +101,30 @@ func TestTheMediaRepositoryIsNeededOnlyWhenItCantBeDerived(t *testing.T) {
 			v := Values{}.With(PlainFile, "RESTIC_REPOSITORY", tt.apps).With(PlainFile, "MEDIA_BACKUP", tt.enabled)
 
 			err := field(t, "MEDIA_RESTIC_REPOSITORY").ValidateIn(v)
+
+			if tt.err == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.EqualError(t, err, tt.err)
+		})
+	}
+}
+
+func TestPortForwardingNeedsProtonVPN(t *testing.T) {
+	tests := map[string]struct {
+		provider, forwarding, err string
+	}{
+		"with protonvpn":         {provider: "protonvpn", forwarding: "yes"},
+		"with another provider":  {provider: "mullvad", forwarding: "yes", err: "VPN_PORT_FORWARDING: port forwarding works with protonvpn only"},
+		"off with another one":   {provider: "mullvad", forwarding: "no"},
+		"empty with another one": {provider: "mullvad", forwarding: ""},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			v := Values{}.With(vpnFile, "VPN_SERVICE_PROVIDER", tt.provider).With(PlainFile, "VPN_PORT_FORWARDING", tt.forwarding)
+
+			err := field(t, "VPN_PORT_FORWARDING").ValidateIn(v)
 
 			if tt.err == "" {
 				assert.NoError(t, err)
