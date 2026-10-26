@@ -30,7 +30,7 @@ type Gluetun struct {
 func (g Gluetun) Port(ctx context.Context) (int, error) {
 	output, err := g.Docker.Exec(ctx, gluetunContainer, "", []string{"wget", "-qO-", "--header", "X-API-Key: " + g.Key, portForwardURL})
 	if err != nil {
-		if strings.Contains(err.Error(), "is not running") {
+		if strings.Contains(err.Error(), "is not running") || strings.Contains(err.Error(), "No such container") {
 			return 0, ErrGluetunStopped
 		}
 		return 0, ErrGluetun

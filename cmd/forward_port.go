@@ -84,32 +84,59 @@ func (d Dependencies) waitForPort(ctx context.Context, i *installation.Installat
 	if err != nil {
 		return "", err
 	}
-	for waited := time.Duration(0); ; waited += portRetry {
+	ctx, cancel := context.WithTimeout(ctx, portWait)
+	defer cancel()
+	for retries := 0; ; retries++ {
 		result, err := sync.Forward(ctx)
-		if !startingUp(err) || waited >= portWait {
+		if !startingUp(err) || retries == int(portWait/portRetry) {
 			if err != nil {
 				return "", err
 			}
 			return result.String(), nil
 		}
-		if err := d.Pause(ctx, portRetry); err != nil {
+		if d.Pause(ctx, portRetry) != nil {
 			return "", err
 		}
 	}
 }
 
 func startingUp(err error) bool {
-	return errors.Is(err, portforward.ErrNoPort) || errors.Is(err, portforward.ErrGluetun) || errors.Is(err, portforward.ErrDeluge)
+	for _, passing := range []error{portforward.ErrNoPort, portforward.ErrGluetun, portforward.ErrDeluge, portforward.ErrNotMoved} {
+		if errors.Is(err, passing) {
+			return true
+		}
+	}
+	return false
 }
 
 func (d Dependencies) restorePort(ctx context.Context, i *installation.Installation) (string, error) {
-	password := secrets.Dotenv(readSecretsFile(i, "apps.env"))["DELUGE_WEB_PASSWORD"]
-	sync := portforward.Sync{Deluge: portforward.NewDeluge(delugeURL(i), password, d.HTTP.Transport), State: wiringState(i)}
-	restored, err := sync.Restore(ctx)
+	if declaresDelugeListenPort(i) {
+		return "Deluge on the port apps.yml declares", wiringState(i).Remember(portforward.Marker, "")
+	}
+	deluge, err := d.deluge(i)
+	if err != nil {
+		return "", err
+	}
+	restored, err := portforward.Sync{Deluge: deluge, State: wiringState(i)}.Restore(ctx)
 	if err != nil || !restored {
 		return "nothing to restore", err
 	}
 	return "Deluge back on a random port", nil
+}
+
+func declaresDelugeListenPort(i *installation.Installation) bool {
+	if i.Config == "" {
+		return false
+	}
+	declared, err := wiring.Env{Config: i.Config}.Declared("apps.yml")
+	if err != nil {
+		return false
+	}
+	deluge, _ := declared["deluge"].(map[string]any)
+	core, _ := deluge["core"].(map[string]any)
+	_, random := core["random_port"]
+	_, ports := core["listen_ports"]
+	return random || ports
 }
 
 type forwardingFunc func(context.Context) (string, error)
@@ -120,14 +147,19 @@ func wiringState(i *installation.Installation) wiring.State {
 	return wiring.State{Dir: filepath.Join(i.Data, "volumes", ".wiring")}
 }
 
-func delugeURL(i *installation.Installation) string {
-	return wiring.Env{Settings: i.Settings}.URL("DELUGE_URL", "http://localhost:8112")
+func (d Dependencies) deluge(i *installation.Installation) (*portforward.Deluge, error) {
+	password := secrets.Dotenv(readSecretsFile(i, "apps.env"))["DELUGE_WEB_PASSWORD"]
+	if password == "" {
+		return nil, errors.New("DELUGE_WEB_PASSWORD is not in the app secrets")
+	}
+	url := wiring.Env{Settings: i.Settings}.URL("DELUGE_URL", "http://localhost:8112")
+	return portforward.NewDeluge(url, password, d.HTTP.Transport), nil
 }
 
 func (d Dependencies) portSync(i *installation.Installation) (portforward.Sync, error) {
-	password := secrets.Dotenv(readSecretsFile(i, "apps.env"))["DELUGE_WEB_PASSWORD"]
-	if password == "" {
-		return portforward.Sync{}, errors.New("DELUGE_WEB_PASSWORD is not in the app secrets")
+	deluge, err := d.deluge(i)
+	if err != nil {
+		return portforward.Sync{}, err
 	}
 	key := wiringState(i).Remembered("gluetun-control.key")
 	if key == "" {
@@ -137,9 +169,5 @@ func (d Dependencies) portSync(i *installation.Installation) (portforward.Sync, 
 	if err != nil {
 		return portforward.Sync{}, err
 	}
-	return portforward.Sync{
-		Gluetun: portforward.Gluetun{Docker: docker, Key: key},
-		Deluge:  portforward.NewDeluge(delugeURL(i), password, d.HTTP.Transport),
-		State:   wiringState(i),
-	}, nil
+	return portforward.Sync{Gluetun: portforward.Gluetun{Docker: docker, Key: key}, Deluge: deluge, State: wiringState(i)}, nil
 }

@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	"github.com/pablovarela/media-server-engine/internal/wiring"
 )
 
 const Marker = "deluge-port-forwarded"
@@ -22,10 +20,15 @@ type Listener interface {
 	RandomPort(ctx context.Context) error
 }
 
+type Memory interface {
+	Remembered(name string) string
+	Remember(name, value string) error
+}
+
 type Sync struct {
 	Gluetun Ports
 	Deluge  Listener
-	State   wiring.State
+	State   Memory
 }
 
 type Result struct {

@@ -7,9 +7,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/pablovarela/media-server-engine/internal/wiring"
 )
+
+type memory map[string]string
+
+func (m memory) Remembered(name string) string { return m[name] }
+
+func (m memory) Remember(name, value string) error {
+	m[name] = value
+	return nil
+}
 
 func TestForward(t *testing.T) {
 	type Given struct {
@@ -44,7 +51,7 @@ func TestForward(t *testing.T) {
 				deluge.EXPECT().Listen(ctx, tt.Given.gluetunPort).Return(nil)
 				deluge.EXPECT().ListenPort(ctx).Return(tt.Given.after, nil).Once()
 			}
-			state := wiring.State{Dir: t.TempDir()}
+			state := memory{}
 
 			result, err := Sync{Gluetun: ports, Deluge: deluge, State: state}.Forward(ctx)
 
@@ -74,7 +81,7 @@ func TestRestore(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctx := context.Background()
-			state := wiring.State{Dir: t.TempDir()}
+			state := memory{}
 			if tt.marked {
 				require.NoError(t, state.Remember(Marker, "yes"))
 			}

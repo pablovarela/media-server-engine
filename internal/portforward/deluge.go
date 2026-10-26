@@ -51,7 +51,11 @@ func (d *Deluge) session(ctx context.Context, method string, params []any, into 
 		}
 		d.ready = true
 	}
-	return d.call(ctx, method, params, into)
+	err := d.call(ctx, method, params, into)
+	if err != nil {
+		d.ready = false
+	}
+	return err
 }
 
 func (d *Deluge) attach(ctx context.Context) error {
@@ -71,7 +75,7 @@ func (d *Deluge) attach(ctx context.Context) error {
 		return err
 	}
 	if len(hosts) == 0 || len(hosts[0]) == 0 {
-		return errors.New("the Deluge web UI lists no daemon to connect to")
+		return fmt.Errorf("%w: it lists no daemon to connect to", ErrDeluge)
 	}
 	return d.call(ctx, "web.connect", []any{hosts[0][0]}, nil)
 }
@@ -91,6 +95,9 @@ func (d *Deluge) call(ctx context.Context, method string, params []any, into any
 	request.Header.Set("Content-Type", "application/json")
 	response, err := d.client.Do(request)
 	if err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		return ErrDeluge
 	}
 	defer func() { _ = response.Body.Close() }()
@@ -107,7 +114,7 @@ func (d *Deluge) call(ctx context.Context, method string, params []any, into any
 		return fmt.Errorf("%w: unreadable answer to %s", ErrDeluge, method)
 	}
 	if answer.Error != nil {
-		return fmt.Errorf("the Deluge web UI answered %s with: %s", method, answer.Error.Message)
+		return fmt.Errorf("%w: %s: %s", ErrDeluge, method, answer.Error.Message)
 	}
 	if into == nil {
 		return nil

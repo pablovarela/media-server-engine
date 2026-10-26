@@ -27,6 +27,7 @@ func TestGluetunPort(t *testing.T) {
 		"no forwarded port":          {Given: Given{output: `{"port":0,"ports":[]}`}, Then: Then{err: ErrNoPort}},
 		"an unreadable answer":       {Given: Given{output: "<html>"}, Then: Then{err: ErrGluetun}},
 		"the control server is down": {Given: Given{err: errors.New("wget: unable to connect to remote host: Connection refused")}, Then: Then{err: ErrGluetun}},
+		"gluetun was removed":        {Given: Given{err: errors.New("Error response from daemon: No such container: gluetun")}, Then: Then{err: ErrGluetunStopped}},
 		"gluetun is down":            {Given: Given{err: errors.New("container 1a2b is not running")}, Then: Then{err: ErrGluetunStopped}},
 	}
 	for name, tt := range tests {

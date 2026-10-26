@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/pablovarela/media-server-engine/internal/portforward"
 )
 
 const (
@@ -131,8 +133,9 @@ func buildScript(plugin map[string]any) string {
 var forwardedPortKeys = []string{"random_port", "listen_ports"}
 
 func (d *deluge) wireCore(settings map[string]any, plugins []map[string]any) {
+	forwarding, _ := portforward.Enabled(d.env.Settings)
 	for _, key := range sortedKeys(settings) {
-		if d.env.Settings["VPN_PORT_FORWARDING"] == "yes" && slices.Contains(forwardedPortKeys, key) {
+		if forwarding && slices.Contains(forwardedPortKeys, key) {
 			continue
 		}
 		value := pythonValue(settings[key])

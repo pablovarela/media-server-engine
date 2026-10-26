@@ -114,5 +114,35 @@ func TestDelugeReportsAnRPCError(t *testing.T) {
 
 	_, err := d.ListenPort(context.Background())
 
-	assert.EqualError(t, err, "the Deluge web UI answered core.get_listen_port with: Not authenticated")
+	assert.ErrorIs(t, err, ErrDeluge)
+	assert.EqualError(t, err, "the Deluge web UI isn't answering: core.get_listen_port: Not authenticated")
+}
+
+func TestAnRPCErrorIsADelugeErrorAndTheNextCallAttachesAgain(t *testing.T) {
+	d := NewDeluge("http://localhost:8112", "pw", delugeAnswering(t,
+		login,
+		call{method: "web.connected", params: `[]`, answer: `{"result":false,"error":null,"id":2}`},
+		call{method: "web.get_hosts", params: `[]`, answer: `{"result":[["id1","127.0.0.1",58846,"localclient"]],"error":null,"id":3}`},
+		call{method: "web.connect", params: `["id1"]`, answer: `{"result":null,"error":{"message":"Connection refused","code":1},"id":4}`},
+		login, connected,
+		call{method: "core.get_listen_port", params: `[]`, answer: `{"result":6881,"error":null,"id":7}`},
+	))
+
+	_, err := d.ListenPort(context.Background())
+	assert.ErrorIs(t, err, ErrDeluge)
+	assert.Contains(t, err.Error(), "web.connect")
+
+	port, err := d.ListenPort(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 6881, port)
+}
+
+func TestACancelledCallSaysSo(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	d := NewDeluge("http://localhost:8112", "pw", roundTripFunc(func(r *http.Request) (*http.Response, error) { return nil, r.Context().Err() }))
+
+	_, err := d.ListenPort(ctx)
+
+	assert.ErrorIs(t, err, context.Canceled)
 }

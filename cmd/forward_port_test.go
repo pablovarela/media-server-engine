@@ -279,3 +279,86 @@ func TestApplyWaitsForDelugeToStart(t *testing.T) {
 	assert.Equal(t, "moved Deluge to forwarded port 51234", result)
 	assert.Len(t, paused, 2)
 }
+
+type ignoringFirstMove struct {
+	ignored bool
+	next    http.RoundTripper
+}
+
+func (i *ignoringFirstMove) RoundTrip(req *http.Request) (*http.Response, error) {
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		return nil, err
+	}
+	if !i.ignored && strings.Contains(string(body), `"listen_ports"`) {
+		i.ignored = true
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"result":null,"error":null,"id":1}`)), Request: req}, nil
+	}
+	req.Body = io.NopCloser(bytes.NewReader(body))
+	return i.next.RoundTrip(req)
+}
+
+func TestApplyGivesDelugeAMomentToTakeThePort(t *testing.T) {
+	var pings []string
+	var paused []time.Duration
+	d := Dependencies{
+		HTTP:   &http.Client{Transport: &ignoringFirstMove{next: delugeOnPort(t, 6881, &pings).Transport}},
+		Docker: func() (portforward.Docker, error) { return &countedPortFile{answers: []string{"51234"}}, nil },
+		Pause:  func(_ context.Context, d time.Duration) error { paused = append(paused, d); return nil },
+	}
+
+	result, err := d.forwarding(forwardingInstallation(t, map[string]string{"VPN_PORT_FORWARDING": "yes"}, false)).Sync(context.Background())
+
+	assert.NoError(t, err)
+	assert.Equal(t, "moved Deluge to forwarded port 51234", result)
+	assert.Len(t, paused, 1)
+}
+
+type deadlineCheck struct{ t *testing.T }
+
+func (d deadlineCheck) Exec(ctx context.Context, _, _ string, _ []string) (string, error) {
+	deadline, set := ctx.Deadline()
+	require.True(d.t, set, "the wait has a deadline")
+	assert.WithinDuration(d.t, time.Now().Add(time.Minute), deadline, 5*time.Second)
+	return `{"port":51234}`, nil
+}
+
+func TestApplyWaitsAMinuteAtMostWhateverEachCallTakes(t *testing.T) {
+	var pings []string
+	d := Dependencies{
+		HTTP:   delugeOnPort(t, 51234, &pings),
+		Docker: func() (portforward.Docker, error) { return deadlineCheck{t: t}, nil },
+		Pause:  func(context.Context, time.Duration) error { return nil },
+	}
+
+	_, err := d.forwarding(forwardingInstallation(t, map[string]string{"VPN_PORT_FORWARDING": "yes"}, false)).Sync(context.Background())
+
+	assert.NoError(t, err)
+}
+
+func TestTurningForwardingOffLeavesAPortTheConfigDeclares(t *testing.T) {
+	var pings []string
+	d := Dependencies{HTTP: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		t.Error("Deluge isn't called: the wiring already applied the declared port")
+		return nil, errors.New("not reachable")
+	})}}
+	i := forwardingInstallation(t, map[string]string{}, true)
+	i.Config = t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(i.Config, "apps.yml"), []byte("deluge:\n  core:\n    random_port: false\n    listen_ports: [6881, 6881]\n"), 0o644))
+
+	result, err := d.forwarding(i).Sync(context.Background())
+
+	assert.NoError(t, err)
+	assert.Equal(t, "Deluge on the port apps.yml declares", result)
+	assert.Empty(t, wiring.State{Dir: filepath.Join(i.Data, "volumes", ".wiring")}.Remembered(portforward.Marker))
+	assert.Empty(t, pings)
+}
+
+func TestTurningForwardingOffWithoutADelugePasswordSaysSo(t *testing.T) {
+	i := forwardingInstallation(t, map[string]string{}, true)
+	require.NoError(t, os.WriteFile(filepath.Join(i.State, ".secrets", "apps.env"), nil, 0o600))
+
+	_, err := Dependencies{}.forwarding(i).Sync(context.Background())
+
+	assert.EqualError(t, err, "DELUGE_WEB_PASSWORD is not in the app secrets")
+}
