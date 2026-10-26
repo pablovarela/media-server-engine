@@ -5,10 +5,13 @@ import (
 	"fmt"
 )
 
-const Setting = "VPN_PORT_FORWARDING"
+const (
+	Setting = "VPN_PORT_FORWARDING"
+	yes     = "yes"
+)
 
 func CheckEnabled(value string) error {
-	if value != "yes" && value != "no" {
+	if value != yes && value != "no" {
 		return errors.New("must be yes or no")
 	}
 	return nil
@@ -22,5 +25,5 @@ func Enabled(settings map[string]string) (bool, error) {
 	if err := CheckEnabled(value); err != nil {
 		return false, fmt.Errorf("%s: %w", Setting, err)
 	}
-	return value == "yes", nil
+	return value == yes, nil
 }
