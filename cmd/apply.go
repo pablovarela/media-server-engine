@@ -23,6 +23,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/jobs"
 	"github.com/pablovarela/media-server-engine/internal/media"
 	"github.com/pablovarela/media-server-engine/internal/paint"
+	"github.com/pablovarela/media-server-engine/internal/portforward"
 	"github.com/pablovarela/media-server-engine/internal/process"
 	"github.com/pablovarela/media-server-engine/internal/report"
 	"github.com/pablovarela/media-server-engine/internal/secrets"
@@ -182,9 +183,10 @@ func (d Dependencies) checks(i *installation.Installation, network string) apply
 			mediaCron = timing.Schedule.Cron()
 			facts.MediaRepository = mediaLocation(i.Settings, facts.Repository)
 		}
+		forwardPort, _ := portforward.Enabled(i.Settings)
 		manage := healthchecks.Manage{Client: d.HTTP, URL: healthchecks.ChecksURL, Key: key}
-		set, failures := manage.SetUp(ctx, healthchecks.ChecksFor(i.Name, i.Role(), d.shortHost(), mediaCron), facts)
-		removed, notRemoved := manage.Retire(ctx, healthchecks.RetiredFor(i.Name, i.Role(), mediaCron))
+		set, failures := manage.SetUp(ctx, healthchecks.ChecksFor(i.Name, i.Role(), d.shortHost(), mediaCron, forwardPort), facts)
+		removed, notRemoved := manage.Retire(ctx, healthchecks.RetiredFor(i.Name, i.Role(), d.shortHost(), mediaCron, forwardPort))
 		if len(removed) > 0 && len(set) > 0 {
 			set[len(set)-1] += "; " + strings.Join(removed, ", ") + " removed"
 		}

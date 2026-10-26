@@ -1,0 +1,8 @@
+[Unit]
+Description=Keep Deluge on the VPN's forwarded port (@NAME@)
+
+[Service]
+Type=oneshot
+@ENVIRONMENT@
+ExecStart=@MSE@ forward-port
+Nice=10

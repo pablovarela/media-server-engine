@@ -24,6 +24,7 @@ type Job struct {
 var (
 	Update         = Job{Name: jobs.Update}
 	CleanDownloads = Job{Name: jobs.CleanDownloads}
+	ForwardPort    = Job{Name: jobs.ForwardPort}
 	BackupApps     = Job{Name: jobs.BackupApps}
 	CheckBackup    = Job{Name: jobs.CheckBackup}
 	BackupMedia    = Job{Name: jobs.BackupMedia}
@@ -46,12 +47,12 @@ const (
 	Unknown
 )
 
-func Plan(role Role, media bool) (install, keep []Job) {
-	for _, name := range jobs.Planned(role == Main, media) {
+func Plan(role Role, f jobs.Features) (install, keep []Job) {
+	for _, name := range jobs.Planned(role == Main, f) {
 		install = append(install, Job{Name: name})
 	}
 	if role == Unknown {
-		for _, name := range jobs.Planned(true, true) {
+		for _, name := range jobs.Planned(true, jobs.Features{Media: true}) {
 			if !jobs.OnEveryMachine(name) {
 				keep = append(keep, Job{Name: name})
 			}

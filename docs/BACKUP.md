@@ -87,6 +87,8 @@ With a healthchecks.io ping key in `secrets/healthchecks.sops.env`, every timed 
 | `mse-<name>-update-<host>` | the nightly update on other machines | `0 5 * * *` | 2 hours |
 | `mse-<name>-clean-downloads` | every download cleanup on the main | `*/15 * * * *` | 30 minutes |
 | `mse-<name>-clean-downloads-<host>` | every download cleanup on other machines | `*/15 * * * *` | 30 minutes |
+| `mse-<name>-forward-port` | every port forwarding check on the main, when `VPN_PORT_FORWARDING=yes` | `*/15 * * * *` | 30 minutes |
+| `mse-<name>-forward-port-<host>` | every port forwarding check on other machines | `*/15 * * * *` | 30 minutes |
 
 A download cleanup that can't read the queue of an app it has a key for reports no success, so its check goes down when Sonarr or Radarr stays unreachable for longer than the grace, and not for a restart. Without a ping key it pings nothing and, unlike the other jobs, doesn't warn about it on every run.
 

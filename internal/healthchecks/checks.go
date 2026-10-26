@@ -46,12 +46,13 @@ var schedules = map[string]schedule{
 	jobs.CheckBackup:    {cron: "30 5 * * 0", grace: 4 * hour, command: "mse check-backup"},
 	jobs.BackupMedia:    {grace: 24 * hour, command: "mse backup --media"},
 	jobs.CleanDownloads: {cron: "*/15 * * * *", grace: hour / 2, command: "mse clean-downloads"},
+	jobs.ForwardPort:    {cron: "*/15 * * * *", grace: hour / 2, command: "mse forward-port"},
 }
 
 var weekdays = []string{"Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"}
 
-func ChecksFor(name, role, shortHost, mediaCron string) []Check {
-	planned := jobs.Planned(role == mainRole, mediaCron != "")
+func ChecksFor(name, role, shortHost, mediaCron string, forwardPort bool) []Check {
+	planned := jobs.Planned(role == mainRole, jobs.Features{Media: mediaCron != "", ForwardPort: forwardPort})
 	checks := make([]Check, 0, len(planned))
 	for _, job := range planned {
 		cron := schedules[job].cron
@@ -88,11 +89,15 @@ func (m Manage) post(ctx context.Context, body map[string]any) error {
 	return m.request(ctx, http.MethodPost, m.URL, bytes.NewReader(encoded), nil)
 }
 
-func RetiredFor(name, role, mediaCron string) []string {
-	if role != mainRole || mediaCron != "" {
-		return nil
+func RetiredFor(name, role, shortHost, mediaCron string, forwardPort bool) []string {
+	var retired []string
+	if role == mainRole && mediaCron == "" {
+		retired = append(retired, Slug(name, jobs.BackupMedia, role, shortHost))
 	}
-	return []string{Slug(name, jobs.BackupMedia, role, "")}
+	if !forwardPort {
+		retired = append(retired, Slug(name, jobs.ForwardPort, role, shortHost))
+	}
+	return retired
 }
 
 func (m Manage) Retire(ctx context.Context, slugs []string) (removed, failures []string) {
@@ -185,6 +190,9 @@ func description(check Check, facts Facts) string {
 			facts.Name, destination(facts.Repository), runs, timer, login)
 	case jobs.CleanDownloads:
 		return fmt.Sprintf("Removes and blocklists %s's downloads that Sonarr and Radarr flag as executable. %s on every machine %s. %s --since -1h.",
+			facts.Name, runs, timer, login)
+	case jobs.ForwardPort:
+		return fmt.Sprintf("Keeps Deluge on the port %s's VPN forwards, and fails when there is none. %s on every machine %s. %s --since -1h.",
 			facts.Name, runs, timer, login)
 	}
 	return fmt.Sprintf("Daily update of %s: pulls the config and the newest compatible mse, pulls images and brings the apps up. %s %s. "+

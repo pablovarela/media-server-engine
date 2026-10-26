@@ -29,6 +29,7 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/logfile"
 	"github.com/pablovarela/media-server-engine/internal/machine"
 	"github.com/pablovarela/media-server-engine/internal/paint"
+	"github.com/pablovarela/media-server-engine/internal/portforward"
 	"github.com/pablovarela/media-server-engine/internal/process"
 	"github.com/pablovarela/media-server-engine/internal/report"
 	"github.com/pablovarela/media-server-engine/internal/restic"
@@ -63,6 +64,7 @@ type Dependencies struct {
 	ProcRoot      string
 	Account       func() (string, error)
 	WiringSteps   func(configarr wiring.OneOff, tool io.Writer) ([]wiring.Step, error)
+	Docker        func() (portforward.Docker, error)
 	Terminal      func() bool
 	Prompter      func(ctx context.Context) prompter
 	Encrypt       func(config string) secrets.Encrypter
@@ -100,6 +102,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 		newStatusCommand(deps),
 		newLoginsCommand(deps),
 		newRemoveExecutableDownloadsCommand(deps),
+		newForwardPortCommand(deps),
 		newStackCommand(deps),
 	)
 	root.AddCommand(newBackupCommands(deps)...)
@@ -144,6 +147,7 @@ func Execute(engine fs.FS) int {
 		Executable:    os.Executable,
 		Account:       currentAccount,
 		WiringSteps:   wiringSteps,
+		Docker:        func() (portforward.Docker, error) { return wiring.NewDocker() },
 		Terminal:      bothTerminals,
 		Prompter:      func(ctx context.Context) prompter { return configure.Huh{Ctx: ctx} },
 		Encrypt: func(config string) secrets.Encrypter {

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/pablovarela/media-server-engine/internal/jobs"
 	"github.com/pablovarela/media-server-engine/internal/process"
 )
 
@@ -27,8 +28,8 @@ type Outcome struct {
 	Removed   []string
 }
 
-func (in Installer) Install(ctx context.Context, role Role, media bool, v Values) (Outcome, error) {
-	install, keep := Plan(role, media)
+func (in Installer) Install(ctx context.Context, role Role, f jobs.Features, v Values) (Outcome, error) {
+	install, keep := Plan(role, f)
 	var outcome Outcome
 	for _, job := range install {
 		changed, err := in.write(job, v)

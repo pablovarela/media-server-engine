@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/pablovarela/media-server-engine/internal/jobs"
 	"github.com/pablovarela/media-server-engine/internal/process"
 )
 
@@ -59,7 +60,7 @@ func TestNothingChangedWritesNothingAndStillEnablesTheTimers(t *testing.T) {
 	require.NoError(t, os.Chtimes(filepath.Join(dir, "mse-gorgon-update.service"), old, old))
 	runner, s := recording(t, nil, nil)
 
-	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Main, false, gorgon)
+	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Main, jobs.Features{}, gorgon)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"--user daemon-reload", enableAll}, s.calls)
@@ -75,7 +76,7 @@ func TestAChangedUnitIsRewritten(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "mse-gorgon-update.service"), []byte("[Service]\nExecStart=/old/mse update\n"), 0o644))
 	runner, s := recording(t, nil, nil)
 
-	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Main, false, gorgon)
+	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Main, jobs.Features{}, gorgon)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"--user daemon-reload", enableAll}, s.calls)
@@ -91,7 +92,7 @@ func TestAFreshMachineGetsItsUnitDirectoryAndEveryFile(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "systemd", "user")
 	runner, _ := recording(t, nil, nil)
 
-	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Secondary, false, gorgon)
+	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Secondary, jobs.Features{}, gorgon)
 
 	require.NoError(t, err)
 	entries, err := os.ReadDir(dir)
@@ -109,7 +110,7 @@ func TestAFormerMainDisablesItsBackupTimersBeforeRemovingThem(t *testing.T) {
 		}
 	})
 
-	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Secondary, false, gorgon)
+	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Secondary, jobs.Features{}, gorgon)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{
@@ -132,7 +133,7 @@ func TestALeftoverServiceWithoutItsTimerIsRemovedToo(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "mse-gorgon-backup-apps.service"), []byte(text), 0o644))
 	runner, s := recording(t, nil, nil)
 
-	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Secondary, false, gorgon)
+	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Secondary, jobs.Features{}, gorgon)
 
 	require.NoError(t, err)
 	assert.NotContains(t, s.calls, "--user disable --now mse-gorgon-backup-apps.timer", "systemctl can't disable a timer whose file is gone")
@@ -146,7 +147,7 @@ func TestAnUnknownMainLeavesTheBackupTimersAsTheyAre(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "mse-gorgon-backup-apps.service"), []byte("an older backup unit\n"), 0o644))
 	runner, s := recording(t, nil, nil)
 
-	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Unknown, false, gorgon)
+	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Unknown, jobs.Features{}, gorgon)
 
 	require.NoError(t, err)
 	kept, err := os.ReadFile(filepath.Join(dir, "mse-gorgon-backup-apps.service"))
@@ -159,7 +160,7 @@ func TestAnUnknownMainLeavesTheBackupTimersAsTheyAre(t *testing.T) {
 func TestAFailedSystemctlStopsWithItsMessage(t *testing.T) {
 	runner, s := recording(t, map[string]string{"--user daemon-reload": "Failed to connect to bus: No medium found\n"}, nil)
 
-	_, err := Installer{Runner: runner, Dir: t.TempDir()}.Install(context.Background(), Main, false, gorgon)
+	_, err := Installer{Runner: runner, Dir: t.TempDir()}.Install(context.Background(), Main, jobs.Features{}, gorgon)
 
 	assert.EqualError(t, err, "systemctl --user daemon-reload failed: Failed to connect to bus: No medium found")
 	assert.Equal(t, []string{"--user daemon-reload"}, s.calls)
@@ -168,7 +169,7 @@ func TestAFailedSystemctlStopsWithItsMessage(t *testing.T) {
 func TestAFailureWithoutAMessageNamesTheExitCode(t *testing.T) {
 	runner, _ := recording(t, map[string]string{enableAll: ""}, nil)
 
-	_, err := Installer{Runner: runner, Dir: t.TempDir()}.Install(context.Background(), Main, false, gorgon)
+	_, err := Installer{Runner: runner, Dir: t.TempDir()}.Install(context.Background(), Main, jobs.Features{}, gorgon)
 
 	assert.EqualError(t, err, "systemctl "+enableAll+" failed: exit 1")
 }
@@ -177,7 +178,7 @@ func TestAMainWithAMediaBackupGetsItsTimer(t *testing.T) {
 	dir := t.TempDir()
 	runner, s := recording(t, nil, nil)
 
-	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Main, true, gorgon)
+	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Main, jobs.Features{Media: true}, gorgon)
 
 	require.NoError(t, err)
 	assert.Contains(t, s.calls, enableAll+" mse-gorgon-backup-media.timer")
@@ -192,7 +193,7 @@ func TestTurningTheMediaBackupOffRemovesItsTimer(t *testing.T) {
 	place(t, dir, Update, CleanDownloads, BackupApps, CheckBackup, BackupMedia)
 	runner, s := recording(t, nil, nil)
 
-	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Main, false, gorgon)
+	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Main, jobs.Features{}, gorgon)
 
 	require.NoError(t, err)
 	assert.Contains(t, s.calls, "--user disable --now mse-gorgon-backup-media.timer")
@@ -214,7 +215,7 @@ func TestTheUnitsOfRenamedJobsAreRemoved(t *testing.T) {
 		"mse-gorgon-media-backup.service", "mse-gorgon-media-backup.timer", "mse-gorgon-download-cleanup.service", "mse-gorgon-download-cleanup.timer")
 	runner, s := recording(t, nil, nil)
 
-	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Main, true, gorgon)
+	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Main, jobs.Features{Media: true}, gorgon)
 
 	require.NoError(t, err)
 	for _, unit := range []string{"mse-gorgon-backup", "mse-gorgon-download-cleanup", "mse-gorgon-media-backup", "mse-gorgon-verify"} {
@@ -245,7 +246,7 @@ func TestAnUnknownMainKeepsWhatBacksUpAndRemovesTheRest(t *testing.T) {
 	renamed(t, dir, "mse-gorgon-download-cleanup", CleanDownloads)
 	runner, s := recording(t, nil, nil)
 
-	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Unknown, true, gorgon)
+	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Unknown, jobs.Features{Media: true}, gorgon)
 
 	require.NoError(t, err)
 	for _, unit := range []string{"mse-gorgon-backup", "mse-gorgon-verify", "mse-gorgon-media-backup"} {
@@ -263,7 +264,7 @@ func TestOtherInstallationsAndOtherFilesAreLeftAlone(t *testing.T) {
 	unitFiles(t, dir, files...)
 	runner, s := recording(t, nil, nil)
 
-	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Main, false, gorgon)
+	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Main, jobs.Features{}, gorgon)
 
 	require.NoError(t, err)
 	for _, file := range files {
@@ -271,4 +272,33 @@ func TestOtherInstallationsAndOtherFilesAreLeftAlone(t *testing.T) {
 	}
 	assert.NotContains(t, strings.Join(s.calls, "\n"), "disable")
 	assert.Empty(t, outcome.Removed)
+}
+
+func TestPortForwardingGetsItsTimerOnEveryMachine(t *testing.T) {
+	for _, role := range []Role{Main, Secondary} {
+		dir := t.TempDir()
+		runner, s := recording(t, nil, nil)
+
+		outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), role, jobs.Features{ForwardPort: true}, gorgon)
+
+		require.NoError(t, err)
+		assert.Contains(t, outcome.Changed, "mse-gorgon-forward-port")
+		assert.Contains(t, s.calls[len(s.calls)-1], "mse-gorgon-forward-port.timer")
+		service, err := os.ReadFile(filepath.Join(dir, "mse-gorgon-forward-port.service"))
+		require.NoError(t, err)
+		assert.Contains(t, string(service), "ExecStart=/home/pablo/.local/bin/mse forward-port\n")
+	}
+}
+
+func TestTurningPortForwardingOffRemovesItsTimer(t *testing.T) {
+	dir := t.TempDir()
+	place(t, dir, Update, CleanDownloads, ForwardPort)
+	runner, s := recording(t, nil, nil)
+
+	outcome, err := Installer{Runner: runner, Dir: dir}.Install(context.Background(), Secondary, jobs.Features{}, gorgon)
+
+	require.NoError(t, err)
+	assert.Contains(t, s.calls, "--user disable --now mse-gorgon-forward-port.timer")
+	assert.NoFileExists(t, filepath.Join(dir, "mse-gorgon-forward-port.timer"))
+	assert.Contains(t, outcome.Removed, "mse-gorgon-forward-port")
 }
