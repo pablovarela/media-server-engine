@@ -23,6 +23,10 @@ services:
       - NET_ADMIN
     devices:
       - /dev/net/tun
+    # Some VPN servers route IPv6 into the tunnel without an IPv6 address on it, so IPv6
+    # connections hang until they time out; with IPv6 off they fail at once and apps use IPv4.
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
     ports:
       # deluge
       - "8112:8112"
