@@ -11,12 +11,15 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/pablovarela/media-server-engine/internal/installation"
 	"github.com/pablovarela/media-server-engine/internal/portforward"
 	"github.com/pablovarela/media-server-engine/internal/runs"
+	"github.com/pablovarela/media-server-engine/internal/wiring"
 )
 
 type portFile struct {
@@ -78,7 +81,9 @@ func delugeOnPort(t *testing.T, port int, pings *[]string) *http.Client {
 					ListenPorts []int `json:"listen_ports"`
 				}
 				require.NoError(t, json.Unmarshal(sent.Params[0], &set))
-				port = set.ListenPorts[0]
+				if len(set.ListenPorts) > 0 {
+					port = set.ListenPorts[0]
+				}
 				return answer(nil)
 			}
 		}
@@ -148,4 +153,84 @@ func TestForwardPort(t *testing.T) {
 			}
 		})
 	}
+}
+
+type countedPortFile struct {
+	answers []string
+	reads   int
+}
+
+func (c *countedPortFile) Exec(context.Context, string, string, []string) (string, error) {
+	answer := c.answers[min(c.reads, len(c.answers)-1)]
+	c.reads++
+	if answer == "" {
+		return "", errors.New("cat: can't open '/tmp/gluetun/forwarded_port': No such file or directory")
+	}
+	return answer, nil
+}
+
+func forwardingInstallation(t *testing.T, settings map[string]string, marked bool) *installation.Installation {
+	t.Helper()
+	root := t.TempDir()
+	i := &installation.Installation{Name: "home", Settings: settings, Data: filepath.Join(root, "data"), State: filepath.Join(root, "state")}
+	require.NoError(t, os.MkdirAll(filepath.Join(i.State, ".secrets"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(i.State, ".secrets", "apps.env"), []byte("DELUGE_WEB_PASSWORD=pw\n"), 0o600))
+	if marked {
+		require.NoError(t, wiring.State{Dir: filepath.Join(i.Data, "volumes", ".wiring")}.Remember(portforward.Marker, "yes"))
+	}
+	return i
+}
+
+func TestApplyWaitsForTheForwardedPort(t *testing.T) {
+	tests := map[string]struct {
+		answers []string
+		pauses  int
+		result  string
+		err     error
+	}{
+		"the port is there":              {answers: []string{"51234\n"}, result: "moved Deluge to forwarded port 51234"},
+		"the port comes on the 3rd read": {answers: []string{"", "", "51234\n"}, pauses: 2, result: "moved Deluge to forwarded port 51234"},
+		"the port never comes":           {answers: []string{""}, pauses: 12, err: portforward.ErrNoPort},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			var pings []string
+			var paused []time.Duration
+			ports := &countedPortFile{answers: tt.answers}
+			d := Dependencies{
+				HTTP:   delugeOnPort(t, 6881, &pings),
+				Docker: func() (portforward.Docker, error) { return ports, nil },
+				Pause:  func(_ context.Context, d time.Duration) error { paused = append(paused, d); return nil },
+			}
+
+			result, err := d.forwarding(forwardingInstallation(t, map[string]string{"VPN_PORT_FORWARDING": "yes"}, false)).Sync(context.Background())
+
+			assert.Equal(t, tt.result, result)
+			if tt.err == nil {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorIs(t, err, tt.err)
+			}
+			assert.Len(t, paused, tt.pauses)
+			for _, p := range paused {
+				assert.Equal(t, 5*time.Second, p)
+			}
+		})
+	}
+}
+
+func TestApplyPutsDelugeBackOnARandomPortWhenForwardingIsTurnedOff(t *testing.T) {
+	var pings []string
+	d := Dependencies{HTTP: delugeOnPort(t, 51234, &pings), Docker: func() (portforward.Docker, error) { return nil, errors.New("not needed") }}
+	i := forwardingInstallation(t, map[string]string{}, true)
+
+	result, err := d.forwarding(i).Sync(context.Background())
+
+	assert.NoError(t, err)
+	assert.Equal(t, "Deluge back on a random port", result)
+	assert.Empty(t, wiring.State{Dir: filepath.Join(i.Data, "volumes", ".wiring")}.Remembered(portforward.Marker))
+}
+
+func TestApplyHasNoForwardingStepWhileItWasNeverOn(t *testing.T) {
+	assert.Nil(t, Dependencies{}.forwarding(forwardingInstallation(t, map[string]string{}, false)))
 }

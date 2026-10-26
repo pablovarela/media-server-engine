@@ -109,6 +109,7 @@ func (d Dependencies) apply(cmd *cobra.Command) error {
 		Stack:       appliedStack{runner: o.runner, project: o.project, wired: wired, outcomes: o.outcomes, data: o.installation.Data, config: o.installation.Config},
 		Checks:      d.checks(o.installation, o.network),
 		Wiring:      wires,
+		Forwarding:  d.forwarding(o.installation),
 		Timers:      d.timersOrNil(cmd, o.installation),
 		KeepStopped: mediaToRestore(o.installation),
 		Page:        pageFunc(func(ctx context.Context) error { return d.applyPage(ctx, o) }),

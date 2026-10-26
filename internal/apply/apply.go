@@ -65,6 +65,10 @@ type Wiring interface {
 	Wire(ctx context.Context) (string, error)
 }
 
+type Forwarding interface {
+	Sync(ctx context.Context) (string, error)
+}
+
 type Page interface {
 	Reload(ctx context.Context) error
 }
@@ -81,6 +85,7 @@ type Apply struct {
 	Stack       Stack
 	Checks      Checks
 	Wiring      Wiring
+	Forwarding  Forwarding
 	Page        Page
 	Images      Images
 	Timers      Timers
@@ -122,6 +127,7 @@ func (a *Apply) startAndWire(ctx context.Context) error {
 		return err
 	}
 	wired := a.wire(ctx)
+	a.forwardPort(ctx)
 	if err := a.Page.Reload(ctx); err != nil && wired == nil {
 		return err
 	}
@@ -129,6 +135,20 @@ func (a *Apply) startAndWire(ctx context.Context) error {
 		return wired
 	}
 	return a.Images.Prune(ctx)
+}
+
+func (a *Apply) forwardPort(ctx context.Context) {
+	if a.Forwarding == nil {
+		return
+	}
+	s := a.Report.Step("Forwarding the VPN port")
+	result, err := a.Forwarding.Sync(ctx)
+	if err != nil {
+		s.Done("not now")
+		a.Report.Warn(paint.Stderr.Warning("port forwarding: " + err.Error()))
+		return
+	}
+	s.Done(result)
 }
 
 func (a *Apply) setUpTimers(ctx context.Context) error {

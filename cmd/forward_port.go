@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/pablovarela/media-server-engine/internal/apply"
 	"github.com/pablovarela/media-server-engine/internal/installation"
 	"github.com/pablovarela/media-server-engine/internal/jobs"
 	"github.com/pablovarela/media-server-engine/internal/portforward"
@@ -53,6 +55,65 @@ func newForwardPortCommand(deps Dependencies) *cobra.Command {
 	}
 }
 
+const (
+	portWait  = 60 * time.Second
+	portRetry = 5 * time.Second
+)
+
+func (d Dependencies) forwarding(i *installation.Installation) apply.Forwarding {
+	enabled, err := portforward.Enabled(i.Settings)
+	switch {
+	case err != nil:
+		return forwardingFunc(func(context.Context) (string, error) { return "", err })
+	case enabled:
+		return forwardingFunc(func(ctx context.Context) (string, error) { return d.waitForPort(ctx, i) })
+	case wiringState(i).Remembered(portforward.Marker) != "":
+		return forwardingFunc(func(ctx context.Context) (string, error) { return d.restorePort(ctx, i) })
+	}
+	return nil
+}
+
+func (d Dependencies) waitForPort(ctx context.Context, i *installation.Installation) (string, error) {
+	sync, err := d.portSync(i)
+	if err != nil {
+		return "", err
+	}
+	for waited := time.Duration(0); ; waited += portRetry {
+		result, err := sync.Forward(ctx)
+		if !errors.Is(err, portforward.ErrNoPort) || waited >= portWait {
+			if err != nil {
+				return "", err
+			}
+			return result.String(), nil
+		}
+		if err := d.Pause(ctx, portRetry); err != nil {
+			return "", err
+		}
+	}
+}
+
+func (d Dependencies) restorePort(ctx context.Context, i *installation.Installation) (string, error) {
+	password := secrets.Dotenv(readSecretsFile(i, "apps.env"))["DELUGE_WEB_PASSWORD"]
+	sync := portforward.Sync{Deluge: portforward.NewDeluge(delugeURL(i), password, d.HTTP.Transport), State: wiringState(i)}
+	restored, err := sync.Restore(ctx)
+	if err != nil || !restored {
+		return "nothing to restore", err
+	}
+	return "Deluge back on a random port", nil
+}
+
+type forwardingFunc func(context.Context) (string, error)
+
+func (f forwardingFunc) Sync(ctx context.Context) (string, error) { return f(ctx) }
+
+func wiringState(i *installation.Installation) wiring.State {
+	return wiring.State{Dir: filepath.Join(i.Data, "volumes", ".wiring")}
+}
+
+func delugeURL(i *installation.Installation) string {
+	return wiring.Env{Settings: i.Settings}.URL("DELUGE_URL", "http://localhost:8112")
+}
+
 func (d Dependencies) forwardPort(ctx context.Context, i *installation.Installation) (portforward.Result, error) {
 	sync, err := d.portSync(i)
 	if err != nil {
@@ -70,10 +131,9 @@ func (d Dependencies) portSync(i *installation.Installation) (portforward.Sync, 
 	if err != nil {
 		return portforward.Sync{}, err
 	}
-	deluge := wiring.Env{Settings: i.Settings}.URL("DELUGE_URL", "http://localhost:8112")
 	return portforward.Sync{
 		Gluetun: portforward.Gluetun{Docker: docker},
-		Deluge:  portforward.NewDeluge(deluge, password, d.HTTP.Transport),
-		State:   wiring.State{Dir: filepath.Join(i.Data, "volumes", ".wiring")},
+		Deluge:  portforward.NewDeluge(delugeURL(i), password, d.HTTP.Transport),
+		State:   wiringState(i),
 	}, nil
 }
