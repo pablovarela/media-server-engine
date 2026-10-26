@@ -57,6 +57,10 @@ type opened struct {
 }
 
 func (d Dependencies) openProject(cmd *cobra.Command, kind compose.Kind, draw drawing) (opened, error) {
+	return d.openProjectAfter(cmd, kind, draw, nil)
+}
+
+func (d Dependencies) openProjectAfter(cmd *cobra.Command, kind compose.Kind, draw drawing, beforeDrawing func(i *installation.Installation, network string)) (opened, error) {
 	i, err := d.installation(cmd)
 	if err != nil {
 		return opened{}, err
@@ -74,6 +78,9 @@ func (d Dependencies) openProject(cmd *cobra.Command, kind compose.Kind, draw dr
 	profiles, err := compose.Profiles(i, kind, false)
 	if err != nil {
 		return opened{}, err
+	}
+	if beforeDrawing != nil {
+		beforeDrawing(i, network)
 	}
 	page, err := d.drawPageFor(cmd, i, network, profiles, draw)
 	if err != nil {

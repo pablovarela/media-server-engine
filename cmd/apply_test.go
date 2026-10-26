@@ -396,3 +396,62 @@ func TestApplyByHandStartsWithoutTheMedia(t *testing.T) {
 	assert.Contains(t, stdout.String(), "Starting without gorgon's media; mse restore --media brings it back later, with the stack stopped.\n")
 	assert.NoFileExists(t, filepath.Join(f.data, ".media-restore-pending"))
 }
+
+func TestApplyDrawsThePageAfterSettingUpTheChecks(t *testing.T) {
+	const listed = `{"checks":[{"slug":"mse-gorgon-update"}]}`
+	type Given struct {
+		keys string
+	}
+	type Then struct {
+		requests []string
+		onPage   bool
+	}
+	tests := map[string]struct {
+		Given Given
+		Then  Then
+	}{
+		"the checks are set up, then the page reads them": {
+			Given: Given{keys: "HEALTHCHECKS_MANAGE_KEY=manage-key\nHEALTHCHECKS_API_KEY=read-key\n"},
+			Then: Then{onPage: true, requests: []string{
+				"POST /api/v3/checks/", "POST /api/v3/checks/", "POST /api/v3/checks/", "POST /api/v3/checks/",
+				"GET /api/v3/checks/?slug=mse-gorgon-backup-media", "GET /api/v3/checks/?slug=mse-gorgon-forward-port",
+				"GET /api/v3/checks/",
+			}},
+		},
+		"without a manage key the page still reads them": {
+			Given: Given{keys: "HEALTHCHECKS_API_KEY=read-key\n"},
+			Then:  Then{onPage: true, requests: []string{"GET /api/v3/checks/"}},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			f := newApplyFixture(t)
+			f.expectApply(nil)
+			f.runner.EXPECT().Output(mock.Anything, process.Command{Name: "timedatectl", Args: []string{"show", "-p", "Timezone", "--value"}}).
+				Return(process.Result{Stdout: []byte("Europe/London\n")}, nil).Maybe()
+			deps := f.deps(t, true)
+			deps.Decrypt = func(string) ([]byte, error) { return []byte(tt.Given.keys), nil }
+			deps.Engine.(fstest.MapFS)["homepage/services.yaml"] = &fstest.MapFile{Data: []byte(
+				"- Status:\n    - Healthchecks:\n        widget:\n          type: customapi\n          url: https://healthchecks.io/api/v3/checks/?slug=@HEALTHCHECK_UPDATE@\n")}
+			var requests []string
+			deps.HTTP = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				requests = append(requests, r.Method+" "+r.URL.RequestURI())
+				body := "{}"
+				if r.Method == http.MethodGet && r.URL.RawQuery == "" {
+					body = listed
+				}
+				return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body))}, nil
+			})}
+			root := NewRootCommand(deps)
+			root.SetOut(io.Discard)
+			root.SetErr(io.Discard)
+
+			require.Equal(t, 0, run(context.Background(), root, []string{"apply"}))
+
+			assert.Equal(t, tt.Then.requests, requests)
+			page, err := os.ReadFile(filepath.Join(f.home, ".local", "state", "mse", "gorgon", ".homepage", "services.yaml"))
+			require.NoError(t, err)
+			assert.Equal(t, tt.Then.onPage, strings.Contains(string(page), "slug=mse-gorgon-update"))
+		})
+	}
+}
