@@ -7,8 +7,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
+
+	"github.com/pablovarela/media-server-engine/internal/portforward"
 )
 
 const (
@@ -127,8 +130,14 @@ func buildScript(plugin map[string]any) string {
 		`tar xzf src.tgz; cd */; python3 setup.py -q bdist_egg; cp dist/*.egg /config/plugins/`
 }
 
+var forwardedPortKeys = []string{"random_port", "listen_ports"}
+
 func (d *deluge) wireCore(settings map[string]any, plugins []map[string]any) {
+	forwarding, _ := portforward.Enabled(d.env.Settings)
 	for _, key := range sortedKeys(settings) {
+		if forwarding && slices.Contains(forwardedPortKeys, key) {
+			continue
+		}
 		value := pythonValue(settings[key])
 		if !same(d.core.body[key], value) {
 			d.env.Change(delugeApp, fmt.Sprintf("set %s %s -> %s", key, show(d.core.body[key]), show(value)))

@@ -171,6 +171,21 @@
                     to: "🟠 Late"
                   - value: down
                     to: "🔴 Down"
+          - type: customapi
+            url: https://healthchecks.io/api/v3/checks/?slug=@HEALTHCHECK_FORWARD_PORT@
+            headers:
+              X-Api-Key: "{{HOMEPAGE_VAR_HEALTHCHECKS_KEY}}"
+            refreshInterval: 60000
+            mappings:
+              - field: checks.0.status
+                label: Port forwarding
+                remap:
+                  - value: up
+                    to: "🟢 Up"
+                  - value: grace
+                    to: "🟠 Late"
+                  - value: down
+                    to: "🔴 Down"
     - VPN:
         icon: gluetun.png
         widget:
@@ -178,7 +193,7 @@
           url: http://gluetun:8000
           key: "{{HOMEPAGE_VAR_GLUETUN_KEY}}"
           version: 2
-          fields: [ "public_ip", "region", "country" ]
+          fields: [ "public_ip", "region", "country", "port_forwarded" ]
     - Deluge:
         href: http://@HOST@:8112
         icon: deluge.png

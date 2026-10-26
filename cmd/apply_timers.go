@@ -14,8 +14,10 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/apply"
 	"github.com/pablovarela/media-server-engine/internal/backup"
 	"github.com/pablovarela/media-server-engine/internal/installation"
+	"github.com/pablovarela/media-server-engine/internal/jobs"
 	"github.com/pablovarela/media-server-engine/internal/machine"
 	"github.com/pablovarela/media-server-engine/internal/media"
+	"github.com/pablovarela/media-server-engine/internal/portforward"
 	"github.com/pablovarela/media-server-engine/internal/process"
 	"github.com/pablovarela/media-server-engine/internal/report"
 	"github.com/pablovarela/media-server-engine/internal/secrets"
@@ -61,22 +63,34 @@ func (t *appliedTimers) Set(ctx context.Context) (string, []string, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	timing, err := media.Timing(t.i.Settings)
+	features, err := t.features(&values)
 	if err != nil {
 		return "", nil, err
 	}
-	values.MediaSchedule = timing.Schedule.OnCalendar()
 	warnings := t.unattendedWarnings(ctx, account, values)
 	role, note, warning := t.role(ctx)
 	if warning != "" {
 		warnings = append(warnings, warning)
 	}
 	installer := timers.Installer{Runner: t.d.Run(io.Discard, io.Discard), Dir: t.d.unitDir()}
-	outcome, err := installer.Install(ctx, role, timing.Enabled, values)
+	outcome, err := installer.Install(ctx, role, features, values)
 	if err != nil {
 		return "", warnings, err
 	}
 	return outcome.String() + note, warnings, nil
+}
+
+func (t *appliedTimers) features(values *timers.Values) (jobs.Features, error) {
+	timing, err := media.Timing(t.i.Settings)
+	if err != nil {
+		return jobs.Features{}, err
+	}
+	values.MediaSchedule = timing.Schedule.OnCalendar()
+	forwardPort, err := portforward.Enabled(t.i.Settings)
+	if err != nil {
+		return jobs.Features{}, err
+	}
+	return jobs.Features{Media: timing.Enabled, ForwardPort: forwardPort}, nil
 }
 
 func (t *appliedTimers) unattendedWarnings(ctx context.Context, account string, values timers.Values) []string {

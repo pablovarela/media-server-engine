@@ -415,7 +415,7 @@ func TestApplyOnAMainWithoutAMediaBackupRemovesItsCheck(t *testing.T) {
 	tf.deps.HTTP = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		requests = append(requests, r.Method+" "+r.URL.RequestURI())
 		body := "{}"
-		if r.Method == http.MethodGet {
+		if r.Method == http.MethodGet && r.URL.Query().Get("slug") == "mse-gorgon-backup-media" {
 			body = `{"checks":[{"slug":"mse-gorgon-backup-media","uuid":"5f1e"}]}`
 		}
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body))}, nil

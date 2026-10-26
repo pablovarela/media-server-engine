@@ -220,3 +220,36 @@ func TestTheDefaultPageOnACopyShowsItsOwnChecksOnly(t *testing.T) {
 
 	assert.Equal(t, []string{"Update mse-gorgon-update-pi", "Clean downloads mse-gorgon-clean-downloads-pi"}, rows)
 }
+
+func TestTheDefaultPageShowsThePortForwardingCheckWhileItExists(t *testing.T) {
+	checks := checksAnswer{slugs: map[string]bool{"mse-gorgon-update-pi": true, "mse-gorgon-clean-downloads-pi": true, "mse-gorgon-forward-port-pi": true}}
+
+	rows := healthchecksRows(t, Inputs{Role: "secondary", ShortHost: "pi"}, checks)
+
+	assert.Equal(t, []string{"Update mse-gorgon-update-pi", "Clean downloads mse-gorgon-clean-downloads-pi", "Port forwarding mse-gorgon-forward-port-pi"}, rows)
+}
+
+func TestTheDefaultPageShowsTheForwardedPortOnTheVPNTile(t *testing.T) {
+	text, err := os.ReadFile("../../homepage/services.yaml")
+	require.NoError(t, err)
+	var groups []map[string][]map[string]struct {
+		Widget struct {
+			Type   string   `yaml:"type"`
+			Fields []string `yaml:"fields"`
+		} `yaml:"widget"`
+	}
+	require.NoError(t, yaml.Unmarshal(text, &groups))
+
+	var fields []string
+	for _, group := range groups {
+		for _, tiles := range group {
+			for _, tile := range tiles {
+				if vpn, found := tile["VPN"]; found {
+					fields = vpn.Widget.Fields
+				}
+			}
+		}
+	}
+
+	assert.Equal(t, []string{"public_ip", "region", "country", "port_forwarded"}, fields)
+}

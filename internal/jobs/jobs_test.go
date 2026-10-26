@@ -13,6 +13,7 @@ func TestUnitsAreNamedAfterTheInstallationAndTheJob(t *testing.T) {
 		BackupMedia:    "mse-gorgon-backup-media",
 		CheckBackup:    "mse-gorgon-check-backup",
 		CleanDownloads: "mse-gorgon-clean-downloads",
+		ForwardPort:    "mse-gorgon-forward-port",
 	}
 	for job, want := range tests {
 		t.Run(job, func(t *testing.T) {
@@ -25,6 +26,7 @@ func TestOnlyUpdateAndCleanDownloadsRunOnEveryMachine(t *testing.T) {
 	tests := map[string]bool{
 		Update:         true,
 		CleanDownloads: true,
+		ForwardPort:    true,
 		BackupApps:     false,
 		BackupMedia:    false,
 		CheckBackup:    false,
@@ -38,27 +40,30 @@ func TestOnlyUpdateAndCleanDownloadsRunOnEveryMachine(t *testing.T) {
 
 func TestWhichJobsAMachineRuns(t *testing.T) {
 	tests := map[string]struct {
-		main, media bool
-		want        []string
+		main     bool
+		features Features
+		want     []string
 	}{
-		"main":            {main: true, want: []string{Update, CleanDownloads, BackupApps, CheckBackup}},
-		"main with media": {main: true, media: true, want: []string{Update, CleanDownloads, BackupApps, CheckBackup, BackupMedia}},
-		"other machine":   {media: true, want: []string{Update, CleanDownloads}},
+		"main":                          {main: true, want: []string{Update, CleanDownloads, BackupApps, CheckBackup}},
+		"main with media":               {main: true, features: Features{Media: true}, want: []string{Update, CleanDownloads, BackupApps, CheckBackup, BackupMedia}},
+		"other machine":                 {features: Features{Media: true}, want: []string{Update, CleanDownloads}},
+		"main with port forwarding":     {main: true, features: Features{ForwardPort: true}, want: []string{Update, CleanDownloads, ForwardPort, BackupApps, CheckBackup}},
+		"other machine with forwarding": {features: Features{ForwardPort: true}, want: []string{Update, CleanDownloads, ForwardPort}},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, tt.want, Planned(tt.main, tt.media))
+			assert.Equal(t, tt.want, Planned(tt.main, tt.features))
 		})
 	}
 }
 
 func TestEveryJobHasALabelForMseStatus(t *testing.T) {
-	assert.Equal(t, []string{Update, CleanDownloads, BackupApps, CheckBackup, BackupMedia}, Names())
+	assert.Equal(t, []string{Update, CleanDownloads, ForwardPort, BackupApps, CheckBackup, BackupMedia}, Names())
 	labels := map[string]string{}
 	for _, job := range Names() {
 		labels[job] = Label(job)
 	}
 	assert.Equal(t, map[string]string{
-		Update: "update", CleanDownloads: "clean-downloads", BackupApps: "apps backup", CheckBackup: "check-backup", BackupMedia: "media backup",
+		Update: "update", CleanDownloads: "clean-downloads", ForwardPort: "port forwarding", BackupApps: "apps backup", CheckBackup: "check-backup", BackupMedia: "media backup",
 	}, labels)
 }

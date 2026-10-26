@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/pablovarela/media-server-engine/internal/jobs"
 )
 
 var gorgon = Values{Installation: "gorgon", Executable: "/home/pablo/.local/bin/mse", MediaSchedule: "Sun *-*-* 01:00:00"}
@@ -59,6 +61,14 @@ ExecStart=/home/pablo/.local/bin/mse clean-downloads
 Nice=10
 IOSchedulingClass=idle
 `,
+		ForwardPort: `[Unit]
+Description=Keep Deluge on the VPN's forwarded port (gorgon)
+
+[Service]
+Type=oneshot
+ExecStart=/home/pablo/.local/bin/mse forward-port
+Nice=10
+`,
 	}
 	for job, want := range tests {
 		t.Run(job.Name, func(t *testing.T) {
@@ -79,6 +89,7 @@ func TestTheTimersKeepTheirSchedules(t *testing.T) {
 		BackupApps:     {"OnCalendar=*-*-* 04:30:00", true},
 		CheckBackup:    {"OnCalendar=Sun *-*-* 05:30:00", true},
 		CleanDownloads: {"OnCalendar=*:0/15", false},
+		ForwardPort:    {"OnCalendar=*:0/15", false},
 		BackupMedia:    {"OnCalendar=Sun *-*-* 01:00:00", true},
 	}
 	for job, tt := range tests {
@@ -100,7 +111,7 @@ func TestTheUnitsAreNamedForTheInstallation(t *testing.T) {
 }
 
 func TestNoUnitLeavesAPlaceholder(t *testing.T) {
-	for _, job := range []Job{Update, CleanDownloads, BackupApps, CheckBackup, BackupMedia} {
+	for _, job := range []Job{Update, CleanDownloads, ForwardPort, BackupApps, CheckBackup, BackupMedia} {
 		for _, suffix := range []string{".service", ".timer"} {
 			text, err := Render(job, suffix, gorgon)
 
@@ -137,7 +148,7 @@ func TestWhichTimersEachMachineRuns(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			install, keep := Plan(tt.role, tt.media)
+			install, keep := Plan(tt.role, jobs.Features{Media: tt.media})
 
 			assert.Equal(t, tt.install, install)
 			assert.Equal(t, tt.keep, keep)

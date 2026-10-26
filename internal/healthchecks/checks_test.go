@@ -11,16 +11,18 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/pablovarela/media-server-engine/internal/jobs"
 )
 
 func TestChecksFor(t *testing.T) {
 	assert.Equal(t, []Check{
 		{Job: "update", Slug: "mse-gorgon-update", Cron: "0 5 * * *"}, {Job: "clean-downloads", Slug: "mse-gorgon-clean-downloads", Cron: "*/15 * * * *"},
 		{Job: "backup-apps", Slug: "mse-gorgon-backup-apps", Cron: "30 4 * * *"}, {Job: "check-backup", Slug: "mse-gorgon-check-backup", Cron: "30 5 * * 0"},
-	}, ChecksFor("gorgon", "main", "pi", ""))
+	}, ChecksFor("gorgon", "main", "pi", "", false))
 	assert.Equal(t, []Check{
 		{Job: "update", Slug: "mse-gorgon-update-pi2", Cron: "0 5 * * *"}, {Job: "clean-downloads", Slug: "mse-gorgon-clean-downloads-pi2", Cron: "*/15 * * * *"},
-	}, ChecksFor("gorgon", "secondary", "pi2", ""))
+	}, ChecksFor("gorgon", "secondary", "pi2", "", false))
 }
 
 func TestTheMediaBackupCheck(t *testing.T) {
@@ -35,7 +37,7 @@ func TestTheMediaBackupCheck(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			var jobs []string
-			for _, check := range ChecksFor("gorgon", tt.role, "pi", tt.mediaCron) {
+			for _, check := range ChecksFor("gorgon", tt.role, "pi", tt.mediaCron, false) {
 				jobs = append(jobs, check.Job)
 			}
 			assert.Equal(t, tt.jobs, jobs)
@@ -44,7 +46,7 @@ func TestTheMediaBackupCheck(t *testing.T) {
 }
 
 func TestTheMediaBackupCheckPayload(t *testing.T) {
-	checks := ChecksFor("gorgon", "main", "pi", "0 1 * * 0")
+	checks := ChecksFor("gorgon", "main", "pi", "0 1 * * 0", false)
 
 	body := payload(checks[4], Facts{Name: "gorgon", MediaRepository: "b2:bucket:restic-media", SSH: "pablo@gorgon.local"})
 
@@ -58,7 +60,7 @@ func TestTheMediaBackupCheckPayload(t *testing.T) {
 }
 
 func TestTheCleanDownloadsCheckPayload(t *testing.T) {
-	checks := ChecksFor("gorgon", "main", "pi", "")
+	checks := ChecksFor("gorgon", "main", "pi", "", false)
 
 	body := payload(checks[1], Facts{Name: "gorgon", SSH: "pablo@gorgon.local"})
 
@@ -84,7 +86,7 @@ func TestSetUp(t *testing.T) {
 		return &http.Response{StatusCode: answers[body["slug"].(string)], Body: io.NopCloser(strings.NewReader(`{"error":"invalid schedule"}`))}, nil
 	})}
 
-	set, failures := Manage{Client: client, URL: ChecksURL, Key: "manage-key"}.SetUp(context.Background(), ChecksFor("gorgon", "main", "pi", ""), facts)
+	set, failures := Manage{Client: client, URL: ChecksURL, Key: "manage-key"}.SetUp(context.Background(), ChecksFor("gorgon", "main", "pi", "", false), facts)
 
 	assert.Equal(t, []string{"mse-gorgon-update", "mse-gorgon-clean-downloads", "mse-gorgon-backup-apps"}, set)
 	assert.Equal(t, []string{"mse-gorgon-check-backup: healthchecks.io answered 400: invalid schedule"}, failures)
@@ -119,16 +121,17 @@ func TestSetUpWithoutATimeZoneUsesUTC(t *testing.T) {
 func TestSetUpUnreachable(t *testing.T) {
 	client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) { return nil, errors.New("no route to host") })}
 
-	set, failures := Manage{Client: client, URL: ChecksURL, Key: "k"}.SetUp(context.Background(), ChecksFor("gorgon", "secondary", "pi2", ""), Facts{Name: "gorgon"})
+	set, failures := Manage{Client: client, URL: ChecksURL, Key: "k"}.SetUp(context.Background(), ChecksFor("gorgon", "secondary", "pi2", "", false), Facts{Name: "gorgon"})
 
 	assert.Empty(t, set)
 	assert.Equal(t, []string{"mse-gorgon-update-pi2: no route to host", "mse-gorgon-clean-downloads-pi2: no route to host"}, failures)
 }
 
 func TestRetiredChecks(t *testing.T) {
-	assert.Equal(t, []string{"mse-gorgon-backup-media"}, RetiredFor("gorgon", "main", ""))
-	assert.Empty(t, RetiredFor("gorgon", "main", "0 1 * * 0"))
-	assert.Empty(t, RetiredFor("gorgon", "secondary", ""), "the main owns the media check")
+	assert.Equal(t, []string{"mse-gorgon-backup-media", "mse-gorgon-forward-port"}, RetiredFor("gorgon", "main", "pi", "", false))
+	assert.Empty(t, RetiredFor("gorgon", "main", "pi", "0 1 * * 0", true))
+	assert.Equal(t, []string{"mse-gorgon-forward-port-pi2"}, RetiredFor("gorgon", "secondary", "pi2", "", false), "the main owns the media check")
+	assert.Empty(t, RetiredFor("gorgon", "secondary", "pi2", "", true))
 }
 
 func TestRetire(t *testing.T) {
@@ -172,4 +175,36 @@ func TestRetire(t *testing.T) {
 			assert.Equal(t, tt.requests, requests)
 		})
 	}
+}
+
+func TestThePortForwardingCheck(t *testing.T) {
+	tests := map[string]struct {
+		role, shortHost, slug string
+	}{
+		"on the main":        {role: "main", shortHost: "pi", slug: "mse-home-forward-port"},
+		"on another machine": {role: "secondary", shortHost: "box", slug: "mse-home-forward-port-box"},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Contains(t, ChecksFor("home", tt.role, tt.shortHost, "", true), Check{Job: jobs.ForwardPort, Slug: tt.slug, Cron: "*/15 * * * *"})
+			for _, check := range ChecksFor("home", tt.role, tt.shortHost, "", false) {
+				assert.NotEqual(t, jobs.ForwardPort, check.Job)
+			}
+		})
+	}
+}
+
+func TestThePortForwardingCheckPayload(t *testing.T) {
+	var check Check
+	for _, c := range ChecksFor("home", "main", "pi", "", true) {
+		if c.Job == jobs.ForwardPort {
+			check = c
+		}
+	}
+
+	body := payload(check, Facts{Name: "home", SSH: "me@home.local"})
+
+	assert.Equal(t, 1800, body["grace"])
+	assert.Equal(t, "*/15 * * * *", body["schedule"])
+	assert.Equal(t, "Keeps Deluge on the port home's VPN forwards, and fails when there is none. Runs every 15 minutes on every machine via the mse-home-forward-port timer (mse forward-port). If it fails: ssh me@home.local, journalctl --user-unit mse-home-forward-port.service --since -1h.", body["desc"])
 }

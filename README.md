@@ -14,7 +14,7 @@ A self-hosted media server that can be rebuilt on any machine from two things: t
 
 - **Jellyfin** to watch, **Seerr** to ask for films and series.
 - **Sonarr**, **Radarr**, **Prowlarr** and **Bazarr** to find them, with **Configarr** for quality profiles.
-- **Deluge** to download, behind a VPN with **gluetun** and **FlareSolverr**.
+- **Deluge** to download, behind a VPN with **gluetun** and **FlareSolverr**. With ProtonVPN, Deluge can listen on a port the VPN forwards (`VPN_PORT_FORWARDING`), so peers that can't accept connections can still reach it.
 - **Maintainerr** to clear out what nobody watches, **Portainer** to look at the containers.
 - A landing page with **Homepage** at `http://<machine>`, linking to every app with live summaries.
 
