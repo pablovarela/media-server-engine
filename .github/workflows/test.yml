@@ -98,7 +98,7 @@ jobs:
           tar -xJf shellcheck.tar.xz
           sudo install -m 755 "shellcheck-$SHELLCHECK_VERSION/shellcheck" /usr/local/bin/shellcheck
           shellcheck --version
-      - name: Run shellcheck and golangci-lint
+      - name: Run shellcheck, golangci-lint and the go mod tidy check
         run: |
           if make lint GOLANGCI_LINT=golangci-lint > lint.log 2>&1; then
             echo "lint: clean" >> "$GITHUB_STEP_SUMMARY"

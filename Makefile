@@ -32,8 +32,7 @@ go-lint: ## lint the Go code with golangci-lint (GOLANGCI_LINT runs another gola
 go-tidy-check: ## fail when go mod tidy would change the engine's or the tools' go.mod or go.sum
 	@command -v go >/dev/null || { echo "go missing: brew install go" >&2; exit 1; }
 	@status=0; \
-	go mod tidy -diff || { echo "go.mod is not tidy: run go mod tidy" >&2; status=1; }; \
-	(cd tools && go mod tidy -diff) || { echo "tools/go.mod is not tidy: run go mod tidy in tools/" >&2; status=1; }; \
+	for module in . tools; do (cd $$module && go mod tidy -diff) || status=1; done; \
 	exit $$status
 
 go-mocks: ## regenerate the Go test mocks from .mockery.yml
