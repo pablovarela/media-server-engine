@@ -68,7 +68,9 @@ func WriteAll(i *installation.Installation, decrypt Decrypter, randomKey func() 
 	if err != nil {
 		return err
 	}
-	decrypted.vpn = vpnEnv(decrypted.vpn, forwarding)
+	if decrypted.vpn, err = vpnEnv(decrypted.vpn, forwarding); err != nil {
+		return err
+	}
 	key, err := gluetunControlKey(i, randomKey)
 	if err != nil {
 		return err
@@ -125,18 +127,20 @@ func secretFiles(decrypted sources, gluetunKey string, configarr []byte) map[str
 	return files
 }
 
-func vpnEnv(decrypted []byte, forwarding bool) []byte {
+func vpnEnv(decrypted []byte, forwarding bool) ([]byte, error) {
 	if !forwarding {
-		return decrypted
+		return decrypted, nil
 	}
-	proton := Dotenv(decrypted)["VPN_SERVICE_PROVIDER"] == "protonvpn"
+	if provider := Dotenv(decrypted)["VPN_SERVICE_PROVIDER"]; provider != "protonvpn" {
+		return nil, fmt.Errorf("%s: port forwarding works with protonvpn only, and the VPN provider is %s", portforward.Setting, provider)
+	}
 	var out bytes.Buffer
 	for _, line := range strings.Split(strings.TrimSuffix(string(decrypted), "\n"), "\n") {
 		key, value, _ := strings.Cut(line, "=")
 		switch {
 		case key == "VPN_PORT_FORWARDING":
 			continue
-		case key == "OPENVPN_USER" && proton && !strings.HasSuffix(value, "+pmp"):
+		case key == "OPENVPN_USER" && !strings.HasSuffix(value, "+pmp"):
 			line += "+pmp"
 		}
 		if line != "" {
@@ -144,7 +148,7 @@ func vpnEnv(decrypted []byte, forwarding bool) []byte {
 		}
 	}
 	out.WriteString("VPN_PORT_FORWARDING=on\n")
-	return out.Bytes()
+	return out.Bytes(), nil
 }
 
 func createIfMissing(path string) error {

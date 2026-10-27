@@ -68,11 +68,12 @@ func (d Dependencies) configChecks(cmd *cobra.Command, config string) []configCh
 			return fmt.Sprintf("config %d", major), i.CheckSchema(major)
 		}},
 		{"Checking the settings", func() (string, error) {
-			values, _, err := configure.Load(config, sealedValues(config))
+			sealed := configure.Sealed{}
+			values, _, err := configure.Load(config, sealedValues(config, sealed))
 			if err != nil {
 				return "", err
 			}
-			return "done", errors.Join(configure.Problems(values)...)
+			return "done", errors.Join(configure.Problems(values, sealed)...)
 		}},
 		{"Checking the secrets", func() (string, error) {
 			files, err := filepath.Glob(filepath.Join(config, "secrets", "*.sops.env"))
@@ -87,25 +88,27 @@ func (d Dependencies) configChecks(cmd *cobra.Command, config string) []configCh
 			return fmt.Sprintf("%d files", len(files)), nil
 		}},
 		{"Loading the stack", func() (string, error) {
-			values, _, _ := configure.Load(config, sealedValues(config))
+			values, _, _ := configure.Load(config, sealedValues(config, configure.Sealed{}))
 			return "done", compose.LoadOffline(cmd.Context(), d.Engine, config, values[configure.PlainFile])
 		}},
 	}
 }
 
-func sealedValues(config string) secrets.Decrypter {
+func sealedValues(config string, sealed configure.Sealed) secrets.Decrypter {
 	return func(path string) ([]byte, error) {
 		keys, err := secrets.SealedKeys(filepath.Join(config, ".sops.yaml"), path)
 		if err != nil {
 			return nil, err
 		}
+		file, err := filepath.Rel(config, path)
+		if err != nil {
+			return nil, err
+		}
+		sealed[file] = map[string]bool{}
 		var lines strings.Builder
 		for key, held := range keys {
-			value := ""
-			if held {
-				value = "sealed-by-sops"
-			}
-			lines.WriteString(key + "=" + value + "\n")
+			sealed[file][key] = held
+			lines.WriteString(key + "=\n")
 		}
 		return []byte(lines.String()), nil
 	}
