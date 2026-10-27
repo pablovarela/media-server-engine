@@ -45,7 +45,7 @@ func (c *Client) CreatePrivateRepository(ctx context.Context, org, repo string) 
 		return "", err
 	}
 	private := true
-	created, _, err := api.Repositories.Create(ctx, org, &gh.Repository{Name: &repo, Private: &private})
+	created, _, err := api.Repositories.Create(ctx, org, gh.CreateRepositoryRequest{Name: repo, Private: &private})
 	switch {
 	case err == nil:
 		return created.GetCloneURL(), nil
