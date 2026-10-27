@@ -20,6 +20,9 @@ const (
 	AppsFile         = "secrets/apps.sops.env"
 )
 
+// Sealed stands in for a secret that is set but can't be read without the age key, as in a config repository's check.
+const Sealed = "sealed-by-sops"
+
 type Field struct {
 	Key, Title string
 	File       string
@@ -138,7 +141,7 @@ func mediaRepositoryUnderivable(v Values) string {
 
 func protonOnly(forwarding string, v Values) error {
 	provider := v.Get(vpnFile, "VPN_SERVICE_PROVIDER")
-	if forwarding == "yes" && provider != "" && provider != "protonvpn" {
+	if forwarding == "yes" && provider != "" && provider != Sealed && provider != "protonvpn" {
 		return errors.New("port forwarding works with protonvpn only")
 	}
 	return nil

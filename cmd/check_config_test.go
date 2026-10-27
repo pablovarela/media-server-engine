@@ -63,6 +63,12 @@ func TestCheckConfig(t *testing.T) {
 		problem string
 	}{
 		"the template, filled as mse setup fills it": {stdout: []string{"Checking the config's schema... config 0.", "Checking the settings... done.", "Checking the secrets...", "Loading the stack... done."}},
+		"port forwarding on, with the VPN provider encrypted": {
+			change: func(c string) {
+				_ = os.WriteFile(filepath.Join(c, "installation.env"), []byte("INSTALLATION_NAME=gorgon\nTZ=Europe/London\nJELLYFIN_ADMIN_USER=pablo\nRESTIC_REPOSITORY=/mnt/backup\nVPN_PORT_FORWARDING=yes\n"), 0o644)
+			},
+			stdout: []string{"Checking the settings... done."},
+		},
 		"a schema for another major": {
 			change: func(c string) { _ = os.WriteFile(filepath.Join(c, "config.yml"), []byte("config: 7\n"), 0o644) },
 			code:   1, problem: "this config is schema 7 and this mse reads 0",

@@ -103,7 +103,7 @@ func sealedValues(config string) secrets.Decrypter {
 		for key, held := range keys {
 			value := ""
 			if held {
-				value = "sealed-by-sops"
+				value = configure.Sealed
 			}
 			lines.WriteString(key + "=" + value + "\n")
 		}
