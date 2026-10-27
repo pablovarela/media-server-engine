@@ -1,0 +1,9 @@
+[Unit]
+Description=Search for missing episodes and movies daily (@NAME@)
+
+[Timer]
+OnCalendar=*-*-* 06:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

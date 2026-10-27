@@ -1,0 +1,9 @@
+[Unit]
+Description=Ask Sonarr and Radarr to search for everything missing (@NAME@)
+After=mse-@NAME@-update.service
+
+[Service]
+Type=oneshot
+@ENVIRONMENT@
+ExecStart=@MSE@ search-missing
+Nice=10

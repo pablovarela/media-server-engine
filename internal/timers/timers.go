@@ -25,6 +25,7 @@ var (
 	Update         = Job{Name: jobs.Update}
 	CleanDownloads = Job{Name: jobs.CleanDownloads}
 	ForwardPort    = Job{Name: jobs.ForwardPort}
+	SearchMissing  = Job{Name: jobs.SearchMissing}
 	BackupApps     = Job{Name: jobs.BackupApps}
 	CheckBackup    = Job{Name: jobs.CheckBackup}
 	BackupMedia    = Job{Name: jobs.BackupMedia}

@@ -43,3 +43,28 @@ func newRemoveExecutableDownloadsCommand(deps Dependencies) *cobra.Command {
 		},
 	}
 }
+
+func newSearchMissingCommand(deps Dependencies) *cobra.Command {
+	return &cobra.Command{
+		Use:   "search-missing",
+		Short: "Ask Sonarr and Radarr to search for every monitored episode and movie still missing",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			i, err := deps.installation(cmd)
+			if err != nil {
+				return err
+			}
+			pings := deps.pinger(cmd, i)
+			finishing := context.WithoutCancel(cmd.Context())
+			pings.Ping(cmd.Context(), jobs.SearchMissing, "/start")
+			err = downloads.SearchMissing(cmd.Context(), deps.HTTP, i, cmd.OutOrStdout())
+			defer shieldSignals()()
+			if err != nil {
+				pings.Ping(finishing, jobs.SearchMissing, "/fail")
+				return err
+			}
+			pings.Ping(finishing, jobs.SearchMissing, "")
+			return nil
+		},
+	}
+}

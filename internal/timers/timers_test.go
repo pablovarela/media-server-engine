@@ -61,6 +61,15 @@ ExecStart=/home/pablo/.local/bin/mse clean-downloads
 Nice=10
 IOSchedulingClass=idle
 `,
+		SearchMissing: `[Unit]
+Description=Ask Sonarr and Radarr to search for everything missing (gorgon)
+After=mse-gorgon-update.service
+
+[Service]
+Type=oneshot
+ExecStart=/home/pablo/.local/bin/mse search-missing
+Nice=10
+`,
 		ForwardPort: `[Unit]
 Description=Keep Deluge on the VPN's forwarded port (gorgon)
 
@@ -90,6 +99,7 @@ func TestTheTimersKeepTheirSchedules(t *testing.T) {
 		CheckBackup:    {"OnCalendar=Sun *-*-* 05:30:00", true},
 		CleanDownloads: {"OnCalendar=*:0/15", false},
 		ForwardPort:    {"OnCalendar=*:0/15", false},
+		SearchMissing:  {"OnCalendar=*-*-* 06:00:00", true},
 		BackupMedia:    {"OnCalendar=Sun *-*-* 01:00:00", true},
 	}
 	for job, tt := range tests {
@@ -111,7 +121,7 @@ func TestTheUnitsAreNamedForTheInstallation(t *testing.T) {
 }
 
 func TestNoUnitLeavesAPlaceholder(t *testing.T) {
-	for _, job := range []Job{Update, CleanDownloads, ForwardPort, BackupApps, CheckBackup, BackupMedia} {
+	for _, job := range []Job{Update, CleanDownloads, ForwardPort, SearchMissing, BackupApps, CheckBackup, BackupMedia} {
 		for _, suffix := range []string{".service", ".timer"} {
 			text, err := Render(job, suffix, gorgon)
 
@@ -140,11 +150,11 @@ func TestWhichTimersEachMachineRuns(t *testing.T) {
 		media         bool
 		install, keep []Job
 	}{
-		"main":                 {role: Main, install: []Job{Update, CleanDownloads, BackupApps, CheckBackup}},
-		"main with media":      {role: Main, media: true, install: []Job{Update, CleanDownloads, BackupApps, CheckBackup, BackupMedia}},
-		"secondary":            {role: Secondary, install: []Job{Update, CleanDownloads}},
-		"secondary with media": {role: Secondary, media: true, install: []Job{Update, CleanDownloads}},
-		"unknown":              {role: Unknown, media: true, install: []Job{Update, CleanDownloads}, keep: []Job{BackupApps, CheckBackup, BackupMedia}},
+		"main":                 {role: Main, install: []Job{Update, CleanDownloads, SearchMissing, BackupApps, CheckBackup}},
+		"main with media":      {role: Main, media: true, install: []Job{Update, CleanDownloads, SearchMissing, BackupApps, CheckBackup, BackupMedia}},
+		"secondary":            {role: Secondary, install: []Job{Update, CleanDownloads, SearchMissing}},
+		"secondary with media": {role: Secondary, media: true, install: []Job{Update, CleanDownloads, SearchMissing}},
+		"unknown":              {role: Unknown, media: true, install: []Job{Update, CleanDownloads, SearchMissing}, keep: []Job{BackupApps, CheckBackup, BackupMedia}},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {

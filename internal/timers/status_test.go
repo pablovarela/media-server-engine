@@ -22,7 +22,7 @@ type showRunner struct {
 func (s showRunner) Output(_ context.Context, c process.Command) (process.Result, error) {
 	assert.Equal(s.t, "systemctl", c.Name)
 	assert.Equal(s.t, []string{"--user", "show",
-		"mse-home-update.service", "mse-home-update.timer", "mse-home-clean-downloads.service", "mse-home-clean-downloads.timer", "mse-home-forward-port.service", "mse-home-forward-port.timer", "mse-home-backup-apps.service", "mse-home-backup-apps.timer",
+		"mse-home-update.service", "mse-home-update.timer", "mse-home-clean-downloads.service", "mse-home-clean-downloads.timer", "mse-home-forward-port.service", "mse-home-forward-port.timer", "mse-home-search-missing.service", "mse-home-search-missing.timer", "mse-home-backup-apps.service", "mse-home-backup-apps.timer",
 		"mse-home-check-backup.service", "mse-home-check-backup.timer", "mse-home-backup-media.service", "mse-home-backup-media.timer",
 		"--property=Id,LoadState,Result,InactiveEnterTimestamp,NextElapseUSecRealtime"}, c.Args)
 	assert.Equal(s.t, []string{"TZ=UTC"}, c.Env)

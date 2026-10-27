@@ -47,6 +47,7 @@ var schedules = map[string]schedule{
 	jobs.BackupMedia:    {grace: 24 * hour, command: "mse backup --media"},
 	jobs.CleanDownloads: {cron: "*/15 * * * *", grace: hour / 2, command: "mse clean-downloads"},
 	jobs.ForwardPort:    {cron: "*/15 * * * *", grace: hour / 2, command: "mse forward-port"},
+	jobs.SearchMissing:  {cron: "0 6 * * *", grace: hour, command: "mse search-missing"},
 }
 
 var weekdays = []string{"Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"}
@@ -190,6 +191,9 @@ func description(check Check, facts Facts) string {
 			facts.Name, destination(facts.Repository), runs, timer, login)
 	case jobs.CleanDownloads:
 		return fmt.Sprintf("Removes and blocklists %s's downloads that Sonarr and Radarr flag as executable. %s on every machine %s. %s --since -1h.",
+			facts.Name, runs, timer, login)
+	case jobs.SearchMissing:
+		return fmt.Sprintf("Asks %s's Sonarr and Radarr to search for every monitored episode and movie still missing, which RSS alone never searches again. %s on every machine %s. %s --since today.",
 			facts.Name, runs, timer, login)
 	case jobs.ForwardPort:
 		return fmt.Sprintf("Keeps Deluge on the port %s's VPN forwards, and fails when there is none. %s on every machine %s. %s --since -1h.",
