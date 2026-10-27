@@ -148,11 +148,11 @@ func TestApplySetsUpTheMainsTimers(t *testing.T) {
 	code, stdout, stderr := tf.apply(t)
 
 	require.Equal(t, 0, code, stderr)
-	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update, mse-gorgon-clean-downloads, mse-gorgon-backup-apps, mse-gorgon-check-backup changed.\n")
+	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update, mse-gorgon-clean-downloads, mse-gorgon-search-missing, mse-gorgon-backup-apps, mse-gorgon-check-backup changed.\n")
 	update := tf.unit(t, "mse-gorgon-update.service")
 	assert.Contains(t, update, "ExecStart="+tf.mse+" update --apply\n")
 	assert.NotContains(t, update, "MSE_INSTALLATION")
-	assert.Contains(t, tf.systemctl, "--user enable --now mse-gorgon-update.timer mse-gorgon-clean-downloads.timer mse-gorgon-backup-apps.timer mse-gorgon-check-backup.timer")
+	assert.Contains(t, tf.systemctl, "--user enable --now mse-gorgon-update.timer mse-gorgon-clean-downloads.timer mse-gorgon-search-missing.timer mse-gorgon-backup-apps.timer mse-gorgon-check-backup.timer")
 	assert.Equal(t, []string{"env", "-i", "HOME=" + tf.deps.Home, "USER=pablo", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "gh", "auth", "token"}, tf.tokenCall)
 }
 
@@ -241,7 +241,7 @@ func TestAnUnreadableRepositoryLeavesTheBackupTimersAsTheyAre(t *testing.T) {
 	assert.Contains(t, stderr, "cannot read the backup repository to tell which machine is gorgon's main (")
 	assert.Contains(t, stderr, "); the backup timers are left as they are")
 	assert.NotContains(t, stderr, "could not tell")
-	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update, mse-gorgon-clean-downloads changed.\n")
+	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update, mse-gorgon-clean-downloads, mse-gorgon-search-missing changed.\n")
 	assert.Equal(t, "placed before\n", tf.unit(t, "mse-gorgon-backup-apps.timer"))
 }
 
@@ -275,7 +275,7 @@ func TestAFreshInstallationSaysHowToMakeAMain(t *testing.T) {
 	code, stdout, stderr := tf.apply(t)
 
 	require.Equal(t, 0, code, stderr)
-	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update, mse-gorgon-clean-downloads changed; no backups yet (mse backup --apps --take-over makes this machine the main).\n")
+	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update, mse-gorgon-clean-downloads, mse-gorgon-search-missing changed; no backups yet (mse backup --apps --take-over makes this machine the main).\n")
 }
 
 func TestAnInstallationWithoutABackupRepositoryGetsNoBackupTimersQuietly(t *testing.T) {
@@ -286,7 +286,7 @@ func TestAnInstallationWithoutABackupRepositoryGetsNoBackupTimersQuietly(t *test
 	code, stdout, stderr := tf.apply(t)
 
 	require.Equal(t, 0, code, stderr)
-	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update, mse-gorgon-clean-downloads changed.\n")
+	assert.Contains(t, stdout, "Setting up the timers... mse-gorgon-update, mse-gorgon-clean-downloads, mse-gorgon-search-missing changed.\n")
 	assert.NotContains(t, stderr, "backup")
 }
 
@@ -393,7 +393,7 @@ func TestAMainWithAMediaBackupGetsItsTimerOnItsSchedule(t *testing.T) {
 
 	require.Equal(t, 0, code, stderr)
 	assert.Contains(t, stdout, "mse-gorgon-backup-media changed")
-	assert.Contains(t, stdout, "Setting up the Healthchecks checks... mse-gorgon-update, mse-gorgon-clean-downloads, mse-gorgon-backup-apps, mse-gorgon-check-backup, mse-gorgon-backup-media.\n")
+	assert.Contains(t, stdout, "Setting up the Healthchecks checks... mse-gorgon-update, mse-gorgon-clean-downloads, mse-gorgon-search-missing, mse-gorgon-backup-apps, mse-gorgon-check-backup, mse-gorgon-backup-media.\n")
 	assert.Contains(t, tf.unit(t, "mse-gorgon-backup-media.timer"), "OnCalendar=Sat *-*-* 02:30:00\n")
 	assert.Contains(t, tf.unit(t, "mse-gorgon-backup-media.service"), "ExecStart="+tf.mse+" backup --media\n")
 }
@@ -424,6 +424,6 @@ func TestApplyOnAMainWithoutAMediaBackupRemovesItsCheck(t *testing.T) {
 	code, stdout, stderr := tf.apply(t)
 
 	require.Equal(t, 0, code, stderr)
-	assert.Contains(t, stdout, "Setting up the Healthchecks checks... mse-gorgon-update, mse-gorgon-clean-downloads, mse-gorgon-backup-apps, mse-gorgon-check-backup; mse-gorgon-backup-media removed.\n")
+	assert.Contains(t, stdout, "Setting up the Healthchecks checks... mse-gorgon-update, mse-gorgon-clean-downloads, mse-gorgon-search-missing, mse-gorgon-backup-apps, mse-gorgon-check-backup; mse-gorgon-backup-media removed.\n")
 	assert.Contains(t, requests, "DELETE /api/v3/checks/5f1e")
 }

@@ -17,11 +17,11 @@ import (
 
 func TestChecksFor(t *testing.T) {
 	assert.Equal(t, []Check{
-		{Job: "update", Slug: "mse-gorgon-update", Cron: "0 5 * * *"}, {Job: "clean-downloads", Slug: "mse-gorgon-clean-downloads", Cron: "*/15 * * * *"},
+		{Job: "update", Slug: "mse-gorgon-update", Cron: "0 5 * * *"}, {Job: "clean-downloads", Slug: "mse-gorgon-clean-downloads", Cron: "*/15 * * * *"}, {Job: "search-missing", Slug: "mse-gorgon-search-missing", Cron: "0 6 * * *"},
 		{Job: "backup-apps", Slug: "mse-gorgon-backup-apps", Cron: "30 4 * * *"}, {Job: "check-backup", Slug: "mse-gorgon-check-backup", Cron: "30 5 * * 0"},
 	}, ChecksFor("gorgon", "main", "pi", "", false))
 	assert.Equal(t, []Check{
-		{Job: "update", Slug: "mse-gorgon-update-pi2", Cron: "0 5 * * *"}, {Job: "clean-downloads", Slug: "mse-gorgon-clean-downloads-pi2", Cron: "*/15 * * * *"},
+		{Job: "update", Slug: "mse-gorgon-update-pi2", Cron: "0 5 * * *"}, {Job: "clean-downloads", Slug: "mse-gorgon-clean-downloads-pi2", Cron: "*/15 * * * *"}, {Job: "search-missing", Slug: "mse-gorgon-search-missing-pi2", Cron: "0 6 * * *"},
 	}, ChecksFor("gorgon", "secondary", "pi2", "", false))
 }
 
@@ -30,9 +30,9 @@ func TestTheMediaBackupCheck(t *testing.T) {
 		role, mediaCron string
 		jobs            []string
 	}{
-		"main without media":   {role: "main", jobs: []string{"update", "clean-downloads", "backup-apps", "check-backup"}},
-		"main with media":      {role: "main", mediaCron: "0 1 * * 0", jobs: []string{"update", "clean-downloads", "backup-apps", "check-backup", "backup-media"}},
-		"secondary with media": {role: "secondary", mediaCron: "0 1 * * 0", jobs: []string{"update", "clean-downloads"}},
+		"main without media":   {role: "main", jobs: []string{"update", "clean-downloads", "search-missing", "backup-apps", "check-backup"}},
+		"main with media":      {role: "main", mediaCron: "0 1 * * 0", jobs: []string{"update", "clean-downloads", "search-missing", "backup-apps", "check-backup", "backup-media"}},
+		"secondary with media": {role: "secondary", mediaCron: "0 1 * * 0", jobs: []string{"update", "clean-downloads", "search-missing"}},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -48,7 +48,7 @@ func TestTheMediaBackupCheck(t *testing.T) {
 func TestTheMediaBackupCheckPayload(t *testing.T) {
 	checks := ChecksFor("gorgon", "main", "pi", "0 1 * * 0", false)
 
-	body := payload(checks[4], Facts{Name: "gorgon", MediaRepository: "b2:bucket:restic-media", SSH: "pablo@gorgon.local"})
+	body := payload(checks[5], Facts{Name: "gorgon", MediaRepository: "b2:bucket:restic-media", SSH: "pablo@gorgon.local"})
 
 	assert.Equal(t, "mse-gorgon-backup-media", body["slug"])
 	assert.Equal(t, "backup-media", body["tags"])
@@ -88,19 +88,19 @@ func TestSetUp(t *testing.T) {
 
 	set, failures := Manage{Client: client, URL: ChecksURL, Key: "manage-key"}.SetUp(context.Background(), ChecksFor("gorgon", "main", "pi", "", false), facts)
 
-	assert.Equal(t, []string{"mse-gorgon-update", "mse-gorgon-clean-downloads", "mse-gorgon-backup-apps"}, set)
+	assert.Equal(t, []string{"mse-gorgon-update", "mse-gorgon-clean-downloads", "mse-gorgon-search-missing", "mse-gorgon-backup-apps"}, set)
 	assert.Equal(t, []string{"mse-gorgon-check-backup: healthchecks.io answered 400: invalid schedule"}, failures)
-	require.Len(t, bodies, 4)
+	require.Len(t, bodies, 5)
 	assert.Equal(t, map[string]any{
 		"name": "mse-gorgon-backup-apps", "slug": "mse-gorgon-backup-apps", "tags": "backup-apps", "schedule": "30 4 * * *", "tz": "Europe/London",
 		"grace": float64(7200), "channels": "*", "unique": []any{"slug"},
 		"desc": "Nightly backup of gorgon's app state (libraries, history, users, settings) to Backblaze B2 with restic. Media files are not included. " +
 			"Runs daily at 04:30 on the main machine via the mse-gorgon-backup-apps timer (mse backup --apps). " +
 			"If it fails: ssh pablo@gorgon.local, journalctl --user-unit mse-gorgon-backup-apps.service --since today; a stale lock is cleared before the next run.",
-	}, bodies[2])
+	}, bodies[3])
 	assert.Equal(t, "Weekly check that gorgon's backups in Backblaze B2 can be read back (restic check). "+
 		"Runs on Sundays at 05:30 on the main machine via the mse-gorgon-check-backup timer (mse check-backup). "+
-		"If it fails: ssh pablo@gorgon.local, journalctl --user-unit mse-gorgon-check-backup.service --since -7d -n 200.", bodies[3]["desc"])
+		"If it fails: ssh pablo@gorgon.local, journalctl --user-unit mse-gorgon-check-backup.service --since -7d -n 200.", bodies[4]["desc"])
 	assert.Equal(t, "Daily update of gorgon: pulls the config and the newest compatible mse, pulls images and brings the apps up. "+
 		"Runs daily at 05:00 via the mse-gorgon-update timer (mse update --apply). It refuses to run while the config has uncommitted changes. "+
 		"If it fails: ssh pablo@gorgon.local, journalctl --user-unit mse-gorgon-update.service --since today, then systemctl --user start mse-gorgon-update.service to retry.", bodies[0]["desc"])
@@ -124,7 +124,7 @@ func TestSetUpUnreachable(t *testing.T) {
 	set, failures := Manage{Client: client, URL: ChecksURL, Key: "k"}.SetUp(context.Background(), ChecksFor("gorgon", "secondary", "pi2", "", false), Facts{Name: "gorgon"})
 
 	assert.Empty(t, set)
-	assert.Equal(t, []string{"mse-gorgon-update-pi2: no route to host", "mse-gorgon-clean-downloads-pi2: no route to host"}, failures)
+	assert.Equal(t, []string{"mse-gorgon-update-pi2: no route to host", "mse-gorgon-clean-downloads-pi2: no route to host", "mse-gorgon-search-missing-pi2: no route to host"}, failures)
 }
 
 func TestRetiredChecks(t *testing.T) {
@@ -207,4 +207,22 @@ func TestThePortForwardingCheckPayload(t *testing.T) {
 	assert.Equal(t, 1800, body["grace"])
 	assert.Equal(t, "*/15 * * * *", body["schedule"])
 	assert.Equal(t, "Keeps Deluge on the port home's VPN forwards, and fails when there is none. Runs every 15 minutes on every machine via the mse-home-forward-port timer (mse forward-port). If it fails: ssh me@home.local, journalctl --user-unit mse-home-forward-port.service --since -1h.", body["desc"])
+}
+
+func TestTheMissingSearchCheckPayload(t *testing.T) {
+	var check Check
+	for _, c := range ChecksFor("home", "main", "pi", "", false) {
+		if c.Job == jobs.SearchMissing {
+			check = c
+		}
+	}
+
+	body := payload(check, Facts{Name: "home", SSH: "me@home.local"})
+
+	assert.Equal(t, "mse-home-search-missing", body["slug"])
+	assert.Equal(t, "0 6 * * *", body["schedule"])
+	assert.Equal(t, 3*3600, body["grace"])
+	assert.Equal(t, "Asks home's Sonarr and Radarr to search for every monitored episode and movie still missing, which RSS alone never searches again. "+
+		"Runs daily at 06:00 on every machine via the mse-home-search-missing timer (mse search-missing). "+
+		"If it fails: ssh me@home.local, journalctl --user-unit mse-home-search-missing.service --since today.", body["desc"])
 }

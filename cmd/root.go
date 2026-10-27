@@ -103,6 +103,7 @@ func NewRootCommand(deps Dependencies) *cobra.Command {
 		newLoginsCommand(deps),
 		newRemoveExecutableDownloadsCommand(deps),
 		newForwardPortCommand(deps),
+		newSearchMissingCommand(deps),
 		newStackCommand(deps),
 	)
 	root.AddCommand(newBackupCommands(deps)...)

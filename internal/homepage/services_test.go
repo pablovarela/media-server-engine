@@ -253,3 +253,11 @@ func TestTheDefaultPageShowsTheForwardedPortOnTheVPNTile(t *testing.T) {
 
 	assert.Equal(t, []string{"public_ip", "region", "country", "port_forwarded"}, fields)
 }
+
+func TestTheDefaultPageShowsTheMissingSearchCheck(t *testing.T) {
+	checks := checksAnswer{slugs: map[string]bool{"mse-gorgon-update-pi": true, "mse-gorgon-clean-downloads-pi": true, "mse-gorgon-search-missing-pi": true}}
+
+	rows := healthchecksRows(t, Inputs{Role: "secondary", ShortHost: "pi"}, checks)
+
+	assert.Equal(t, []string{"Update mse-gorgon-update-pi", "Clean downloads mse-gorgon-clean-downloads-pi", "Missing search mse-gorgon-search-missing-pi"}, rows)
+}

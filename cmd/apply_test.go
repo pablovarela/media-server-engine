@@ -130,9 +130,9 @@ func TestApplyCommand(t *testing.T) {
 			Given: Given{systemd: true},
 			When:  []string{"apply"},
 			Then: Then{
-				requests: []string{"POST /api/v3/checks/", "POST /api/v3/checks/", "POST /api/v3/checks/", "POST /api/v3/checks/", "GET /api/v3/checks/", "GET /api/v3/checks/"},
+				requests: []string{"POST /api/v3/checks/", "POST /api/v3/checks/", "POST /api/v3/checks/", "POST /api/v3/checks/", "POST /api/v3/checks/", "GET /api/v3/checks/", "GET /api/v3/checks/"},
 				stdout: []string{
-					"Setting up the Healthchecks checks... mse-gorgon-update, mse-gorgon-clean-downloads, mse-gorgon-backup-apps, mse-gorgon-check-backup.\n",
+					"Setting up the Healthchecks checks... mse-gorgon-update, mse-gorgon-clean-downloads, mse-gorgon-search-missing, mse-gorgon-backup-apps, mse-gorgon-check-backup.\n",
 					"Pulling images... pulled 2 new images, 11 up to date.\n", "Starting the stack...", "Reattaching to gluetun... nothing to reattach.\n",
 					"Reloading Homepage... not running.\n", "Removing outdated images...",
 				},
@@ -413,7 +413,7 @@ func TestApplyDrawsThePageAfterSettingUpTheChecks(t *testing.T) {
 		"the checks are set up, then the page reads them": {
 			Given: Given{keys: "HEALTHCHECKS_MANAGE_KEY=manage-key\nHEALTHCHECKS_API_KEY=read-key\n"},
 			Then: Then{onPage: true, requests: []string{
-				"POST /api/v3/checks/", "POST /api/v3/checks/", "POST /api/v3/checks/", "POST /api/v3/checks/",
+				"POST /api/v3/checks/", "POST /api/v3/checks/", "POST /api/v3/checks/", "POST /api/v3/checks/", "POST /api/v3/checks/",
 				"GET /api/v3/checks/?slug=mse-gorgon-backup-media", "GET /api/v3/checks/?slug=mse-gorgon-forward-port",
 				"GET /api/v3/checks/",
 			}},

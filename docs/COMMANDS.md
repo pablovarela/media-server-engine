@@ -10,7 +10,7 @@
 | back up | `mse backup --apps [--take-over [--yes]]`, `mse backup --media`, `mse check-backup` |
 | recover | `mse restore --apps [--overwrite]`, `mse restore --media` |
 | look | `mse status`, `mse logins`, `mse version` |
-| housekeeping, run by a timer | `mse clean-downloads`, `mse forward-port` |
+| housekeeping, run by a timer | `mse clean-downloads`, `mse forward-port`, `mse search-missing` |
 
 - [Installing mse](#installing-mse)
 - [Where things live](#where-things-live)
@@ -166,7 +166,7 @@ Shows this machine's installation. It changes nothing and prints no passwords.
   - the installation and the `mse` version;
   - whether this machine is the main, and when the latest backup was made and by which machine;
   - how many of the stack's containers are running;
-  - each timer's last run, whether it succeeded or is still running, and its next run. `backup --apps`, `backup --media`, `check-backup`, `update --apply`, `clean-downloads` and `forward-port` record their own runs, from a timer or by hand, so this survives restarts;
+  - each timer's last run, whether it succeeded or is still running, and its next run. `backup --apps`, `backup --media`, `check-backup`, `update --apply`, `clean-downloads`, `forward-port` and `search-missing` record their own runs, from a timer or by hand, so this survives restarts;
   - the address of the landing page and of every app.
 - **When a part can't be read,** for example the backup repository is unreachable, that part says why and the rest still shows. Without systemd there are no timers to show.
 - **Exit code:** 1 when something needs attention, listed at the end:
@@ -184,6 +184,7 @@ Shows this machine's installation. It changes nothing and prints no passwords.
 | `mse-<name>-update` | `mse update --apply` | daily at 05:00 | every machine |
 | `mse-<name>-clean-downloads` | `mse clean-downloads` | every 15 minutes | every machine |
 | `mse-<name>-forward-port` | `mse forward-port` | every 15 minutes | every machine, when `VPN_PORT_FORWARDING=yes` |
+| `mse-<name>-search-missing` | `mse search-missing` | daily at 06:00 | every machine |
 | `mse-<name>-backup-apps` | `mse backup --apps` | daily at 04:30 | the main |
 | `mse-<name>-check-backup` | `mse check-backup` | Sundays at 05:30 | the main |
 | `mse-<name>-backup-media` | `mse backup --media` | `MEDIA_BACKUP_SCHEDULE`, Sundays at 01:00 by default | the main, when the media backup is on |
@@ -194,6 +195,7 @@ Shows this machine's installation. It changes nothing and prints no passwords.
 - Which machine is the main comes from the backup repository; any other machine has no backup timers. `mse apply` removes this installation's units that are no longer planned. While the backup repository can't be reached it keeps every unit that runs a backup or a backup check, under any name, and removes the others. Units named `mse-<name>-*` in that folder belong to mse: don't keep units of your own under that prefix.
 - The units call the installed `mse` by its full path and carry `XDG_*_HOME`, `SOPS_AGE_KEY_FILE` and `SOPS_AGE_KEY_CMD` as the shell running `mse apply` has them. A dev build sets up no timers.
 - `mse forward-port` reads the port the VPN forwards from gluetun and keeps Deluge listening on it, moving Deluge when the port changed after a reconnect. It fails when the VPN has no forwarded port, gluetun or Deluge can't be reached, or Deluge doesn't take the port; downloads carry on without incoming connections meanwhile. Run by hand with port forwarding off, it says so and does nothing.
+- `mse search-missing` asks Sonarr to search for every monitored missing episode and Radarr for every monitored missing movie. Sonarr and Radarr otherwise only grab what appears in their indexers' RSS feeds, so a release that came out before an item was wanted, or before it counted as available, is never searched for again. It asks again every 10 seconds for up to 5 minutes while an app is still starting, then fails; an app without an API key yet is skipped. While the media is still to be restored it searches nothing, since Sonarr and Radarr would see the whole library as missing.
 - The nightly update fetches the config from GitHub with nobody logged in, so `gh auth login` must have kept its token in `~/.config/gh/hosts.yml` (where it goes without a keyring); `mse apply` warns when it hasn't.
 
 ## Backups

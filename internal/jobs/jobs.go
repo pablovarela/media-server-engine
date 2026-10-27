@@ -7,6 +7,7 @@ const (
 	CheckBackup    = "check-backup"
 	CleanDownloads = "clean-downloads"
 	ForwardPort    = "forward-port"
+	SearchMissing  = "search-missing"
 )
 
 type Features struct {
@@ -26,6 +27,7 @@ var table = []job{
 	{name: Update, label: "update"},
 	{name: CleanDownloads, label: "clean-downloads"},
 	{name: ForwardPort, label: "port forwarding", forwardPort: true},
+	{name: SearchMissing, label: "missing search"},
 	{name: BackupApps, label: "apps backup", mainOnly: true},
 	{name: CheckBackup, label: "check-backup", mainOnly: true},
 	{name: BackupMedia, label: "media backup", mainOnly: true, media: true},

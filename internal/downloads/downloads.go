@@ -1,6 +1,7 @@
 package downloads
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -26,9 +27,11 @@ var (
 		name, title string
 		port        int
 		config      string
+		missing     string
+		search      map[string]any
 	}{
-		{"sonarr", "Sonarr", 8989, "volumes/sonarr/data/config.xml"},
-		{"radarr", "Radarr", 7878, "volumes/radarr/config/config.xml"},
+		{"sonarr", "Sonarr", 8989, "volumes/sonarr/data/config.xml", "episodes", map[string]any{"name": "MissingEpisodeSearch", "monitored": true}},
+		{"radarr", "Radarr", 7878, "volumes/radarr/config/config.xml", "movies", map[string]any{"name": "MissingMoviesSearch"}},
 	}
 )
 
@@ -129,7 +132,7 @@ func (q queue) flagged(ctx context.Context, pageSize int) ([]record, int, error)
 			TotalRecords int      `json:"totalRecords"`
 			Records      []record `json:"records"`
 		}
-		if err := q.call(ctx, http.MethodGet, fmt.Sprintf("%s?page=%d&pageSize=%d", q.base, page, pageSize), &listed); err != nil {
+		if err := q.call(ctx, http.MethodGet, fmt.Sprintf("%s?page=%d&pageSize=%d", q.base, page, pageSize), nil, &listed); err != nil {
 			return nil, 0, err
 		}
 		for _, r := range listed.Records {
@@ -155,25 +158,45 @@ func isFlagged(r record) bool {
 }
 
 func (q queue) remove(ctx context.Context, id int) error {
-	return q.call(ctx, http.MethodDelete, fmt.Sprintf("%s/%d?removeFromClient=true&blocklist=true&skipRedownload=false", q.base, id), nil)
+	return q.call(ctx, http.MethodDelete, fmt.Sprintf("%s/%d?removeFromClient=true&blocklist=true&skipRedownload=false", q.base, id), nil, nil)
 }
 
-func (q queue) call(ctx context.Context, method, url string, into any) error {
-	request, err := http.NewRequestWithContext(ctx, method, url, nil)
+func (q queue) call(ctx context.Context, method, url string, body, into any) error {
+	var payload io.Reader
+	if body != nil {
+		encoded, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		payload = bytes.NewReader(encoded)
+	}
+	request, err := http.NewRequestWithContext(ctx, method, url, payload)
 	if err != nil {
 		return err
 	}
 	request.Header.Set("X-Api-Key", q.key)
+	if body != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
 	response, err := q.client.Do(request)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode < 200 || response.StatusCode > 299 {
-		return fmt.Errorf("%s answered %d %s", q.title, response.StatusCode, http.StatusText(response.StatusCode))
+		return &answeredError{title: q.title, status: response.StatusCode}
 	}
 	if into == nil {
 		return nil
 	}
 	return json.NewDecoder(response.Body).Decode(into)
+}
+
+type answeredError struct {
+	title  string
+	status int
+}
+
+func (e *answeredError) Error() string {
+	return fmt.Sprintf("%s answered %d %s", e.title, e.status, http.StatusText(e.status))
 }

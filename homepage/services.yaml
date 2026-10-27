@@ -172,6 +172,21 @@
                   - value: down
                     to: "🔴 Down"
           - type: customapi
+            url: https://healthchecks.io/api/v3/checks/?slug=@HEALTHCHECK_SEARCH_MISSING@
+            headers:
+              X-Api-Key: "{{HOMEPAGE_VAR_HEALTHCHECKS_KEY}}"
+            refreshInterval: 60000
+            mappings:
+              - field: checks.0.status
+                label: Missing search
+                remap:
+                  - value: up
+                    to: "🟢 Up"
+                  - value: grace
+                    to: "🟠 Late"
+                  - value: down
+                    to: "🔴 Down"
+          - type: customapi
             url: https://healthchecks.io/api/v3/checks/?slug=@HEALTHCHECK_FORWARD_PORT@
             headers:
               X-Api-Key: "{{HOMEPAGE_VAR_HEALTHCHECKS_KEY}}"
