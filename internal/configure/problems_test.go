@@ -34,7 +34,7 @@ func TestProblems(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			var got []string
-			for _, err := range Problems(tt.change(checkable())) {
+			for _, err := range Problems(tt.change(checkable()), nil) {
 				got = append(got, err.Error())
 			}
 
@@ -49,4 +49,43 @@ func checkable() Values {
 		v = v.With(f.File, f.Key, "")
 	}
 	return v.With(PlainFile, "RESTIC_REPOSITORY", "/mnt/backup").With(PlainFile, "MEDIA_SERVER_HOST", "gorgon.local").With(PlainFile, "INSTALLATION_NAME", "gorgon")
+}
+
+func TestProblemsLeaveSealedSecretsToTheirOwners(t *testing.T) {
+	tests := map[string]struct {
+		change func(v Values) Values
+		sealed Sealed
+		errs   []string
+	}{
+		"a sealed password isn't checked": {
+			change: func(v Values) Values { return v.With(AppsFile, "PORTAINER_ADMIN_PASSWORD", "") },
+			sealed: Sealed{AppsFile: {"PORTAINER_ADMIN_PASSWORD": true}},
+		},
+		"a password in the clear is": {
+			change: func(v Values) Values { return v.With(AppsFile, "PORTAINER_ADMIN_PASSWORD", "short") },
+			errs:   []string{"secrets/apps.sops.env: PORTAINER_ADMIN_PASSWORD: needs at least 12 characters"},
+		},
+		"port forwarding with a sealed provider": {
+			change: func(v Values) Values {
+				return v.With(PlainFile, "VPN_PORT_FORWARDING", "yes").With(vpnFile, "VPN_SERVICE_PROVIDER", "")
+			},
+			sealed: Sealed{vpnFile: {"VPN_SERVICE_PROVIDER": true}},
+		},
+		"port forwarding with another provider in the clear": {
+			change: func(v Values) Values {
+				return v.With(PlainFile, "VPN_PORT_FORWARDING", "yes").With(vpnFile, "VPN_SERVICE_PROVIDER", "mullvad")
+			},
+			errs: []string{"installation.env: VPN_PORT_FORWARDING: port forwarding works with protonvpn only"},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			var got []string
+			for _, err := range Problems(tt.change(checkable()), tt.sealed) {
+				got = append(got, err.Error())
+			}
+
+			assert.Equal(t, tt.errs, got)
+		})
+	}
 }

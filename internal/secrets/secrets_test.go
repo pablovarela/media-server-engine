@@ -179,10 +179,6 @@ func TestTheVPNEnvForGluetun(t *testing.T) {
 			decrypted: "VPN_SERVICE_PROVIDER=protonvpn\nOPENVPN_USER=abc+f1\n", forwarding: true,
 			want: "VPN_SERVICE_PROVIDER=protonvpn\nOPENVPN_USER=abc+f1+pmp\nVPN_PORT_FORWARDING=on\n",
 		},
-		"another provider": {
-			decrypted: "VPN_SERVICE_PROVIDER=mullvad\nOPENVPN_USER=abc\n", forwarding: true,
-			want: "VPN_SERVICE_PROVIDER=mullvad\nOPENVPN_USER=abc\nVPN_PORT_FORWARDING=on\n",
-		},
 		"forwarding set off by hand": {
 			decrypted: "VPN_SERVICE_PROVIDER=protonvpn\nVPN_PORT_FORWARDING=off\nOPENVPN_USER=abc\n", forwarding: true,
 			want: "VPN_SERVICE_PROVIDER=protonvpn\nOPENVPN_USER=abc+pmp\nVPN_PORT_FORWARDING=on\n",
@@ -194,7 +190,10 @@ func TestTheVPNEnvForGluetun(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, tt.want, string(vpnEnv([]byte(tt.decrypted), tt.forwarding)))
+			written, err := vpnEnv([]byte(tt.decrypted), tt.forwarding)
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, string(written))
 		})
 	}
 }
@@ -221,4 +220,13 @@ func TestWriteAllRefusesAnInvalidForwardingSetting(t *testing.T) {
 	err := WriteAll(i, decrypting(map[string]string{"vpn.sops.env": "", "apps.sops.env": ""}), fixedKey)
 
 	assert.EqualError(t, err, "VPN_PORT_FORWARDING: must be yes or no")
+}
+
+func TestWriteAllRefusesPortForwardingWithAnotherProvider(t *testing.T) {
+	i := newInstallation(t, false, "")
+	i.Settings = map[string]string{"VPN_PORT_FORWARDING": "yes"}
+
+	err := WriteAll(i, decrypting(map[string]string{"vpn.sops.env": "VPN_SERVICE_PROVIDER=mullvad\nOPENVPN_USER=abc\n", "apps.sops.env": ""}), fixedKey)
+
+	assert.EqualError(t, err, "VPN_PORT_FORWARDING: port forwarding works with protonvpn only, and the VPN provider is mullvad")
 }

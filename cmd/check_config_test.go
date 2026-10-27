@@ -44,6 +44,13 @@ func checkableConfig(t *testing.T, change func(config string)) string {
 	return config
 }
 
+func withSetting(line string) func(config string) {
+	return func(config string) {
+		settings, _ := os.ReadFile(filepath.Join(config, "installation.env"))
+		_ = os.WriteFile(filepath.Join(config, "installation.env"), append(settings, []byte(line+"\n")...), 0o644)
+	}
+}
+
 func checkConfig(t *testing.T, args ...string) (int, string, string) {
 	t.Helper()
 	t.Setenv("DOCKER_CONFIG", t.TempDir())
@@ -64,9 +71,7 @@ func TestCheckConfig(t *testing.T) {
 	}{
 		"the template, filled as mse setup fills it": {stdout: []string{"Checking the config's schema... config 0.", "Checking the settings... done.", "Checking the secrets...", "Loading the stack... done."}},
 		"port forwarding on, with the VPN provider encrypted": {
-			change: func(c string) {
-				_ = os.WriteFile(filepath.Join(c, "installation.env"), []byte("INSTALLATION_NAME=gorgon\nTZ=Europe/London\nJELLYFIN_ADMIN_USER=pablo\nRESTIC_REPOSITORY=/mnt/backup\nVPN_PORT_FORWARDING=yes\n"), 0o644)
-			},
+			change: withSetting("VPN_PORT_FORWARDING=yes"),
 			stdout: []string{"Checking the settings... done."},
 		},
 		"a schema for another major": {
