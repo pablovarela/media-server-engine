@@ -137,7 +137,8 @@ func mediaRepositoryUnderivable(v Values) string {
 }
 
 func protonOnly(forwarding string, v Values) error {
-	if forwarding == "yes" && v.Get(vpnFile, "VPN_SERVICE_PROVIDER") != "protonvpn" {
+	provider := v.Get(vpnFile, "VPN_SERVICE_PROVIDER")
+	if forwarding == "yes" && provider != "" && provider != "protonvpn" {
 		return errors.New("port forwarding works with protonvpn only")
 	}
 	return nil
