@@ -4,7 +4,7 @@
 
 1. Branch from an up-to-date `main`, one change per branch.
 2. Change the code, its tests and its docs together. A change in behaviour comes with a test that fails without it.
-3. Run `make test` (bats, Go tests, shellcheck and golangci-lint; needs `brew install bats-core go shellcheck`; Go's dev tools are pinned in `tools/go.mod` and need no install). With GNU parallel installed (`brew install parallel`), the bats tests run in parallel, one job per CPU; `TEST_JOBS=1` runs them one at a time.
+3. Run `make test` (bats, Go tests, shellcheck, golangci-lint and a `go mod tidy` check; needs `brew install bats-core go shellcheck`; Go's dev tools are pinned in `tools/go.mod` and need no install). With GNU parallel installed (`brew install parallel`), the bats tests run in parallel, one job per CPU; `TEST_JOBS=1` runs them one at a time.
 4. Push the branch and open a pull request. Its title becomes the commit on `main`, so write it as a commit subject: short, imperative, saying what changes.
 5. CI runs `test`, `lint`, `release-check` and `tool-pins` on the pull request. All of them pass before it is merged.
 6. The owner merges, with a squash merge.
