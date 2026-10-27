@@ -23,7 +23,7 @@ func TestUnitsAreNamedAfterTheInstallationAndTheJob(t *testing.T) {
 	}
 }
 
-func TestOnlyUpdateAndCleanDownloadsRunOnEveryMachine(t *testing.T) {
+func TestWhichJobsRunOnEveryMachine(t *testing.T) {
 	tests := map[string]bool{
 		Update:         true,
 		CleanDownloads: true,

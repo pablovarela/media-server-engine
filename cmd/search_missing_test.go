@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,7 +21,8 @@ import (
 func TestSearchMissing(t *testing.T) {
 	start, success, failure := "/ping-key/mse-home-search-missing/start", "/ping-key/mse-home-search-missing", "/ping-key/mse-home-search-missing/fail"
 	type Given struct {
-		radarrDown bool
+		radarrDown     bool
+		restorePending bool
 	}
 	type Then struct {
 		code   int
@@ -35,10 +37,15 @@ func TestSearchMissing(t *testing.T) {
 		"both searches start": {
 			Then: Then{stdout: "sonarr: searching for missing episodes\nradarr: searching for missing movies\n", pings: []string{start, success}},
 		},
-		"Radarr isn't answering": {
+		"Radarr refuses": {
 			Given: Given{radarrDown: true},
-			Then: Then{code: 1, stdout: "sonarr: searching for missing episodes\n", stderr: "radarr: could not start the search: connection refused",
+			Then: Then{code: 1, stdout: "sonarr: searching for missing episodes\n", stderr: "radarr: could not start the search: Radarr answered 401 Unauthorized",
 				pings: []string{start, failure}},
+		},
+		"the media is still to be restored": {
+			Given: Given{restorePending: true},
+			Then: Then{stdout: "skipped: home's media is still to be restored, and Sonarr and Radarr would download all of it again\n",
+				pings: []string{start, success}},
 		},
 	}
 	for name, tt := range tests {
@@ -53,6 +60,9 @@ func TestSearchMissing(t *testing.T) {
 				require.NoError(t, os.WriteFile(filepath.Join(data, config), []byte("<Config><ApiKey>"+app+"-key</ApiKey></Config>"), 0o644))
 			}
 			require.NoError(t, os.WriteFile(filepath.Join(data, ".backup-main"), nil, 0o644))
+			if tt.Given.restorePending {
+				require.NoError(t, os.WriteFile(filepath.Join(data, ".media-restore-pending"), nil, 0o644))
+			}
 			var pings []string
 			client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 				switch {
@@ -60,13 +70,14 @@ func TestSearchMissing(t *testing.T) {
 					pings = append(pings, r.URL.Path)
 					return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("OK"))}, nil
 				case r.URL.Host == "localhost:7878" && tt.Given.radarrDown:
-					return nil, errors.New("connection refused")
+					return &http.Response{StatusCode: http.StatusUnauthorized, Body: io.NopCloser(strings.NewReader(""))}, nil
 				case r.URL.Path == "/api/v3/command":
 					return &http.Response{StatusCode: http.StatusCreated, Body: io.NopCloser(strings.NewReader(`{"id":1}`))}, nil
 				}
 				return nil, errors.New("not reachable")
 			})}
-			root := NewRootCommand(Dependencies{Environment: getenv, Home: home, Update: newMockUpdater(t), Host: thisHost, HTTP: client})
+			root := NewRootCommand(Dependencies{Environment: getenv, Home: home, Update: newMockUpdater(t), Host: thisHost, HTTP: client,
+				Pause: func(context.Context, time.Duration) error { return nil }})
 			var stdout, stderr bytes.Buffer
 			root.SetOut(&stdout)
 			root.SetErr(&stderr)
@@ -75,7 +86,11 @@ func TestSearchMissing(t *testing.T) {
 
 			assert.Equal(t, tt.Then.code, code)
 			assert.Equal(t, tt.Then.stdout, stdout.String())
-			assert.Contains(t, stderr.String(), tt.Then.stderr)
+			if tt.Then.stderr == "" {
+				assert.Empty(t, stderr.String())
+			} else {
+				assert.Contains(t, stderr.String(), tt.Then.stderr)
+			}
 			assert.Equal(t, tt.Then.pings, pings)
 			record, recorded, err := runs.Read(filepath.Join(state, "runs"), "search-missing")
 			require.NoError(t, err)

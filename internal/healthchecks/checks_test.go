@@ -221,7 +221,7 @@ func TestTheMissingSearchCheckPayload(t *testing.T) {
 
 	assert.Equal(t, "mse-home-search-missing", body["slug"])
 	assert.Equal(t, "0 6 * * *", body["schedule"])
-	assert.Equal(t, 3600, body["grace"])
+	assert.Equal(t, 3*3600, body["grace"])
 	assert.Equal(t, "Asks home's Sonarr and Radarr to search for every monitored episode and movie still missing, which RSS alone never searches again. "+
 		"Runs daily at 06:00 on every machine via the mse-home-search-missing timer (mse search-missing). "+
 		"If it fails: ssh me@home.local, journalctl --user-unit mse-home-search-missing.service --since today.", body["desc"])

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -50,8 +51,9 @@ func TestSearchMissing(t *testing.T) {
 		commands []command
 	}
 	type Then struct {
-		out string
-		err string
+		out    string
+		err    string
+		pauses int
 	}
 	tests := map[string]struct {
 		Given Given
@@ -65,9 +67,14 @@ func TestSearchMissing(t *testing.T) {
 			Given: Given{commands: []command{sonarr}},
 			Then:  Then{out: "sonarr: searching for missing episodes\nradarr: not set up, skipped\n"},
 		},
-		"an app that isn't answering fails the run": {
-			Given: Given{radarr: true, commands: []command{{url: sonarr.url, body: sonarr.body}, radarr}},
-			Then:  Then{out: "radarr: searching for missing movies\n", err: "sonarr: could not start the search: connection refused"},
+		"an app still starting is asked again": {
+			Given: Given{radarr: true, commands: []command{{url: sonarr.url, body: sonarr.body}, {url: sonarr.url, body: sonarr.body, status: http.StatusServiceUnavailable}, sonarr, radarr}},
+			Then:  Then{out: "sonarr: searching for missing episodes\nradarr: searching for missing movies\n", pauses: 2},
+		},
+		"an app that never answers fails the run": {
+			Given: Given{radarr: true, commands: append(repeat(command{url: sonarr.url, body: sonarr.body}, 31), radarr)},
+			Then: Then{out: "radarr: searching for missing movies\n", pauses: 30,
+				err: `sonarr: could not start the search: Post "http://localhost:8989/api/v3/command": connection refused`},
 		},
 		"an app that refuses fails the run": {
 			Given: Given{radarr: true, commands: []command{sonarr, {url: radarr.url, body: radarr.body, status: http.StatusUnauthorized}}},
@@ -77,10 +84,16 @@ func TestSearchMissing(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			var out bytes.Buffer
+			var paused []time.Duration
+			pause := func(_ context.Context, d time.Duration) error { paused = append(paused, d); return nil }
 
-			err := SearchMissing(context.Background(), commanding(t, tt.Given.commands...), withKeys(t, true, tt.Given.radarr), &out)
+			err := SearchMissing(context.Background(), commanding(t, tt.Given.commands...), withKeys(t, true, tt.Given.radarr), &out, pause)
 
 			assert.Equal(t, tt.Then.out, out.String())
+			assert.Len(t, paused, tt.Then.pauses)
+			for _, p := range paused {
+				assert.Equal(t, 10*time.Second, p)
+			}
 			if tt.Then.err == "" {
 				assert.NoError(t, err)
 				return
@@ -88,4 +101,12 @@ func TestSearchMissing(t *testing.T) {
 			assert.EqualError(t, err, tt.Then.err)
 		})
 	}
+}
+
+func repeat(c command, n int) []command {
+	commands := make([]command, n)
+	for i := range commands {
+		commands[i] = c
+	}
+	return commands
 }

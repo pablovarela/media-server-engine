@@ -47,7 +47,7 @@ var schedules = map[string]schedule{
 	jobs.BackupMedia:    {grace: 24 * hour, command: "mse backup --media"},
 	jobs.CleanDownloads: {cron: "*/15 * * * *", grace: hour / 2, command: "mse clean-downloads"},
 	jobs.ForwardPort:    {cron: "*/15 * * * *", grace: hour / 2, command: "mse forward-port"},
-	jobs.SearchMissing:  {cron: "0 6 * * *", grace: hour, command: "mse search-missing"},
+	jobs.SearchMissing:  {cron: "0 6 * * *", grace: 3 * hour, command: "mse search-missing"},
 }
 
 var weekdays = []string{"Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"}
