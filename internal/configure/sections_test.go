@@ -115,10 +115,11 @@ func TestPortForwardingNeedsProtonVPN(t *testing.T) {
 	tests := map[string]struct {
 		provider, forwarding, err string
 	}{
-		"with protonvpn":         {provider: "protonvpn", forwarding: "yes"},
-		"with another provider":  {provider: "mullvad", forwarding: "yes", err: "VPN_PORT_FORWARDING: port forwarding works with protonvpn only"},
-		"off with another one":   {provider: "mullvad", forwarding: "no"},
-		"empty with another one": {provider: "mullvad", forwarding: ""},
+		"with protonvpn":           {provider: "protonvpn", forwarding: "yes"},
+		"with another provider":    {provider: "mullvad", forwarding: "yes", err: "VPN_PORT_FORWARDING: port forwarding works with protonvpn only"},
+		"off with another one":     {provider: "mullvad", forwarding: "no"},
+		"empty with another one":   {provider: "mullvad", forwarding: ""},
+		"a provider not decrypted": {provider: "", forwarding: "yes"},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
