@@ -111,6 +111,11 @@ func TestTheRenovateConfigs(t *testing.T) {
 				assert.Contains(t, engine.PostUpdateOptions, "gomodTidy")
 			},
 		},
+		"the engine's rewrites the Go import paths on a major update": {
+			Then: func(t *testing.T, engine, _ renovateConfig) {
+				assert.Contains(t, engine.PostUpdateOptions, "gomodUpdateImportPaths")
+			},
+		},
 		"the engine's updates the template's stack images": {
 			Then: updatesTheImagesIn("config-template/images.yml", theEngines),
 		},

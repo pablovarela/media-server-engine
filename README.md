@@ -82,4 +82,4 @@ Run `mse check-machine` until it says the machine is ready; each missing piece c
 
 ## Developing
 
-`make test` runs the Go and bats tests, shellcheck and golangci-lint; CI runs them on every pull request. [CONTRIBUTING.md](CONTRIBUTING.md) has the rest.
+`make test` runs the Go and bats tests, shellcheck and golangci-lint, and checks the Go modules are tidy; CI runs them on every pull request. [CONTRIBUTING.md](CONTRIBUTING.md) has the rest.

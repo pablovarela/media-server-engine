@@ -1,4 +1,4 @@
-.PHONY: help test test-scripts lint go-build go-test go-lint go-mocks release-snapshot
+.PHONY: help test test-scripts lint go-build go-test go-lint go-tidy-check go-mocks release-snapshot
 
 SHELL := /bin/bash
 
@@ -29,6 +29,12 @@ go-lint: ## lint the Go code with golangci-lint (GOLANGCI_LINT runs another gola
 	@command -v go >/dev/null || { echo "go missing: brew install go" >&2; exit 1; }
 	@$(GOLANGCI_LINT) run
 
+go-tidy-check: ## fail when go mod tidy would change the engine's or the tools' go.mod or go.sum
+	@command -v go >/dev/null || { echo "go missing: brew install go" >&2; exit 1; }
+	@status=0; \
+	for module in . tools; do (cd $$module && go mod tidy -diff) || status=1; done; \
+	exit $$status
+
 go-mocks: ## regenerate the Go test mocks from .mockery.yml
 	@command -v go >/dev/null || { echo "go missing: brew install go" >&2; exit 1; }
 	@$(GO_TOOL) mockery
@@ -38,9 +44,10 @@ release-snapshot: ## build every release archive into dist/ without publishing (
 	@$(GORELEASER) check
 	@$(GORELEASER) release --snapshot --clean
 
-lint: ## shellcheck every script and lint the Go code, reporting both before failing
+lint: ## shellcheck every script, lint the Go code and check the Go modules are tidy, reporting all before failing
 	@command -v shellcheck >/dev/null || { echo "shellcheck missing: brew install shellcheck" >&2; exit 1; }
 	@status=0; \
 	shellcheck -x scripts/*.sh install.sh || status=1; \
 	$(MAKE) --no-print-directory go-lint || status=1; \
+	$(MAKE) --no-print-directory go-tidy-check || status=1; \
 	exit $$status
