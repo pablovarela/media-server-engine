@@ -36,6 +36,8 @@ services:
       - "6881:6881/udp"
       # Prowlarr
       - "9696:9696"
+      # Bazarr
+      - "6767:6767"
       # flaresolverr
       - "8198:8191"
     env_file:
@@ -96,8 +98,6 @@ services:
 
   bazarr:
     container_name: bazarr
-    ports:
-      - "6767:6767"
     environment:
       - PUID=1000
       - PGID=1000
@@ -106,6 +106,9 @@ services:
     volumes:
       - ${DATA_DIR}/volumes/bazarr/config:/config
       - ${DATA_DIR}/data:/data
+    network_mode: service:gluetun
+    depends_on:
+      - gluetun
     restart: unless-stopped
 
   prowlarr:
