@@ -66,6 +66,7 @@ func Bazarr(ctx context.Context, env Env) error {
 	}
 	form := bazarrForm{values: url.Values{}}
 	connectArrs(env, keys, section(settings["general"]), settings, form)
+	turnOffAnalytics(env, section(settings["analytics"]), form)
 	declared, err := env.Declared("apps.yml")
 	if err != nil {
 		return err
@@ -118,6 +119,14 @@ func connectArrs(env Env, keys map[string]string, general, settings map[string]a
 			form.set("settings-general-use_"+arr.kind, "true")
 		}
 	}
+}
+
+func turnOffAnalytics(env Env, analytics map[string]any, form bazarrForm) {
+	if analytics["enabled"] == false {
+		return
+	}
+	env.Change(bazarrApp, "turn off analytics")
+	form.set("settings-analytics-enabled", "false")
 }
 
 func wireLanguages(ctx context.Context, env Env, api *API, general map[string]any, languages []string, form bazarrForm) error {

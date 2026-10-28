@@ -24,9 +24,10 @@ func freshBazarrSettings() map[string]any {
 		return map[string]any{"ip": "127.0.0.1", "base_url": "/", "ssl": false, "apikey": "", "only_monitored": false, "port": port}
 	}
 	return map[string]any{
-		"general": map[string]any{"use_sonarr": false, "use_radarr": false, "serie_default_enabled": false, "serie_default_profile": "", "movie_default_enabled": false, "movie_default_profile": ""},
-		"sonarr":  arr(8989),
-		"radarr":  arr(7878),
+		"general":   map[string]any{"use_sonarr": false, "use_radarr": false, "serie_default_enabled": false, "serie_default_profile": "", "movie_default_enabled": false, "movie_default_profile": ""},
+		"sonarr":    arr(8989),
+		"radarr":    arr(7878),
+		"analytics": map[string]any{"enabled": true},
 	}
 }
 
@@ -35,9 +36,10 @@ func wiredBazarrSettings() map[string]any {
 		return map[string]any{"base_url": "", "ssl": false, "only_monitored": false, "ip": ip, "port": port, "apikey": key}
 	}
 	return map[string]any{
-		"general": map[string]any{"use_sonarr": true, "use_radarr": true, "serie_default_enabled": true, "serie_default_profile": 1, "movie_default_enabled": true, "movie_default_profile": 1},
-		"sonarr":  arr("sonarr", 8989, "sonarr-key"),
-		"radarr":  arr("radarr", 7878, "radarr-key"),
+		"general":   map[string]any{"use_sonarr": true, "use_radarr": true, "serie_default_enabled": true, "serie_default_profile": 1, "movie_default_enabled": true, "movie_default_profile": 1},
+		"sonarr":    arr("sonarr", 8989, "sonarr-key"),
+		"radarr":    arr("radarr", 7878, "radarr-key"),
+		"analytics": map[string]any{"enabled": false},
 	}
 }
 
@@ -113,6 +115,16 @@ func TestAFreshBazarrIsConnectedToSonarrAndRadarrInOneWrite(t *testing.T) {
 	for _, line := range out.lines {
 		assert.NotContains(t, line, "sonarr-key")
 	}
+}
+
+func TestBazarrsAnalyticsAreTurnedOff(t *testing.T) {
+	r := bazarrAnswering(t, newRoutes(t), freshBazarrSettings(), nil)
+	env, out := bazarrEnv(t, r, "radarr-key")
+
+	require.NoError(t, Bazarr(context.Background(), env))
+
+	assert.Equal(t, "false", r.sentForm("POST", "/api/system/settings").Get("settings-analytics-enabled"))
+	assert.Contains(t, out.lines, "bazarr: turn off analytics")
 }
 
 func TestTheWiringSignsItsRequestsWithBazarrsOwnKey(t *testing.T) {
