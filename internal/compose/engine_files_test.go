@@ -350,6 +350,12 @@ func TestTheShippedComposeFiles(t *testing.T) {
 			When: When{kind: Stack},
 			Then: mountsTheSharedDataFolder("bazarr"),
 		},
+		"the apps behind the VPN give gluetun's DNS time to answer an uncached name": {
+			When: When{kind: Stack},
+			Then: func(t *testing.T, _ *installation.Installation, services types.Services) {
+				assert.Equal(t, []string{"timeout:3", "attempts:2"}, services["gluetun"].DNSOpts)
+			},
+		},
 		"bazarr reaches the internet through the VPN": {
 			When: When{kind: Stack},
 			Then: reachesTheInternetThroughTheVPN("bazarr", 6767),

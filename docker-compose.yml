@@ -27,6 +27,12 @@ services:
     # connections hang until they time out; with IPv6 off they fail at once and apps use IPv4.
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
+    # The apps behind the VPN inherit the host's resolver options, which can allow a single
+    # one-second try; gluetun's first answer for an uncached name, over DoT through the
+    # tunnel, can take about that long.
+    dns_opt:
+      - timeout:3
+      - attempts:2
     ports:
       # deluge
       - "8112:8112"
