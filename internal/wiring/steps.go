@@ -28,7 +28,7 @@ func Steps(docker Docker, configarr OneOff, tool io.Writer) []Step {
 		{Name: delugeApp, Apps: []string{delugeApp}, Run: Deluge(docker)},
 		{Name: "configarr", Run: Configarr(configarr, tool)},
 		{Name: seerrApp, Apps: []string{seerrApp}, Run: Seerr},
-		{Name: bazarrApp, Apps: []string{bazarrApp, jellyfinApp}, Run: Bazarr},
+		{Name: bazarrApp, Apps: []string{bazarrApp}, Run: Bazarr},
 		{Name: maintainerrApp, Apps: []string{maintainerrApp}, Run: Maintainerr},
 		{Name: "prowlarr-sync", Apps: []string{prowlarrApp, sonarrKind, radarrKind}, Run: ProwlarrSync},
 	}

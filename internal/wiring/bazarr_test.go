@@ -189,6 +189,20 @@ func TestADeclaredLibraryJellyfinDoesNotListFailsTheStepAfterTheRestIsWired(t *t
 	assert.Empty(t, form["settings-jellyfin-movie_library"])
 }
 
+func TestAJellyfinThatCannotBeReadFailsTheStepAfterTheRestIsWired(t *testing.T) {
+	r := bazarrAnswering(t, newRoutes(t), freshBazarrSettings(), nil).
+		on("GET", "http://jellyfin-here/Library/VirtualFolders", answer{status: 500})
+	env, _ := bazarrEnv(t, r, "radarr-key")
+
+	err := Bazarr(context.Background(), env)
+
+	require.Error(t, err)
+	form := r.sentForm("POST", "/api/system/settings")
+	assert.Equal(t, "sonarr", form.Get("settings-sonarr-ip"))
+	assert.Equal(t, "false", form.Get("settings-analytics-enabled"))
+	assert.Empty(t, form.Get("settings-general-use_jellyfin"))
+}
+
 func TestTheWiringSignsItsRequestsWithBazarrsOwnKey(t *testing.T) {
 	r := bazarrAnswering(t, newRoutes(t), wiredBazarrSettings(), []map[string]any{englishProfile()}, "en")
 	env, _ := bazarrEnv(t, r, "radarr-key")

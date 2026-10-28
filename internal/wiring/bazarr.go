@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -72,10 +73,7 @@ func Bazarr(ctx context.Context, env Env) error {
 	if err != nil {
 		return err
 	}
-	unlisted, err := refreshJellyfin(ctx, env, entries(section(declared[jellyfinApp])["libraries"]), settings, form)
-	if err != nil {
-		return err
-	}
+	jellyfinFailure := refreshJellyfin(ctx, env, entries(section(declared[jellyfinApp])["libraries"]), settings, form)
 	languageFailure := declaredLanguages(ctx, env, api, list(section(declared[bazarrApp])["languages"]), section(settings["general"]), form)
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -85,14 +83,7 @@ func Bazarr(ctx context.Context, env Env) error {
 			return err
 		}
 	}
-	return errors.Join(noSuchLibraries(unlisted), languageFailure)
-}
-
-func noSuchLibraries(unlisted []string) error {
-	if len(unlisted) == 0 {
-		return nil
-	}
-	return Error{Message: "jellyfin has no library " + strings.Join(unlisted, ", ")}
+	return errors.Join(jellyfinFailure, languageFailure)
 }
 
 type jellyfinLibraryKind struct {
@@ -101,35 +92,26 @@ type jellyfinLibraryKind struct {
 
 var jellyfinLibraryKinds = []jellyfinLibraryKind{{"movies", "movie"}, {"tvshows", "series"}}
 
-func refreshJellyfin(ctx context.Context, env Env, declared []map[string]any, settings map[string]any, form bazarrForm) ([]string, error) {
+func refreshJellyfin(ctx context.Context, env Env, declared []map[string]any, settings map[string]any, form bazarrForm) error {
 	key, err := jellyfinKey(env)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	ids, err := jellyfinLibraryIDs(ctx, env, key)
+	jellyfin := &API{Env: env, Base: env.URL("JELLYFIN_URL", "http://localhost:8096"), Headers: map[string]string{"Authorization": jellyfinAuthorization(key)}}
+	listed, err := jellyfinLibrariesByName(ctx, jellyfin)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("read jellyfin's libraries: %w", err)
 	}
 	current := section(settings[jellyfinApp])
 	connectJellyfin(env, key, current, section(settings["general"]), form)
 	var unlisted []string
 	for _, kind := range jellyfinLibraryKinds {
-		unlisted = append(unlisted, wireJellyfinLibraries(env, kind, declared, ids, current, form)...)
+		unlisted = append(unlisted, wireJellyfinLibraries(env, kind, declared, listed, current, form)...)
 	}
-	return unlisted, nil
-}
-
-func jellyfinLibraryIDs(ctx context.Context, env Env, key string) (map[string]string, error) {
-	jellyfin := &API{Env: env, Base: env.URL("JELLYFIN_URL", "http://localhost:8096"), Headers: map[string]string{"Authorization": jellyfinAuthorization(key)}}
-	var listed []map[string]any
-	if err := jellyfin.Get(ctx, "/Library/VirtualFolders", &listed); err != nil {
-		return nil, err
+	if len(unlisted) > 0 {
+		return Error{Message: "jellyfin has no library " + strings.Join(unlisted, ", ")}
 	}
-	ids := map[string]string{}
-	for _, library := range listed {
-		ids[text(library["Name"])] = text(library["ItemId"])
-	}
-	return ids, nil
+	return nil
 }
 
 func connectJellyfin(env Env, key string, current, general map[string]any, form bazarrForm) {
@@ -137,9 +119,9 @@ func connectJellyfin(env Env, key string, current, general map[string]any, form 
 		env.Change(bazarrApp, "turn on use_jellyfin")
 		form.set("settings-general-use_jellyfin", "true")
 	}
-	if url := "http://jellyfin:8096"; current["url"] != url {
-		env.Change(bazarrApp, fmt.Sprintf("set jellyfin url %s -> %s", show(current["url"]), url))
-		form.set("settings-jellyfin-url", url)
+	if jellyfinURL := "http://jellyfin:8096"; current["url"] != jellyfinURL {
+		env.Change(bazarrApp, fmt.Sprintf("set jellyfin url %s -> %s", show(current["url"]), jellyfinURL))
+		form.set("settings-jellyfin-url", jellyfinURL)
 	}
 	if current["apikey"] != key {
 		env.Change(bazarrApp, "set jellyfin api key")
@@ -147,24 +129,24 @@ func connectJellyfin(env Env, key string, current, general map[string]any, form 
 	}
 }
 
-func wireJellyfinLibraries(env Env, kind jellyfinLibraryKind, declared []map[string]any, ids map[string]string, current map[string]any, form bazarrForm) []string {
+func wireJellyfinLibraries(env Env, kind jellyfinLibraryKind, declared []map[string]any, listed map[string]map[string]any, current map[string]any, form bazarrForm) []string {
 	var names, found, unlisted []string
 	for _, library := range declared {
 		if text(library["type"]) != kind.jellyfinType {
 			continue
 		}
 		name := text(library[nameKey])
-		if ids[name] == "" {
+		if listed[name] == nil {
 			unlisted = append(unlisted, name)
 			continue
 		}
-		names, found = append(names, name), append(found, ids[name])
+		names, found = append(names, name), append(found, text(listed[name]["ItemId"]))
 	}
 	if len(names) == 0 {
 		return unlisted
 	}
 	field := "settings-jellyfin-" + kind.bazarrName
-	if show(current[kind.bazarrName+"_library"]) != show(stringsAsAny(names)) || show(current[kind.bazarrName+"_library_ids"]) != show(stringsAsAny(found)) {
+	if !slices.Equal(texts(current[kind.bazarrName+"_library"]), names) || !slices.Equal(texts(current[kind.bazarrName+"_library_ids"]), found) {
 		env.Change(bazarrApp, fmt.Sprintf("set jellyfin %s libraries %s -> %s", kind.bazarrName, show(current[kind.bazarrName+"_library"]), strings.Join(names, ", ")))
 		form.set(field+"_library", names...)
 		form.set(field+"_library_ids", found...)
@@ -176,10 +158,10 @@ func wireJellyfinLibraries(env Env, kind jellyfinLibraryKind, declared []map[str
 	return unlisted
 }
 
-func stringsAsAny(values []string) []any {
-	converted := make([]any, len(values))
-	for n, value := range values {
-		converted[n] = value
+func texts(values any) []string {
+	var converted []string
+	for _, value := range list(values) {
+		converted = append(converted, text(value))
 	}
 	return converted
 }

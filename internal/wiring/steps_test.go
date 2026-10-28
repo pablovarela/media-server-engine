@@ -27,7 +27,7 @@ func TestEachStepWaitsForTheAppsItChanges(t *testing.T) {
 
 	assert.Equal(t, []string{"sonarr", "radarr"}, waits["library-updates"])
 	assert.Equal(t, []string{"prowlarr", "sonarr", "radarr"}, waits["prowlarr-sync"])
-	assert.Equal(t, []string{"bazarr", "jellyfin"}, waits["bazarr"])
+	assert.Equal(t, []string{"bazarr"}, waits["bazarr"], "bazarr's own wiring goes ahead while jellyfin is down")
 	assert.Empty(t, waits["configarr"])
 }
 
