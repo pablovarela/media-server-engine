@@ -3,6 +3,7 @@ package wiring
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -71,6 +72,10 @@ func Bazarr(ctx context.Context, env Env) error {
 	if err != nil {
 		return err
 	}
+	unlisted, err := refreshJellyfin(ctx, env, entries(section(declared[jellyfinApp])["libraries"]), settings, form)
+	if err != nil {
+		return err
+	}
 	languageFailure := declaredLanguages(ctx, env, api, list(section(declared[bazarrApp])["languages"]), section(settings["general"]), form)
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -80,7 +85,103 @@ func Bazarr(ctx context.Context, env Env) error {
 			return err
 		}
 	}
-	return languageFailure
+	return errors.Join(noSuchLibraries(unlisted), languageFailure)
+}
+
+func noSuchLibraries(unlisted []string) error {
+	if len(unlisted) == 0 {
+		return nil
+	}
+	return Error{Message: "jellyfin has no library " + strings.Join(unlisted, ", ")}
+}
+
+type jellyfinLibraryKind struct {
+	jellyfinType, bazarrName string
+}
+
+var jellyfinLibraryKinds = []jellyfinLibraryKind{{"movies", "movie"}, {"tvshows", "series"}}
+
+func refreshJellyfin(ctx context.Context, env Env, declared []map[string]any, settings map[string]any, form bazarrForm) ([]string, error) {
+	key, err := jellyfinKey(env)
+	if err != nil {
+		return nil, err
+	}
+	ids, err := jellyfinLibraryIDs(ctx, env, key)
+	if err != nil {
+		return nil, err
+	}
+	current := section(settings[jellyfinApp])
+	connectJellyfin(env, key, current, section(settings["general"]), form)
+	var unlisted []string
+	for _, kind := range jellyfinLibraryKinds {
+		unlisted = append(unlisted, wireJellyfinLibraries(env, kind, declared, ids, current, form)...)
+	}
+	return unlisted, nil
+}
+
+func jellyfinLibraryIDs(ctx context.Context, env Env, key string) (map[string]string, error) {
+	jellyfin := &API{Env: env, Base: env.URL("JELLYFIN_URL", "http://localhost:8096"), Headers: map[string]string{"Authorization": jellyfinAuthorization(key)}}
+	var listed []map[string]any
+	if err := jellyfin.Get(ctx, "/Library/VirtualFolders", &listed); err != nil {
+		return nil, err
+	}
+	ids := map[string]string{}
+	for _, library := range listed {
+		ids[text(library["Name"])] = text(library["ItemId"])
+	}
+	return ids, nil
+}
+
+func connectJellyfin(env Env, key string, current, general map[string]any, form bazarrForm) {
+	if general["use_jellyfin"] != true {
+		env.Change(bazarrApp, "turn on use_jellyfin")
+		form.set("settings-general-use_jellyfin", "true")
+	}
+	if url := "http://jellyfin:8096"; current["url"] != url {
+		env.Change(bazarrApp, fmt.Sprintf("set jellyfin url %s -> %s", show(current["url"]), url))
+		form.set("settings-jellyfin-url", url)
+	}
+	if current["apikey"] != key {
+		env.Change(bazarrApp, "set jellyfin api key")
+		form.set("settings-jellyfin-apikey", key)
+	}
+}
+
+func wireJellyfinLibraries(env Env, kind jellyfinLibraryKind, declared []map[string]any, ids map[string]string, current map[string]any, form bazarrForm) []string {
+	var names, found, unlisted []string
+	for _, library := range declared {
+		if text(library["type"]) != kind.jellyfinType {
+			continue
+		}
+		name := text(library[nameKey])
+		if ids[name] == "" {
+			unlisted = append(unlisted, name)
+			continue
+		}
+		names, found = append(names, name), append(found, ids[name])
+	}
+	if len(names) == 0 {
+		return unlisted
+	}
+	field := "settings-jellyfin-" + kind.bazarrName
+	if show(current[kind.bazarrName+"_library"]) != show(stringsAsAny(names)) || show(current[kind.bazarrName+"_library_ids"]) != show(stringsAsAny(found)) {
+		env.Change(bazarrApp, fmt.Sprintf("set jellyfin %s libraries %s -> %s", kind.bazarrName, show(current[kind.bazarrName+"_library"]), strings.Join(names, ", ")))
+		form.set(field+"_library", names...)
+		form.set(field+"_library_ids", found...)
+	}
+	if current["update_"+kind.bazarrName+"_library"] != true {
+		env.Change(bazarrApp, "refresh jellyfin's "+kind.bazarrName+" libraries after each download")
+		form.set("settings-jellyfin-update_"+kind.bazarrName+"_library", "true")
+	}
+	return unlisted
+}
+
+func stringsAsAny(values []string) []any {
+	converted := make([]any, len(values))
+	for n, value := range values {
+		converted[n] = value
+	}
+	return converted
 }
 
 func declaredLanguages(ctx context.Context, env Env, api *API, languages []any, general map[string]any, form bazarrForm) error {

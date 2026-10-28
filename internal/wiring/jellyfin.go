@@ -64,7 +64,11 @@ func Jellyfin(ctx context.Context, env Env) error {
 }
 
 func (j *jellyfin) useToken(token string) {
-	j.api.Headers["Authorization"] = fmt.Sprintf(`%s, Token="%s"`, jellyfinClient, token)
+	j.api.Headers["Authorization"] = jellyfinAuthorization(token)
+}
+
+func jellyfinAuthorization(token string) string {
+	return fmt.Sprintf(`%s, Token="%s"`, jellyfinClient, token)
 }
 
 func (j *jellyfin) completeWizard(ctx context.Context, serverName string) error {
