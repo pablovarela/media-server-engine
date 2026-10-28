@@ -203,10 +203,13 @@ func TestStoppingAndStarting(t *testing.T) {
 
 func TestDetached(t *testing.T) {
 	ctx := context.Background()
+	behindGluetun := func(name string) types.ServiceConfig {
+		return types.ServiceConfig{Name: name, NetworkMode: "service:gluetun"}
+	}
 	project := &types.Project{Name: "media-server", Services: types.Services{
-		"gluetun": {Name: "gluetun"}, "deluge": {Name: "deluge"}, "prowlarr": {Name: "prowlarr"}, "flaresolverr": {Name: "flaresolverr"},
+		"gluetun": {Name: "gluetun"}, "sonarr": {Name: "sonarr"},
+		"deluge": behindGluetun("deluge"), "prowlarr": behindGluetun("prowlarr"), "flaresolverr": behindGluetun("flaresolverr"),
 	}}
-	dependents := []string{"prowlarr", "flaresolverr", "deluge", "not-in-project"}
 
 	type Given struct {
 		containers []api.ContainerSummary
@@ -233,10 +236,11 @@ func TestDetached(t *testing.T) {
 					{ID: "g2", Service: "gluetun", State: container.StateRunning},
 					{ID: "p1", Service: "prowlarr", State: container.StateRunning},
 					{ID: "d1", Service: "deluge", State: container.StateRunning},
+					{ID: "s1", Service: "sonarr", State: container.StateRunning},
 				},
 				modes: map[string]string{"p1": "container:g2", "d1": "container:g1"},
 			},
-			Then: []string{"flaresolverr", "deluge"},
+			Then: []string{"deluge", "flaresolverr"},
 		},
 		"gluetun not running": {
 			Given: Given{containers: []api.ContainerSummary{{ID: "g1", Service: "gluetun", State: container.StateExited}}},
@@ -253,7 +257,7 @@ func TestDetached(t *testing.T) {
 				docker.EXPECT().ContainerInspect(ctx, id, client.ContainerInspectOptions{}).Return(result, nil)
 			}
 
-			detached, err := (&Runner{service: service, docker: docker}).Detached(ctx, project, "gluetun", dependents)
+			detached, err := (&Runner{service: service, docker: docker}).Detached(ctx, project, "gluetun")
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.Then, detached)

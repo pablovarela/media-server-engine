@@ -74,7 +74,7 @@ bazarr:
 
 Deluge reads its settings at start, so when any of them differ `mse apply` stops Deluge, writes them and starts it again. The web password comes from the app secrets.
 
-Bazarr's default subtitle profile for series and movies gets the declared languages; a Bazarr without one gets a profile named Default. Other profiles are kept.
+Bazarr's default subtitle profile for series and movies gets the declared languages; a Bazarr without one gets a profile named Default. Other profiles are kept. Bazarr refreshes the declared Jellyfin libraries after each subtitle download, and its analytics are turned off.
 
 Sonarr, Radarr and Prowlarr need no login from the local network. From anywhere else they ask for one, and none exists, so they stay closed. Devices on Tailscale count as local when they reach the network through a subnet router; otherwise turn on Trust CGNAT IP addresses in each app's security settings.
 

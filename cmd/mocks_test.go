@@ -1102,8 +1102,8 @@ func (_c *mockComposeRunner_Containers_Call) RunAndReturn(run func(ctx context.C
 }
 
 // Detached provides a mock function for the type mockComposeRunner
-func (_mock *mockComposeRunner) Detached(ctx context.Context, project *types.Project, from string, dependents []string) ([]string, error) {
-	ret := _mock.Called(ctx, project, from, dependents)
+func (_mock *mockComposeRunner) Detached(ctx context.Context, project *types.Project, from string) ([]string, error) {
+	ret := _mock.Called(ctx, project, from)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Detached")
@@ -1111,18 +1111,18 @@ func (_mock *mockComposeRunner) Detached(ctx context.Context, project *types.Pro
 
 	var r0 []string
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project, string, []string) ([]string, error)); ok {
-		return returnFunc(ctx, project, from, dependents)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project, string) ([]string, error)); ok {
+		return returnFunc(ctx, project, from)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project, string, []string) []string); ok {
-		r0 = returnFunc(ctx, project, from, dependents)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *types.Project, string) []string); ok {
+		r0 = returnFunc(ctx, project, from)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]string)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, *types.Project, string, []string) error); ok {
-		r1 = returnFunc(ctx, project, from, dependents)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *types.Project, string) error); ok {
+		r1 = returnFunc(ctx, project, from)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -1138,12 +1138,11 @@ type mockComposeRunner_Detached_Call struct {
 //   - ctx context.Context
 //   - project *types.Project
 //   - from string
-//   - dependents []string
-func (_e *mockComposeRunner_Expecter) Detached(ctx any, project any, from any, dependents any) *mockComposeRunner_Detached_Call {
-	return &mockComposeRunner_Detached_Call{Call: _e.mock.On("Detached", ctx, project, from, dependents)}
+func (_e *mockComposeRunner_Expecter) Detached(ctx any, project any, from any) *mockComposeRunner_Detached_Call {
+	return &mockComposeRunner_Detached_Call{Call: _e.mock.On("Detached", ctx, project, from)}
 }
 
-func (_c *mockComposeRunner_Detached_Call) Run(run func(ctx context.Context, project *types.Project, from string, dependents []string)) *mockComposeRunner_Detached_Call {
+func (_c *mockComposeRunner_Detached_Call) Run(run func(ctx context.Context, project *types.Project, from string)) *mockComposeRunner_Detached_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -1157,15 +1156,10 @@ func (_c *mockComposeRunner_Detached_Call) Run(run func(ctx context.Context, pro
 		if args[2] != nil {
 			arg2 = args[2].(string)
 		}
-		var arg3 []string
-		if args[3] != nil {
-			arg3 = args[3].([]string)
-		}
 		run(
 			arg0,
 			arg1,
 			arg2,
-			arg3,
 		)
 	})
 	return _c
@@ -1176,7 +1170,7 @@ func (_c *mockComposeRunner_Detached_Call) Return(strings []string, err error) *
 	return _c
 }
 
-func (_c *mockComposeRunner_Detached_Call) RunAndReturn(run func(ctx context.Context, project *types.Project, from string, dependents []string) ([]string, error)) *mockComposeRunner_Detached_Call {
+func (_c *mockComposeRunner_Detached_Call) RunAndReturn(run func(ctx context.Context, project *types.Project, from string) ([]string, error)) *mockComposeRunner_Detached_Call {
 	_c.Call.Return(run)
 	return _c
 }

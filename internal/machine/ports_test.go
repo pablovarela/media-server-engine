@@ -105,7 +105,7 @@ func TestStackPortsOfTheEnginesComposeFile(t *testing.T) {
 	assert.Empty(t, unreadable)
 	assert.Equal(t, []Port{
 		{8096, "tcp"}, {8920, "tcp"}, {7359, "udp"}, {1900, "udp"}, {8112, "tcp"}, {58846, "tcp"}, {58946, "tcp"},
-		{6881, "tcp"}, {6881, "udp"}, {9696, "tcp"}, {8198, "tcp"}, {8989, "tcp"}, {7878, "tcp"}, {6767, "tcp"},
+		{6881, "tcp"}, {6881, "udp"}, {9696, "tcp"}, {6767, "tcp"}, {8198, "tcp"}, {8989, "tcp"}, {7878, "tcp"},
 		{9000, "tcp"}, {5055, "tcp"}, {6246, "tcp"}, {80, "tcp"},
 	}, ports)
 }

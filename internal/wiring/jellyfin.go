@@ -64,7 +64,23 @@ func Jellyfin(ctx context.Context, env Env) error {
 }
 
 func (j *jellyfin) useToken(token string) {
-	j.api.Headers["Authorization"] = fmt.Sprintf(`%s, Token="%s"`, jellyfinClient, token)
+	j.api.Headers["Authorization"] = jellyfinAuthorization(token)
+}
+
+func jellyfinLibrariesByName(ctx context.Context, api *API) (map[string]map[string]any, error) {
+	var listed []map[string]any
+	if err := api.Get(ctx, "/Library/VirtualFolders", &listed); err != nil {
+		return nil, err
+	}
+	byName := map[string]map[string]any{}
+	for _, library := range listed {
+		byName[text(library["Name"])] = library
+	}
+	return byName, nil
+}
+
+func jellyfinAuthorization(token string) string {
+	return fmt.Sprintf(`%s, Token="%s"`, jellyfinClient, token)
 }
 
 func (j *jellyfin) completeWizard(ctx context.Context, serverName string) error {
@@ -173,13 +189,9 @@ func (j *jellyfin) wireServerName(ctx context.Context, serverName string) error 
 }
 
 func (j *jellyfin) wireLibraries(ctx context.Context, libraries []map[string]any) error {
-	var listed []map[string]any
-	if err := j.api.Get(ctx, "/Library/VirtualFolders", &listed); err != nil {
+	current, err := jellyfinLibrariesByName(ctx, j.api)
+	if err != nil {
 		return err
-	}
-	current := map[string]map[string]any{}
-	for _, library := range listed {
-		current[text(library["Name"])] = library
 	}
 	scan := false
 	for _, library := range libraries {

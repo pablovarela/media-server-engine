@@ -3,10 +3,12 @@ package wiring
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -66,10 +68,12 @@ func Bazarr(ctx context.Context, env Env) error {
 	}
 	form := bazarrForm{values: url.Values{}}
 	connectArrs(env, keys, section(settings["general"]), settings, form)
+	turnOffAnalytics(env, section(settings["analytics"]), form)
 	declared, err := env.Declared("apps.yml")
 	if err != nil {
 		return err
 	}
+	jellyfinFailure := refreshJellyfin(ctx, env, entries(section(declared[jellyfinApp])["libraries"]), settings, form)
 	languageFailure := declaredLanguages(ctx, env, api, list(section(declared[bazarrApp])["languages"]), section(settings["general"]), form)
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -79,7 +83,87 @@ func Bazarr(ctx context.Context, env Env) error {
 			return err
 		}
 	}
-	return languageFailure
+	return errors.Join(jellyfinFailure, languageFailure)
+}
+
+type jellyfinLibraryKind struct {
+	jellyfinType, bazarrName string
+}
+
+var jellyfinLibraryKinds = []jellyfinLibraryKind{{"movies", "movie"}, {"tvshows", "series"}}
+
+func refreshJellyfin(ctx context.Context, env Env, declared []map[string]any, settings map[string]any, form bazarrForm) error {
+	key, err := jellyfinKey(env)
+	if err != nil {
+		return err
+	}
+	jellyfin := &API{Env: env, Base: env.URL("JELLYFIN_URL", "http://localhost:8096"), Headers: map[string]string{"Authorization": jellyfinAuthorization(key)}}
+	listed, err := jellyfinLibrariesByName(ctx, jellyfin)
+	if err != nil {
+		return fmt.Errorf("read jellyfin's libraries: %w", err)
+	}
+	current := section(settings[jellyfinApp])
+	connectJellyfin(env, key, current, section(settings["general"]), form)
+	var unlisted []string
+	for _, kind := range jellyfinLibraryKinds {
+		unlisted = append(unlisted, wireJellyfinLibraries(env, kind, declared, listed, current, form)...)
+	}
+	if len(unlisted) > 0 {
+		return Error{Message: "jellyfin has no library " + strings.Join(unlisted, ", ")}
+	}
+	return nil
+}
+
+func connectJellyfin(env Env, key string, current, general map[string]any, form bazarrForm) {
+	if general["use_jellyfin"] != true {
+		env.Change(bazarrApp, "turn on use_jellyfin")
+		form.set("settings-general-use_jellyfin", "true")
+	}
+	if jellyfinURL := "http://jellyfin:8096"; current["url"] != jellyfinURL {
+		env.Change(bazarrApp, fmt.Sprintf("set jellyfin url %s -> %s", show(current["url"]), jellyfinURL))
+		form.set("settings-jellyfin-url", jellyfinURL)
+	}
+	if current["apikey"] != key {
+		env.Change(bazarrApp, "set jellyfin api key")
+		form.set("settings-jellyfin-apikey", key)
+	}
+}
+
+func wireJellyfinLibraries(env Env, kind jellyfinLibraryKind, declared []map[string]any, listed map[string]map[string]any, current map[string]any, form bazarrForm) []string {
+	var names, found, unlisted []string
+	for _, library := range declared {
+		if text(library["type"]) != kind.jellyfinType {
+			continue
+		}
+		name := text(library[nameKey])
+		if listed[name] == nil {
+			unlisted = append(unlisted, name)
+			continue
+		}
+		names, found = append(names, name), append(found, text(listed[name]["ItemId"]))
+	}
+	if len(names) == 0 {
+		return unlisted
+	}
+	field := "settings-jellyfin-" + kind.bazarrName
+	if !slices.Equal(texts(current[kind.bazarrName+"_library"]), names) || !slices.Equal(texts(current[kind.bazarrName+"_library_ids"]), found) {
+		env.Change(bazarrApp, fmt.Sprintf("set jellyfin %s libraries %s -> %s", kind.bazarrName, show(current[kind.bazarrName+"_library"]), strings.Join(names, ", ")))
+		form.set(field+"_library", names...)
+		form.set(field+"_library_ids", found...)
+	}
+	if current["update_"+kind.bazarrName+"_library"] != true {
+		env.Change(bazarrApp, "refresh jellyfin's "+kind.bazarrName+" libraries after each download")
+		form.set("settings-jellyfin-update_"+kind.bazarrName+"_library", "true")
+	}
+	return unlisted
+}
+
+func texts(values any) []string {
+	var converted []string
+	for _, value := range list(values) {
+		converted = append(converted, text(value))
+	}
+	return converted
 }
 
 func declaredLanguages(ctx context.Context, env Env, api *API, languages []any, general map[string]any, form bazarrForm) error {
@@ -118,6 +202,14 @@ func connectArrs(env Env, keys map[string]string, general, settings map[string]a
 			form.set("settings-general-use_"+arr.kind, "true")
 		}
 	}
+}
+
+func turnOffAnalytics(env Env, analytics map[string]any, form bazarrForm) {
+	if analytics["enabled"] == false {
+		return
+	}
+	env.Change(bazarrApp, "turn off analytics")
+	form.set("settings-analytics-enabled", "false")
 }
 
 func wireLanguages(ctx context.Context, env Env, api *API, general map[string]any, languages []string, form bazarrForm) error {

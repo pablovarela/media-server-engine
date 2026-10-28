@@ -88,6 +88,19 @@ func environment(t *testing.T, service types.ServiceConfig, key string) string {
 
 type shippedCheck func(t *testing.T, i *installation.Installation, services types.Services)
 
+func reachesTheInternetThroughTheVPN(app string, port uint32) shippedCheck {
+	return func(t *testing.T, _ *installation.Installation, services types.Services) {
+		assert.Equal(t, "service:gluetun", services[app].NetworkMode)
+		assert.Contains(t, services[app].DependsOn, "gluetun")
+		assert.Empty(t, services[app].Ports, "%s's ports are published by gluetun", app)
+		var published []uint32
+		for _, p := range services["gluetun"].Ports {
+			published = append(published, p.Target)
+		}
+		assert.Contains(t, published, port)
+	}
+}
+
 func takesItsAPIKeyFromItsOwnSecretsFile(app, key string) shippedCheck {
 	return func(t *testing.T, _ *installation.Installation, services types.Services) {
 		assert.Equal(t, key, environment(t, services[app], strings.ToUpper(app)+"__AUTH__APIKEY"))
@@ -336,6 +349,10 @@ func TestTheShippedComposeFiles(t *testing.T) {
 		"bazarr mounts the shared data folder": {
 			When: When{kind: Stack},
 			Then: mountsTheSharedDataFolder("bazarr"),
+		},
+		"bazarr reaches the internet through the VPN": {
+			When: When{kind: Stack},
+			Then: reachesTheInternetThroughTheVPN("bazarr", 6767),
 		},
 		"jellyfin mounts the shared data folder": {
 			When: When{kind: Stack},

@@ -86,10 +86,10 @@
     - Bazarr:
         href: http://@HOST@:6767
         icon: bazarr.png
-        siteMonitor: http://bazarr:6767
+        siteMonitor: http://gluetun:6767
         widget:
           type: bazarr
-          url: http://bazarr:6767
+          url: http://gluetun:6767
           key: "{{HOMEPAGE_VAR_BAZARR_KEY}}"
 - Status:
     - Healthchecks:

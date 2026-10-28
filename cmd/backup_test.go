@@ -191,7 +191,7 @@ func TestRestoreMediaThenStarts(t *testing.T) {
 				assert.Equal(t, tt.restores, restores, "the stack starts after every restore")
 				return nil
 			})
-			f.composer.EXPECT().Detached(mock.Anything, f.project, "gluetun", gluetunDependents).Return(nil, nil)
+			f.composer.EXPECT().Detached(mock.Anything, f.project, "gluetun").Return(nil, nil)
 			f.composer.EXPECT().Ps(mock.Anything, f.project).Return(nil, nil)
 			root := NewRootCommand(f.deps(t, false))
 			var stdout, stderr bytes.Buffer

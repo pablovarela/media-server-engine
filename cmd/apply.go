@@ -30,8 +30,6 @@ import (
 	"github.com/pablovarela/media-server-engine/internal/wiring"
 )
 
-var gluetunDependents = []string{"prowlarr", "flaresolverr", "deluge"}
-
 func newApplyCommand(deps Dependencies) *cobra.Command {
 	var afterUpdate string
 	command := &cobra.Command{
@@ -279,7 +277,7 @@ func (s appliedStack) Up(ctx context.Context) (string, error) {
 }
 
 func (s appliedStack) Reattach(ctx context.Context) (string, error) {
-	detached, err := s.runner.Detached(ctx, s.project, "gluetun", gluetunDependents)
+	detached, err := s.runner.Detached(ctx, s.project, "gluetun")
 	if err != nil || len(detached) == 0 {
 		return "nothing to reattach", err
 	}

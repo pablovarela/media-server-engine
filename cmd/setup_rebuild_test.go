@@ -412,7 +412,7 @@ func TestSetupKeepingTheAppDataStartsTheStackEvenWithAMediaBackup(t *testing.T) 
 	composer.EXPECT().Load(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(project, nil)
 	composer.EXPECT().Pull(mock.Anything, project).Return(compose.Pulled{}, nil)
 	composer.EXPECT().Up(mock.Anything, project, mock.Anything, mock.Anything).Return(errors.New("stop at the start"))
-	composer.EXPECT().Detached(mock.Anything, project, mock.Anything, mock.Anything).Return(nil, nil).Maybe()
+	composer.EXPECT().Detached(mock.Anything, project, mock.Anything).Return(nil, nil).Maybe()
 	f.deps.Compose = func(io.Writer, *compose.Outcomes) (composeRunner, error) { return composer, nil }
 
 	_, _, stderr := f.join(t, "gorgon")
