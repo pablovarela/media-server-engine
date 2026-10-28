@@ -33,7 +33,7 @@ type composeRunner interface {
 	Start(ctx context.Context, project *types.Project, services []string) error
 	Pull(ctx context.Context, project *types.Project) (compose.Pulled, error)
 	Recreate(ctx context.Context, project *types.Project, services []string) error
-	Detached(ctx context.Context, project *types.Project, from string, dependents []string) ([]string, error)
+	Detached(ctx context.Context, project *types.Project, from string) ([]string, error)
 	RunOnce(ctx context.Context, project *types.Project, service string, out io.Writer) (int, error)
 }
 

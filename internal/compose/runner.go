@@ -330,7 +330,7 @@ func (r *Runner) Recreate(ctx context.Context, project *types.Project, services 
 	})
 }
 
-func (r *Runner) Detached(ctx context.Context, project *types.Project, from string, dependents []string) ([]string, error) {
+func (r *Runner) Detached(ctx context.Context, project *types.Project, from string) ([]string, error) {
 	summaries, err := r.service.Ps(ctx, project.Name, api.PsOptions{Project: project, All: true})
 	if err != nil {
 		return nil, err
@@ -346,10 +346,7 @@ func (r *Runner) Detached(ctx context.Context, project *types.Project, from stri
 		return nil, nil
 	}
 	var detached []string
-	for _, dependent := range dependents {
-		if _, inProject := project.Services[dependent]; !inProject {
-			continue
-		}
+	for _, dependent := range servicesInTheNetworkOf(project, from) {
 		attached, err := r.attachedTo(ctx, ids[dependent], hub)
 		if err != nil {
 			return nil, err
@@ -359,6 +356,17 @@ func (r *Runner) Detached(ctx context.Context, project *types.Project, from stri
 		}
 	}
 	return detached, nil
+}
+
+func servicesInTheNetworkOf(project *types.Project, hub string) []string {
+	var dependents []string
+	for name, service := range project.Services {
+		if service.NetworkMode == "service:"+hub {
+			dependents = append(dependents, name)
+		}
+	}
+	slices.Sort(dependents)
+	return dependents
 }
 
 func (r *Runner) attachedTo(ctx context.Context, id, hub string) (bool, error) {

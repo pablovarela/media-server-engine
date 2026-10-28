@@ -107,7 +107,7 @@ func (f applyFixture) expectApply(pullErr error) {
 		return
 	}
 	f.composer.EXPECT().Up(mock.Anything, f.project, []string(nil), compose.NoWait).Return(nil)
-	f.composer.EXPECT().Detached(mock.Anything, f.project, "gluetun", gluetunDependents).Return(nil, nil)
+	f.composer.EXPECT().Detached(mock.Anything, f.project, "gluetun").Return(nil, nil)
 	f.composer.EXPECT().Ps(mock.Anything, f.project).Return(nil, nil)
 }
 
@@ -219,7 +219,7 @@ func TestApplyReattachesTheDetachedServices(t *testing.T) {
 	f.composer.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, mock.Anything).Return(f.project, nil)
 	f.composer.EXPECT().Pull(mock.Anything, f.project).Return(compose.Pulled{}, nil)
 	f.composer.EXPECT().Up(mock.Anything, f.project, []string(nil), compose.NoWait).Return(nil)
-	f.composer.EXPECT().Detached(mock.Anything, f.project, "gluetun", gluetunDependents).Return([]string{"deluge"}, nil)
+	f.composer.EXPECT().Detached(mock.Anything, f.project, "gluetun").Return([]string{"deluge"}, nil)
 	f.composer.EXPECT().Recreate(mock.Anything, f.project, []string{"deluge"}).Return(nil)
 	f.composer.EXPECT().Ps(mock.Anything, f.project).Return(nil, nil)
 	root := NewRootCommand(f.deps(t, false))
@@ -337,7 +337,7 @@ func TestAPanicAfterAnUpdateStillReportsFail(t *testing.T) {
 	f.composer.EXPECT().Load(mock.Anything, mock.Anything, compose.Stack, mock.Anything, mock.Anything).Return(f.project, nil)
 	f.composer.EXPECT().Pull(mock.Anything, f.project).Return(compose.Pulled{}, nil)
 	f.composer.EXPECT().Up(mock.Anything, f.project, []string(nil), compose.NoWait).Return(nil)
-	f.composer.EXPECT().Detached(mock.Anything, f.project, "gluetun", gluetunDependents).Return(nil, nil)
+	f.composer.EXPECT().Detached(mock.Anything, f.project, "gluetun").Return(nil, nil)
 	deps := f.deps(t, false)
 	deps.WiringSteps = func(wiring.OneOff, io.Writer) ([]wiring.Step, error) {
 		return []wiring.Step{{Name: "seerr", Run: func(context.Context, wiring.Env) error { panic("a bug") }}}, nil
