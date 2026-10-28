@@ -22,6 +22,6 @@ services:
   seerr:
     image: ghcr.io/seerr-team/seerr:v3.5.1@sha256:d8fab675b55ad293ded98fd71efcfd46054cbad9746534ae1cc4794a88c0b3be
   maintainerr:
-    image: ghcr.io/maintainerr/maintainerr:3.30.2@sha256:816779316fc9a2d8e45946dc7a0e676784bc1453eaaff701900132ab67d5abba
+    image: ghcr.io/maintainerr/maintainerr:3.31.0@sha256:33d86e5f03ed25204788b1e9cd9a2b3f0299cf49fae968220484b57008962399
   homepage:
     image: ghcr.io/gethomepage/homepage:v2.7.0@sha256:19c5c09184458a41b7b5915e71463a39f36cd33540f41bdbed008791b8182d5f
