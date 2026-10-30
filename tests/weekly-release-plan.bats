@@ -1,6 +1,7 @@
 bats_require_minimum_version 1.5.0
 
 RENOVATE='29139614+renovate[bot]@users.noreply.github.com'
+DEPENDABOT='49699333+dependabot[bot]@users.noreply.github.com'
 
 setup() {
   REPO="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
@@ -58,6 +59,14 @@ plan() {
   plan
   [[ "$output" == *$'**Images in the config template**\n- Update template images (#12)'* ]]
   [[ "$output" != *"**Dependencies**"* ]]
+}
+
+@test "Dependabot's updates are dependencies, like Renovate's" {
+  commit_as "$DEPENDABOT" "Bump github.com/a/b from 1.0.0 to 1.0.1 in /tools (#21)" tools/go.sum
+  commit_as "$RENOVATE" "Update module github.com/c/d to v1.0.1 (#22)" go.sum
+  plan
+  [ "${lines[0]}" = "release v0.1.1" ]
+  [[ "$output" == *$'**Dependencies**\n- Bump github.com/a/b from 1.0.0 to 1.0.1 in /tools (#21)\n- Update module github.com/c/d to v1.0.1 (#22)'* ]]
 }
 
 @test "a person's Markdown-only change rides along under Docs" {
