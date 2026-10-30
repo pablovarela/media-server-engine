@@ -27,7 +27,7 @@
 
 ## Renovate
 
-Renovate opens pull requests for the template's images (grouped weekly), the workflow's actions, shellcheck, restic and the Go modules (the engine's and `tools/go.mod`, tidied after each update). Merge them like any other pull request once CI passes.
+Renovate opens pull requests for the template's images (grouped weekly), the workflow's actions, shellcheck, restic and the Go modules (the engine's and `tools/go.mod`, tidied after each update). Merge them like any other pull request once CI passes. Dependabot security updates are also on in the repository settings, and their pull requests are merged the same way.
 
 `mse` pins its restic in `internal/restic/release.env`. Renovate bumps `RESTIC_VERSION`; the pull request fails `tool-pins` until the four `RESTIC_SHA256_<os>_<arch>` lines are copied from the release's `SHA256SUMS`.
 

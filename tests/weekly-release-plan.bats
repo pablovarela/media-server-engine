@@ -65,6 +65,7 @@ plan() {
   commit_as "$DEPENDABOT" "Bump github.com/a/b from 1.0.0 to 1.0.1 in /tools (#21)" tools/go.sum
   commit_as "$RENOVATE" "Update module github.com/c/d to v1.0.1 (#22)" go.sum
   plan
+  [ "$status" -eq 0 ]
   [ "${lines[0]}" = "release v0.1.1" ]
   [[ "$output" == *$'**Dependencies**\n- Bump github.com/a/b from 1.0.0 to 1.0.1 in /tools (#21)\n- Update module github.com/c/d to v1.0.1 (#22)'* ]]
 }
