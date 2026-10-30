@@ -27,7 +27,7 @@
 
 ## Renovate
 
-Renovate opens pull requests for the template's images (grouped weekly), the workflow's actions, shellcheck, restic and the Go modules (the engine's and `tools/go.mod`, tidied after each update). Merge them like any other pull request once CI passes.
+Renovate opens pull requests for the template's images (grouped weekly), the workflow's actions, shellcheck, restic and the Go modules (the engine's and `tools/go.mod`, tidied after each update). Merge them like any other pull request once CI passes. Dependabot security updates are also on in the repository settings, and their pull requests are merged the same way.
 
 `mse` pins its restic in `internal/restic/release.env`. Renovate bumps `RESTIC_VERSION`; the pull request fails `tool-pins` until the four `RESTIC_SHA256_<os>_<arch>` lines are copied from the release's `SHA256SUMS`.
 
@@ -36,9 +36,9 @@ Renovate opens pull requests for the template's images (grouped weekly), the wor
 Releases are tags on `main`, `vMAJOR.MINOR.PATCH`. The major version is also the version of the config format: the template's `config-template/config.yml` holds it as `config:`, and a release that bumps the major bumps that too (the release workflow refuses a tag whose major differs). `mse update` installs any newer release of the same major, so from 1.0.0 a minor or patch release must not need config changes. Until then every 0.x release is the same major: a 0.x release may still change the config, and its notes say what to change.
 
 1. Once CI passes on `main`, tag the commit to release and push the tag: `git tag -a v0.9.0 -m v0.9.0 && git push origin v0.9.0`.
-2. The `release` workflow checks that the tag's major is the `config:` in `config-template/config.yml`, then builds `mse` with GoReleaser and publishes the GitHub release with the archives, `checksums.txt` and `install.sh`.
+2. The `release` workflow checks that the tag's major is the `config:` in `config-template/config.yml`, then builds `mse` with GoReleaser and publishes the GitHub release with the archives, `checksums.txt` and `install.sh`. Releases are immutable once published, so never create the release in GitHub's UI: it publishes an empty release before the workflow can attach the archives, and that tag can't be used again.
 3. Replace the release's body with notes that say what changes for an installation and whether its config needs anything: `gh release edit v0.9.0 --notes-file notes.md`.
 
 An installation picks up the release with `mse update`, which takes the newest release of its major version.
 
-Every Monday at 06:00 UTC the `weekly-release` workflow releases a patch version when everything merged since the last release is a Renovate update or a change to Markdown files only, and main's `test` workflow passed on it. Its notes list the updates by kind. Anything else since the last release, such as a feature or a fix, holds it: the run's summary lists those commits, and they are released by hand with a tag as above. Run it on command from the Actions tab or with `gh workflow run weekly-release.yml`; `-f dry_run=true` reports what it would release without releasing.
+Every Monday at 06:00 UTC the `weekly-release` workflow releases a patch version when everything merged since the last release is a Renovate or Dependabot update or a change to Markdown files only, and main's `test` workflow passed on it. Its notes list the updates by kind. Anything else since the last release, such as a feature or a fix, holds it: the run's summary lists those commits, and they are released by hand with a tag as above. Run it on command from the Actions tab or with `gh workflow run weekly-release.yml`; `-f dry_run=true` reports what it would release without releasing.

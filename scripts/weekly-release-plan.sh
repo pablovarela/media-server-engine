@@ -2,6 +2,7 @@
 set -euo pipefail
 
 renovate='29139614+renovate[bot]@users.noreply.github.com'
+dependabot='49699333+dependabot[bot]@users.noreply.github.com'
 
 latest=$(git tag --list 'v*' --sort=-version:refname | head -n 1)
 if [ -z "$latest" ]; then
@@ -28,7 +29,7 @@ for commit in $commits; do
     held+="- $(git log -1 --format='%h %s (%an)' "$commit")"$'\n'
   elif [ "$email" = "$renovate" ] && grep -q '^config-template/' <<<"$files"; then
     images+="- $subject"$'\n'
-  elif [ "$email" = "$renovate" ]; then
+  elif [ "$email" = "$renovate" ] || [ "$email" = "$dependabot" ]; then
     dependencies+="- $subject"$'\n'
   elif [ -n "$files" ] && ! grep -qv '\.md$' <<<"$files"; then
     docs+="- $subject"$'\n'
