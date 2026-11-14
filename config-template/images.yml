@@ -20,7 +20,7 @@ services:
   configarr:
     image: ghcr.io/raydak-labs/configarr:1.38.0-alpine3.22@sha256:0e14337fef1c2c0193537b6ea301b52c464ef0718a6f5165ebc7334d7fd10451
   seerr:
-    image: ghcr.io/seerr-team/seerr:v3.5.1@sha256:d8fab675b55ad293ded98fd71efcfd46054cbad9746534ae1cc4794a88c0b3be
+    image: ghcr.io/seerr-team/seerr:v3.5.2@sha256:aadee014b40e28cf9aa4928bc9d1183a6eb08f8c44d543cddc9efdcb16549be2
   maintainerr:
     image: ghcr.io/maintainerr/maintainerr:3.31.0@sha256:33d86e5f03ed25204788b1e9cd9a2b3f0299cf49fae968220484b57008962399
   homepage:
